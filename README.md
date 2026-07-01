@@ -62,6 +62,7 @@ npm create avalanche-app@latest my-app -- --template nft-mint
 | `token-gated-app` | Unlock content for holders of an access-pass NFT |
 | `erc20-token` | Deploy an ERC-20, mint supply, and transfer |
 | `icm-messenger` | Send a message between two Avalanche L1s over Interchain Messaging, on a one-command local devnet |
+| `eerc-token` | Register, mint, and privately transfer tokens with hidden balances (Encrypted ERC) |
 
 Every template ships with a social-login wallet, shadcn/ui (black & white, dark/light), and AI context files.
 

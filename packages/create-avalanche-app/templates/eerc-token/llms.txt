@@ -1,0 +1,25 @@
+# __PROJECT_NAME__
+
+> An Avalanche confidential-token dapp scaffolded with AvaKit, built on Avalanche's Encrypted ERC (eERC) standard. Register, mint, and privately transfer tokens with hidden balances. Next.js + @avakit/react + @avalabs/eerc-sdk + shadcn/ui.
+
+## Project map
+
+- [lib/eerc-config.ts](lib/eerc-config.ts): deployed eERC contract address + CDN circuit URLs.
+- [app/providers.tsx](app/providers.tsx): `<AvaKitProvider>` (wallet) + `<WagmiProvider>` (required by the eERC SDK's internal reads).
+- [components/demo.tsx](components/demo.tsx): register → unlock → mint → confidential transfer → burn.
+- [CLAUDE.md](CLAUDE.md): agent guide — flow, why this template deviates from AvaKit's usual pattern, how to deploy your own instance.
+
+## Key APIs
+
+- Init: `useEERC(publicClient, walletClient, EERC_CONTRACT_ADDRESS, circuitURLs)` from `@avalabs/eerc-sdk`.
+- Register: `eerc.register()` (one-time, on-chain, idempotent).
+- Unlock: `eerc.generateDecryptionKey()` (per session, off-chain, no gas).
+- Balance + actions: `eerc.useEncryptedBalance()` → `privateMint(to, amount)` (owner-only), `privateTransfer(to, amount)`, `privateBurn(amount)`, `decryptedBalance`, `parsedDecryptedBalance`.
+- Amounts are base units (token has 2 decimals) — convert with `parseUnits`/`formatUnits`.
+
+## External docs
+
+- eERC contracts + deploy scripts: https://github.com/ava-labs/EncryptedERC
+- eERC SDK: https://avacloud.gitbook.io/encrypted-erc/d87pGPcNAEEw9ISVd17M/usage/sdk-overview
+- Avalanche Builder Hub: https://build.avax.network/llms.txt
+- Fuji faucet: https://core.app/tools/testnet-faucet

@@ -1,0 +1,41 @@
+---
+description: AvaKit eERC (confidential token) conventions for this project
+globs: ["**/*.ts", "**/*.tsx", "**/*.css"]
+alwaysApply: true
+---
+
+# AvaKit eERC project rules
+
+Register, mint, and privately transfer tokens with hidden balances using Avalanche's Encrypted ERC standard.
+
+## Flow
+
+- Init: `useEERC(publicClient, walletClient, EERC_CONTRACT_ADDRESS, circuitURLs)` (config in `lib/eerc-config.ts`).
+- Register (one-time, on-chain, idempotent): `eerc.register()`.
+- Unlock (per session, off-chain, free): `eerc.generateDecryptionKey()`.
+- Balance/actions: `eerc.useEncryptedBalance()` → `privateMint` (owner-only), `privateTransfer`, `privateBurn`.
+
+## Wallet client
+
+`@avakit/core`'s `getWalletClient` does not attach an `account`, but the eERC SDK requires
+`wallet.account.address` to be set. Build the wallet client directly:
+`createWalletClient({ chain: toViemChain(chain), transport: custom(provider), account: address })`.
+
+## Amounts
+
+- The token has 2 decimals (read `balance.decimals`, don't hardcode). Always convert with
+  `parseUnits` / `formatUnits`.
+
+## Contract
+
+- No bundled `contracts/` — this template points at a shared, pre-deployed standalone eERC
+  instance on Fuji. To mint from your own wallet you must deploy your own instance (see
+  `CLAUDE.md`) since `privateMint` is `onlyOwner`.
+
+## UI & safety
+
+- shadcn/ui only; black & white for now; dark/light via next-themes; both must work.
+- Animations: Framer Motion or GSAP only.
+- Registering/minting/transferring/burning cost gas (except unlocking); fund the wallet on Fuji first.
+- Default chain is Fuji testnet; mainnet requires explicit opt-in.
+- wagmi is pinned to 2.x (not the latest major) because `@avalabs/eerc-sdk` peer-depends on `^2.0.0`.

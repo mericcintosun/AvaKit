@@ -220,6 +220,19 @@ export const templates: Template[] = [
     ],
     art: "/abstract.jpg",
   },
+  {
+    id: "eerc-token",
+    title: "Confidential token (eERC)",
+    description:
+      "Register, mint, and privately transfer tokens with hidden balances using Avalanche's Encrypted ERC standard.",
+    contracts: false,
+    highlights: [
+      "Zero-knowledge proofs, generated in the browser",
+      "Hidden balances and transfer amounts",
+      "Built on the official @avalabs/eerc-sdk",
+    ],
+    art: "/abstract.jpg",
+  },
 ];
 
 export type McpTool = {

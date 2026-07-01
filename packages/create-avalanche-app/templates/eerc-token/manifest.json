@@ -1,0 +1,6 @@
+{
+  "id": "eerc-token",
+  "title": "Confidential token (eERC)",
+  "description": "Register, mint, and privately transfer tokens with hidden balances using Avalanche's Encrypted ERC standard",
+  "contracts": false
+}
