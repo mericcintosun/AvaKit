@@ -1,6 +1,7 @@
 import type { Address, EIP1193Provider } from "viem";
 import type { AvaChain } from "../chains.js";
 import { WalletConnectionError, WalletNotAvailableError } from "../errors.js";
+import { ensureChain } from "../network.js";
 import type { WalletAdapter, WalletConnection } from "./types.js";
 
 /**
@@ -9,12 +10,13 @@ import type { WalletAdapter, WalletConnection } from "./types.js";
  * provider; keys stay inside Web3Auth's HSM-backed infrastructure.
  *
  * ──────────────────────────────────────────────────────────────────────────
- * ⚠️  LIVE-VALIDATION PENDING. This is written against the documented
- *     @web3auth/modal v11 flow but has NOT been run end-to-end (a free
- *     NEXT_PUBLIC_WEB3AUTH_CLIENT_ID and a browser are required). The v11
- *     constructor/config surface is version-sensitive — if a future SDK build
- *     changes it, only this file needs adjusting. The injected adapter is the
- *     verified M1 default. See docs/04-adr.md (ADR-011).
+ * ⚠️  LIVE-VALIDATION PENDING (needs a human Google sign-in in a browser).
+ *     Aligned to @web3auth/modal v11.2.0's real API: `connect()` resolves to a
+ *     Connection whose `ethereumProvider` is the EIP-1193 provider, and chains
+ *     are configured via the Web3Auth dashboard (add the target chain there, or
+ *     rely on the addChain/switchChain fallback below). A free
+ *     NEXT_PUBLIC_WEB3AUTH_CLIENT_ID is required. The injected adapter is the
+ *     end-to-end-verified default. See docs/04-adr.md (ADR-011).
  * ──────────────────────────────────────────────────────────────────────────
  *
  * `@web3auth/modal` is an optional peer dependency: only consumers that use
@@ -32,14 +34,18 @@ export interface Web3AuthAdapterOptions {
 
 // Minimal structural types — we intentionally do not couple to the SDK's exact
 // generics so a type-level change in the SDK can't break AvaKit's build.
+/** v11 `connect()` resolves to a Connection; the EIP-1193 provider is on it. */
+interface Web3AuthConnection {
+  ethereumProvider?: EIP1193Provider | null;
+}
 interface Web3AuthInstance {
   init(): Promise<void>;
-  connect(): Promise<unknown>;
+  connect(): Promise<Web3AuthConnection | null>;
   logout(): Promise<void>;
-  addChain(config: Record<string, unknown>): Promise<void>;
+  addChain?(config: Record<string, unknown>): Promise<void>;
   switchChain(params: { chainId: string }): Promise<void>;
   connected: boolean;
-  provider: unknown;
+  provider: EIP1193Provider | null;
 }
 interface Web3AuthModule {
   Web3Auth: new (options: Record<string, unknown>) => Web3AuthInstance;
@@ -76,8 +82,10 @@ export function web3authAdapter(options: Web3AuthAdapterOptions): WalletAdapter 
 
     async connect(): Promise<WalletConnection> {
       const web3auth = await ensureInstance();
-      const connected = await web3auth.connect();
-      const eip = (connected ?? web3auth.provider) as EIP1193Provider | null;
+      // v11: connect() resolves to a Connection whose `ethereumProvider` is the
+      // EIP-1193 provider; older/edge cases expose it as `web3auth.provider`.
+      const connection = await web3auth.connect();
+      const eip = connection?.ethereumProvider ?? web3auth.provider;
       if (!eip) {
         throw new WalletConnectionError("Web3Auth returned no provider.");
       }
@@ -104,9 +112,10 @@ export function web3authAdapter(options: Web3AuthAdapterOptions): WalletAdapter 
     async switchChain(chain: AvaChain) {
       const web3auth = await ensureInstance();
       const chainId = `0x${chain.id.toString(16)}`;
-      // addChain is idempotent-ish; ignore "already added" failures.
+      // Register the chain if the SDK build supports dynamic addChain (harmless
+      // if it's already known or the method is absent).
       try {
-        await web3auth.addChain({
+        await web3auth.addChain?.({
           chainNamespace: "eip155",
           chainId,
           rpcTarget: chain.rpcUrl,
@@ -116,11 +125,16 @@ export function web3authAdapter(options: Web3AuthAdapterOptions): WalletAdapter 
           tickerName: chain.nativeCurrency.name,
         });
       } catch {
-        // chain likely already registered
+        // chain likely already registered, or addChain not in this build
       }
-      await web3auth.switchChain({ chainId });
-      // Refresh the cached provider; Web3Auth updates it on chain switch.
-      provider = (web3auth.provider as EIP1193Provider | null) ?? provider;
+      try {
+        await web3auth.switchChain({ chainId });
+        provider = web3auth.provider ?? provider;
+      } catch {
+        // Fall back to generic EIP-1193 chain switching (add + switch) on the
+        // provider — covers builds where the chain must be added at the RPC layer.
+        if (provider) await ensureChain(provider, chain);
+      }
     },
   };
 }

@@ -167,6 +167,61 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  examples/web3auth-demo:
+    dependencies:
+      '@avakit/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@avakit/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@web3auth/modal':
+        specifier: 11.2.0
+        version: 11.2.0(@babel/runtime@7.29.7)(@sentry/core@10.62.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.0.1)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.54.1(typescript@6.0.3)(zod@4.4.3))(vite@8.1.2(@types/node@26.0.1)(esbuild@0.27.7)(jiti@2.7.0))(zod@4.4.3)
+      lucide-react:
+        specifier: 1.22.0
+        version: 1.22.0(react@19.2.7)
+      next:
+        specifier: 16.2.9
+        version: 16.2.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-themes:
+        specifier: 0.4.6
+        version: 0.4.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
+      viem:
+        specifier: 2.54.1
+        version: 2.54.1(typescript@6.0.3)(zod@4.4.3)
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: 4.3.2
+        version: 4.3.2
+      '@types/node':
+        specifier: 26.0.1
+        version: 26.0.1
+      '@types/react':
+        specifier: 19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      postcss:
+        specifier: 8.5.16
+        version: 8.5.16
+      tailwindcss:
+        specifier: 4.3.2
+        version: 4.3.2
+      tw-animate-css:
+        specifier: 1.4.0
+        version: 1.4.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   packages/core:
     dependencies:
       viem:

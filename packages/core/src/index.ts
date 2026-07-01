@@ -8,7 +8,7 @@
  * deploy helper, and read-only chain data.
  */
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.2";
 
 // Wallet adapters (web3auth lives at the `@avakit/core/web3auth` subpath)
 export {

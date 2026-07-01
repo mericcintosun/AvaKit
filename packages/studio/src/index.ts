@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { platform } from "node:os";
 import { startServer } from "./server.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.2";
 
 function parsePort(argv: string[]): number | undefined {
   const i = argv.findIndex((a) => a === "--port" || a === "-p");

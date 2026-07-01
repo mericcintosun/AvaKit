@@ -1,6 +1,6 @@
 {
   "name": "@avakit/studio",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "AvaKit Studio — a local control center for Avalanche development (L1s, ICM, devnets).",
   "license": "MIT",
   "type": "module",
@@ -45,10 +45,28 @@
     "vite": "^7.0.0",
     "vitest": "catalog:"
   },
-  "keywords": ["avalanche", "avax", "studio", "dashboard", "l1", "subnet", "icm", "devnet", "avakit"],
+  "keywords": [
+    "avalanche",
+    "avax",
+    "studio",
+    "dashboard",
+    "l1",
+    "subnet",
+    "icm",
+    "devnet",
+    "avakit"
+  ],
   "author": "AvaKit contributors",
   "homepage": "https://github.com/mericcintosun/AvaKit#readme",
-  "bugs": { "url": "https://github.com/mericcintosun/AvaKit/issues" },
-  "repository": { "type": "git", "url": "git+https://github.com/mericcintosun/AvaKit.git", "directory": "packages/studio" },
-  "engines": { "node": ">=20.11" }
+  "bugs": {
+    "url": "https://github.com/mericcintosun/AvaKit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mericcintosun/AvaKit.git",
+    "directory": "packages/studio"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
 }

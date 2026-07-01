@@ -5,7 +5,7 @@
  * UI is shadcn-based (Radix + Tailwind tokens). See docs/07-spec-wallet-widget.md.
  */
 
-export const VERSION = "0.1.1";
+export const VERSION = "0.1.3";
 
 export type {
   DataTransaction,

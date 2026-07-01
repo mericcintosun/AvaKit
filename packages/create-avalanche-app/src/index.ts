@@ -5,7 +5,7 @@ import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { type ChainId, listTemplates, scaffoldApp, type WalletId } from "./api.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.2";
 
 type PackageManager = "pnpm" | "npm" | "yarn" | "bun";
 

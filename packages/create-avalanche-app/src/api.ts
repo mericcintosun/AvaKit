@@ -4,10 +4,13 @@
  * replacement in one place.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scaffold } from "./scaffold.js";
+
+/** Web3Auth Modal SDK version added to apps that use the social-login wallet. */
+const WEB3AUTH_MODAL_VERSION = "11.2.0";
 
 export const templatesDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -77,5 +80,27 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
   };
 
   const files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
+
+  // The social-login wallet needs @web3auth/modal (an optional peer of
+  // @avakit/core). Add it to the app so `web3authAdapter` can load at runtime.
+  if (opts.wallet === "web3auth") {
+    addDependency(
+      path.join(opts.targetDir, "package.json"),
+      "@web3auth/modal",
+      WEB3AUTH_MODAL_VERSION,
+    );
+  }
+
   return { targetDir: opts.targetDir, files };
+}
+
+function addDependency(pkgPath: string, name: string, version: string): void {
+  if (!existsSync(pkgPath)) return;
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+    dependencies?: Record<string, string>;
+  };
+  pkg.dependencies = Object.fromEntries(
+    Object.entries({ ...pkg.dependencies, [name]: version }).sort(([a], [b]) => a.localeCompare(b)),
+  );
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 }
