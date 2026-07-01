@@ -25,11 +25,13 @@
   },
   "dependencies": {
     "@avakit/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "clsx": "2.1.1",
     "lucide-react": "1.22.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "tailwind-merge": "3.6.0"
+    "tailwind-merge": "3.6.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.2",

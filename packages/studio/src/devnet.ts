@@ -222,3 +222,17 @@ export function runDevnetAction(
     },
   };
 }
+
+/** Promise variant: run an action to completion, collecting the log (for MCP). */
+export function runDevnetActionAsync(
+  action: DevnetAction,
+): Promise<{ exitCode: number; log: string[] }> {
+  return new Promise((resolve) => {
+    const log: string[] = [];
+    runDevnetAction(
+      action,
+      (line) => log.push(line),
+      (exitCode) => resolve({ exitCode, log }),
+    );
+  });
+}

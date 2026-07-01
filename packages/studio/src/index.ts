@@ -29,6 +29,15 @@ function openBrowser(url: string): void {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+
+  // MCP mode: expose the same actions to an AI agent over stdio. Nothing else
+  // may write to stdout in this mode — it carries the JSON-RPC protocol.
+  if (argv[0] === "mcp") {
+    const { runMcp } = await import("./mcp.js");
+    await runMcp();
+    return;
+  }
+
   if (argv.includes("--version") || argv.includes("-v")) {
     process.stdout.write(`${VERSION}\n`);
     return;
@@ -39,6 +48,7 @@ async function main(): Promise<void> {
         "avakit-studio — local control center for Avalanche development",
         "",
         "Usage:  avakit-studio [--port <n>] [--no-open]",
+        "        avakit-studio mcp            run as an MCP server (for AI agents)",
         "",
         "  -p, --port <n>   port to listen on (default: a free port)",
         "      --no-open    do not open the browser automatically",

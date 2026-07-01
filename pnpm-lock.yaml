@@ -287,6 +287,9 @@ importers:
       '@avakit/core':
         specifier: workspace:*
         version: link:../core
+      '@modelcontextprotocol/sdk':
+        specifier: 1.29.0
+        version: 1.29.0(zod@4.4.3)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -302,6 +305,9 @@ importers:
       tailwind-merge:
         specifier: 3.6.0
         version: 3.6.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@tailwindcss/vite':
         specifier: 4.3.2

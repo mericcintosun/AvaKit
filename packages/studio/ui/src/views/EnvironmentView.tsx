@@ -1,6 +1,16 @@
 import type { Inventory, ToolInfo } from "../api";
+import { CopyButton } from "../components/copy-button";
 import { Dot } from "../components/ui/badge";
 import { Card, CardRow } from "../components/ui/card";
+
+const MCP_CONFIG = `{
+  "mcpServers": {
+    "avakit-studio": {
+      "command": "npx",
+      "args": ["-y", "@avakit/studio", "mcp"]
+    }
+  }
+}`;
 
 function ToolRow({ t }: { t: ToolInfo }) {
   return (
@@ -69,6 +79,25 @@ export function EnvironmentView({ env }: { env: Inventory | null }) {
               {env.cwd}
             </span>
           </CardRow>
+        </Card>
+      </div>
+
+      <div>
+        <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-widest uppercase">
+          Connect an AI agent
+        </h3>
+        <Card className="p-4">
+          <p className="text-muted-foreground text-sm">
+            Studio is also an MCP server. Point Claude Code or Cursor at it to drive devnets, ICM,
+            and data lookups from your agent — the same actions, agent-side.
+          </p>
+          <div className="bg-muted/40 mt-3 overflow-hidden rounded-lg border">
+            <div className="flex items-center justify-between border-b px-3 py-1.5">
+              <span className="text-muted-foreground font-mono text-xs">mcp.json</span>
+              <CopyButton value={MCP_CONFIG} label="Copy" />
+            </div>
+            <pre className="overflow-auto p-3 font-mono text-xs leading-relaxed">{MCP_CONFIG}</pre>
+          </div>
         </Card>
       </div>
     </div>

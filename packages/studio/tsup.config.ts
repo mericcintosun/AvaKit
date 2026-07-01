@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ["src/index.ts", "src/mcp.ts"],
   format: ["esm"],
   dts: false,
   // Don't wipe dist — the Vite UI build shares dist/web. The `build` script
@@ -10,5 +10,5 @@ export default defineConfig({
   sourcemap: true,
   target: "node20",
   banner: { js: "#!/usr/bin/env node" },
-  external: ["@avakit/core"],
+  external: ["@avakit/core", "@modelcontextprotocol/sdk", "zod"],
 });
