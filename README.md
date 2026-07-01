@@ -47,6 +47,7 @@ Avalanche's C-Chain is EVM-compatible and end-user onboarding is already solved 
 | [`@avakit/react`](https://www.npmjs.com/package/@avakit/react) | `<ConnectAvalanche>` social-login widget, `<TransactionButton>`, and hooks — built on shadcn/ui |
 | [`create-avalanche-app`](https://www.npmjs.com/package/create-avalanche-app) | Batteries-included scaffolder |
 | [`@avakit/mcp`](https://www.npmjs.com/package/@avakit/mcp) | MCP server — scaffold, deploy, and read Avalanche from Claude Code / Cursor |
+| [`@avakit/studio`](https://www.npmjs.com/package/@avakit/studio) | Local dev dashboard — spin up devnets, send Interchain messages, inspect data (`npx @avakit/studio`); also an MCP server |
 
 ## Templates
 

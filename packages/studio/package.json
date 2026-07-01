@@ -26,11 +26,6 @@
   "dependencies": {
     "@avakit/core": "workspace:*",
     "@modelcontextprotocol/sdk": "1.29.0",
-    "clsx": "2.1.1",
-    "lucide-react": "1.22.0",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
-    "tailwind-merge": "3.6.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
@@ -39,6 +34,11 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
+    "clsx": "2.1.1",
+    "lucide-react": "1.22.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "tailwind-merge": "3.6.0",
     "tailwindcss": "4.3.2",
     "tsup": "catalog:",
     "typescript": "catalog:",

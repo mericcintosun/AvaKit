@@ -1,10 +1,20 @@
-import { Bot, Boxes, Palette, Rocket, ShieldCheck, Sparkles, Terminal, Wallet } from "lucide-react";
+import {
+  Bot,
+  Boxes,
+  LayoutDashboard,
+  Palette,
+  Rocket,
+  ShieldCheck,
+  Sparkles,
+  Terminal,
+  Wallet,
+} from "lucide-react";
 
 export const site = {
   name: "AvaKit",
   tagline: "The open-source, AI-native devtools for Avalanche.",
   description:
-    "Scaffold a social-login dapp, deploy-ready, with agent context baked in. One core, three surfaces — no seed phrases, no boilerplate.",
+    "Scaffold a social-login dapp, deploy-ready, with agent context baked in. One core, four surfaces — no seed phrases, no boilerplate.",
   createCommand: "npm create avalanche-app@latest",
 };
 
@@ -65,6 +75,17 @@ export const surfaces: Surface[] = [
       "Scaffold + deploy from Claude Code / Cursor",
       "Read chain state over natural language",
       "Testnet-first with mainnet guardrails",
+    ],
+  },
+  {
+    icon: LayoutDashboard,
+    name: "@avakit/studio",
+    slug: "studio",
+    tagline: "Local dev dashboard",
+    points: [
+      "Spin up local L1s with Interchain Messaging",
+      "Send cross-chain messages, inspect on-chain data",
+      "Also an MCP server — drive it from an agent",
     ],
   },
 ];
