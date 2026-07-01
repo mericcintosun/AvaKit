@@ -107,6 +107,8 @@ export async function getDevnetStatus(): Promise<DevnetStatus> {
 
 export type DevnetAction = "start" | "stop" | "create-icm";
 
+// No `--force`: overwriting an existing chain's config wipes its deployment
+// metadata (sidecar Networks), so we only create chains that don't exist yet.
 const CREATE = (name: string, id: string, token: string): [string, string[]] => [
   "avalanche",
   [
@@ -122,24 +124,33 @@ const CREATE = (name: string, id: string, token: string): [string, string[]] => 
     "--test-defaults",
     "--sovereign=false",
     "--icm",
-    "--force",
   ],
 ];
 
-const SEQUENCES: Record<DevnetAction, [string, string[]][]> = {
-  start: [["avalanche", ["network", "start"]]],
-  stop: [["avalanche", ["network", "stop"]]],
-  "create-icm": [
-    CREATE("chain1", "1001", "TOK1"),
-    CREATE("chain2", "1002", "TOK2"),
+/** Idempotent "spin up": create only the missing L1s, then (re)deploy both. */
+function createIcmSteps(): [string, string[]][] {
+  const existing = new Set(listL1Names());
+  return [
+    ...(existing.has("chain1") ? [] : [CREATE("chain1", "1001", "TOK1")]),
+    ...(existing.has("chain2") ? [] : [CREATE("chain2", "1002", "TOK2")]),
     ["avalanche", ["blockchain", "deploy", "chain1", "--local"]],
     ["avalanche", ["blockchain", "deploy", "chain2", "--local"]],
-  ],
-};
+  ];
+}
+
+function stepsFor(action: DevnetAction): [string, string[]][] {
+  if (action === "start") return [["avalanche", ["network", "start"]]];
+  if (action === "stop") return [["avalanche", ["network", "stop"]]];
+  return createIcmSteps();
+}
 
 export function isDevnetAction(v: string): v is DevnetAction {
   return v === "start" || v === "stop" || v === "create-icm";
 }
+
+// A non-zero exit is benign when avalanche-cli is only telling us the target is
+// already in the desired state (already deployed / network already running).
+const BENIGN = /already (been )?(deployed|running|bootstrapped)|is already/i;
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips ANSI escape sequences
 const ANSI = /\x1b\[[0-9;]*[a-zA-Z]/g;
@@ -162,7 +173,7 @@ export function runDevnetAction(
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
 ): RunHandle {
-  const steps = SEQUENCES[action];
+  const steps = stepsFor(action);
   let current: ChildProcess | null = null;
   let cancelled = false;
 
@@ -175,21 +186,29 @@ export function runDevnetAction(
     }
     const [cmd, args] = step;
     onLine(`$ ${cmd} ${args.join(" ")}`);
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let benign = false;
+    // `detached` puts avalanche-cli in its own process group so the local
+    // network it boots survives even if Studio is stopped or restarted.
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
     current = child;
-    child.stdout?.on("data", (c: Buffer) => emitLines(c, onLine));
-    child.stderr?.on("data", (c: Buffer) => emitLines(c, onLine));
+    const scan = (c: Buffer) => {
+      if (BENIGN.test(c.toString())) benign = true;
+      emitLines(c, onLine);
+    };
+    child.stdout?.on("data", scan);
+    child.stderr?.on("data", scan);
     child.on("error", (e) => {
       onLine(`error: ${e.message}`);
       onDone(1);
     });
     child.on("close", (code) => {
       if (cancelled) return;
-      if (code && code !== 0) {
+      if (code && code !== 0 && !benign) {
         onLine(`✖ exited with code ${code}`);
         onDone(code);
         return;
       }
+      if (code && code !== 0) onLine("↳ already in place — continuing");
       runStep(i + 1);
     });
   };

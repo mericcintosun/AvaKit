@@ -1,10 +1,14 @@
 import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, apiPost, type IcmChain, type IcmState } from "../api";
+import { CopyButton } from "../components/copy-button";
+import { useToast } from "../components/toast";
 import { Dot } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { shortHex } from "../lib/utils";
+
+type InFlight = { message: string; to: string };
 
 function MessengerCard({ chain, incoming }: { chain: IcmChain; incoming: boolean }) {
   return (
@@ -14,8 +18,9 @@ function MessengerCard({ chain, incoming }: { chain: IcmChain; incoming: boolean
           <Dot state={chain.running ? "live" : "off"} />
           <span className="font-mono text-sm font-semibold">{chain.name}</span>
         </div>
-        <span className="text-muted-foreground font-mono text-xs">
+        <span className="text-muted-foreground flex items-center gap-1.5 font-mono text-xs">
           {chain.messenger ? shortHex(chain.messenger, 5) : "not deployed"}
+          {chain.messenger && <CopyButton value={chain.messenger} label="" />}
         </span>
       </div>
       <div className="bg-muted/50 mt-3 rounded-lg p-3">
@@ -30,12 +35,12 @@ function MessengerCard({ chain, incoming }: { chain: IcmChain; incoming: boolean
 }
 
 export function InterchainView() {
+  const toast = useToast();
   const [icm, setIcm] = useState<IcmState | null>(null);
   const [busy, setBusy] = useState<null | "deploy" | "send">(null);
   const [from, setFrom] = useState("");
   const [msg, setMsg] = useState("gm from the other chain");
-  const [inFlight, setInFlight] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [inFlight, setInFlight] = useState<InFlight | null>(null);
 
   const chains = icm?.chains ?? [];
   const bothDeployed = chains.length >= 2 && chains.every((c) => c.messenger);
@@ -47,9 +52,6 @@ export function InterchainView() {
       const next = await api<IcmState>("/api/icm/state");
       setIcm(next);
       setFrom((f) => f || next.chains[0]?.name || "");
-      setInFlight((flight) =>
-        flight && next.chains.some((c) => c.lastMessage === flight) ? null : flight,
-      );
     } catch {
       /* keep last */
     }
@@ -63,38 +65,70 @@ export function InterchainView() {
     return () => clearInterval(timer);
   }, [refresh, busy]);
 
+  // Toast + clear once the message lands on the destination.
+  useEffect(() => {
+    if (!inFlight || !icm) return;
+    const dest = icm.chains.find((c) => c.name === inFlight.to);
+    if (dest?.lastMessage === inFlight.message) {
+      toast({
+        title: "Delivered",
+        description: `“${inFlight.message}” arrived on ${inFlight.to}.`,
+        variant: "success",
+      });
+      setInFlight(null);
+    }
+  }, [icm, inFlight, toast]);
+
   const deploy = useCallback(async () => {
     setBusy("deploy");
-    setError(null);
     try {
       setIcm(await apiPost<IcmState>("/api/icm/deploy"));
+      toast({
+        title: "Messengers deployed",
+        description: "One on each L1. Now send a message.",
+        variant: "success",
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toast({
+        title: "Deploy failed",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "error",
+      });
     } finally {
       setBusy(null);
     }
-  }, []);
+  }, [toast]);
 
   const send = useCallback(async () => {
     if (!source || !destination) return;
     setBusy("send");
-    setError(null);
     try {
       await apiPost("/api/icm/send", { from: source.name, to: destination.name, message: msg });
-      setInFlight(msg);
+      setInFlight({ message: msg, to: destination.name });
+      toast({
+        title: "Message sent",
+        description: `Relayer is delivering to ${destination.name}…`,
+        variant: "info",
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toast({
+        title: "Send failed",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "error",
+      });
     } finally {
       setBusy(null);
       void refresh();
     }
-  }, [source, destination, msg, refresh]);
+  }, [source, destination, msg, refresh, toast]);
 
   if (!icm?.ready) {
     return (
       <Card className="p-5">
-        <p className="text-muted-foreground text-sm">
-          Start a running devnet with two L1s (in Devnet) to send a message across chains.
+        <p className="text-sm font-medium">No running devnet</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Go to <span className="font-medium">Devnet</span> and spin up (or start) a network with
+          two L1s — then come back here to send a message across chains.
         </p>
       </Card>
     );
@@ -104,20 +138,25 @@ export function InterchainView() {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {chains.map((c) => (
-          <MessengerCard
-            key={c.name}
-            chain={c}
-            incoming={inFlight != null && c.name === destination?.name}
-          />
+          <MessengerCard key={c.name} chain={c} incoming={c.name === inFlight?.to} />
         ))}
       </div>
 
       {!bothDeployed ? (
-        <Button size="sm" disabled={busy === "deploy"} onClick={deploy}>
-          {busy === "deploy" ? "Deploying messengers…" : "Deploy messengers on both chains"}
-        </Button>
+        <Card className="flex flex-col gap-3 p-5">
+          <div>
+            <p className="text-sm font-medium">Deploy the messenger</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              One <span className="font-mono">AvaKitMessenger</span> per L1 — it both sends and
+              receives. Studio deploys it for you with the local dev key.
+            </p>
+          </div>
+          <Button size="sm" disabled={busy === "deploy"} onClick={deploy} className="self-start">
+            {busy === "deploy" ? "Deploying…" : "Deploy messengers on both chains"}
+          </Button>
+        </Card>
       ) : (
-        <div className="flex flex-col gap-2">
+        <Card className="flex flex-col gap-3 p-5">
           <div className="text-muted-foreground flex items-center gap-2 text-xs">
             <span className="font-mono">{source?.name}</span>
             <ArrowRight className="size-3" />
@@ -134,7 +173,15 @@ export function InterchainView() {
               size="sm"
               variant="outline"
               disabled={busy === "send"}
-              onClick={() => setFrom(destination?.name ?? "")}
+              onClick={() => {
+                if (!source || !destination) return;
+                setFrom(destination.name);
+                toast({
+                  title: "Direction swapped",
+                  description: `${destination.name} → ${source.name}`,
+                  variant: "info",
+                });
+              }}
             >
               Swap
             </Button>
@@ -145,13 +192,11 @@ export function InterchainView() {
           {inFlight && (
             <p className="flex items-center gap-2 text-sm">
               <span className="bg-foreground size-2 animate-ping rounded-full" />
-              Relayer delivering “{inFlight}” to {destination?.name}…
+              Relayer delivering “{inFlight.message}” to {inFlight.to}…
             </p>
           )}
-        </div>
+        </Card>
       )}
-
-      {error && <p className="text-muted-foreground text-sm break-all">{error}</p>}
     </div>
   );
 }

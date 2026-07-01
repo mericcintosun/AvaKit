@@ -104,7 +104,12 @@ export function App() {
           ) : view === "overview" ? (
             <OverviewView env={env} status={status} navigate={setView} />
           ) : view === "devnet" ? (
-            <DevnetView status={status} refresh={refreshStatus} hasCli={hasCli} />
+            <DevnetView
+              status={status}
+              refresh={refreshStatus}
+              hasCli={hasCli}
+              navigate={setView}
+            />
           ) : view === "interchain" ? (
             <InterchainView />
           ) : (
