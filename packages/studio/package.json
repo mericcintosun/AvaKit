@@ -14,7 +14,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup && vite build",
+    "build": "rm -rf dist && tsup && vite build",
     "build:server": "tsup",
     "build:ui": "vite build",
     "dev": "tsup --watch",

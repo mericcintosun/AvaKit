@@ -11,6 +11,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDevnetStatus, isDevnetAction, runDevnetAction } from "./devnet.js";
+import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
 
 const ALLOWED_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -29,6 +30,27 @@ const CONTENT_TYPES: Record<string, string> = {
 
 function hostOf(req: IncomingMessage): string {
   return (req.headers.host ?? "").split(":")[0] ?? "";
+}
+
+function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (c: Buffer) => {
+      data += c.toString();
+      if (data.length > 100_000) {
+        req.destroy();
+        reject(new Error("body too large"));
+      }
+    });
+    req.on("end", () => {
+      try {
+        resolve(data ? (JSON.parse(data) as Record<string, unknown>) : {});
+      } catch {
+        reject(new Error("invalid JSON"));
+      }
+    });
+    req.on("error", reject);
+  });
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -120,6 +142,34 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
         }
         if (pathname === "/api/devnet/status") {
           sendJson(res, 200, await getDevnetStatus());
+          return;
+        }
+        if (pathname === "/api/icm/state") {
+          sendJson(res, 200, await getIcmState());
+          return;
+        }
+        if (pathname === "/api/icm/deploy" && req.method === "POST") {
+          sendJson(res, 200, await deployMessengers());
+          return;
+        }
+        if (pathname === "/api/icm/send" && req.method === "POST") {
+          const body = await readJsonBody(req);
+          const from = String(body.from ?? "");
+          const to = String(body.to ?? "");
+          const message = String(body.message ?? "");
+          if (!from || !to || from === to) {
+            sendJson(res, 400, { error: "pick two different chains" });
+            return;
+          }
+          if (message.length < 1 || message.length > 200) {
+            sendJson(res, 400, { error: "message must be 1–200 characters" });
+            return;
+          }
+          if (message.startsWith("-")) {
+            sendJson(res, 400, { error: "message cannot start with '-'" });
+            return;
+          }
+          sendJson(res, 200, await sendIcmMessage(from, to, message));
           return;
         }
         sendJson(res, 404, { error: "not found" });

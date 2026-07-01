@@ -12,6 +12,25 @@ export async function api<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "x-studio-token": TOKEN, "content-type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = (await res.json()) as { error?: string };
+      if (j.error) msg = j.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  return (await res.json()) as T;
+}
+
 export type DevnetAction = "start" | "stop" | "create-icm";
 
 /** Open the SSE action log. Returns a stop() that closes the stream. */
@@ -71,4 +90,20 @@ export interface L1Info {
 export interface DevnetStatus {
   running: boolean;
   l1s: L1Info[];
+}
+
+export interface IcmChain {
+  name: string;
+  evmChainId: number | null;
+  rpcUrl: string | null;
+  blockchainIdHex: string | null;
+  running: boolean;
+  messenger: string | null;
+  lastMessage: string | null;
+  messagesReceived: number | null;
+}
+
+export interface IcmState {
+  ready: boolean;
+  chains: IcmChain[];
 }
