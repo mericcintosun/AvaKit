@@ -28,8 +28,26 @@ export {
 } from "./chains.js";
 // viem clients
 export { getPublicClient, getWalletClient, toViemChain } from "./clients.js";
-// Data
+// Data (RPC)
 export { getBalance, getTransactionReceipt, readContract } from "./data.js";
+// Data API (AvaCloud / Glacier — indexed balances, NFTs, tx history)
+export {
+  DATA_API_BASE_URL,
+  DataApiError,
+  type DataApiOptions,
+  type DataTransaction,
+  type Erc20BalancesResponse,
+  type Erc20TokenBalance,
+  type Erc721BalancesResponse,
+  type Erc721TokenBalance,
+  getNativeBalance,
+  listErc20Balances,
+  listNfts,
+  listTransactions,
+  type NativeBalanceResponse,
+  type NativeTokenBalance,
+  type TransactionsResponse,
+} from "./data-api.js";
 // Deploy
 export {
   type DeployParams,

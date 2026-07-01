@@ -31,6 +31,8 @@ export interface AvaKitContextValue {
   error: Error | null;
   connect: (adapterId?: string) => Promise<void>;
   disconnect: () => Promise<void>;
+  /** Optional AvaCloud Data API key used by the data hooks (keyless otherwise). */
+  dataApiKey?: string;
 }
 
 const AvaKitContext = createContext<AvaKitContextValue | null>(null);
@@ -48,10 +50,12 @@ export interface AvaKitProviderProps {
   chains: AvaChain[];
   /** Wallet adapters, e.g. [injectedAdapter(), web3authAdapter({ clientId })]. */
   adapters: WalletAdapter[];
+  /** Optional AvaCloud Data API key for the data hooks (useTokenBalances, useNfts, useTxHistory). */
+  dataApiKey?: string;
   children: ReactNode;
 }
 
-export function AvaKitProvider({ chains, adapters, children }: AvaKitProviderProps) {
+export function AvaKitProvider({ chains, adapters, dataApiKey, children }: AvaKitProviderProps) {
   const [chain, setChain] = useState<AvaChain>(() => {
     const first = chains[0];
     if (!first) {
@@ -129,6 +133,7 @@ export function AvaKitProvider({ chains, adapters, children }: AvaKitProviderPro
       error,
       connect,
       disconnect,
+      dataApiKey,
     }),
     [
       chains,
@@ -141,6 +146,7 @@ export function AvaKitProvider({ chains, adapters, children }: AvaKitProviderPro
       error,
       connect,
       disconnect,
+      dataApiKey,
     ],
   );
 

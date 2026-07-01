@@ -6,6 +6,7 @@
 [![@avakit/core](https://img.shields.io/npm/v/@avakit/core?label=%40avakit%2Fcore&color=black)](https://www.npmjs.com/package/@avakit/core)
 [![@avakit/react](https://img.shields.io/npm/v/@avakit/react?label=%40avakit%2Freact&color=black)](https://www.npmjs.com/package/@avakit/react)
 [![license](https://img.shields.io/npm/l/@avakit/core?color=black)](./LICENSE)
+[![live on Fuji](https://img.shields.io/badge/live_on-Avalanche_Fuji-black)](https://testnet.snowtrace.io/tx/0x9a1f139577964587ac03123d719f25c0b68024a4c8eab0dc258ad9c925a8e090)
 
 Scaffold a social-login dapp, deploy-ready, with agent context baked in. One core, four surfaces — **no seed phrases, no boilerplate.**
 
@@ -16,6 +17,14 @@ npm create avalanche-app@latest
 ```
 
 That's it — connect with a social login, read your balance, and send your first transaction on Avalanche in minutes.
+
+![Scaffolding an Avalanche dapp with create-avalanche-app](docs/media/scaffold-demo.gif)
+
+**Then deploy an NFT contract and mint it — straight from the browser, on Fuji:**
+
+![Connecting a wallet, deploying an NFT contract, and minting on Avalanche Fuji](docs/media/browser-demo.gif)
+
+> **Proven live on Fuji.** The mint in that clip is a real on-chain transaction — [view it on Snowtrace](https://testnet.snowtrace.io/tx/0x9a1f139577964587ac03123d719f25c0b68024a4c8eab0dc258ad9c925a8e090) (contract [`0x7612…7786`](https://testnet.snowtrace.io/address/0x7612e031216250384ebdb151553a0c5b89b87786)). No Foundry, no backend — the bytecode is bundled and deployed from the user's wallet.
 
 ---
 

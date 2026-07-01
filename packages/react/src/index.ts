@@ -7,7 +7,14 @@
 
 export const VERSION = "0.1.1";
 
+export type {
+  DataTransaction,
+  Erc20TokenBalance,
+  Erc721TokenBalance,
+  NativeTokenBalance,
+} from "@avakit/core";
 export { ConnectAvalanche, type ConnectAvalancheProps } from "./connect-avalanche.js";
+export { useNfts, useTokenBalances, useTxHistory } from "./data-hooks.js";
 export {
   type DeployStatus,
   type TxStatus,

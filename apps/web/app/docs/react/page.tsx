@@ -74,6 +74,15 @@ export function Header() {
           <C>useSendTransaction()</C> — <C>{"{ send, status, hash, explorerUrl, isPending }"}</C>
         </li>
         <li>
+          <C>useTokenBalances(address?)</C> — <C>{"{ native, tokens, isLoading, refetch }"}</C>
+        </li>
+        <li>
+          <C>useNfts(address?)</C> — <C>{"{ nfts, isLoading, refetch }"}</C>
+        </li>
+        <li>
+          <C>useTxHistory(address?)</C> — <C>{"{ transactions, isLoading, refetch }"}</C>
+        </li>
+        <li>
           <C>useAvaKit()</C> — the full context (provider, adapters, connect/disconnect)
         </li>
       </UL>
@@ -93,6 +102,21 @@ import { parseEther } from "viem";
 // Or the hook
 const { send, isPending, explorerUrl } = useSendTransaction();
 await send({ to: "0x…", value: parseEther("0.01") });`}
+      />
+
+      <H2>Read chain data (no indexer)</H2>
+      <P>
+        <C>useTokenBalances</C>, <C>useNfts</C>, and <C>useTxHistory</C> return indexed data from
+        the AvaCloud Data API — balances, NFT holdings, and transaction history — with no indexer to
+        run. They default to the connected account and active chain, and work keyless (pass{" "}
+        <C>dataApiKey</C> to <C>&lt;AvaKitProvider&gt;</C> for higher rate limits).
+      </P>
+      <CodeBlock
+        code={`import { useTokenBalances, useNfts, useTxHistory } from "@avakit/react";
+
+const { native, tokens } = useTokenBalances();   // connected account
+const { nfts } = useNfts();
+const { transactions } = useTxHistory("0x…");     // or any address`}
       />
 
       <H2>Deploy & mint from React</H2>

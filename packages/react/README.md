@@ -39,8 +39,9 @@ To add social login, install `@web3auth/modal` and pass `web3authAdapter({ clien
 
 ## API
 
-- Components: `<AvaKitProvider chains adapters>` · `<ConnectAvalanche />` · `<TransactionButton to value>`
-- Hooks: `useAvaAccount`, `useAvaChain`, `useBalance`, `useContract`, `useAvaDeploy`, `useSendTransaction`, `useAvaKit`
+- Components: `<AvaKitProvider chains adapters dataApiKey?>` · `<ConnectAvalanche />` · `<TransactionButton to value>`
+- Wallet/tx hooks: `useAvaAccount`, `useAvaChain`, `useBalance`, `useContract`, `useAvaDeploy`, `useSendTransaction`, `useAvaKit`
+- Data hooks (AvaCloud Data API, no indexer): `useTokenBalances`, `useNfts`, `useTxHistory`
 
 ## Styling
 
