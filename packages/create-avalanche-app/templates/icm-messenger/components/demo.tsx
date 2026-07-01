@@ -1,6 +1,12 @@
 "use client";
 
-import { deployContract, ensureChain, getWalletClient, readContract } from "@avakit/core";
+import {
+  deployContract,
+  ensureChain,
+  getPublicClient,
+  getWalletClient,
+  readContract,
+} from "@avakit/core";
 import type { AvaChain } from "@avakit/core/chains";
 import {
   Button,
@@ -10,16 +16,19 @@ import {
   useAvaChain,
   useAvaKit,
 } from "@avakit/react";
-import { ArrowRight, Moon, Sun } from "lucide-react";
+import { ArrowRight, Check, Copy, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Address } from "viem";
 import { blockchainIdOf, chain1, chain2, icm, isConfigured } from "@/lib/devnet";
 import { abi, bytecode } from "@/lib/messenger-artifact";
 
 const STORAGE_KEY = "icm-messenger:addresses";
+const CHAINS: [AvaChain, AvaChain] = [chain1, chain2];
 
 type AddrMap = Record<number, Address>;
+type ChainStatus = { online: boolean; block: bigint; icmReady: boolean };
+type Inbox = { message: string; count: bigint };
 
 function loadAddrs(): AddrMap {
   if (typeof window === "undefined") return {};
@@ -30,35 +39,22 @@ function loadAddrs(): AddrMap {
   }
 }
 
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  return (
-    <Button
-      variant="outline"
-      size="icon"
-      aria-label="Toggle theme"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-    >
-      <Sun className="hidden size-4 dark:block" />
-      <Moon className="block size-4 dark:hidden" />
-    </Button>
-  );
-}
-
 export function Demo() {
   const { address, isConnected } = useAvaAccount();
   const { provider } = useAvaKit();
   const { setChain } = useAvaChain();
 
   const [addrs, setAddrs] = useState<AddrMap>({});
+  const [status, setStatus] = useState<Record<number, ChainStatus>>({});
+  const [inbox, setInbox] = useState<Record<number, Inbox>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [text, setText] = useState("gm from the other chain");
   const [source, setSource] = useState<AvaChain>(chain1);
-  const [sentHash, setSentHash] = useState<string | null>(null);
-  const [received, setReceived] = useState<Record<number, { message: string; count: bigint }>>({});
+  const [inFlight, setInFlight] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const destination = source.id === chain1.id ? chain2 : chain1;
+  const bothDeployed = Boolean(addrs[chain1.id] && addrs[chain2.id]);
 
   useEffect(() => {
     setAddrs(loadAddrs());
@@ -72,7 +68,57 @@ export function Demo() {
     });
   }, []);
 
-  const bothDeployed = Boolean(addrs[chain1.id] && addrs[chain2.id]);
+  // Live poll: chain liveness (block height), ICM readiness (Teleporter has
+  // code), and each deployed messenger's inbox. Read-only — no wallet needed.
+  useEffect(() => {
+    if (!isConfigured) return;
+    let active = true;
+    async function poll() {
+      const nextStatus: Record<number, ChainStatus> = {};
+      const nextInbox: Record<number, Inbox> = {};
+      await Promise.all(
+        CHAINS.map(async (chain) => {
+          const client = getPublicClient(chain);
+          try {
+            const [block, code] = await Promise.all([
+              client.getBlockNumber(),
+              client.getCode({ address: icm.teleporterMessenger as Address }),
+            ]);
+            nextStatus[chain.id] = { online: true, block, icmReady: Boolean(code && code !== "0x") };
+          } catch {
+            nextStatus[chain.id] = { online: false, block: 0n, icmReady: false };
+          }
+          const messenger = loadAddrs()[chain.id];
+          if (messenger) {
+            try {
+              const [message, count] = await Promise.all([
+                readContract(chain, { address: messenger, abi, functionName: "lastMessage" }),
+                readContract(chain, { address: messenger, abi, functionName: "messagesReceived" }),
+              ]);
+              nextInbox[chain.id] = { message: message as string, count: count as bigint };
+            } catch {
+              // messenger not ready
+            }
+          }
+        }),
+      );
+      if (active) {
+        setStatus(nextStatus);
+        setInbox(nextInbox);
+      }
+    }
+    void poll();
+    const timer = setInterval(poll, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [isConfigured]);
+
+  // Clear the in-flight banner once the destination inbox shows the message.
+  useEffect(() => {
+    if (inFlight && inbox[destination.id]?.message === inFlight) setInFlight(null);
+  }, [inFlight, inbox, destination.id]);
 
   const deployOn = useCallback(
     async (chain: AvaChain) => {
@@ -105,19 +151,18 @@ export function Demo() {
     if (!from || !to) return;
     setBusy("send");
     setError(null);
-    setSentHash(null);
     try {
       await ensureChain(provider, source);
       setChain(source);
       const wallet = getWalletClient(source, provider);
-      const hash = await wallet.writeContract({
+      await wallet.writeContract({
         address: from,
         abi,
         functionName: "sendMessage",
         args: [blockchainIdOf(destination), to, text],
         account: address,
       } as never);
-      setSentHash(hash);
+      setInFlight(text);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -125,57 +170,10 @@ export function Demo() {
     }
   }, [provider, address, addrs, source, destination, text, setChain]);
 
-  // Poll each deployed messenger for the last received message.
-  useEffect(() => {
-    if (!bothDeployed) return;
-    let active = true;
-    const pairs: [AvaChain, Address][] = [
-      [chain1, addrs[chain1.id] as Address],
-      [chain2, addrs[chain2.id] as Address],
-    ];
-    async function poll() {
-      const next: Record<number, { message: string; count: bigint }> = {};
-      await Promise.all(
-        pairs.map(async ([chain, addr]) => {
-          try {
-            const [message, count] = await Promise.all([
-              readContract(chain, { address: addr, abi, functionName: "lastMessage" }),
-              readContract(chain, { address: addr, abi, functionName: "messagesReceived" }),
-            ]);
-            next[chain.id] = { message: message as string, count: count as bigint };
-          } catch {
-            // not ready yet
-          }
-        }),
-      );
-      if (active) setReceived(next);
-    }
-    void poll();
-    const timer = setInterval(poll, 3000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [bothDeployed, addrs]);
-
-  const destReceived = received[destination.id];
-  const chains = useMemo(() => [chain1, chain2], []);
-
   if (!isConfigured) {
     return (
       <Shell>
-        <div className="flex flex-col gap-3 rounded-xl border border-dashed p-8 text-sm">
-          <h1 className="text-2xl font-semibold tracking-tight">Start the local devnet first</h1>
-          <p className="text-muted-foreground">
-            This template sends a message between two Avalanche L1s. Spin them up (with Interchain
-            Messaging and a relayer) — one command:
-          </p>
-          <pre className="bg-muted rounded-lg p-4 font-mono text-xs">pnpm devnet</pre>
-          <p className="text-muted-foreground">
-            That writes the two chains into <span className="font-mono">icm.config.json</span>. Then
-            reload this page.
-          </p>
-        </div>
+        <SetupPanel />
       </Shell>
     );
   }
@@ -183,105 +181,209 @@ export function Demo() {
   return (
     <Shell>
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Send a message across L1s</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Devnet Studio</h1>
         <p className="text-muted-foreground text-sm">
-          Deploy the messenger on both local chains, then send a string from one to the other over
-          Avalanche Interchain Messaging. The relayer delivers it and the destination contract stores
-          it — watch it arrive below.
+          Two Avalanche L1s, live. Deploy the messenger on each, then send a message across —
+          Interchain Messaging carries it and you watch it land on the other chain.
         </p>
       </div>
 
-      {!isConnected || !address ? (
-        <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
-          Connect a wallet (import the EWOQ dev key) to begin.
-        </div>
-      ) : (
-        <>
-          <section className="grid grid-cols-2 gap-3">
-            {chains.map((chain) => (
-              <div key={chain.id} className="flex flex-col gap-3 rounded-xl border p-5">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm font-semibold">{chain.name}</span>
-                  <span className="text-muted-foreground text-xs">chainId {chain.id}</span>
-                </div>
-                {addrs[chain.id] ? (
-                  <Row label="Messenger" value={shortenAddress(addrs[chain.id] as Address, 6)} mono />
-                ) : (
-                  <Button
-                    onClick={() => deployOn(chain)}
-                    disabled={busy === `deploy:${chain.id}`}
-                    size="sm"
-                  >
-                    {busy === `deploy:${chain.id}` ? "Deploying…" : "Deploy messenger"}
-                  </Button>
-                )}
-                <Row
-                  label="Last received"
-                  value={received[chain.id]?.message || "—"}
-                  mono
-                />
-                <Row
-                  label="Total received"
-                  value={received[chain.id]?.count?.toString() ?? "0"}
-                  mono
-                />
-              </div>
-            ))}
-          </section>
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {CHAINS.map((chain) => (
+          <ChainCard
+            key={chain.id}
+            chain={chain}
+            status={status[chain.id]}
+            messenger={addrs[chain.id]}
+            inbox={inbox[chain.id]}
+            isDestination={inFlight != null && chain.id === destination.id}
+            busy={busy === `deploy:${chain.id}`}
+            canDeploy={isConnected && !!address}
+            onDeploy={() => deployOn(chain)}
+          />
+        ))}
+      </section>
 
-          <section className="flex flex-col gap-3 rounded-xl border p-6">
-            <div className="text-muted-foreground flex items-center gap-2 text-sm">
-              <span className="font-mono">{source.name}</span>
-              <ArrowRight className="size-4" />
-              <span className="font-mono">{destination.name}</span>
-            </div>
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Message to send cross-chain"
-              className="border-input bg-background rounded-lg border px-3 py-2 text-sm outline-none"
-            />
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSource(destination)}
-                disabled={busy === "send"}
-              >
-                Swap direction
-              </Button>
-              <Button
-                onClick={sendMessage}
-                disabled={!bothDeployed || busy === "send" || !text}
-                className="flex-1"
-              >
-                {busy === "send" ? "Sending…" : `Send to ${destination.name}`}
-              </Button>
-            </div>
-            {!bothDeployed ? (
-              <p className="text-muted-foreground text-xs">
-                Deploy the messenger on both chains to enable sending.
-              </p>
-            ) : null}
-            {sentHash ? (
-              <p className="text-sm">
-                ✓ Sent from {source.name}. Waiting for the relayer to deliver to{" "}
-                {destination.name}…
-                {destReceived?.message === text ? " arrived!" : ""}
-              </p>
-            ) : null}
-          </section>
-        </>
-      )}
+      <section className="flex flex-col gap-3 rounded-xl border p-6">
+        <div className="flex items-center justify-between">
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+            <span className="font-mono">{source.name}</span>
+            <ArrowRight className="size-4" />
+            <span className="font-mono">{destination.name}</span>
+          </div>
+          {!isConnected || !address ? <ConnectAvalanche /> : null}
+        </div>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Message to send cross-chain"
+          className="border-input bg-background rounded-lg border px-3 py-2 text-sm outline-none"
+        />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSource(destination)}
+            disabled={busy === "send"}
+          >
+            Swap direction
+          </Button>
+          <Button
+            onClick={sendMessage}
+            disabled={!bothDeployed || !isConnected || busy === "send" || !text}
+            className="flex-1"
+          >
+            {busy === "send" ? "Sending…" : `Send to ${destination.name}`}
+          </Button>
+        </div>
+        {!bothDeployed ? (
+          <p className="text-muted-foreground text-xs">
+            Deploy the messenger on both chains to enable sending.
+          </p>
+        ) : null}
+        {inFlight ? (
+          <p className="flex items-center gap-2 text-sm">
+            <span className="bg-foreground size-2 animate-ping rounded-full" />
+            In flight to {destination.name} — the relayer is delivering “{inFlight}”…
+          </p>
+        ) : null}
+      </section>
 
       {error ? <p className="text-muted-foreground text-sm break-all">{error}</p> : null}
-
-      <p className="text-muted-foreground text-xs">
-        Teleporter: <span className="font-mono">{shortenAddress(icm.teleporterMessenger, 6)}</span> ·
-        destination blockchain ID:{" "}
-        <span className="font-mono">{shortenAddress(blockchainIdOf(destination), 8)}</span>
-      </p>
     </Shell>
+  );
+}
+
+function ChainCard({
+  chain,
+  status,
+  messenger,
+  inbox,
+  isDestination,
+  busy,
+  canDeploy,
+  onDeploy,
+}: {
+  chain: AvaChain;
+  status?: ChainStatus;
+  messenger?: Address;
+  inbox?: Inbox;
+  isDestination: boolean;
+  busy: boolean;
+  canDeploy: boolean;
+  onDeploy: () => void;
+}) {
+  const online = status?.online ?? false;
+  return (
+    <div
+      className={`flex flex-col gap-3 rounded-xl border p-5 transition-colors ${
+        isDestination ? "border-foreground" : ""
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-sm font-semibold">{chain.name}</span>
+        <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+          <span
+            className={`size-2 rounded-full ${online ? "bg-foreground animate-pulse" : "bg-muted-foreground/40"}`}
+          />
+          {online ? `block ${status?.block ?? 0n}` : "offline"}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Row label="Chain ID" value={String(chain.id)} mono />
+        <Row
+          label="ICM"
+          value={status?.icmReady ? "✓ Teleporter ready" : "—"}
+          mono
+        />
+        {messenger ? (
+          <Row label="Messenger" value={shortenAddress(messenger, 6)} mono />
+        ) : null}
+      </div>
+
+      {messenger ? (
+        <div className="bg-muted/50 rounded-lg p-3">
+          <p className="text-muted-foreground text-xs">Last received</p>
+          <p className="truncate text-sm">{inbox?.message || "—"}</p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            {inbox?.count ? `${inbox.count} total` : "0 total"}
+          </p>
+        </div>
+      ) : (
+        <Button onClick={onDeploy} disabled={busy || !canDeploy} size="sm">
+          {busy ? "Deploying…" : "Deploy messenger"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function SetupPanel() {
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border p-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Spin up your cross-chain devnet</h1>
+        <p className="text-muted-foreground text-sm">
+          This app sends a message between two Avalanche L1s. Bring them up — with Interchain
+          Messaging and a relayer wired automatically — with one command in your terminal:
+        </p>
+      </div>
+      <CopyCommand command="pnpm devnet" />
+      <p className="text-muted-foreground text-xs">
+        Needs{" "}
+        <a
+          href="https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli"
+          target="_blank"
+          rel="noreferrer"
+          className="underline underline-offset-4"
+        >
+          avalanche-cli
+        </a>
+        . When it finishes it writes <span className="font-mono">icm.config.json</span> and this page
+        turns into the Devnet Studio automatically.
+      </p>
+    </div>
+  );
+}
+
+function CopyCommand({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void navigator.clipboard?.writeText(command);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="bg-muted hover:bg-muted/70 flex items-center justify-between gap-4 rounded-lg p-4 text-left font-mono text-sm transition-colors"
+    >
+      <span>
+        <span className="text-muted-foreground select-none">$ </span>
+        {command}
+      </span>
+      {copied ? (
+        <Check className="size-4 shrink-0" />
+      ) : (
+        <Copy className="text-muted-foreground size-4 shrink-0" />
+      )}
+    </button>
+  );
+}
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      aria-label="Toggle theme"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+    >
+      <Sun className="hidden size-4 dark:block" />
+      <Moon className="block size-4 dark:hidden" />
+    </Button>
   );
 }
 

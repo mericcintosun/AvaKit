@@ -23,7 +23,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 - `icm.config.json` — the two local chains (RPC URL + **hex blockchain ID**). Written by `pnpm devnet`.
 - `lib/devnet.ts` — turns that config into AvaKit chains + helpers.
 - `app/providers.tsx` — `<AvaKitProvider chains={[chain1, chain2]}>` with the injected wallet.
-- `components/demo.tsx` — deploy on both chains, send, and watch the message arrive.
+- `components/demo.tsx` — the **Devnet Studio**: live chain cards (block height + ICM status), deploy on both chains, send, and watch the message land on the other chain. When the devnet isn't up yet it shows a copy-command setup panel (`pnpm devnet`) — it never runs shell itself.
 - `scripts/devnet.sh` — the one-command local ICM devnet.
 
 ## The flow

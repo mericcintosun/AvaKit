@@ -9,7 +9,7 @@
 - [scripts/devnet.sh](scripts/devnet.sh): one command — two local L1s with ICM + relayer.
 - [icm.config.json](icm.config.json): the two chains (RPC URL + hex blockchain ID); written by `pnpm devnet`.
 - [lib/devnet.ts](lib/devnet.ts): config → AvaKit chains + `blockchainIdOf()`.
-- [components/demo.tsx](components/demo.tsx): deploy on both chains, send, watch it arrive.
+- [components/demo.tsx](components/demo.tsx): the Devnet Studio — live chain cards (block + ICM status), deploy on both chains, send, watch it arrive. Setup is a copy-command panel (never runs shell).
 - [CLAUDE.md](CLAUDE.md): agent guide (ICM API, the blockchainID-vs-chainId gotcha, rules).
 
 ## Key facts
