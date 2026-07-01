@@ -1,78 +1,125 @@
-# AvaKit
+# AvaKit 🔺
 
-> **Avalanche'in açık kaynak, AI-native `create-next-app`'i.**
-> Tek komutla social-login onboarding'li, deploy'a hazır, içinde agent context'i gelen Avalanche dapp'i.
+> The open-source, AI-native developer toolkit for Avalanche.
 
-AvaKit; Avalanche ekosisteminin "vibe coder friendly" hâle gelmesi için tasarlanmış, tek çekirdek üstünde üç yüzeyden oluşan açık kaynaklı bir geliştirici araç setidir:
+[![create-avalanche-app](https://img.shields.io/npm/v/create-avalanche-app?label=create-avalanche-app&color=black)](https://www.npmjs.com/package/create-avalanche-app)
+[![@avakit/core](https://img.shields.io/npm/v/@avakit/core?label=%40avakit%2Fcore&color=black)](https://www.npmjs.com/package/@avakit/core)
+[![@avakit/react](https://img.shields.io/npm/v/@avakit/react?label=%40avakit%2Freact&color=black)](https://www.npmjs.com/package/@avakit/react)
+[![license](https://img.shields.io/npm/l/@avakit/core?color=black)](./LICENSE)
 
-1. **`@avakit/core`** — EVM + seedless/social-login wallet + chain data + deploy yardımcıları (kernel)
-2. **`@avakit/react`** — `<ConnectAvalanche>` drop-in widget'ı (EVM dev'in mevcut dapp'ine gömdüğü)
-3. **`create-avalanche-app`** — batteries-included scaffolder (vibe coder'ın tek komutu)
-4. **`@avakit/mcp`** — Claude/Cursor'ın scaffold + deploy için sürdüğü MCP server'ı
+Scaffold a social-login dapp, deploy-ready, with agent context baked in. One core, four surfaces — **no seed phrases, no boilerplate.**
 
-Tasarım ilkesi: **yeniden yazma, sar.** AvaKit olgun *altyapı* parçalarını (Web3Auth/AvaCloud WaaS wallet, Avalanche SDK, viem/wagmi) sarar; değeri key management'ta değil, **paketleme + vibe-coder/AI ergonomisinde**dir. (UI tarafında ise istisna: bileşenler **shadcn/ui** üstüne sıfırdan kurulur — bkz. [Conventions](docs/11-conventions.md).)
+**[avakit.vercel.app](https://avakit.vercel.app)** · **[Documentation](https://avakit.vercel.app/docs)** · **[Templates](https://avakit.vercel.app/templates)**
+
+```bash
+npm create avalanche-app@latest
+```
+
+That's it — connect with a social login, read your balance, and send your first transaction on Avalanche in minutes.
 
 ---
 
-## Bu repo şu an ne durumda?
+## Why AvaKit
 
-**M0–M3 tamamlandı** ✅ — tüm dört paket + web + örnek build oluyor, testler/typecheck/lint yeşil.
-- **M0:** monorepo + shadcn/Tailwind v4/next-themes siyah-beyaz, dark/light baseline
-- **M1:** `@avakit/core` (adapters, deploy, data, chain switch) + `@avakit/react` (`<ConnectAvalanche>`, hooks); social login **canlıda doğrulandı**
-- **M2:** `create-avalanche-app` scaffolder + 3 template (minimal, nft-mint, token-gated-app), her biri AI-context'li; hepsi build-doğrulandı
-- **M3:** `@avakit/mcp` — scaffold_app / deploy_contract / read_chain / get_context / list_templates; MCP fonksiyonel testi + canlı Fuji okuma geçti
+Avalanche's C-Chain is EVM-compatible and end-user onboarding is already solved (Core wallet's seedless social login). The remaining friction is on the **developer** side: spinning up a modern dapp with onboarding wired up still takes hours. AvaKit removes that.
 
-Detay: [Roadmap](docs/05-roadmap.md).
+- **Social-login onboarding** — users sign in with Google; no seed phrases. Keys stay in the provider's HSM; AvaKit never touches them.
+- **AI-native by default** — every generated app ships `CLAUDE.md`, `llms.txt`, and `.cursor/rules`, and `@avakit/mcp` lets Claude Code / Cursor scaffold, deploy, and read chain state for you.
+- **shadcn/ui, themed** — a clean design system with dark/light from day one. Copy-in components, no vendor lock-in.
+- **Deploy-ready** — contracts compile to bundled bytecode, so you can deploy straight from the browser. Fuji testnet by default.
+- **Safe defaults** — testnet-first, mainnet is explicit opt-in, secrets stay in env.
+- **Wrap, don't rewrite** — built on viem, Web3Auth, and Foundry, packaged for a great DX.
 
-### Geliştirme komutları
+## Packages
+
+| Package | What it is |
+| --- | --- |
+| [`@avakit/core`](https://www.npmjs.com/package/@avakit/core) | Framework-agnostic kernel — viem clients, wallet adapters, deploy helpers, chain data |
+| [`@avakit/react`](https://www.npmjs.com/package/@avakit/react) | `<ConnectAvalanche>` social-login widget, `<TransactionButton>`, and hooks — built on shadcn/ui |
+| [`create-avalanche-app`](https://www.npmjs.com/package/create-avalanche-app) | Batteries-included scaffolder |
+| [`@avakit/mcp`](https://www.npmjs.com/package/@avakit/mcp) | MCP server — scaffold, deploy, and read Avalanche from Claude Code / Cursor |
+
+## Templates
+
+```bash
+npm create avalanche-app@latest my-app -- --template nft-mint
+```
+
+| Template | What you get |
+| --- | --- |
+| `minimal` | Social-login wallet, balance, and a first transaction |
+| `nft-mint` | Deploy an ERC-721 from the browser, then mint |
+| `token-gated-app` | Unlock content for holders of an access-pass NFT |
+| `erc20-token` | Deploy an ERC-20, mint supply, and transfer |
+
+Every template ships with a social-login wallet, shadcn/ui (black & white, dark/light), and AI context files.
+
+## Use it in an existing app
+
+```bash
+npm install @avakit/react @avakit/core viem
+```
+
+```tsx
+"use client";
+import { injectedAdapter } from "@avakit/core";
+import { fuji } from "@avakit/core/chains";
+import { AvaKitProvider, ConnectAvalanche } from "@avakit/react";
+
+export function App() {
+  return (
+    <AvaKitProvider chains={[fuji]} adapters={[injectedAdapter()]}>
+      <ConnectAvalanche />
+    </AvaKitProvider>
+  );
+}
+```
+
+Add social login by installing `@web3auth/modal` and passing `web3authAdapter({ clientId })` (from `@avakit/core/web3auth`).
+
+## Build with an AI agent
+
+Add the MCP server to Claude Code, Cursor, or Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "avakit": { "command": "npx", "args": ["-y", "@avakit/mcp"] }
+  }
+}
+```
+
+Then just ask: *"Scaffold an nft-mint dapp and deploy it to Fuji."*
+
+## Repository layout
+
+```
+packages/
+  core/                 @avakit/core
+  react/                @avakit/react
+  mcp/                  @avakit/mcp
+  create-avalanche-app/ scaffolder + templates
+apps/web/               the avakit.vercel.app site
+examples/hello-avax/    live wallet demo
+docs/                   planning, PRD, architecture, ADRs, specs
+```
+
+## Contributing
 
 ```bash
 pnpm install
-pnpm build       # tüm paketler + web (Turborepo)
+pnpm build       # all packages (Turborepo)
 pnpm test        # Vitest
-pnpm lint        # Biome (lint + format)
+pnpm lint        # Biome
 pnpm typecheck   # TypeScript
-pnpm --filter @avakit/web dev   # web frontend
 ```
 
-Gereksinim: Node ≥ 20.11 (repo Node 24 hedefler), pnpm ≥ 10 (`corepack enable`).
+Requirements: Node ≥ 20.11, pnpm ≥ 10. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the design docs in [`docs/`](./docs). Conventions: English everywhere, shadcn/ui only, Framer Motion / GSAP for animation, latest stable versions.
 
-## Dokümanlar
+## License
 
-| # | Doküman | İçerik |
-|---|---|---|
-| 00 | [Vizyon & Konumlandırma](docs/00-vision-and-positioning.md) | Neden var, kime, tek cümlelik konum |
-| 01 | [PRD](docs/01-prd.md) | Problem, persona'lar, hedefler, kapsam, gereksinimler, başarı metrikleri |
-| 02 | [Rakip Analizi](docs/02-competitive-landscape.md) | Prior art haritası, whitespace, çakışma riskleri |
-| 03 | [Mimari](docs/03-architecture.md) | Monorepo, paketler, veri akışı, çekirdek-yüzey ilişkisi |
-| 04 | [Mimari Kararlar (ADR)](docs/04-adr.md) | Wallet sağlayıcı, monorepo aracı, stack seçimleri + gerekçeleri |
-| 05 | [Yol Haritası](docs/05-roadmap.md) | M1 → M2 → M3 milestone'ları ve teslimatları |
-| 06 | [Spec: Core SDK](docs/06-spec-core-sdk.md) | `@avakit/core` API yüzeyi |
-| 07 | [Spec: Wallet Widget](docs/07-spec-wallet-widget.md) | `@avakit/react` / `<ConnectAvalanche>` |
-| 08 | [Spec: Scaffolder](docs/08-spec-scaffolder.md) | `create-avalanche-app` akışı ve template'ler |
-| 09 | [Spec: MCP Server](docs/09-spec-mcp.md) | `@avakit/mcp` tool yüzeyi |
-| 10 | [AI-Native Strateji](docs/10-ai-native-strategy.md) | CLAUDE.md / llms.txt / cursor rules yaklaşımı |
-| 11 | [Conventions (bağlayıcı kurallar)](docs/11-conventions.md) | Dil, shadcn-only, animasyon, siyah/beyaz + tema, sürümler |
+[MIT](./LICENSE) © AvaKit contributors
 
-## Hızlı özet (TL;DR)
+---
 
-- **Hedef kitle:** (1) blockchain bilmeyen "vibe coder" (Cursor/Claude ile kod yazan), (2) Ethereum'dan gelen EVM/Solidity dev. İkisi de aynı ürünün farklı kapısından girer.
-- **Çözülen gerçek problem:** Onboarding sürtünmesi *son kullanıcı* için Core/Cubist ile zaten çözülmüş. Asıl boşluk **dev tarafında** — yeni/AI-destekli bir geliştiricinin social-login'li, deploy edilebilir bir Avalanche dapp'ini dakikalar içinde ayağa kaldıramaması.
-- **Farklılaşma:** Açık kaynak + ücretsiz (AvaCloud WaaS ücretli/kapalı) + AI-native by default (mevcut MCP'ler sadece docs/CLI yapıyor) + üç yüzeyi tek çekirdekte birleştirme.
-- **Lisans:** MIT.
-
-## Teknoloji kararları (özet)
-
-| Karar | Seçim | Detay |
-|---|---|---|
-| Default embedded wallet | Web3Auth (MetaMask Embedded Wallets) | Ücretsiz, açık, C-Chain'de social login. AvaCloud WaaS opsiyonel. |
-| Monorepo | pnpm workspaces + Turborepo | — |
-| Frontend stack | Next.js 16 + React 19 + wagmi + viem + Tailwind v4 | latest stable |
-| UI kütüphanesi | **shadcn/ui (tek)** | başka lib yok, BuilderKit UI dahil değil |
-| Animasyon | Framer Motion / GSAP | — |
-| Tema & renk | next-themes (dark/light baştan), **M3'e kadar siyah/beyaz** | renk en sona |
-| Smart contract | Foundry (birincil), Hardhat (opsiyonel) | Resmi starter-kit ile hizalı |
-| MCP | `@modelcontextprotocol/sdk` (TypeScript, stdio) | — |
-| Diller | TypeScript + Solidity | proje artefaktları İngilizce |
-
-Detaylar ve gerekçeler: [ADR](docs/04-adr.md) · Bağlayıcı kurallar: [Conventions](docs/11-conventions.md).
+<sub>Built on [viem](https://viem.sh), [Web3Auth](https://web3auth.io), [Foundry](https://getfoundry.sh), and [shadcn/ui](https://ui.shadcn.com). Testnet-first (Fuji); mainnet is opt-in.</sub>
