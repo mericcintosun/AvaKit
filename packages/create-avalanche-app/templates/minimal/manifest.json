@@ -1,0 +1,6 @@
+{
+  "id": "minimal",
+  "title": "Minimal",
+  "description": "Social-login wallet, balance, and a first transaction",
+  "contracts": false
+}

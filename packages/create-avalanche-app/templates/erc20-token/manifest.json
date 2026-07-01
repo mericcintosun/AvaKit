@@ -1,0 +1,6 @@
+{
+  "id": "erc20-token",
+  "title": "ERC-20 token",
+  "description": "Deploy an ERC-20 token from the browser, mint, and transfer",
+  "contracts": true
+}

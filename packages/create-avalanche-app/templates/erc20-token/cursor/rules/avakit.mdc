@@ -1,0 +1,31 @@
+---
+description: AvaKit ERC-20 conventions for this project
+globs: ["**/*.ts", "**/*.tsx", "**/*.sol", "**/*.css"]
+alwaysApply: true
+---
+
+# AvaKit ERC-20 project rules
+
+Deploy a token from the browser, mint, and transfer.
+
+## Flow
+
+- Deploy: `useAvaDeploy().deploy({ abi, bytecode })` (artifact in `lib/token-artifact.ts`).
+- Mint: `useContract({ address, abi }).write("mint", [])` (mints 100 AKT).
+- Transfer: `.write("transfer", [to, parseUnits("10", 18)])`.
+- Read: `.read("balanceOf", [address])`, `.read("totalSupply")`; format with `formatUnits(v, 18)`.
+
+## Amounts
+
+- The token has 18 decimals. Always convert with `parseUnits` / `formatUnits` — never pass raw human numbers as wei.
+
+## Contract
+
+- `contracts/src/AvaKitToken.sol` (minimal, self-contained). Recompile: `cd contracts && forge build`, then update `lib/token-artifact.ts`.
+
+## UI & safety
+
+- shadcn/ui only; black & white for now; dark/light via next-themes; both must work.
+- Animations: Framer Motion or GSAP only.
+- Deploying/minting/transferring cost gas; fund the wallet on Fuji first.
+- Default chain is Fuji testnet; mainnet requires explicit opt-in.

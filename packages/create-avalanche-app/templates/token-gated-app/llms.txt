@@ -1,0 +1,33 @@
+# __PROJECT_NAME__
+
+> A token-gated Avalanche dapp scaffolded with AvaKit. Content unlocks for holders of an access-pass NFT. Next.js + @avakit/react + shadcn/ui + Foundry.
+
+## Project map
+
+- [contracts/src/AvaKitNFT.sol](contracts/src/AvaKitNFT.sol): the access-pass ERC-721.
+- [lib/nft-artifact.ts](lib/nft-artifact.ts): compiled ABI + bytecode (browser deploy).
+- [components/demo.tsx](components/demo.tsx): deploy → mint → gate logic.
+- [app/providers.tsx](app/providers.tsx): AvaKitProvider + theme.
+- [CLAUDE.md](CLAUDE.md): agent guide (gate pattern, security caveats, rules).
+
+## The gate
+
+```ts
+const balance = (await useContract({ address, abi }).read("balanceOf", [address])) as bigint;
+const hasAccess = balance > 0n;
+```
+
+## Key APIs
+
+- Deploy: `useAvaDeploy().deploy({ abi, bytecode })`
+- Read/write: `useContract({ address, abi }).read(...)` / `.write("mint", [])`
+- Wallet: `<ConnectAvalanche />`, `useAvaAccount()`, `useAvaChain()`
+
+## Security note
+
+Client-side gating is illustrative. For real protected content, verify ownership server-side (e.g. SIWE + an API check) — never trust the browser alone.
+
+## External docs
+
+- Avalanche Builder Hub: https://build.avax.network/llms.txt
+- Fuji faucet: https://core.app/tools/testnet-faucet

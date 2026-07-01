@@ -1,0 +1,32 @@
+{
+  "name": "avakit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AvaKit — open-source, AI-native Avalanche developer toolkit (monorepo).",
+  "license": "MIT",
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=20.11",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "turbo run build && changeset publish",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.1",
+    "@changesets/cli": "2.31.0",
+    "turbo": "2.10.2",
+    "typescript": "catalog:"
+  }
+}

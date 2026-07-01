@@ -1,0 +1,36 @@
+# @avakit/mcp
+
+The [AvaKit](https://github.com/avakit/avakit) MCP server — scaffold, deploy, and read Avalanche from Claude Code / Cursor over the [Model Context Protocol](https://modelcontextprotocol.io).
+
+Unlike docs-only servers, this exposes **actions**: it can create a dapp, deploy a contract, and read chain state.
+
+## Add to your MCP client
+
+```json
+{
+  "mcpServers": {
+    "avakit": {
+      "command": "npx",
+      "args": ["-y", "@avakit/mcp"]
+    }
+  }
+}
+```
+
+Works with Claude Code, Cursor, and Claude Desktop.
+
+## Tools
+
+| Tool | Description |
+| --- | --- |
+| `scaffold_app` | Create an Avalanche dapp from a template (minimal, nft-mint, token-gated-app) |
+| `list_templates` | List available templates |
+| `read_chain` | Read a balance, a transaction receipt, or a contract view function |
+| `deploy_contract` | Deploy compiled bytecode (Fuji by default; mainnet requires `confirm: true`) |
+| `get_context` | AvaKit + Avalanche coding context and doc links |
+
+## Deploy key
+
+`deploy_contract` signs with a private key from the `AVAKIT_DEPLOYER_KEY` environment variable. Use a **throwaway testnet key** — never a key holding real funds. Mainnet deploys require an explicit `confirm: true`.
+
+MIT © AvaKit contributors

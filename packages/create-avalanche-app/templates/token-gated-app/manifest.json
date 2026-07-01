@@ -1,0 +1,6 @@
+{
+  "id": "token-gated-app",
+  "title": "Token-gated app",
+  "description": "Unlock content for holders of an access-pass NFT",
+  "contracts": true
+}

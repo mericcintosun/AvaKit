@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+  - "examples/*"
+
+# Centralized dependency versions (pnpm catalog). Reference with "catalog:" in package.json.
+catalog:
+  typescript: 6.0.3
+  tsup: 8.5.1
+  vitest: 4.1.9
+  "@types/node": 26.0.1

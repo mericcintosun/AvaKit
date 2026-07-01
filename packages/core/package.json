@@ -1,0 +1,78 @@
+{
+  "name": "@avakit/core",
+  "version": "0.1.0",
+  "description": "Core SDK for AvaKit — EVM clients, wallet adapters, deploy helpers, and chain data for Avalanche.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./chains": {
+      "types": "./dist/chains.d.ts",
+      "import": "./dist/chains.js"
+    },
+    "./web3auth": {
+      "types": "./dist/web3auth.d.ts",
+      "import": "./dist/web3auth.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "viem": "2.54.1"
+  },
+  "peerDependencies": {
+    "@web3auth/modal": ">=11"
+  },
+  "peerDependenciesMeta": {
+    "@web3auth/modal": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@web3auth/modal": "11.2.0",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "keywords": [
+    "avalanche",
+    "avax",
+    "web3",
+    "evm",
+    "viem",
+    "wallet",
+    "sdk",
+    "avakit"
+  ],
+  "author": "AvaKit contributors",
+  "homepage": "https://github.com/avakit/avakit#readme",
+  "bugs": {
+    "url": "https://github.com/avakit/avakit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avakit/avakit.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

@@ -1,0 +1,28 @@
+---
+description: AvaKit + Avalanche conventions for this project
+globs: ["**/*.ts", "**/*.tsx", "**/*.css"]
+alwaysApply: true
+---
+
+# AvaKit project rules
+
+This is an Avalanche dapp built with AvaKit (`@avakit/react` + `@avakit/core`).
+
+## UI
+
+- Use **shadcn/ui only**. `@avakit/react` ships shadcn-styled components — match that style.
+- **Black & white only** for now. Dark/light is wired via `next-themes`; every screen must work in both. Add brand colors later by editing the tokens in `app/globals.css`.
+- Animations: **Framer Motion** or **GSAP** only.
+
+## Wallet & chain
+
+- Wallet button: `<ConnectAvalanche />`.
+- Read state with hooks: `useAvaAccount`, `useAvaChain`, `useBalance`, `useContract`.
+- For raw transactions, get a viem wallet client: `getWalletClient(chain, provider)` where `provider` comes from `useAvaKit()`.
+- Default chain is Fuji testnet. Mainnet requires explicit opt-in.
+
+## Safety
+
+- Never hardcode RPC URLs or secrets. Use the chain config and `.env.local`.
+- Private keys live in the wallet provider, never in app code.
+- Social login requires `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (free, dashboard.web3auth.io).

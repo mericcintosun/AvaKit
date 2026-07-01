@@ -1,0 +1,6 @@
+{
+  "id": "nft-mint",
+  "title": "NFT mint",
+  "description": "Deploy an NFT contract from the browser, then mint",
+  "contracts": true
+}

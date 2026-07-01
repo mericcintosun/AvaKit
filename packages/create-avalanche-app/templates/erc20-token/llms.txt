@@ -1,0 +1,29 @@
+# __PROJECT_NAME__
+
+> An Avalanche ERC-20 dapp scaffolded with AvaKit. Deploy a token from the browser, mint, and transfer. Next.js + @avakit/react + shadcn/ui + Foundry.
+
+## Project map
+
+- [contracts/src/AvaKitToken.sol](contracts/src/AvaKitToken.sol): minimal self-contained ERC-20 (AKT, 18 decimals) with a `mint()` faucet.
+- [lib/token-artifact.ts](lib/token-artifact.ts): compiled ABI + bytecode (browser deploy).
+- [components/demo.tsx](components/demo.tsx): deploy → mint → transfer.
+- [CLAUDE.md](CLAUDE.md): agent guide (API, decimals, contract workflow).
+
+## Key APIs
+
+- Deploy: `useAvaDeploy().deploy({ abi, bytecode })`
+- Mint: `useContract({ address, abi }).write("mint", [])`
+- Transfer: `.write("transfer", [to, parseUnits("10", 18)])`
+- Read: `.read("balanceOf", [address])`, `.read("totalSupply")` — format with `formatUnits(v, 18)`
+
+## Recompile
+
+```
+cd contracts && forge build
+```
+Then copy abi + bytecode.object from `out/AvaKitToken.sol/AvaKitToken.json` into `lib/token-artifact.ts`.
+
+## External docs
+
+- Avalanche Builder Hub: https://build.avax.network/llms.txt
+- Fuji faucet: https://core.app/tools/testnet-faucet

@@ -1,0 +1,61 @@
+{
+  "name": "@avakit/mcp",
+  "version": "0.1.0",
+  "description": "AvaKit MCP server — scaffold, deploy, and read Avalanche from Claude Code / Cursor.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "avakit-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@avakit/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "create-avalanche-app": "workspace:*",
+    "viem": "2.54.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "keywords": [
+    "avalanche",
+    "avax",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "claude",
+    "cursor",
+    "web3",
+    "avakit"
+  ],
+  "author": "AvaKit contributors",
+  "homepage": "https://github.com/avakit/avakit#readme",
+  "bugs": {
+    "url": "https://github.com/avakit/avakit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avakit/avakit.git",
+    "directory": "packages/mcp"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

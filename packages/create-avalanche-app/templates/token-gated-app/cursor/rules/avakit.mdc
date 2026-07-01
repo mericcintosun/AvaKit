@@ -1,0 +1,36 @@
+---
+description: AvaKit token-gating conventions for this project
+globs: ["**/*.ts", "**/*.tsx", "**/*.sol", "**/*.css"]
+alwaysApply: true
+---
+
+# AvaKit token-gated project rules
+
+Content is gated behind ownership of an access-pass NFT (`balanceOf(address) > 0`).
+
+## Gate pattern
+
+```ts
+const balance = (await useContract({ address, abi }).read("balanceOf", [address])) as bigint;
+const hasAccess = balance > 0n; // only render gated content when true
+```
+
+- Deploy the pass: `useAvaDeploy().deploy({ abi, bytecode })` (artifact in `lib/nft-artifact.ts`).
+- Mint a pass: `useContract({ address, abi }).write("mint", [])`.
+- To gate on a different token, point `useContract` at its address/ABI and adjust the threshold.
+
+## Contract
+
+- `contracts/src/AvaKitNFT.sol` (minimal, self-contained). Recompile: `cd contracts && forge build`, then update `lib/nft-artifact.ts`.
+
+## UI
+
+- shadcn/ui only; `@avakit/react` components are shadcn-styled.
+- Black & white only for now; dark/light via next-themes; both must work.
+- Animations: Framer Motion or GSAP only.
+
+## Safety
+
+- Client-side gating is illustrative — verify ownership server-side for real secrets (SIWE + API).
+- Deploying/minting costs gas; fund the wallet on Fuji first.
+- Default chain is Fuji testnet; mainnet requires explicit opt-in.

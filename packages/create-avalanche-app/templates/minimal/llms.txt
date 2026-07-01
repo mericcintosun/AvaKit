@@ -1,0 +1,30 @@
+# __PROJECT_NAME__
+
+> An Avalanche dapp scaffolded with AvaKit (https://github.com/avakit). Next.js + @avakit/react + shadcn/ui. Social-login onboarding, deploy-ready, black & white with dark/light from day one.
+
+## Project map
+
+- [app/providers.tsx](app/providers.tsx): AvaKitProvider (chains + wallet adapters) and theme provider.
+- [app/layout.tsx](app/layout.tsx): root layout and fonts.
+- [app/page.tsx](app/page.tsx): renders the demo.
+- [components/demo.tsx](components/demo.tsx): connect wallet, read balance, send a transaction.
+- [app/globals.css](app/globals.css): shadcn tokens (black & white) + dark/light.
+- [CLAUDE.md](CLAUDE.md): agent guide with the AvaKit API and project rules.
+
+## Key APIs (@avakit/react)
+
+- `<AvaKitProvider chains={[...]} adapters={[...]}>`
+- `<ConnectAvalanche />` — drop-in wallet button
+- `useAvaAccount()`, `useAvaChain()`, `useBalance()`, `useContract()`, `useAvaDeploy()`, `useAvaKit()`
+
+## Key APIs (@avakit/core)
+
+- `fuji`, `cChain`, `defineChain` from `@avakit/core/chains`
+- `injectedAdapter()`, `web3authAdapter({ clientId })` (from `@avakit/core/web3auth`)
+- `getPublicClient`, `getWalletClient`, `ensureChain`, `deployContract`, `getBalance`, `readContract`
+
+## External docs
+
+- Avalanche Builder Hub: https://build.avax.network/llms.txt
+- Web3Auth dashboard (free client ID): https://dashboard.web3auth.io
+- Fuji faucet: https://core.app/tools/testnet-faucet

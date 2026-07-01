@@ -1,0 +1,65 @@
+{
+  "name": "create-avalanche-app",
+  "version": "0.1.0",
+  "description": "Scaffold a batteries-included Avalanche dapp: social-login onboarding, deploy-ready, AI-native.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-avalanche-app": "./dist/index.js"
+  },
+  "exports": {
+    "./api": {
+      "types": "./dist/api.d.ts",
+      "import": "./dist/api.js"
+    }
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@clack/prompts": "1.6.0",
+    "picocolors": "1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "keywords": [
+    "avalanche",
+    "avax",
+    "create-app",
+    "scaffold",
+    "starter",
+    "nextjs",
+    "web3",
+    "dapp",
+    "avakit"
+  ],
+  "author": "AvaKit contributors",
+  "homepage": "https://github.com/avakit/avakit#readme",
+  "bugs": {
+    "url": "https://github.com/avakit/avakit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avakit/avakit.git",
+    "directory": "packages/create-avalanche-app"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

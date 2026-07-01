@@ -1,0 +1,31 @@
+# __PROJECT_NAME__
+
+> An Avalanche NFT dapp scaffolded with AvaKit. Deploy an ERC-721 from the browser, then mint. Next.js + @avakit/react + shadcn/ui + Foundry.
+
+## Project map
+
+- [contracts/src/AvaKitNFT.sol](contracts/src/AvaKitNFT.sol): minimal self-contained ERC-721 mint contract.
+- [lib/nft-artifact.ts](lib/nft-artifact.ts): compiled ABI + bytecode (browser deploy, no Foundry at runtime).
+- [components/demo.tsx](components/demo.tsx): deploy + mint flow.
+- [app/providers.tsx](app/providers.tsx): AvaKitProvider (chains + wallet adapters) + theme.
+- [CLAUDE.md](CLAUDE.md): agent guide (AvaKit API, contract workflow, rules).
+
+## Key APIs
+
+- Deploy: `useAvaDeploy().deploy({ abi, bytecode })`
+- Contract: `useContract({ address, abi }).write("mint", [])` / `.read("totalSupply")`
+- Wallet: `<ConnectAvalanche />`, `useAvaAccount()`, `useAvaChain()`
+- Core: `deployContract`, `getWalletClient`, `ensureChain` from `@avakit/core`
+
+## Recompile the contract
+
+```
+cd contracts && forge build
+```
+Then copy abi + bytecode.object from `out/AvaKitNFT.sol/AvaKitNFT.json` into `lib/nft-artifact.ts`.
+
+## External docs
+
+- Avalanche Builder Hub: https://build.avax.network/llms.txt
+- Foundry book: https://book.getfoundry.sh
+- Fuji faucet: https://core.app/tools/testnet-faucet
