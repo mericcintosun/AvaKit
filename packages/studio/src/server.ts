@@ -10,6 +10,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getAddressData } from "./dataapi.js";
 import { getDevnetStatus, isDevnetAction, runDevnetAction } from "./devnet.js";
 import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
@@ -170,6 +171,20 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
             return;
           }
           sendJson(res, 200, await sendIcmMessage(from, to, message));
+          return;
+        }
+        if (pathname === "/api/data") {
+          const address = url.searchParams.get("address") ?? "";
+          const chainId = Number(url.searchParams.get("chainId") ?? "43113");
+          if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+            sendJson(res, 400, { error: "invalid address" });
+            return;
+          }
+          if (chainId !== 43113 && chainId !== 43114) {
+            sendJson(res, 400, { error: "unsupported chain" });
+            return;
+          }
+          sendJson(res, 200, await getAddressData(address, chainId));
           return;
         }
         sendJson(res, 404, { error: "not found" });

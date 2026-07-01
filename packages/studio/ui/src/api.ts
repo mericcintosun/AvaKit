@@ -107,3 +107,17 @@ export interface IcmState {
   ready: boolean;
   chains: IcmChain[];
 }
+
+export interface DataSummary {
+  native: { symbol: string; balance: string; decimals: number } | null;
+  tokens: { address: string; symbol: string; name: string; balance: string; decimals: number }[];
+  nfts: { address: string; name: string; symbol: string; tokenId: string }[];
+  transactions: {
+    txHash: string;
+    from: string;
+    to: string;
+    timestamp: number;
+    method: string | null;
+    status: string;
+  }[];
+}

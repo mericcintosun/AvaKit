@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type DevnetStatus, type Inventory } from "./api";
 import { Sidebar, type View } from "./components/Sidebar";
 import { Button } from "./components/ui/button";
+import { DataView } from "./views/DataView";
 import { DevnetView } from "./views/DevnetView";
 import { EnvironmentView } from "./views/EnvironmentView";
 import { InterchainView } from "./views/InterchainView";
@@ -20,6 +21,10 @@ const TITLES: Record<View, { title: string; sub: string }> = {
   interchain: {
     title: "Interchain Messaging",
     sub: "Deploy messengers and watch a message travel between two L1s.",
+  },
+  data: {
+    title: "Data",
+    sub: "Balances, NFTs, and transactions for any Fuji or C-Chain address — no indexer.",
   },
   environment: {
     title: "Environment",
@@ -112,6 +117,8 @@ export function App() {
             />
           ) : view === "interchain" ? (
             <InterchainView />
+          ) : view === "data" ? (
+            <DataView />
           ) : (
             <EnvironmentView env={env} />
           )}
