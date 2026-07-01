@@ -133,3 +133,58 @@ export function useAvaDeploy() {
 
   return { deploy, status, result, error };
 }
+
+export type TxStatus = "idle" | "pending" | "success" | "error";
+
+/** Send a transaction from the connected wallet, with status + explorer link. */
+export function useSendTransaction() {
+  const { chain, provider, address } = useAvaKit();
+  const [status, setStatus] = useState<TxStatus>("idle");
+  const [hash, setHash] = useState<Hex | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+
+  const send = useCallback(
+    async (tx: { to: Address; value?: bigint; data?: Hex }): Promise<Hex> => {
+      if (!provider || !address) {
+        throw new Error("Connect a wallet before sending a transaction.");
+      }
+      setStatus("pending");
+      setError(null);
+      setHash(null);
+      try {
+        const wallet = getWalletClient(chain, provider);
+        const txHash = await wallet.sendTransaction({
+          account: address,
+          to: tx.to,
+          value: tx.value,
+          data: tx.data,
+        } as Parameters<typeof wallet.sendTransaction>[0]);
+        setHash(txHash);
+        setStatus("success");
+        return txHash;
+      } catch (e) {
+        const err = e instanceof Error ? e : new Error(String(e));
+        setError(err);
+        setStatus("error");
+        throw err;
+      }
+    },
+    [chain, provider, address],
+  );
+
+  const reset = useCallback(() => {
+    setStatus("idle");
+    setHash(null);
+    setError(null);
+  }, []);
+
+  return {
+    send,
+    reset,
+    status,
+    hash,
+    error,
+    isPending: status === "pending",
+    explorerUrl: hash ? `${chain.explorerUrl}/tx/${hash}` : null,
+  };
+}

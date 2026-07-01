@@ -50,13 +50,13 @@
     "avakit"
   ],
   "author": "AvaKit contributors",
-  "homepage": "https://github.com/avakit/avakit#readme",
+  "homepage": "https://github.com/mericcintosun/AvaKit#readme",
   "bugs": {
-    "url": "https://github.com/avakit/avakit/issues"
+    "url": "https://github.com/mericcintosun/AvaKit/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/avakit/avakit.git",
+    "url": "git+https://github.com/mericcintosun/AvaKit.git",
     "directory": "packages/create-avalanche-app"
   },
   "engines": {

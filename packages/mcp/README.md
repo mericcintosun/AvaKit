@@ -1,6 +1,6 @@
 # @avakit/mcp
 
-The [AvaKit](https://github.com/avakit/avakit) MCP server — scaffold, deploy, and read Avalanche from Claude Code / Cursor over the [Model Context Protocol](https://modelcontextprotocol.io).
+The [AvaKit](https://github.com/mericcintosun/AvaKit) MCP server — scaffold, deploy, and read Avalanche from Claude Code / Cursor over the [Model Context Protocol](https://modelcontextprotocol.io).
 
 Unlike docs-only servers, this exposes **actions**: it can create a dapp, deploy a contract, and read chain state.
 

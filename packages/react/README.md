@@ -1,6 +1,6 @@
 # @avakit/react
 
-React layer for [AvaKit](https://github.com/avakit/avakit) — a drop-in `<ConnectAvalanche>` social-login wallet button and hooks, built on shadcn/ui.
+React layer for [AvaKit](https://github.com/mericcintosun/AvaKit) — a drop-in `<ConnectAvalanche>` social-login wallet button and hooks, built on shadcn/ui.
 
 ## Install
 
@@ -39,8 +39,8 @@ To add social login, install `@web3auth/modal` and pass `web3authAdapter({ clien
 
 ## API
 
-- `<AvaKitProvider chains adapters>` · `<ConnectAvalanche />`
-- Hooks: `useAvaAccount`, `useAvaChain`, `useBalance`, `useContract`, `useAvaDeploy`, `useAvaKit`
+- Components: `<AvaKitProvider chains adapters>` · `<ConnectAvalanche />` · `<TransactionButton to value>`
+- Hooks: `useAvaAccount`, `useAvaChain`, `useBalance`, `useContract`, `useAvaDeploy`, `useSendTransaction`, `useAvaKit`
 
 ## Styling
 

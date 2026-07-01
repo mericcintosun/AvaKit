@@ -71,9 +71,29 @@ export function Header() {
           <C>useAvaDeploy()</C> — <C>{"{ deploy, status, result, error }"}</C>
         </li>
         <li>
+          <C>useSendTransaction()</C> — <C>{"{ send, status, hash, explorerUrl, isPending }"}</C>
+        </li>
+        <li>
           <C>useAvaKit()</C> — the full context (provider, adapters, connect/disconnect)
         </li>
       </UL>
+
+      <H2>Send a transaction</H2>
+      <P>
+        The <C>useSendTransaction</C> hook (and the <C>&lt;TransactionButton&gt;</C> component built
+        on it) wrap the whole send flow — pending state, errors, and an explorer link.
+      </P>
+      <CodeBlock
+        code={`import { TransactionButton, useSendTransaction } from "@avakit/react";
+import { parseEther } from "viem";
+
+// One-click component
+<TransactionButton to="0x…" value={parseEther("0.01")}>Send 0.01 AVAX</TransactionButton>;
+
+// Or the hook
+const { send, isPending, explorerUrl } = useSendTransaction();
+await send({ to: "0x…", value: parseEther("0.01") });`}
+      />
 
       <H2>Deploy & mint from React</H2>
       <CodeBlock

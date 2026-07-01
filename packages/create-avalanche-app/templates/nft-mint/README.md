@@ -1,6 +1,6 @@
 # __PROJECT_NAME__
 
-An Avalanche **NFT mint** dapp scaffolded with [AvaKit](https://github.com/avakit). Deploy an ERC-721 from your browser, then mint — no Foundry required to run it.
+An Avalanche **NFT mint** dapp scaffolded with [AvaKit](https://github.com/mericcintosun/AvaKit). Deploy an ERC-721 from your browser, then mint — no Foundry required to run it.
 
 ## Getting started
 

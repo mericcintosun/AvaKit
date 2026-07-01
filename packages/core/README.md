@@ -1,6 +1,6 @@
 # @avakit/core
 
-Framework-agnostic kernel for [AvaKit](https://github.com/avakit/avakit) — EVM clients, wallet adapters, deploy helpers, and chain data for Avalanche. Depends only on [viem](https://viem.sh). AvaKit never touches private keys.
+Framework-agnostic kernel for [AvaKit](https://github.com/mericcintosun/AvaKit) — EVM clients, wallet adapters, deploy helpers, and chain data for Avalanche. Depends only on [viem](https://viem.sh). AvaKit never touches private keys.
 
 ## Install
 

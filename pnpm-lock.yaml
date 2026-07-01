@@ -91,7 +91,7 @@ importers:
         specifier: 4.3.2
         version: 4.3.2
       '@types/node':
-        specifier: 'catalog:'
+        specifier: 26.0.1
         version: 26.0.1
       '@types/react':
         specifier: 19.2.17
@@ -109,7 +109,7 @@ importers:
         specifier: 1.4.0
         version: 1.4.0
       typescript:
-        specifier: 'catalog:'
+        specifier: 6.0.3
         version: 6.0.3
 
   examples/hello-avax:

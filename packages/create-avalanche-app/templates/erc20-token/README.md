@@ -1,6 +1,6 @@
 # __PROJECT_NAME__
 
-An Avalanche **ERC-20 token** dapp scaffolded with [AvaKit](https://github.com/avakit/avakit). Deploy a token from your browser, mint, and transfer — no Foundry required to run it.
+An Avalanche **ERC-20 token** dapp scaffolded with [AvaKit](https://github.com/mericcintosun/AvaKit). Deploy a token from your browser, mint, and transfer — no Foundry required to run it.
 
 ## Getting started
 

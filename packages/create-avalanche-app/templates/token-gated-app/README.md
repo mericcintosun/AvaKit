@@ -1,6 +1,6 @@
 # __PROJECT_NAME__
 
-A **token-gated** Avalanche dapp scaffolded with [AvaKit](https://github.com/avakit). Content unlocks for holders of an access-pass NFT — no Foundry required to run it.
+A **token-gated** Avalanche dapp scaffolded with [AvaKit](https://github.com/mericcintosun/AvaKit). Content unlocks for holders of an access-pass NFT — no Foundry required to run it.
 
 ## Getting started
 

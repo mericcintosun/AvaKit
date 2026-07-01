@@ -1,6 +1,6 @@
 # __PROJECT_NAME__
 
-An Avalanche dapp scaffolded with [AvaKit](https://github.com/avakit) — social-login onboarding, deploy-ready, black & white with dark/light from day one.
+An Avalanche dapp scaffolded with [AvaKit](https://github.com/mericcintosun/AvaKit) — social-login onboarding, deploy-ready, black & white with dark/light from day one.
 
 ## Getting started
 

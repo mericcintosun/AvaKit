@@ -1,6 +1,6 @@
 # create-avalanche-app
 
-Scaffold a batteries-included [AvaKit](https://github.com/avakit/avakit) Avalanche dapp: social-login onboarding, deploy-ready, and AI-native.
+Scaffold a batteries-included [AvaKit](https://github.com/mericcintosun/AvaKit) Avalanche dapp: social-login onboarding, deploy-ready, and AI-native.
 
 ## Usage
 
