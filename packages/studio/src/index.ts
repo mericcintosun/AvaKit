@@ -50,7 +50,9 @@ async function main(): Promise<void> {
 
   const { url } = await startServer({ port: parsePort(argv), cwd: process.cwd() });
 
-  process.stdout.write(`\n  \x1b[1mAvaKit Studio\x1b[0m\n  ▸ ${url}\n\n  Press Ctrl+C to stop.\n\n`);
+  process.stdout.write(
+    `\n  \x1b[1mAvaKit Studio\x1b[0m\n  ▸ ${url}\n\n  Press Ctrl+C to stop.\n\n`,
+  );
   if (!argv.includes("--no-open")) openBrowser(url);
 }
 

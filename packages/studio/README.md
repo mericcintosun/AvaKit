@@ -17,8 +17,15 @@ Studio is a tool **you launch yourself** from your terminal (like Prisma Studio)
 - gates its API behind a per-session token injected into the served page (a cross-origin page can't read it),
 - runs external tools only via `execFile` with fixed arguments — never a shell string, so there's no command injection.
 
+## What's inside
+
+- **Environment inventory** — avalanche-cli, Foundry, and your local L1s, at a glance.
+- **Devnet control** — spin up a two-L1 ICM devnet, start/stop the network, with a **live log** streamed from avalanche-cli. Every command runs via `spawn`/`execFile` with fixed arguments — no shell, no request-derived args.
+
+The UI is React + Tailwind with the same black-and-white shadcn design system as the AvaKit landing.
+
 ## Status
 
-Phase 1: environment inventory + secure local server. Devnet controls, chain/contract explorer, and the ICM message view land in later phases.
+Phases 1–2 shipped (inventory + devnet control). Chain/contract explorer, the ICM message view, and an AI/MCP layer land in later phases.
 
 MIT © AvaKit contributors

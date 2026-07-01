@@ -6,30 +6,41 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getDevnetStatus, isDevnetAction, runDevnetAction } from "./devnet.js";
 import { getInventory } from "./inventory.js";
 
 const ALLOWED_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-function hostOf(req: IncomingMessage): string {
-  const raw = req.headers.host ?? "";
-  return raw.split(":")[0] ?? "";
-}
+const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".json": "application/json",
+  ".map": "application/json",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+};
 
-/** Reject anything not addressed to a loopback host (defends DNS rebinding). */
-function isLoopbackHost(req: IncomingMessage): boolean {
-  return ALLOWED_HOSTS.has(hostOf(req));
+function hostOf(req: IncomingMessage): string {
+  return (req.headers.host ?? "").split(":")[0] ?? "";
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  const payload = JSON.stringify(body);
-  res.writeHead(status, {
-    "content-type": "application/json",
-    "cache-control": "no-store",
-  });
-  res.end(payload);
+  res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
+  res.end(JSON.stringify(body));
+}
+
+/** Resolve a request path inside webDir, or null if it escapes (traversal). */
+function safeFile(webDir: string, pathname: string): string | null {
+  const full = resolve(webDir, `.${pathname}`);
+  if (full !== webDir && !full.startsWith(webDir + sep)) return null;
+  return existsSync(full) && statSync(full).isFile() ? full : null;
 }
 
 export interface StudioServer {
@@ -40,17 +51,21 @@ export interface StudioServer {
 
 export async function startServer(opts: { port?: number; cwd: string }): Promise<StudioServer> {
   const token = randomBytes(24).toString("hex");
-  const webDir = fileURLToPath(new URL("./web/", import.meta.url));
+  const webDir = fileURLToPath(new URL("./web", import.meta.url));
 
-  // The single-page shell; the token is injected so only a page served by this
+  // The built SPA shell; the token is injected so only a page served by this
   // server (same-origin) can read it and call the API.
-  const indexHtml = readFileSync(new URL("./web/index.html", import.meta.url), "utf8").replace(
+  const indexHtml = readFileSync(join(webDir, "index.html"), "utf8").replace(
     "</head>",
     `<script>window.__AVAKIT_STUDIO__=${JSON.stringify({ token })}</script></head>`,
   );
+  const serveIndex = (res: ServerResponse) => {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    res.end(indexHtml);
+  };
 
   const server = createServer(async (req, res) => {
-    if (!isLoopbackHost(req)) {
+    if (!ALLOWED_HOSTS.has(hostOf(req))) {
       sendJson(res, 403, { error: "forbidden" });
       return;
     }
@@ -58,12 +73,42 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
     const url = new URL(req.url ?? "/", "http://localhost");
     const pathname = url.pathname;
 
-    // API surface — token required.
+    // API surface — token required (header, or query param for EventSource,
+    // which cannot set headers). Both are same-origin only.
     if (pathname.startsWith("/api/")) {
-      if (req.headers["x-studio-token"] !== token) {
+      const provided = req.headers["x-studio-token"] ?? url.searchParams.get("token") ?? undefined;
+      if (provided !== token) {
         sendJson(res, 401, { error: "unauthorized" });
         return;
       }
+
+      // Live action log (Server-Sent Events).
+      if (pathname === "/api/devnet/stream") {
+        const action = url.searchParams.get("action") ?? "";
+        if (!isDevnetAction(action)) {
+          sendJson(res, 400, { error: "unknown action" });
+          return;
+        }
+        res.writeHead(200, {
+          "content-type": "text/event-stream",
+          "cache-control": "no-store",
+          connection: "keep-alive",
+        });
+        const send = (event: string, data: unknown) =>
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        send("start", { action });
+        const handle = runDevnetAction(
+          action,
+          (line) => send("line", { line }),
+          (exitCode) => {
+            send("done", { exitCode });
+            res.end();
+          },
+        );
+        req.on("close", () => handle.cancel());
+        return;
+      }
+
       try {
         if (pathname === "/api/health") {
           sendJson(res, 200, { ok: true, name: "avakit-studio" });
@@ -73,6 +118,10 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
           sendJson(res, 200, await getInventory(opts.cwd));
           return;
         }
+        if (pathname === "/api/devnet/status") {
+          sendJson(res, 200, await getDevnetStatus());
+          return;
+        }
         sendJson(res, 404, { error: "not found" });
       } catch (e) {
         sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
@@ -80,33 +129,31 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
       return;
     }
 
-    // Everything else serves the SPA shell (with the token injected).
-    if (pathname === "/" || pathname === "/index.html") {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      res.end(indexHtml);
-      return;
+    // Static assets (Vite build), then SPA fallback to the injected shell.
+    if (pathname !== "/" && pathname !== "/index.html") {
+      const file = safeFile(webDir, pathname);
+      if (file) {
+        res.writeHead(200, {
+          "content-type": CONTENT_TYPES[extname(file)] ?? "application/octet-stream",
+        });
+        res.end(readFileSync(file));
+        return;
+      }
     }
-
-    res.writeHead(404, { "content-type": "text/plain" });
-    res.end("Not found");
-    void webDir; // reserved for static assets in later phases
+    serveIndex(res);
   });
 
-  const port = await new Promise<number>((resolve, reject) => {
+  const port = await new Promise<number>((resolvePort, reject) => {
     server.on("error", reject);
-    // 0 = let the OS pick a free port when no port is requested.
     server.listen(opts.port ?? 0, "127.0.0.1", () => {
       const addr = server.address();
-      resolve(typeof addr === "object" && addr ? addr.port : (opts.port ?? 0));
+      resolvePort(typeof addr === "object" && addr ? addr.port : (opts.port ?? 0));
     });
   });
 
   return {
     port,
     url: `http://127.0.0.1:${port}/`,
-    close: () =>
-      new Promise<void>((resolve) => {
-        server.close(() => resolve());
-      }),
+    close: () => new Promise<void>((r) => server.close(() => r())),
   };
 }

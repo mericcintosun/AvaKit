@@ -14,20 +14,33 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup && cp -rf web dist/web",
+    "build": "tsup && vite build",
+    "build:server": "tsup",
+    "build:ui": "vite build",
     "dev": "tsup --watch",
     "start": "node dist/index.js",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p ui/tsconfig.json --noEmit",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@avakit/core": "workspace:*"
+    "@avakit/core": "workspace:*",
+    "clsx": "2.1.1",
+    "lucide-react": "1.22.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "tailwind-merge": "3.6.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.3.2",
     "@types/node": "catalog:",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "tailwindcss": "4.3.2",
     "tsup": "catalog:",
     "typescript": "catalog:",
+    "vite": "^7.0.0",
     "vitest": "catalog:"
   },
   "keywords": ["avalanche", "avax", "studio", "dashboard", "l1", "subnet", "icm", "devnet", "avakit"],
