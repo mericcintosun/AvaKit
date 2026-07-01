@@ -1,0 +1,16 @@
+# pnpm settings for this scaffolded app.
+# allowBuilds: pre-approve native postinstall scripts so `pnpm install` / `pnpm dev`
+#   don't fail with ERR_PNPM_IGNORED_BUILDS on pnpm 10+. The eERC crypto/wallet stack
+#   pulls in blake-hash, keccak, bufferutil and utf-8-validate alongside sharp.
+# minimumReleaseAgeExclude: pnpm's supply-chain age gate blocks very fresh releases;
+#   exempt AvaKit's own packages so a new @avakit publish never breaks a fresh install
+#   (third-party deps keep the protection). Delete this file to opt back into defaults.
+allowBuilds:
+  sharp: true
+  blake-hash: true
+  keccak: true
+  bufferutil: true
+  utf-8-validate: true
+minimumReleaseAgeExclude:
+  - '@avakit/core'
+  - '@avakit/react'

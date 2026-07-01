@@ -5,7 +5,14 @@ import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { type ChainId, listTemplates, scaffoldApp, type WalletId } from "./api.js";
 
-const VERSION = "0.1.2";
+const VERSION = "0.1.4";
+
+// The @avakit/* dependency version stamped into scaffolded apps' package.json
+// (as `^AVAKIT_DEP_VERSION`). Kept separate from the CLI's own VERSION: it must
+// resolve every published @avakit package, so it tracks the LOWEST current
+// @avakit version (core 0.1.2 · react 0.1.3 → ^0.1.2 satisfies both). Bump only
+// when the minimum @avakit version a fresh app needs goes up.
+const AVAKIT_DEP_VERSION = "0.1.2";
 
 type PackageManager = "pnpm" | "npm" | "yarn" | "bun";
 
@@ -204,7 +211,7 @@ async function main(): Promise<void> {
     wallet: resolved.wallet,
     chain: resolved.chain,
     local: opts.local,
-    avakitVersion: VERSION,
+    avakitVersion: AVAKIT_DEP_VERSION,
   });
   spin?.stop(`Created ${files.length} files`);
 

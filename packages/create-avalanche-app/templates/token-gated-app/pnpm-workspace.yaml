@@ -1,0 +1,11 @@
+# pnpm settings for this scaffolded app.
+# allowBuilds: pre-approve native postinstall scripts so `pnpm install` / `pnpm dev`
+#   don't fail with ERR_PNPM_IGNORED_BUILDS on pnpm 10+.
+# minimumReleaseAgeExclude: pnpm's supply-chain age gate blocks very fresh releases;
+#   exempt AvaKit's own packages so a new @avakit publish never breaks a fresh install
+#   (third-party deps keep the protection). Delete this file to opt back into defaults.
+allowBuilds:
+  sharp: true
+minimumReleaseAgeExclude:
+  - '@avakit/core'
+  - '@avakit/react'
