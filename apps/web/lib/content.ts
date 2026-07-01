@@ -186,6 +186,19 @@ export const templates: Template[] = [
     ],
     art: "/erc-20.jpg",
   },
+  {
+    id: "icm-messenger",
+    title: "ICM cross-chain messenger",
+    description:
+      "Send a message between two Avalanche L1s with Interchain Messaging — over a one-command local devnet.",
+    contracts: true,
+    highlights: [
+      "One command: 2 local L1s + ICM + relayer",
+      "Teleporter send + receive contract",
+      "Watch a message cross chains live",
+    ],
+    art: "/abstract.jpg",
+  },
 ];
 
 export type McpTool = {

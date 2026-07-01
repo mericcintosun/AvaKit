@@ -1,0 +1,32 @@
+---
+description: AvaKit + Avalanche NFT conventions for this project
+globs: ["**/*.ts", "**/*.tsx", "**/*.sol", "**/*.css"]
+alwaysApply: true
+---
+
+# AvaKit NFT project rules
+
+This is an Avalanche NFT dapp built with AvaKit. It deploys an ERC-721 from the browser, then mints.
+
+## Flow
+
+- Deploy: `useAvaDeploy().deploy({ abi, bytecode })` (artifact in `lib/nft-artifact.ts`).
+- Mint: `useContract({ address, abi }).write("mint", [])`.
+- Read: `.read("totalSupply")`, `.read("balanceOf", [address])`.
+
+## Contract
+
+- Source: `contracts/src/AvaKitNFT.sol` (minimal, self-contained ERC-721 — no external deps).
+- After editing, recompile: `cd contracts && forge build`, then update `lib/nft-artifact.ts` with the new abi + bytecode.object.
+
+## UI
+
+- shadcn/ui only; `@avakit/react` components are shadcn-styled.
+- Black & white only for now; dark/light via next-themes; both must work.
+- Animations: Framer Motion or GSAP only.
+
+## Safety
+
+- Deploying and minting cost gas — fund the wallet on Fuji first.
+- Default chain is Fuji testnet; mainnet requires explicit opt-in.
+- Never hardcode secrets; keys stay in the wallet provider.

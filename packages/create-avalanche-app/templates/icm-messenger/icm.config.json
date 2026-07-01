@@ -1,0 +1,6 @@
+{
+  "configured": false,
+  "teleporterMessenger": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+  "chain1": { "name": "chain1", "token": "TOK1", "evmChainId": 1001, "rpcUrl": "", "blockchainIdHex": "" },
+  "chain2": { "name": "chain2", "token": "TOK2", "evmChainId": 1002, "rpcUrl": "", "blockchainIdHex": "" }
+}

@@ -1,0 +1,39 @@
+# __PROJECT_NAME__
+
+> An Avalanche cross-chain dapp scaffolded with AvaKit. Send a message between two Avalanche L1s using Interchain Messaging (ICM / Teleporter), against a one-command local devnet. Next.js + @avakit/react + shadcn/ui + Foundry + avalanche-cli.
+
+## Project map
+
+- [contracts/src/AvaKitMessenger.sol](contracts/src/AvaKitMessenger.sol): one contract that both sends and receives ICM messages (implements ITeleporterReceiver).
+- [lib/messenger-artifact.ts](lib/messenger-artifact.ts): compiled ABI + bytecode (browser deploy, no Foundry at runtime).
+- [scripts/devnet.sh](scripts/devnet.sh): one command — two local L1s with ICM + relayer.
+- [icm.config.json](icm.config.json): the two chains (RPC URL + hex blockchain ID); written by `pnpm devnet`.
+- [lib/devnet.ts](lib/devnet.ts): config → AvaKit chains + `blockchainIdOf()`.
+- [components/demo.tsx](components/demo.tsx): deploy on both chains, send, watch it arrive.
+- [CLAUDE.md](CLAUDE.md): agent guide (ICM API, the blockchainID-vs-chainId gotcha, rules).
+
+## Key facts
+
+- `destinationBlockchainID` is a **bytes32 hex blockchain ID**, NOT the EVM chainId. Use `blockchainIdOf(chain)`.
+- TeleporterMessenger predeploy: `0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf` (same on every ICM chain).
+- The receiver must `require(msg.sender == TeleporterMessenger)`.
+
+## Key APIs
+
+- Send: `AvaKitMessenger.sendMessage(destinationBlockchainID, destinationAddress, text)`
+- Receive: `receiveTeleporterMessage(sourceBlockchainID, originSender, message)` (stores `lastMessage`)
+- Deploy/read/write: `deployContract`, `getWalletClient`, `readContract`, `ensureChain` from `@avakit/core`
+- Wallet: `<ConnectAvalanche />`, `useAvaChain().setChain` to switch between the two L1s
+
+## Run it
+
+```
+pnpm devnet   # start 2 local L1s + ICM + relayer
+pnpm dev      # http://localhost:3000
+```
+
+## External docs
+
+- Avalanche ICM: https://build.avax.network/docs/cross-chain/teleporter/overview
+- ICM on a local network: https://build.avax.network/docs/cross-chain/icm-contracts/icm-contracts-on-local-network
+- Avalanche Builder Hub: https://build.avax.network/llms.txt
