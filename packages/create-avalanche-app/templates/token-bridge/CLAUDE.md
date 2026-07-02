@@ -49,9 +49,11 @@ hex — NOT the EVM chainId — via `blockchainIdOf(chain)` in `lib/ictt.ts`.
 
 ## Editing / regenerating the contracts
 
-The bundled artifacts are compiled from `ava-labs/icm-contracts` (`contracts/ictt`) with solc + the
-optimizer (runs 200) — the optimizer keeps ERC20TokenHome/Remote under the 24 KB EVM code-size limit.
-To regenerate, compile those contracts with any optimizing toolchain (Hardhat or solc standard-JSON)
+The bundled artifacts are compiled from `ava-labs/icm-contracts` (`contracts/ictt`, non-upgradeable
+variants, tag v1.0.9) with **solc 0.8.25, optimizer runs 200, and `evmVersion: cancun`** — the
+optimizer keeps ERC20TokenHome/Remote under the 24 KB EVM code-size limit, and Cancun is required
+because the compiled code uses the `MCOPY` opcode (building for Shanghai changes the bytecode).
+To regenerate, compile those contracts with those exact settings (Hardhat or solc standard-JSON)
 and replace the `abi`/`bytecode` in `lib/ictt-artifacts.json`. (Note: `avalanche interchain
 tokenTransferrer deploy` can also deploy an ICTT bridge, but it requires a specific pinned Foundry
 build to compile under the size limit — this template ships pre-compiled bytecode to avoid that.)
