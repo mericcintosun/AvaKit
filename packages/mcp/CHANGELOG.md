@@ -1,5 +1,20 @@
 # @avakit/mcp
 
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies
+  - create-avalanche-app@0.1.7
+
+## 0.1.6
+
+### Patch Changes
+
+- Add the `token-bridge` template — bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer (ICTT), over a one-command local devnet (`pnpm bridge` spins up two L1s + a relayer and deploys a demo token + ERC20TokenHome + ERC20TokenRemote, registered over ICM). The bridge UI locks tokens on the home chain and mints the bridged token on the remote chain (and back). Contracts are compiled from `ava-labs/icm-contracts` with the optimizer and bundled as bytecode, so the bridge deploys with no Solidity toolchain on the user's machine. The MCP `scaffold_app` tool lists `token-bridge`.
+- Updated dependencies
+  - create-avalanche-app@0.1.6
+
 ## 0.1.5
 
 ### Patch Changes

@@ -3,17 +3,19 @@ import {
   Coins,
   LayoutDashboard,
   type LucideIcon,
+  Rocket,
   Server,
   Triangle,
   Wrench,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
-export type View = "overview" | "devnet" | "interchain" | "data" | "environment";
+export type View = "overview" | "devnet" | "fuji" | "interchain" | "data" | "environment";
 
 const NAV: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "devnet", label: "Devnet", icon: Server },
+  { id: "fuji", label: "Launch on Fuji", icon: Rocket },
   { id: "interchain", label: "Interchain", icon: ArrowLeftRight },
   { id: "data", label: "Data", icon: Coins },
   { id: "environment", label: "Environment", icon: Wrench },

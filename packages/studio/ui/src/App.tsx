@@ -6,6 +6,7 @@ import { Button } from "./components/ui/button";
 import { DataView } from "./views/DataView";
 import { DevnetView } from "./views/DevnetView";
 import { EnvironmentView } from "./views/EnvironmentView";
+import { FujiView } from "./views/FujiView";
 import { InterchainView } from "./views/InterchainView";
 import { OverviewView } from "./views/OverviewView";
 
@@ -17,6 +18,10 @@ const TITLES: Record<View, { title: string; sub: string }> = {
   devnet: {
     title: "Devnet",
     sub: "Spin up local L1s with Interchain Messaging and a relayer, and start or stop the network.",
+  },
+  fuji: {
+    title: "Launch on Fuji",
+    sub: "Deploy your own sovereign L1 to the public Fuji testnet — funding, transfer, and deploy, step by step.",
   },
   interchain: {
     title: "Interchain Messaging",
@@ -115,6 +120,8 @@ export function App() {
               hasCli={hasCli}
               navigate={setView}
             />
+          ) : view === "fuji" ? (
+            <FujiView hasCli={hasCli} />
           ) : view === "interchain" ? (
             <InterchainView />
           ) : view === "data" ? (

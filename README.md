@@ -64,6 +64,7 @@ npm create avalanche-app@latest my-app -- --template nft-mint
 | `icm-messenger` | Send a message between two Avalanche L1s over Interchain Messaging, on a one-command local devnet |
 | `eerc-token` | Register, mint, and privately transfer tokens with hidden balances (Encrypted ERC) |
 | `l1-launch` | Launch your own Avalanche L1 with one command, then explore it in a built-in dashboard |
+| `token-bridge` | Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer (ICTT) |
 
 Every template ships with a social-login wallet, shadcn/ui (black & white, dark/light), and AI context files.
 

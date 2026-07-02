@@ -246,6 +246,19 @@ export const templates: Template[] = [
     ],
     art: "/abstract.jpg",
   },
+  {
+    id: "token-bridge",
+    title: "Cross-chain token bridge (ICTT)",
+    description:
+      "Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer, over a one-command local devnet.",
+    contracts: false,
+    highlights: [
+      "One command: 2 L1s + relayer + a full ICTT bridge",
+      "Lock on one chain, mint on the other — and back",
+      "Real Home/Remote contracts from ava-labs/icm-contracts",
+    ],
+    art: "/abstract.jpg",
+  },
 ];
 
 export type McpTool = {

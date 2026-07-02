@@ -5,7 +5,7 @@ import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { type ChainId, listTemplates, scaffoldApp, type WalletId } from "./api.js";
 
-const VERSION = "0.1.5";
+const VERSION = "0.1.7";
 
 // The @avakit/* dependency version stamped into scaffolded apps' package.json
 // (as `^AVAKIT_DEP_VERSION`). Kept separate from the CLI's own VERSION: it must
@@ -87,7 +87,7 @@ function printHelp(): void {
       "",
       "Options:",
       "  -t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |",
-      "                          icm-messenger | eerc-token | l1-launch",
+      "                          icm-messenger | eerc-token | l1-launch | token-bridge",
       "  -w, --wallet <id>       web3auth | injected   (default: web3auth)",
       "  -c, --chain <id>        fuji | c-chain        (default: fuji)",
       "      --pm <manager>      pnpm | npm | yarn | bun",

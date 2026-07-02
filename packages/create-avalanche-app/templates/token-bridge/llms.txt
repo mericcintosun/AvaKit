@@ -1,0 +1,25 @@
+# __PROJECT_NAME__
+
+> Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer (ICTT), over a one-command local devnet. Next.js + @avakit/react + viem + avalanche-cli + ava-labs/icm-contracts.
+
+## Project map
+
+- [scripts/bridge.sh](scripts/bridge.sh): `pnpm bridge` — 2 L1s + relayer, then deploy the bridge.
+- [scripts/deploy-bridge.mjs](scripts/deploy-bridge.mjs): deploys demo ERC-20 + Home + Remote + registers them (viem + embedded artifacts + EWOQ key); writes bridge.config.json.
+- [lib/ictt-artifacts.json](lib/ictt-artifacts.json): ABIs + optimized bytecode for TeleporterRegistry, ERC20TokenHome, ERC20TokenRemote, demo ERC-20 (from ava-labs/icm-contracts).
+- [lib/ictt.ts](lib/ictt.ts): bridge.config.json → AvaKit chains + addresses + ABIs; `blockchainIdOf`, `isConfigured`.
+- [components/demo.tsx](components/demo.tsx): the bridge UI — balances, mint, bridge in either direction.
+- [CLAUDE.md](CLAUDE.md): agent guide — how ICTT works (lock/mint/burn/unlock), SendTokensInput, regeneration.
+
+## Key APIs
+
+- Bridge home→remote: `approve(home, amount)` on the token, then `home.send(SendTokensInput, amount)`.
+- Bridge remote→home: `remote.send(SendTokensInput, amount)` (no approval; burns the remote token).
+- SendTokensInput: `{ destinationBlockchainID (bytes32 via blockchainIdOf), destinationTokenTransferrerAddress, recipient, primaryFeeTokenAddress (0x0 local), primaryFee (0), secondaryFee (0), requiredGasLimit (250000), multiHopFallback (0x0) }`.
+- Balances: `demoToken.balanceOf` on the home chain, `remote.balanceOf` on the remote chain. 18 decimals — use parseEther/formatEther.
+
+## External docs
+
+- ICTT contracts: https://github.com/ava-labs/icm-contracts (contracts/ictt)
+- ICTT overview: https://build.avax.network/docs/avalanche-l1s/interchain-token-transfer
+- avalanche-cli: https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli

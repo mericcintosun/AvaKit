@@ -70,6 +70,44 @@ cross-chain transfer to the P-Chain), (2) a **bootstrap validator** — your mac
 It is a multi-step, multi-minute process, not one command. There is no automatic hosted explorer for
 a custom Fuji L1 — this app's built-in explorer keeps working by pointing at your Fuji L1's RPC.
 
+## AI guide: state-aware Fuji walkthrough
+
+When the user asks for help getting their L1 onto Fuji, first figure out WHERE they are, then give
+the ONE next command. Detect state like this:
+
+1. **Do they have a funded key?** Run `avalanche key list --keys <name>` (or create one:
+   `avalanche key create <name>`). Check the key's **C-Chain** balance — if it's 0, the next step is
+   the faucet: send them to `https://build.avax.network/console/primary-network/faucet` for their key's
+   C-Chain address, and wait until the balance is non-zero. Budget ~1–2 test AVAX (validators pay a
+   continuous P-Chain fee, ~1 AVAX ≈ 1 month).
+2. **Is the balance on the P-Chain?** The L1 deploy spends from the **P-Chain**, but the faucet funds
+   the **C-Chain**. If P-Chain balance is 0, next command:
+   `avalanche key transfer --key <name> --fuji --c-chain-sender --p-chain-receiver --amount <x>`
+   (the C/P selectors are the boolean flags `--c-chain-sender` / `--p-chain-receiver`, NOT
+   `--sender-blockchain c`).
+3. **Is the blockchain config created?** If `~/.avalanche-cli/subnets/<name>` doesn't exist, create it:
+   `avalanche blockchain create <name> --evm --latest --evm-chain-id <id> --evm-token <TOK>
+   --proof-of-authority --validator-manager-owner <yourAddr> --proxy-contract-owner <yourAddr>
+   --production-defaults --force`.
+4. **Deploy to Fuji.** `avalanche blockchain deploy <name> --fuji --key <name> --use-local-machine
+   --num-bootstrap-validators 1 --balance 0.1 --vmc-L1`. Notes for driving this non-interactively:
+   `--vmc-L1` pre-answers the "deploy Validator Manager into an external blockchain?" prompt; the final
+   "fund the relayer?" prompt is optional and can be skipped (the L1 still deploys — the relayer only
+   matters for cross-chain messaging). If it complains a **local deploy already exists**, the machine
+   has stale state — `avalanche network clean` (or pick a fresh `<name>`) and retry. The node
+   bootstraps to Fuji first (downloads a multi-hundred-MB archive, a few minutes) — that wait is
+   normal, not a hang.
+5. **Verify it's live.** The deploy prints an `RPC Endpoint`. Point this app at it (set
+   `l1.config.json` → `network: "fuji"`, `rpcUrl`, `blockchainIdHex`). Confirm: `cast chain-id
+   --rpc-url <rpc>` returns your chain id, `cast block-number` advances, and the blockchain is listed
+   on Fuji's P-Chain via `platform.getBlockchains` on `https://api.avax-test.network/ext/bc/P`.
+6. **Remind them of the ongoing cost:** the validator node must stay running, and its balance drains —
+   top it up (`avalanche blockchain addValidator` / increase-balance) or the L1 goes inactive. For an
+   always-on chain, run the node on a server, not a laptop.
+
+Also available with the visual version of this flow: **AvaKit Studio** (`npx @avakit/studio`) has a
+"Launch on Fuji" wizard that runs these exact steps with a balance poller and a live progress log.
+
 ## Editing the demo contract
 
 After changing `contracts/src/AvaKitToken.sol`: `cd contracts && forge build`, then copy

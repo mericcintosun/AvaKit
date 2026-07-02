@@ -65,6 +65,49 @@ export function streamAction(
   return () => es.close();
 }
 
+// --- Fuji L1 wizard ----------------------------------------------------------
+
+export type FujiAction = "transfer" | "deploy";
+
+export interface FujiKey {
+  address: string | null;
+}
+export interface FujiBalance {
+  address: string | null;
+  cBalance: string;
+}
+export interface FujiL1 {
+  deployed: boolean;
+  rpcUrl: string | null;
+  blockchainId: string | null;
+  evmChainId: number | null;
+  running: boolean;
+}
+
+/** Stream a Fuji wizard action (transfer C->P, or create+deploy to Fuji). */
+export function streamFuji(
+  action: FujiAction,
+  params: { name: string; chainId?: string; token?: string; amount?: string },
+  onLine: (line: string) => void,
+  onDone: (exitCode: number) => void,
+): () => void {
+  const q = new URLSearchParams({ action, token: TOKEN, name: params.name });
+  if (params.chainId) q.set("chainId", params.chainId);
+  if (params.token) q.set("token", params.token);
+  if (params.amount) q.set("amount", params.amount);
+  const es = new EventSource(`/api/fuji/stream?${q.toString()}`);
+  es.addEventListener("line", (e) => onLine(JSON.parse((e as MessageEvent).data).line as string));
+  es.addEventListener("done", (e) => {
+    onDone(JSON.parse((e as MessageEvent).data).exitCode as number);
+    es.close();
+  });
+  es.onerror = () => {
+    es.close();
+    onDone(-1);
+  };
+  return () => es.close();
+}
+
 export interface ToolInfo {
   name: string;
   installed: boolean;

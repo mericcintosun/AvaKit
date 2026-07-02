@@ -8,7 +8,7 @@ import {
   useAvaAccount,
   useAvaKit,
 } from "@avakit/react";
-import { Blocks, Check, Copy, Moon, Rocket, Sun } from "lucide-react";
+import { Blocks, Check, Copy, ExternalLink, Moon, Rocket, Sun, Wallet } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 import { type Address, type Hash, formatEther, formatUnits } from "viem";
@@ -274,8 +274,106 @@ function Dashboard() {
         </div>
       </section>
 
+      <NextSteps hasToken={Boolean(token)} />
+
       {error ? <p className="text-muted-foreground text-sm break-all">{error}</p> : null}
     </>
+  );
+}
+
+// Guides the user through what to do once their L1 is live: add it to a wallet,
+// get gas, deploy something, and (on Fuji) the realities of keeping it running.
+function NextSteps({ hasToken }: { hasToken: boolean }) {
+  const { provider } = useAvaKit();
+  const [added, setAdded] = useState(false);
+  const isFuji = l1.network === "fuji";
+
+  const addToWallet = useCallback(async () => {
+    if (!provider) return;
+    try {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: `0x${chain.id.toString(16)}`,
+            chainName: chain.name,
+            rpcUrls: [chain.rpcUrl],
+            nativeCurrency: { name: l1.token, symbol: l1.token, decimals: 18 },
+          },
+        ],
+      });
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    } catch {
+      // user rejected or wallet unavailable
+    }
+  }, [provider]);
+
+  return (
+    <section className="flex flex-col gap-3 rounded-xl border p-5">
+      <p className="text-muted-foreground text-xs uppercase tracking-wide">Next steps</p>
+      <div className="flex flex-col gap-2">
+        <StepRow n={1} done={added} label="Add this L1 to your wallet">
+          <Button size="sm" variant="outline" onClick={addToWallet}>
+            <Wallet className="size-4" />
+            {added ? "Added" : "Add network"}
+          </Button>
+        </StepRow>
+
+        <StepRow n={2} label={isFuji ? "Get gas — fund your wallet with test AVAX" : "Get gas — import the EWOQ dev key"}>
+          {isFuji ? (
+            <a
+              href="https://build.avax.network/console/primary-network/faucet"
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
+            >
+              Fuji faucet <ExternalLink className="size-3" />
+            </a>
+          ) : (
+            <span className="text-muted-foreground text-xs">
+              EWOQ key is pre-funded (printed by <span className="font-mono">pnpm l1</span>).
+            </span>
+          )}
+        </StepRow>
+
+        <StepRow n={3} done={hasToken} label="Deploy your first contract (the demo token above)" />
+      </div>
+
+      {isFuji ? (
+        <p className="text-muted-foreground border-t pt-3 text-xs">
+          ⚠︎ Your L1 only produces blocks while its validator node stays running, and the
+          validator's balance drains over time (~1 AVAX ≈ 1 month) — top it up, or the chain goes
+          inactive. For an always-on L1, run the validator on a server rather than your laptop.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function StepRow({
+  n,
+  label,
+  done,
+  children,
+}: {
+  n: number;
+  label: string;
+  done?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="flex items-center gap-2 text-sm">
+        <span
+          className={`flex size-5 items-center justify-center rounded-full border text-xs ${done ? "bg-foreground text-background" : "text-muted-foreground"}`}
+        >
+          {done ? <Check className="size-3" /> : n}
+        </span>
+        {label}
+      </span>
+      {children}
+    </div>
   );
 }
 

@@ -12,6 +12,13 @@ import { extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAddressData } from "./dataapi.js";
 import { getDevnetStatus, isDevnetAction, isValidL1Params, runDevnetAction } from "./devnet.js";
+import {
+  ensureFujiKey,
+  getFujiKeyBalance,
+  getFujiL1,
+  isFujiAction,
+  runFujiAction,
+} from "./fuji.js";
 import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
 
@@ -151,6 +158,40 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
         return;
       }
 
+      // Fuji L1 wizard live log (transfer C->P, or create+deploy to Fuji).
+      if (pathname === "/api/fuji/stream") {
+        const action = url.searchParams.get("action") ?? "";
+        if (!isFujiAction(action)) {
+          sendJson(res, 400, { error: "unknown action" });
+          return;
+        }
+        const p = {
+          name: url.searchParams.get("name") ?? "",
+          chainId: url.searchParams.get("chainId") ?? undefined,
+          token: url.searchParams.get("token") ?? undefined,
+          amount: url.searchParams.get("amount") ?? undefined,
+        };
+        res.writeHead(200, {
+          "content-type": "text/event-stream",
+          "cache-control": "no-store",
+          connection: "keep-alive",
+        });
+        const send = (event: string, data: unknown) =>
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        send("start", { action });
+        const handle = runFujiAction(
+          action,
+          p,
+          (line) => send("line", { line }),
+          (exitCode) => {
+            send("done", { exitCode });
+            res.end();
+          },
+        );
+        req.on("close", () => handle.cancel());
+        return;
+      }
+
       try {
         if (pathname === "/api/health") {
           sendJson(res, 200, { ok: true, name: "avakit-studio" });
@@ -162,6 +203,26 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
         }
         if (pathname === "/api/devnet/status") {
           sendJson(res, 200, await getDevnetStatus());
+          return;
+        }
+        if (pathname === "/api/fuji/key" && req.method === "POST") {
+          const body = await readJsonBody(req);
+          const name = String(body.name ?? "");
+          try {
+            sendJson(res, 200, await ensureFujiKey(name));
+          } catch (e) {
+            sendJson(res, 400, { error: e instanceof Error ? e.message : "invalid" });
+          }
+          return;
+        }
+        if (pathname === "/api/fuji/balance") {
+          const name = url.searchParams.get("name") ?? "";
+          sendJson(res, 200, await getFujiKeyBalance(name));
+          return;
+        }
+        if (pathname === "/api/fuji/l1") {
+          const name = url.searchParams.get("name") ?? "";
+          sendJson(res, 200, await getFujiL1(name));
           return;
         }
         if (pathname === "/api/icm/state") {

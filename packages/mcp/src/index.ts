@@ -61,7 +61,7 @@ server.registerTool(
   {
     title: "Scaffold an Avalanche dapp",
     description:
-      "Create a new Avalanche dapp from a template (minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch). Wraps create-avalanche-app. Returns the created files and next steps.",
+      "Create a new Avalanche dapp from a template (minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge). Wraps create-avalanche-app. Returns the created files and next steps.",
     inputSchema: {
       name: z.string().describe("Project directory name, e.g. my-avax-app"),
       template: z
@@ -73,6 +73,7 @@ server.registerTool(
           "icm-messenger",
           "eerc-token",
           "l1-launch",
+          "token-bridge",
         ])
         .default("minimal"),
       chain: z.enum(["fuji", "c-chain"]).default("fuji"),
@@ -211,7 +212,7 @@ AvaKit is an open-source, AI-native Avalanche developer toolkit.
 
 ## Scaffolding
 - \`scaffold_app\` (this MCP) or \`npm create avalanche-app@latest\`
-- Templates: minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch
+- Templates: minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge
 - Each app ships shadcn/ui (black & white + dark/light), social-login wallet, and CLAUDE.md/llms.txt/.cursor rules.
 
 ## @avakit/react

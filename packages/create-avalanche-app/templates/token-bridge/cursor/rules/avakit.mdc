@@ -1,0 +1,36 @@
+---
+description: AvaKit ICTT token-bridge conventions for this project
+globs: ["**/*.ts", "**/*.tsx", "**/*.mjs", "**/*.sh", "**/*.css"]
+alwaysApply: true
+---
+
+# AvaKit ICTT token-bridge project rules
+
+Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer.
+
+## Flow
+
+- `pnpm bridge` (scripts/bridge.sh) spins up 2 L1s + relayer, then deploy-bridge.mjs deploys a demo
+  ERC-20 + TeleporterRegistry + Home (chain1) + Registry + Remote (chain2) and registers them.
+- `lib/ictt.ts` exposes `homeChain`, `remoteChain`, the addresses, ABIs, `blockchainIdOf`, `isConfigured`.
+- `components/demo.tsx` reads balances and bridges via `home.send` / `remote.send`.
+
+## Bridging
+
+- home→remote: `approve(home, amount)` on the token, then `home.send(SendTokensInput, amount)` (locks + ICM).
+- remote→home: `remote.send(SendTokensInput, amount)` (burns the bridged token; no approval).
+- SendTokensInput fields: destinationBlockchainID (bytes32 via `blockchainIdOf`), destinationTokenTransferrerAddress,
+  recipient, primaryFeeTokenAddress (0x0 on local), primaryFee (0), secondaryFee (0), requiredGasLimit (250000),
+  multiHopFallback (0x0).
+
+## Contracts
+
+- Bundled as bytecode in `lib/ictt-artifacts.json`, compiled from ava-labs/icm-contracts with the
+  optimizer (keeps Home/Remote under the 24 KB code-size limit). No Solidity toolchain needed to deploy.
+
+## UI & safety
+
+- shadcn/ui only; black & white for now; dark/light via next-themes; both must work.
+- Animations: Framer Motion or GSAP only.
+- Amounts are 18-decimal — always parseEther/formatEther.
+- EWOQ (`0x56289e…8027`) is a PUBLIC local-only dev key — never use it or a real key on Fuji/mainnet.
