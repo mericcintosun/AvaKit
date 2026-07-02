@@ -25,6 +25,11 @@ export const site = { name: "AvaKit", url: SITE_URL };
 // Language-invariant command shown across the site.
 const CREATE_COMMAND = "npm create avalanche-app@latest";
 
+// Google Form for user feedback. Set NEXT_PUBLIC_FEEDBACK_FORM_URL to the form's
+// share link (…/viewform). The floating feedback button opens it in a new tab.
+export const FEEDBACK_FORM_URL =
+  process.env.NEXT_PUBLIC_FEEDBACK_FORM_URL ?? "https://forms.gle/xBEdJVszCUhZ4g5K6";
+
 // Icons per surface / recommender goal — invariant across locales.
 const SURFACE_ICONS = [Boxes, Wallet, Terminal, Bot, LayoutDashboard];
 const FEATURE_ICONS = [Sparkles, Bot, Palette, Rocket, ShieldCheck, Boxes];
@@ -122,6 +127,7 @@ type Strings = {
   cta: { eyebrow: string; title: string; body: string; primary: string; secondary: string };
   footer: { tagline: string };
   cinematic: { line1: string; line2: string; introducing: string };
+  feedback: string;
 };
 
 const EN: Strings = {
@@ -451,6 +457,7 @@ const EN: Strings = {
     line2: "From idea to first transaction — in minutes.",
     introducing: "Introducing",
   },
+  feedback: "Feedback",
 };
 
 const TR: Strings = {
@@ -779,6 +786,7 @@ const TR: Strings = {
     line2: "Fikirden ilk işleme — dakikalar içinde.",
     introducing: "Karşınızda",
   },
+  feedback: "Geri bildirim",
 };
 
 const STRINGS: Record<Locale, Strings> = { en: EN, tr: TR };
@@ -845,6 +853,7 @@ export function getContent(locale: Locale) {
     cta: s.cta,
     footer: s.footer,
     cinematic: s.cinematic,
+    feedback: s.feedback,
   };
 }
 

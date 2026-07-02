@@ -6,6 +6,7 @@ import { getMessages, setRequestLocale } from "next-intl/server";
 import type * as React from "react";
 
 import { CommandMenu } from "@/components/command-menu";
+import { FeedbackButton } from "@/components/feedback-button";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -152,6 +153,7 @@ export default async function LocaleLayout({
                 <SiteFooter />
               </div>
               <CommandMenu />
+              <FeedbackButton />
             </TooltipProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
