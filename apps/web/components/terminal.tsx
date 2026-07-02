@@ -58,7 +58,7 @@ export function Terminal({ className }: { className?: string }) {
           <span className="border-foreground/20 size-2.5 rounded-full border" />
           <span className="border-foreground/20 size-2.5 rounded-full border" />
         </div>
-        <span className="text-muted-foreground ml-1 text-xs">bash — my-app</span>
+        <span className="text-muted-foreground ml-1 text-xs">bash · my-app</span>
       </div>
       <motion.div
         className="flex flex-col gap-1.5 p-4 leading-relaxed"

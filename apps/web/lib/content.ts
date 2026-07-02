@@ -128,12 +128,13 @@ type Strings = {
   footer: { tagline: string };
   cinematic: { line1: string; line2: string; introducing: string };
   feedback: string;
+  ambient: { eyebrow: string; statement: string };
 };
 
 const EN: Strings = {
   tagline: "The open-source, AI-native devtools for Avalanche.",
   description:
-    "Scaffold a social-login dapp, deploy-ready, with agent context baked in. One core, four surfaces — no seed phrases, no boilerplate.",
+    "Scaffold a deploy-ready, social-login dapp with agent context baked in. One core, four surfaces. No seed phrases, no boilerplate.",
   nav: ["Docs", "Templates", "MCP"],
   header: { search: "Search", getStarted: "Get started" },
   hero: {
@@ -201,19 +202,19 @@ const EN: Strings = {
       points: [
         "Spin up local L1s with Interchain Messaging",
         "Send cross-chain messages, inspect on-chain data",
-        "Also an MCP server — drive it from an agent",
+        "Also an MCP server, so an agent can drive it",
       ],
     },
   ],
   featuresSection: {
     eyebrow: "Why AvaKit",
     title: "Everything you need, nothing you don't",
-    lead: "The boring parts — onboarding, wallets, chain switching, deploy — handled with safe defaults.",
+    lead: "The boring parts (onboarding, wallets, chain switching, deploy) handled with safe defaults.",
   },
   features: [
     {
       title: "Social-login onboarding",
-      body: "Users sign in with Google — no seed phrases. Powered by Web3Auth's HSM-backed keys; AvaKit never touches them.",
+      body: "Users sign in with Google. No seed phrases. Web3Auth keeps the HSM-backed keys; AvaKit never touches them.",
     },
     {
       title: "AI-native by default",
@@ -221,7 +222,7 @@ const EN: Strings = {
     },
     {
       title: "shadcn/ui, themed",
-      body: "A clean, accessible design system with dark/light wired from day one. Own your components — no vendor lock-in.",
+      body: "A clean, accessible design system with dark/light wired from day one. Own your components; no vendor lock-in.",
     },
     {
       title: "Deploy-ready",
@@ -233,13 +234,13 @@ const EN: Strings = {
     },
     {
       title: "Wrap, don't rewrite",
-      body: "AvaKit builds on viem, wagmi patterns, Web3Auth, and Foundry — mature pieces, packaged for a great DX.",
+      body: "AvaKit builds on viem, wagmi patterns, Web3Auth, and Foundry: mature pieces, packaged for a great DX.",
     },
   ],
   differentiation: {
     eyebrow: "Why AvaKit",
     title: "The only one that combines it all",
-    lead: "Every piece exists somewhere — a starter kit here, a wallet SDK there. AvaKit is the open-source toolkit that brings them together, AI-native by default.",
+    lead: "Every piece exists somewhere: a starter kit here, a wallet SDK there. AvaKit is the open-source toolkit that brings them together, AI-native by default.",
     note: "Official starter-kit = ava-labs/avalanche-starter-kit · BuilderKit = ava-labs/builderkit · Embedded-wallet SaaS = AvaCloud WaaS / hosted providers.",
     columns: ["AvaKit", "Official starter-kit", "BuilderKit", "Embedded-wallet SaaS"],
   },
@@ -249,17 +250,17 @@ const EN: Strings = {
     "Social-login onboarding by default",
     "AI-native: agent context + MCP actions",
     "One core: SDK + widget + CLI + MCP + Studio",
-    "Own your UI — copy-in shadcn, no lock-in",
+    "Own your UI: copy-in shadcn, no lock-in",
   ],
   whoFor: {
     eyebrow: "Who it's for",
     title: "Built for how people ship today",
-    lead: "Seedless wallets already solved end-user onboarding — Core and WaaS handle keys with HSMs. Developer onboarding never got the same treatment, and now agents write most of the boilerplate. AvaKit is the open-source, AI-native layer that closes the gap: one command, or one prompt, to a real Avalanche dapp.",
+    lead: "Seedless wallets already solved end-user onboarding: Core and WaaS handle keys with HSMs. Developer onboarding never got the same treatment, and now agents write most of the boilerplate. AvaKit is the open-source, AI-native layer that closes the gap: one command, or one prompt, to a real Avalanche dapp.",
   },
   audiences: [
     {
       title: "AI-first & vibe coders",
-      body: "Describe what you want and let Claude Code / Cursor scaffold, wire, and deploy it through the MCP — actions, not just docs.",
+      body: "Describe what you want and let Claude Code or Cursor scaffold, wire, and deploy it through the MCP. Actions, not just docs.",
     },
     {
       title: "Hackathon & weekend builders",
@@ -267,7 +268,7 @@ const EN: Strings = {
     },
     {
       title: "Teams onboarding to Avalanche",
-      body: "A production-shaped starting point — wallets, chain-switching, deploy, plus L1 and Interchain tooling — with safe, testnet-first defaults.",
+      body: "A production-shaped starting point (wallets, chain-switching, deploy, plus L1 and Interchain tooling) with safe, testnet-first defaults.",
     },
   ],
   stepsSection: {
@@ -278,7 +279,7 @@ const EN: Strings = {
   steps: [
     {
       title: "Scaffold",
-      body: "Run one command (or ask an AI agent). Pick from eight templates — a wallet, an NFT mint, a confidential token, your own L1, a cross-chain bridge, and more.",
+      body: "Run one command, or ask an AI agent. Pick from eight templates: a wallet, an NFT mint, a confidential token, your own L1, a cross-chain bridge, and more.",
       code: "npm create avalanche-app@latest my-app",
     },
     {
@@ -301,8 +302,8 @@ const EN: Strings = {
   templatesPage: {
     eyebrow: "Templates",
     title: "Start from a working example",
-    lead: "Every template is a real, deploy-ready dapp — shadcn/ui, a social-login wallet, dark/light from day one, and AI context files so Claude / Cursor understand it out of the box.",
-    more: "More templates are on the way. Want one? Contributions welcome — every template is just a folder under templates/ with a manifest.",
+    lead: "Every template is a real, deploy-ready dapp: shadcn/ui, a social-login wallet, dark/light from day one, and AI context files so Claude and Cursor understand it out of the box.",
+    more: "More templates are on the way. Want one? Contributions welcome: every template is just a folder under templates/ with a manifest.",
   },
   templates: [
     {
@@ -318,7 +319,7 @@ const EN: Strings = {
     {
       title: "NFT mint",
       description:
-        "Deploy an ERC-721 straight from the browser, then mint — no Foundry required to run it.",
+        "Deploy an ERC-721 straight from the browser, then mint. No Foundry required to run it.",
       highlights: [
         "Self-contained ERC-721",
         "Bundled bytecode → browser deploy",
@@ -347,7 +348,7 @@ const EN: Strings = {
     {
       title: "ICM cross-chain messenger",
       description:
-        "Send a message between two Avalanche L1s with Interchain Messaging — over a one-command local devnet.",
+        "Send a message between two Avalanche L1s with Interchain Messaging, over a one-command local devnet.",
       highlights: [
         "One command: 2 local L1s + ICM + relayer",
         "Teleporter send + receive contract",
@@ -380,7 +381,7 @@ const EN: Strings = {
         "Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer, over a one-command local devnet.",
       highlights: [
         "One command: 2 L1s + relayer + a full ICTT bridge",
-        "Lock on one chain, mint on the other — and back",
+        "Lock on one chain, mint on the other, then back",
         "Real Home/Remote contracts from ava-labs/icm-contracts",
       ],
     },
@@ -388,7 +389,7 @@ const EN: Strings = {
   recommender: {
     eyebrow: "Find your starting point",
     title: "What are you building?",
-    lead: "Pick a goal — we'll point you at the right template and the exact command to run.",
+    lead: "Pick a goal. We'll point you at the right template and the exact command to run.",
     recommended: "Recommended",
     seeAll: "See all templates",
     goals: [
@@ -405,7 +406,7 @@ const EN: Strings = {
   mcp: {
     eyebrow: "AI-native",
     title: "Let your agent build on Avalanche",
-    lead: "@avakit/mcp exposes actions — not just docs — to Claude Code and Cursor. Ask in natural language.",
+    lead: "@avakit/mcp exposes actions, not just docs, to Claude Code and Cursor. Ask in natural language.",
     add: "Add it to your MCP client:",
     headTool: "Tool",
     headDoes: "Does",
@@ -413,7 +414,7 @@ const EN: Strings = {
       "Create an Avalanche dapp from a template.",
       "List available templates.",
       "Read a balance, a tx receipt, or a contract view function.",
-      "Deploy compiled bytecode — Fuji by default, mainnet needs confirm.",
+      "Deploy compiled bytecode. Fuji by default; mainnet needs confirmation.",
       "AvaKit + Avalanche coding context and doc links.",
     ],
   },
@@ -428,7 +429,7 @@ const EN: Strings = {
       },
       {
         q: "Is it locked to a specific wallet or provider?",
-        a: "No. Wallet providers sit behind an adapter interface — swap Web3Auth for AvaCloud, injected, or your own. Components are copy-in shadcn; there's no vendor lock-in.",
+        a: "No. Wallet providers sit behind an adapter interface, so you can swap Web3Auth for AvaCloud, injected, or your own. Components are copy-in shadcn, so there's no vendor lock-in.",
       },
       {
         q: "What chains are supported?",
@@ -454,16 +455,20 @@ const EN: Strings = {
   footer: { tagline: "The open-source, AI-native developer toolkit for Avalanche." },
   cinematic: {
     line1: "Onboarding, without the friction.",
-    line2: "From idea to first transaction — in minutes.",
+    line2: "From idea to first transaction, in minutes.",
     introducing: "Introducing",
   },
   feedback: "Feedback",
+  ambient: {
+    eyebrow: "One toolkit, every surface",
+    statement: "Wallets, contracts, and AI on one consistent core.",
+  },
 };
 
 const TR: Strings = {
   tagline: "Avalanche için açık kaynak, AI-native geliştirici araçları.",
   description:
-    "Sosyal-girişli bir dapp'i tek komutla kur — deploy'a hazır, AI ajan bağlamı gömülü. Tek çekirdek, dört yüzey — seed phrase yok, boilerplate yok.",
+    "Sosyal-girişli, deploy'a hazır bir dapp'i tek komutla kur; AI ajan bağlamı gömülü gelir. Tek çekirdek, dört yüzey. Seed phrase yok, boilerplate yok.",
   nav: ["Dokümanlar", "Şablonlar", "MCP"],
   header: { search: "Ara", getStarted: "Başla" },
   hero: {
@@ -531,19 +536,19 @@ const TR: Strings = {
       points: [
         "Interchain Messaging ile yerel L1'ler başlat",
         "Zincirler arası mesaj gönder, zincir verisini incele",
-        "Aynı zamanda bir MCP sunucusu — bir ajandan yönet",
+        "Aynı zamanda bir MCP sunucusu; bir ajandan yönetilebilir",
       ],
     },
   ],
   featuresSection: {
     eyebrow: "Neden AvaKit",
     title: "İhtiyacın olan her şey, fazlası değil",
-    lead: "Sıkıcı kısımlar — onboarding, cüzdanlar, zincir değişimi, deploy — güvenli varsayılanlarla halledilir.",
+    lead: "Sıkıcı kısımlar (onboarding, cüzdanlar, zincir değişimi, deploy) güvenli varsayılanlarla halledilir.",
   },
   features: [
     {
       title: "Sosyal-girişli onboarding",
-      body: "Kullanıcılar Google ile giriş yapar — seed phrase yok. Web3Auth'un HSM-destekli anahtarlarıyla; AvaKit anahtarlara asla dokunmaz.",
+      body: "Kullanıcılar Google ile giriş yapar; seed phrase yok. Anahtarlar Web3Auth'un HSM-destekli sisteminde durur; AvaKit onlara asla dokunmaz.",
     },
     {
       title: "Varsayılan olarak AI-native",
@@ -551,7 +556,7 @@ const TR: Strings = {
     },
     {
       title: "shadcn/ui, temalı",
-      body: "İlk günden dark/light bağlı, temiz ve erişilebilir bir tasarım sistemi. Bileşenler senin — sağlayıcıya bağımlılık yok.",
+      body: "İlk günden dark/light bağlı, temiz ve erişilebilir bir tasarım sistemi. Bileşenler senindir; sağlayıcıya bağımlılık yok.",
     },
     {
       title: "Deploy'a hazır",
@@ -563,13 +568,13 @@ const TR: Strings = {
     },
     {
       title: "Sar, yeniden yazma",
-      body: "AvaKit viem, wagmi kalıpları, Web3Auth ve Foundry üzerine kurulur — olgun parçalar, harika bir geliştirici deneyimi için paketlenmiş.",
+      body: "AvaKit viem, wagmi kalıpları, Web3Auth ve Foundry üzerine kurulur: olgun parçalar, harika bir geliştirici deneyimi için paketlenmiş.",
     },
   ],
   differentiation: {
     eyebrow: "Neden AvaKit",
     title: "Hepsini birleştiren tek araç",
-    lead: "Her parça bir yerlerde var — burada bir starter kit, orada bir cüzdan SDK'sı. AvaKit, bunları bir araya getiren, varsayılan olarak AI-native açık kaynak araç setidir.",
+    lead: "Her parça bir yerlerde var: burada bir starter kit, orada bir cüzdan SDK'sı. AvaKit, bunları bir araya getiren, varsayılan olarak AI-native açık kaynak araç setidir.",
     note: "Resmi starter-kit = ava-labs/avalanche-starter-kit · BuilderKit = ava-labs/builderkit · Gömülü-cüzdan SaaS = AvaCloud WaaS / barındırılan sağlayıcılar.",
     columns: ["AvaKit", "Resmi starter-kit", "BuilderKit", "Gömülü-cüzdan SaaS"],
   },
@@ -579,17 +584,17 @@ const TR: Strings = {
     "Varsayılan sosyal-girişli onboarding",
     "AI-native: ajan bağlamı + MCP eylemleri",
     "Tek çekirdek: SDK + widget + CLI + MCP + Studio",
-    "Arayüz senin — kopyala-gel shadcn, bağımlılık yok",
+    "Arayüz senin: kopyala-gel shadcn, bağımlılık yok",
   ],
   whoFor: {
     eyebrow: "Kimin için",
     title: "İnsanların bugün geliştirdiği şekle göre tasarlandı",
-    lead: "Seedless cüzdanlar son-kullanıcı onboarding'ini çoktan çözdü — Core ve WaaS anahtarları HSM'lerle yönetiyor. Geliştirici onboarding'i aynı ilgiyi hiç görmedi ve artık boilerplate'in çoğunu ajanlar yazıyor. AvaKit bu boşluğu kapatan açık kaynak, AI-native katmandır: tek komut ya da tek prompt ile gerçek bir Avalanche dapp'i.",
+    lead: "Seedless cüzdanlar son-kullanıcı onboarding'ini çoktan çözdü: Core ve WaaS anahtarları HSM'lerle yönetiyor. Geliştirici onboarding'i aynı ilgiyi hiç görmedi ve artık boilerplate'in çoğunu ajanlar yazıyor. AvaKit bu boşluğu kapatan açık kaynak, AI-native katmandır: tek komut ya da tek prompt ile gerçek bir Avalanche dapp'i.",
   },
   audiences: [
     {
       title: "AI-öncelikli & vibe coder'lar",
-      body: "Ne istediğini anlat; Claude Code / Cursor MCP üzerinden scaffold etsin, bağlasın ve deploy etsin — sadece doküman değil, eylem.",
+      body: "Ne istediğini anlat; Claude Code veya Cursor MCP üzerinden scaffold etsin, bağlasın ve deploy etsin. Sadece doküman değil, eylem.",
     },
     {
       title: "Hackathon & hafta sonu geliştiricileri",
@@ -597,7 +602,7 @@ const TR: Strings = {
     },
     {
       title: "Avalanche'e geçen ekipler",
-      body: "Üretime yakın bir başlangıç noktası — cüzdanlar, zincir değişimi, deploy, üstüne L1 ve Interchain araçları — güvenli, testnet-öncelikli varsayılanlarla.",
+      body: "Üretime yakın bir başlangıç noktası (cüzdanlar, zincir değişimi, deploy, üstüne L1 ve Interchain araçları), güvenli ve testnet-öncelikli varsayılanlarla.",
     },
   ],
   stepsSection: {
@@ -608,7 +613,7 @@ const TR: Strings = {
   steps: [
     {
       title: "Kur",
-      body: "Tek komut çalıştır (veya bir AI ajanına sor). Sekiz şablondan seç — bir cüzdan, bir NFT mint, gizli bir token, kendi L1'in, zincirler-arası bir köprü ve dahası.",
+      body: "Tek komut çalıştır (veya bir AI ajanına sor). Sekiz şablondan seç: bir cüzdan, bir NFT mint, gizli bir token, kendi L1'in, zincirler-arası bir köprü ve dahası.",
       code: "npm create avalanche-app@latest my-app",
     },
     {
@@ -631,8 +636,8 @@ const TR: Strings = {
   templatesPage: {
     eyebrow: "Şablonlar",
     title: "Çalışan bir örnekten başla",
-    lead: "Her şablon gerçek, deploy'a hazır bir dapp'tir — shadcn/ui, sosyal-girişli cüzdan, ilk günden dark/light ve Claude / Cursor'ın kutudan anlaması için AI bağlam dosyaları.",
-    more: "Daha fazla şablon yolda. Bir tane mi istiyorsun? Katkılar açık — her şablon templates/ altında bir manifest içeren bir klasörden ibaret.",
+    lead: "Her şablon gerçek, deploy'a hazır bir dapp'tir: shadcn/ui, sosyal-girişli cüzdan, ilk günden dark/light ve Claude ile Cursor'ın kutudan anlaması için AI bağlam dosyaları.",
+    more: "Daha fazla şablon yolda. Bir tane mi istiyorsun? Katkılar açık: her şablon templates/ altında bir manifest içeren bir klasörden ibaret.",
   },
   templates: [
     {
@@ -647,7 +652,7 @@ const TR: Strings = {
     {
       title: "NFT mint",
       description:
-        "Doğrudan tarayıcıdan bir ERC-721 deploy et, sonra mint et — çalıştırmak için Foundry gerekmez.",
+        "Doğrudan tarayıcıdan bir ERC-721 deploy et, sonra mint et. Çalıştırmak için Foundry gerekmez.",
       highlights: [
         "Bağımsız ERC-721",
         "Gömülü bytecode → tarayıcıdan deploy",
@@ -676,7 +681,7 @@ const TR: Strings = {
     {
       title: "ICM zincirler-arası mesajlaşma",
       description:
-        "Interchain Messaging ile iki Avalanche L1'i arasında mesaj gönder — tek komutluk yerel devnet üzerinde.",
+        "Interchain Messaging ile iki Avalanche L1'i arasında mesaj gönder; tek komutluk yerel devnet üzerinde.",
       highlights: [
         "Tek komut: 2 yerel L1 + ICM + relayer",
         "Teleporter gönder + al kontratı",
@@ -706,10 +711,10 @@ const TR: Strings = {
     {
       title: "Zincirler-arası token köprüsü (ICTT)",
       description:
-        "Interchain Token Transfer ile iki Avalanche L1'i arasında bir ERC-20 köprüle — tek komutluk yerel devnet üzerinde.",
+        "Interchain Token Transfer ile iki Avalanche L1'i arasında bir ERC-20 köprüle; tek komutluk yerel devnet üzerinde.",
       highlights: [
         "Tek komut: 2 L1 + relayer + tam ICTT köprüsü",
-        "Bir zincirde kilitle, diğerinde bas — ve geri",
+        "Bir zincirde kilitle, diğerinde bas, sonra geri getir",
         "ava-labs/icm-contracts'tan gerçek Home/Remote kontratları",
       ],
     },
@@ -717,7 +722,7 @@ const TR: Strings = {
   recommender: {
     eyebrow: "Başlangıç noktanı bul",
     title: "Ne inşa ediyorsun?",
-    lead: "Bir hedef seç — doğru şablonu ve çalıştıracağın tam komutu gösterelim.",
+    lead: "Bir hedef seç: doğru şablonu ve çalıştıracağın tam komutu gösterelim.",
     recommended: "Önerilen",
     seeAll: "Tüm şablonları gör",
     goals: [
@@ -742,7 +747,7 @@ const TR: Strings = {
       "Bir şablondan Avalanche dapp'i oluşturur.",
       "Mevcut şablonları listeler.",
       "Bir bakiye, işlem makbuzu veya kontrat view fonksiyonu okur.",
-      "Derlenmiş bytecode deploy eder — varsayılan Fuji, mainnet onay ister.",
+      "Derlenmiş bytecode deploy eder. Varsayılan Fuji; mainnet onay ister.",
       "AvaKit + Avalanche kodlama bağlamı ve doküman linkleri.",
     ],
   },
@@ -757,7 +762,7 @@ const TR: Strings = {
       },
       {
         q: "Belirli bir cüzdana veya sağlayıcıya kilitli mi?",
-        a: "Hayır. Cüzdan sağlayıcıları bir adaptör arayüzünün arkasında — Web3Auth'u AvaCloud, injected veya kendinkiyle değiştir. Bileşenler kopyala-gel shadcn; sağlayıcıya bağımlılık yok.",
+        a: "Hayır. Cüzdan sağlayıcıları bir adaptör arayüzünün arkasında; Web3Auth'u AvaCloud, injected veya kendinkiyle değiştirebilirsin. Bileşenler kopyala-gel shadcn; sağlayıcıya bağımlılık yok.",
       },
       {
         q: "Hangi zincirler destekleniyor?",
@@ -783,10 +788,14 @@ const TR: Strings = {
   footer: { tagline: "Avalanche için açık kaynak, AI-native geliştirici araç seti." },
   cinematic: {
     line1: "Katılım, sürtünme olmadan.",
-    line2: "Fikirden ilk işleme — dakikalar içinde.",
+    line2: "Fikirden ilk işleme, dakikalar içinde.",
     introducing: "Karşınızda",
   },
   feedback: "Geri bildirim",
+  ambient: {
+    eyebrow: "Tek araç seti, her yüzey",
+    statement: "Cüzdanlar, kontratlar ve AI; tek tutarlı çekirdek üzerinde.",
+  },
 };
 
 const STRINGS: Record<Locale, Strings> = { en: EN, tr: TR };
@@ -854,6 +863,7 @@ export function getContent(locale: Locale) {
     footer: s.footer,
     cinematic: s.cinematic,
     feedback: s.feedback,
+    ambient: s.ambient,
   };
 }
 

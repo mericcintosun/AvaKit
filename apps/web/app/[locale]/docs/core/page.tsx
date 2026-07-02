@@ -55,8 +55,8 @@ const social = web3authAdapter({ clientId: process.env.WEB3AUTH_CLIENT_ID! });
 const { address, provider } = await social.connect();`}
       />
       <Note>
-        <C>@web3auth/modal</C> is an optional peer dependency — install it only if you use the
-        social adapter. Get a free client ID at{" "}
+        <C>@web3auth/modal</C> is an optional peer dependency; install it only if you use the social
+        adapter. Get a free client ID at{" "}
         <A href="https://dashboard.web3auth.io">dashboard.web3auth.io</A>.
       </Note>
 
@@ -97,6 +97,10 @@ const { address, txHash, explorerUrl } = await deployContract({
         <li>
           <C>deployContract</C>, <C>getBytecode</C>, <C>getBalance</C>, <C>getTransactionReceipt</C>
           , <C>readContract</C>
+        </li>
+        <li>
+          <C>getNativeBalance</C>, <C>listErc20Balances</C>, <C>listNfts</C>,{" "}
+          <C>listTransactions</C> (AvaCloud Data API, keyless)
         </li>
       </UL>
 

@@ -36,7 +36,7 @@ export default function CliDocs() {
         <li>shadcn/ui with dark/light wired from day one</li>
         <li>Deploy-ready contracts (where applicable) with bundled bytecode</li>
         <li>
-          AI context — <C>CLAUDE.md</C>, <C>llms.txt</C>, and <C>.cursor/rules</C>
+          AI context: <C>CLAUDE.md</C>, <C>llms.txt</C>, and <C>.cursor/rules</C>
         </li>
       </UL>
 
@@ -57,7 +57,8 @@ export default function CliDocs() {
 
       <H2>Options</H2>
       <CodeBlock
-        code={`-t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token
+        code={`-t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |
+                        icm-messenger | eerc-token | l1-launch | token-bridge
 -w, --wallet <id>       web3auth | injected      (default: web3auth)
 -c, --chain <id>        fuji | c-chain           (default: fuji)
     --pm <manager>      pnpm | npm | yarn | bun

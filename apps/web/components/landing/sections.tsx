@@ -94,7 +94,7 @@ export function SurfacesSection() {
                         <ul className="text-muted-foreground mt-1 flex flex-col gap-1.5 text-sm">
                           {s.points.map((p) => (
                             <li key={p} className="flex gap-2">
-                              <span className="text-foreground/30 select-none">—</span>
+                              <span className="text-foreground/30 select-none">·</span>
                               {p}
                             </li>
                           ))}
@@ -216,7 +216,7 @@ export function TemplatesSection() {
           </Button>
         </div>
         <RevealGroup className="mt-10 grid gap-3 sm:grid-cols-2">
-          {c.templates.map((t, i) => (
+          {c.templates.slice(0, 2).map((t, i) => (
             <motion.div key={t.id} variants={fadeUp}>
               <Link
                 href="/templates"

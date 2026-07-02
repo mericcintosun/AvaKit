@@ -1,7 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useLocale } from "next-intl";
 import { useEffect, useRef, useState } from "react";
+
+import { getContent, type Locale } from "@/lib/content";
 
 function useIsDesktop() {
   const [desktop, setDesktop] = useState(false);
@@ -17,6 +20,7 @@ function useIsDesktop() {
 
 /** A calm, full-width topographic-terrain band that loops behind a statement. */
 export function AmbientBand() {
+  const c = getContent(useLocale() as Locale);
   const isDesktop = useIsDesktop();
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -73,10 +77,10 @@ export function AmbientBand() {
           className="flex flex-col items-center gap-4 text-white"
         >
           <span className="font-mono text-xs tracking-[0.3em] text-white/60 uppercase">
-            One toolkit, every surface
+            {c.ambient.eyebrow}
           </span>
           <p className="max-w-2xl text-3xl font-semibold tracking-tight text-balance lg:text-5xl">
-            Wallets, contracts, and AI — on one consistent core.
+            {c.ambient.statement}
           </p>
         </motion.div>
       </div>

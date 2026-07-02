@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-
+import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 const groups = [
@@ -17,6 +15,7 @@ const groups = [
       { label: "@avakit/react", href: "/docs/react" },
       { label: "create-avalanche-app", href: "/docs/cli" },
       { label: "@avakit/mcp", href: "/docs/mcp" },
+      { label: "@avakit/studio", href: "/docs/studio" },
     ],
   },
 ];

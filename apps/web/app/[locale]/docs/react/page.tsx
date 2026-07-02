@@ -51,47 +51,47 @@ export function Header() {
       />
       <P>
         On connect, AvaKit automatically switches the wallet to the active chain (adding it if
-        unknown) — including embedded wallets, which default to a different network.
+        unknown), including embedded wallets, which default to a different network.
       </P>
 
       <H2>Hooks</H2>
       <UL>
         <li>
-          <C>useAvaAccount()</C> — <C>{"{ address, status, isConnected, isConnecting }"}</C>
+          <C>useAvaAccount()</C>: <C>{"{ address, status, isConnected, isConnecting }"}</C>
         </li>
         <li>
-          <C>useAvaChain()</C> — <C>{"{ chain, chains, setChain }"}</C>
+          <C>useAvaChain()</C>: <C>{"{ chain, chains, setChain }"}</C>
         </li>
         <li>
-          <C>useBalance(address?)</C> — <C>{"{ data, isLoading, refetch }"}</C>
+          <C>useBalance(address?)</C>: <C>{"{ data, isLoading, refetch }"}</C>
         </li>
         <li>
-          <C>useContract({"{ address, abi }"})</C> — <C>{"{ read, write }"}</C>
+          <C>useContract({"{ address, abi }"})</C>: <C>{"{ read, write }"}</C>
         </li>
         <li>
-          <C>useAvaDeploy()</C> — <C>{"{ deploy, status, result, error }"}</C>
+          <C>useAvaDeploy()</C>: <C>{"{ deploy, status, result, error }"}</C>
         </li>
         <li>
-          <C>useSendTransaction()</C> — <C>{"{ send, status, hash, explorerUrl, isPending }"}</C>
+          <C>useSendTransaction()</C>: <C>{"{ send, status, hash, explorerUrl, isPending }"}</C>
         </li>
         <li>
-          <C>useTokenBalances(address?)</C> — <C>{"{ native, tokens, isLoading, refetch }"}</C>
+          <C>useTokenBalances(address?)</C>: <C>{"{ native, tokens, isLoading, refetch }"}</C>
         </li>
         <li>
-          <C>useNfts(address?)</C> — <C>{"{ nfts, isLoading, refetch }"}</C>
+          <C>useNfts(address?)</C>: <C>{"{ nfts, isLoading, refetch }"}</C>
         </li>
         <li>
-          <C>useTxHistory(address?)</C> — <C>{"{ transactions, isLoading, refetch }"}</C>
+          <C>useTxHistory(address?)</C>: <C>{"{ transactions, isLoading, refetch }"}</C>
         </li>
         <li>
-          <C>useAvaKit()</C> — the full context (provider, adapters, connect/disconnect)
+          <C>useAvaKit()</C>: the full context (provider, adapters, connect/disconnect)
         </li>
       </UL>
 
       <H2>Send a transaction</H2>
       <P>
         The <C>useSendTransaction</C> hook (and the <C>&lt;TransactionButton&gt;</C> component built
-        on it) wrap the whole send flow — pending state, errors, and an explorer link.
+        on it) wrap the whole send flow: pending state, errors, and an explorer link.
       </P>
       <CodeBlock
         code={`import { TransactionButton, useSendTransaction } from "@avakit/react";
@@ -108,7 +108,7 @@ await send({ to: "0x…", value: parseEther("0.01") });`}
       <H2>Read chain data (no indexer)</H2>
       <P>
         <C>useTokenBalances</C>, <C>useNfts</C>, and <C>useTxHistory</C> return indexed data from
-        the AvaCloud Data API — balances, NFT holdings, and transaction history — with no indexer to
+        the AvaCloud Data API (balances, NFT holdings, and transaction history) with no indexer to
         run. They default to the connected account and active chain, and work keyless (pass{" "}
         <C>dataApiKey</C> to <C>&lt;AvaKitProvider&gt;</C> for higher rate limits).
       </P>
@@ -134,7 +134,7 @@ const total = await nft.read("totalSupply");`}
 
       <Note>
         Components are shadcn-styled (Radix + Tailwind tokens). Your app needs Tailwind configured
-        with shadcn tokens — the scaffolder sets this up for you.
+        with shadcn tokens; the scaffolder sets this up for you.
       </Note>
 
       <NextLinks

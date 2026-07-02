@@ -24,13 +24,13 @@ export default function McpDocs() {
     <>
       <DocHeader
         title="@avakit/mcp"
-        lead="An MCP server that exposes Avalanche actions — not just docs — to Claude Code and Cursor."
+        lead="An MCP server that exposes Avalanche actions, not just docs, to Claude Code and Cursor."
       />
 
       <H2>Add to your MCP client</H2>
       <P>
         Drop this into your Claude Code, Cursor, or Claude Desktop MCP configuration. No install
-        needed — <C>npx</C> fetches it on demand.
+        needed; <C>npx</C> fetches it on demand.
       </P>
       <CodeBlock code={CONFIG} />
 
@@ -60,7 +60,7 @@ export default function McpDocs() {
       <P>Ask your agent in natural language:</P>
       <CodeBlock code={"“Scaffold an nft-mint dapp called gm-avax and deploy it to Fuji.”"} />
       <P>
-        The agent calls <C>scaffold_app</C>, then <C>deploy_contract</C> — and reads the result back
+        The agent calls <C>scaffold_app</C>, then <C>deploy_contract</C>, then reads the result back
         with <C>read_chain</C>.
       </P>
 
@@ -82,6 +82,11 @@ export default function McpDocs() {
             label: "@avakit/core",
             href: "/docs/core",
             description: "The deploy + data primitives it uses.",
+          },
+          {
+            label: "@avakit/studio",
+            href: "/docs/studio",
+            description: "A local dashboard that is also an MCP server.",
           },
         ]}
       />
