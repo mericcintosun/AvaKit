@@ -6,10 +6,11 @@
 /*
  * AvaKit design tokens.
  *
- * PROJECT RULE (docs/11-conventions.md): black & white only until M3.
- * Every token below uses oklch with chroma 0 — i.e. pure grayscale. No hue,
- * no accent. Dark/light is wired from day one. Color is added last (after M3)
- * by editing these tokens only — components never hardcode colors.
+ * Brand: "Ember Crimson". Surfaces stay near-black / near-white (a calm,
+ * professional devtools base); the crimson accent carries the energy on
+ * primary actions, focus rings, links, and highlights. Dark/light both
+ * supported. Components read these tokens — they never hardcode colors, so the
+ * whole brand can shift by editing this file.
  */
 
 :root {
@@ -24,8 +25,8 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
-  --primary: oklch(0.205 0 0); /* near-black */
-  --primary-foreground: oklch(0.985 0 0); /* near-white */
+  --primary: oklch(0.628 0.207 25.3); /* Ember Crimson */
+  --primary-foreground: oklch(0.985 0 0); /* near-white on crimson */
 
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -36,13 +37,15 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
 
-  /* No red yet — grayscale until M3. */
-  --destructive: oklch(0.3 0 0);
+  --destructive: oklch(0.577 0.245 27.3); /* error red */
   --destructive-foreground: oklch(0.985 0 0);
+
+  /* Brand crimson for glows/gradients; components reference var(--brand). */
+  --brand: oklch(0.628 0.207 25.3);
 
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.628 0.207 25.3); /* crimson focus ring */
 }
 
 .dark {
@@ -55,8 +58,8 @@
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
 
-  --primary: oklch(0.985 0 0); /* near-white */
-  --primary-foreground: oklch(0.205 0 0); /* near-black */
+  --primary: oklch(0.66 0.2 25.3); /* Ember Crimson, a touch brighter to glow on black */
+  --primary-foreground: oklch(0.985 0 0); /* near-white on crimson */
 
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -67,12 +70,14 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
 
-  --destructive: oklch(0.7 0 0);
-  --destructive-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.7 0.19 25.3); /* error red */
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --brand: oklch(0.66 0.2 25.3);
 
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.66 0.2 25.3); /* crimson focus ring */
 }
 
 @theme inline {
@@ -92,6 +97,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-brand: var(--brand);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

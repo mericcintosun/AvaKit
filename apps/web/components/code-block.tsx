@@ -25,10 +25,10 @@ export function CodeBlock({
   }
 
   return (
-    <div className={cn("group bg-muted/40 relative rounded-lg border", className)}>
+    <div className={cn("group bg-muted/40 relative min-w-0 rounded-lg border", className)}>
       <pre className="overflow-x-auto p-4 pr-12 font-mono text-sm leading-relaxed">
         <code>
-          {prefix ? <span className="text-muted-foreground select-none">{prefix} </span> : null}
+          {prefix ? <span className="text-primary select-none">{prefix} </span> : null}
           {code}
         </code>
       </pre>

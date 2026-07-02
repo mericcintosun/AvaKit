@@ -8,6 +8,7 @@ import { templates } from "@/lib/content";
 export const metadata: Metadata = {
   title: "create-avalanche-app",
   description: "Scaffold a batteries-included Avalanche dapp with one command.",
+  alternates: { canonical: "/docs/cli" },
 };
 
 export default function CliDocs() {

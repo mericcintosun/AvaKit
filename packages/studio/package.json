@@ -1,6 +1,6 @@
 {
   "name": "@avakit/studio",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "AvaKit Studio — a local control center for Avalanche development (L1s, ICM, devnets).",
   "license": "MIT",
   "type": "module",

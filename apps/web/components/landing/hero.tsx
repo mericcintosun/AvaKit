@@ -33,7 +33,7 @@ function CopyPill() {
       className="bg-muted/40 hover:bg-muted inline-flex items-center gap-3 rounded-full border py-1.5 pr-2 pl-4 font-mono text-xs transition-colors sm:text-sm"
     >
       <span>
-        <span className="text-muted-foreground select-none">$ </span>
+        <span className="text-primary select-none">$ </span>
         {site.createCommand}
       </span>
       <span className="bg-background flex size-6 items-center justify-center rounded-full border">
@@ -67,7 +67,7 @@ export function Hero() {
               variants={item}
               className="text-muted-foreground inline-flex items-center gap-2 font-mono text-xs tracking-[0.2em] uppercase"
             >
-              <span className="bg-foreground inline-block size-1.5 rounded-full" />
+              <span className="bg-primary inline-block size-1.5 rounded-full" />
               Open source · AI-native · MIT
             </motion.span>
             <motion.h1
@@ -75,7 +75,10 @@ export function Hero() {
               className="text-5xl font-semibold tracking-[-0.03em] text-balance sm:text-6xl lg:text-[5rem] lg:leading-[0.95]"
             >
               The developer toolkit for building on{" "}
-              <span className="underline decoration-2 underline-offset-[8px]">Avalanche</span>.
+              <span className="decoration-primary underline decoration-2 underline-offset-[8px]">
+                Avalanche
+              </span>
+              .
             </motion.h1>
             <motion.p
               variants={item}

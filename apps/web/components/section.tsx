@@ -27,8 +27,8 @@ export function Section({
 export function Eyebrow({ index, children }: { index?: string; children: ReactNode }) {
   return (
     <span className="text-muted-foreground inline-flex items-center gap-2.5 font-mono text-xs tracking-[0.2em] uppercase">
-      {index ? <span className="text-foreground/40 tabular-nums">{index}</span> : null}
-      <span className="bg-border inline-block h-px w-6" />
+      {index ? <span className="text-primary tabular-nums">{index}</span> : null}
+      <span className="bg-primary inline-block h-px w-6" />
       {children}
     </span>
   );

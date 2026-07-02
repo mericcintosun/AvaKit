@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Introduction",
   description:
     "Get started with AvaKit — the open-source, AI-native developer toolkit for Avalanche.",
+  alternates: { canonical: "/docs" },
 };
 
 export default function DocsHome() {

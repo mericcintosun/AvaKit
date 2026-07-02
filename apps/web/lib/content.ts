@@ -16,6 +16,9 @@ export const site = {
   description:
     "Scaffold a social-login dapp, deploy-ready, with agent context baked in. One core, four surfaces — no seed phrases, no boilerplate.",
   createCommand: "npm create avalanche-app@latest",
+  // Production origin — used for canonical URLs, Open Graph, sitemap, and robots.
+  // Override at build with NEXT_PUBLIC_SITE_URL if the domain changes.
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://avakit.vercel.app",
 };
 
 export const nav = [

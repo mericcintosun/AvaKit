@@ -7,6 +7,7 @@ import { mcpTools } from "@/lib/content";
 export const metadata: Metadata = {
   title: "@avakit/mcp",
   description: "An MCP server so Claude Code / Cursor can scaffold, deploy, and read Avalanche.",
+  alternates: { canonical: "/docs/mcp" },
 };
 
 const CONFIG = `{

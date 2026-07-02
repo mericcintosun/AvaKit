@@ -9,7 +9,9 @@ import { templates } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "Templates",
-  description: "Deploy-ready Avalanche dapp templates: minimal, NFT mint, token-gated, and ERC-20.",
+  description:
+    "Deploy-ready Avalanche dapp templates: minimal, NFT mint, token-gated, ERC-20, cross-chain messaging (ICM), confidential token (eERC), launch your own L1, and a cross-chain token bridge.",
+  alternates: { canonical: "/templates" },
 };
 
 // White-background line art that sits seamlessly on any card in both themes.
@@ -23,7 +25,9 @@ export default function TemplatesPage() {
         <span className="text-muted-foreground font-mono text-xs tracking-[0.2em] uppercase">
           Templates
         </span>
-        <h1 className="text-4xl font-semibold tracking-tight">Start from a working example</h1>
+        <h1 className="text-primary text-4xl font-semibold tracking-tight">
+          Start from a working example
+        </h1>
         <p className="text-muted-foreground max-w-2xl text-balance">
           Every template is a real, deploy-ready dapp — shadcn/ui, a social-login wallet, dark/light
           from day one, and AI context files so Claude / Cursor understand it out of the box.
@@ -45,7 +49,7 @@ export default function TemplatesPage() {
                     className={artClass}
                   />
                 </div>
-                <div className="flex flex-col gap-5 p-6">
+                <div className="flex min-w-0 flex-col gap-5 p-6">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-xl font-semibold">{t.title}</h2>
                     <Badge variant="outline" className="font-mono text-[10px]">
@@ -61,7 +65,7 @@ export default function TemplatesPage() {
                   <ul className="flex flex-col gap-2">
                     {t.highlights.map((h) => (
                       <li key={h} className="flex items-center gap-2 text-sm">
-                        <Check className="size-4 shrink-0" />
+                        <Check className="text-primary size-4 shrink-0" />
                         {h}
                       </li>
                     ))}

@@ -7,6 +7,7 @@ import { InstallTabs } from "@/components/install-tabs";
 export const metadata: Metadata = {
   title: "@avakit/react",
   description: "React layer for AvaKit: <ConnectAvalanche> and hooks, built on shadcn/ui.",
+  alternates: { canonical: "/docs/react" },
 };
 
 export default function ReactDocs() {

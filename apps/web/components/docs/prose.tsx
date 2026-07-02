@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 export function DocHeader({ title, lead }: { title: string; lead?: string }) {
   return (
     <div className="flex flex-col gap-3">
-      <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+      <h1 className="text-primary text-3xl font-semibold tracking-tight">{title}</h1>
       {lead ? <p className="text-muted-foreground text-lg text-balance">{lead}</p> : null}
     </div>
   );

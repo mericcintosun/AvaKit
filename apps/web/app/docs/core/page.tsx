@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "@avakit/core",
   description:
     "The framework-agnostic AvaKit kernel: chains, wallet adapters, deploy, and chain data.",
+  alternates: { canonical: "/docs/core" },
 };
 
 export default function CoreDocs() {

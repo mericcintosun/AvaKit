@@ -79,7 +79,7 @@ export function SurfacesSection() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="bg-muted flex size-9 items-center justify-center rounded-lg border">
-                        <s.icon className="size-4" />
+                        <s.icon className="text-primary size-4" />
                       </div>
                       <span className="text-muted-foreground/50 font-mono text-xs">{pad(i)}</span>
                     </div>
@@ -173,7 +173,7 @@ export function StepsSection() {
                 )}
               >
                 <div className="relative flex flex-col gap-2">
-                  <span className="bg-foreground text-background absolute top-0.5 -left-11 flex size-6 items-center justify-center rounded-full font-mono text-xs">
+                  <span className="bg-primary text-primary-foreground absolute top-0.5 -left-11 flex size-6 items-center justify-center rounded-full font-mono text-xs">
                     {i + 1}
                   </span>
                   <h3 className="font-mono text-sm font-medium tracking-wide uppercase">

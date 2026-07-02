@@ -9,16 +9,27 @@ const lines: { text: ReactNode; muted?: boolean }[] = [
   {
     text: (
       <>
-        <span className="text-muted-foreground select-none">$ </span>npm create avalanche-app@latest
-        my-app
+        <span className="text-primary select-none">$ </span>npm create avalanche-app@latest my-app
       </>
     ),
   },
   { text: "◆  Template · nft-mint", muted: true },
   { text: "◆  Wallet · social login (Web3Auth)", muted: true },
   { text: "◆  Chain · Avalanche Fuji", muted: true },
-  { text: "✓  Created 16 files", muted: false },
-  { text: "✓  Installed dependencies", muted: false },
+  {
+    text: (
+      <>
+        <span className="text-primary">✓</span> Created 16 files
+      </>
+    ),
+  },
+  {
+    text: (
+      <>
+        <span className="text-primary">✓</span> Installed dependencies
+      </>
+    ),
+  },
   { text: "→  cd my-app && pnpm dev", muted: true },
   {
     text: (
