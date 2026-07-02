@@ -1,109 +1,111 @@
 # 08 — Spec: `create-avalanche-app`
 
-**Rol:** Batteries-included scaffolder. Vibe coder'ın tek komutu. `@avakit/core` + `@avakit/react` kullanan, deploy edilebilir, AI context'i gömülü bir dapp üretir.
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
+
+**Role:** Batteries-included scaffolder. The vibe coder's single command. Produces a deployable dapp with embedded AI context that uses `@avakit/core` + `@avakit/react`.
 **Milestone:** M2.
 
-## Çağırma
+## Invocation
 
 ```bash
-npm create avalanche-app@latest          # interaktif
-# veya
+npm create avalanche-app@latest          # interactive
+# or
 pnpm create avalanche-app my-app --template token-gated-app --wallet web3auth --chain fuji --yes
 ```
 
-## İnteraktif akış
+## Interactive flow
 
 ```
-◆  Proje adı? ……………………… my-avax-app
+◆  Project name? ……………………… my-avax-app
 ◆  Template?
-   › minimal              (social login + bağlan + tx)
-     token-gated-app      (NFT/ERC-20 sahipliğine göre içerik)
-     nft-mint             (mint akışı + contract + deploy)
+   › minimal              (social login + connect + tx)
+     token-gated-app      (content based on NFT/ERC-20 ownership)
+     nft-mint             (mint flow + contract + deploy)
 ◆  Wallet provider?
-   › web3auth   (ücretsiz, social login — önerilen)
+   › web3auth   (free, social login — recommended)
      injected   (Core / MetaMask)
-     avacloud   (WaaS — client gerektirir)
-◆  Hedef chain?
-   › fuji       (testnet — önerilen)
+     avacloud   (WaaS — requires a client)
+◆  Target chain?
+   › fuji       (testnet — recommended)
      c-chain    (mainnet)
-     custom L1  (chainId + RPC sorulur)
-◆  Paket yöneticisi? … pnpm / npm / yarn / bun
-◆  Şimdi kurulsun mu (install)? … evet
+     custom L1  (asks for chainId + RPC)
+◆  Package manager? … pnpm / npm / yarn / bun
+◆  Install now? … yes
 ```
 
-`--yes` modunda tüm sorular flag/default'tan gelir (CI ve MCP `scaffold_app` için gerekli).
+In `--yes` mode, all questions come from flags/defaults (required for CI and the MCP `scaffold_app`).
 
-## Üretilen proje yapısı (örnek: `token-gated-app`)
+## Generated project structure (example: `token-gated-app`)
 
 ```
 my-avax-app/
 ├── app/                      # Next.js App Router
 │   ├── providers.tsx         # <AvaKitProvider> + ThemeProvider (next-themes)
-│   ├── page.tsx              # <ConnectAvalanche> + token-gate örneği
+│   ├── page.tsx              # <ConnectAvalanche> + token-gate example
 │   └── layout.tsx
-├── components/ui/            # shadcn/ui bileşenleri (tek UI lib)
+├── components/ui/            # shadcn/ui components (the only UI lib)
 ├── contracts/                # Foundry
 │   ├── src/Token.sol
 │   ├── script/Deploy.s.sol
 │   └── foundry.toml
 ├── lib/avakit.ts             # chain + adapter config
-├── .env.example              # WEB3AUTH_CLIENT_ID, RPC, vs.
-├── CLAUDE.md                 # AI agent context (bkz. doc 10)
-├── llms.txt                  # AI-friendly proje haritası
-├── .cursor/rules/avakit.mdc  # Cursor kuralları
-├── package.json              # script'ler: dev, build, deploy:fuji
-└── README.md                 # 3 adımlık başlangıç
+├── .env.example              # WEB3AUTH_CLIENT_ID, RPC, etc.
+├── CLAUDE.md                 # AI agent context (see doc 10)
+├── llms.txt                  # AI-friendly project map
+├── .cursor/rules/avakit.mdc  # Cursor rules
+├── package.json              # scripts: dev, build, deploy:fuji
+└── README.md                 # 3-step getting started
 ```
 
-## `package.json` script'leri (üretilen)
-- `dev` — Next.js dev sunucusu.
-- `deploy:fuji` — Foundry ile contract'ı Fuji'ye deploy + adresi `.env.local`'e yazar.
-- `deploy:mainnet` — C-Chain; **onay istemi** + bakiye kontrolü (ADR-007).
-- `typegen` — ABI'den tip üretimi.
+## `package.json` scripts (generated)
+- `dev` — Next.js dev server.
+- `deploy:fuji` — deploy the contract to Fuji with Foundry + write the address to `.env.local`.
+- `deploy:mainnet` — C-Chain; **confirmation prompt** + balance check (ADR-007).
+- `typegen` — type generation from the ABI.
 
-## Çıktı sonrası kullanıcı deneyimi
+## Post-generation user experience
 ```
-✓ my-avax-app hazır.
+✓ my-avax-app is ready.
 
-Sonraki adımlar:
+Next steps:
   cd my-avax-app
-  cp .env.example .env.local   # WEB3AUTH_CLIENT_ID ekle (ücretsiz: dashboard linki)
-  pnpm deploy:fuji             # örnek contract'ı testnet'e at
+  cp .env.example .env.local   # add WEB3AUTH_CLIENT_ID (free: dashboard link)
+  pnpm deploy:fuji             # ship the example contract to testnet
   pnpm dev                     # http://localhost:3000
 
-İpucu: Cursor/Claude kullanıyorsan CLAUDE.md ve .cursor/rules zaten hazır.
+Tip: if you use Cursor/Claude, CLAUDE.md and .cursor/rules are already set up.
 ```
 
-## AI context enjeksiyonu (farklılaşmanın kalbi)
-Her üretilen projeye otomatik eklenir (bkz. [doc 10](10-ai-native-strategy.md)):
-- `CLAUDE.md` — proje mimarisi, AvaKit API'leri, yaygın görevler, "şunu yapma" kuralları.
-- `llms.txt` — dosya haritası + önemli giriş noktaları.
-- `.cursor/rules/avakit.mdc` — Cursor için aynı bağlam.
+## AI context injection (the heart of the differentiation)
+Automatically added to every generated project (see [doc 10](10-ai-native-strategy.md)):
+- `CLAUDE.md` — project architecture, AvaKit APIs, common tasks, "don't do this" rules.
+- `llms.txt` — file map + important entry points.
+- `.cursor/rules/avakit.mdc` — the same context for Cursor.
 
 ## Template manifest
-Her template `templates/<name>/manifest.json` ile gelir:
+Each template ships with `templates/<name>/manifest.json`:
 ```json
 {
   "name": "token-gated-app",
-  "description": "NFT/ERC-20 sahipliğine göre içerik kilidi",
+  "description": "Content lock based on NFT/ERC-20 ownership",
   "supports": { "wallet": ["web3auth", "injected", "avacloud"], "chains": ["fuji", "c-chain", "custom"] },
   "contracts": true,
   "postInstall": ["typegen"]
 }
 ```
-CLI ve MCP bu manifest'i okuyarak seçenekleri dinamik üretir (yeni template eklemek = klasör + manifest).
+The CLI and MCP read this manifest to generate the options dynamically (adding a new template = folder + manifest).
 
-## UI & tema (proje kuralı — [doc 11](11-conventions.md))
-- Her template **shadcn/ui** + **Tailwind v4** + **next-themes** ile gelir; dark/light toggle hazır.
-- M3 bitene kadar **sadece siyah/beyaz** token'lar; renk en sona. Animasyon Framer Motion.
-- Latest stable sürümler (Next.js 16, React 19 vb.).
+## UI & theme (project rule — [doc 11](11-conventions.md))
+- Every template ships with **shadcn/ui** + **Tailwind v4** + **next-themes**; a dark/light toggle is ready.
+- **Black/white only** tokens until M3 is done; color comes last. Animation via Framer Motion.
+- Latest stable versions (Next.js 16, React 19, etc.).
 
-## Teknik notlar
-- Template'ler placeholder'lı gerçek dosyalar (ör. `__PROJECT_NAME__`), render sırasında doldurulur.
-- Wallet/chain seçimi `lib/avakit.ts` ve `.env.example`'ı şekillendirir.
-- Hardhat variant'ı (ADR-004) ayrı template veya `--contracts hardhat` flag'i.
+## Technical notes
+- Templates are real files with placeholders (e.g. `__PROJECT_NAME__`), filled in during rendering.
+- The wallet/chain selection shapes `lib/avakit.ts` and `.env.example`.
+- The Hardhat variant (ADR-004) is a separate template or a `--contracts hardhat` flag.
 
-## Kabul kriteri (M2)
-`npm create avalanche-app` → `pnpm deploy:fuji` → `pnpm dev` ile **sıfır manuel kod**, çalışan social-login'li dapp; örnek contract Fuji'de, frontend'den okunuyor.
+## Acceptance criteria (M2)
+`npm create avalanche-app` → `pnpm deploy:fuji` → `pnpm dev` yields a working social-login dapp with **zero manual code**; the example contract is on Fuji and read from the frontend.
 
-İlgili: [Widget Spec](07-spec-wallet-widget.md) · [MCP Spec](09-spec-mcp.md) · [AI-Native](10-ai-native-strategy.md)
+Related: [Widget Spec](07-spec-wallet-widget.md) · [MCP Spec](09-spec-mcp.md) · [AI-Native](10-ai-native-strategy.md)

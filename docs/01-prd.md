@@ -1,122 +1,124 @@
 # 01 — Product Requirements Document (PRD)
 
-**Ürün:** AvaKit
-**Durum:** Taslak v1 (planlama)
-**Son güncelleme:** 2026-07-01
-**Sahip:** —
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
+
+**Product:** AvaKit
+**Status:** Draft v1 (planning)
+**Last updated:** 2026-07-01
+**Owner:** —
 
 ---
 
-## 1. Problem tanımı
+## 1. Problem statement
 
-Avalanche C-Chain EVM uyumlu ve son-kullanıcı onboarding'i (seedless/social login) Core ve Cubist tarafından çözülmüş olmasına rağmen, **yeni veya AI-destekli bir geliştiricinin Avalanche üstünde modern, onboarding'i hazır bir dapp'e başlaması hâlâ zor.**
+Even though Avalanche C-Chain is EVM-compatible and end-user onboarding (seedless/social login) has been solved by Core and Cubist, **it is still hard for a new or AI-assisted developer to get started with a modern, onboarding-ready dapp on Avalanche.**
 
-Bugün bir geliştirici şunları elle birleştirmek zorunda:
-- RPC URL'leri, chain ID'leri, faucet (Fuji testnet)
-- Embedded/social-login wallet entegrasyonu (provider seçimi, key yönetimi, env config)
-- Frontend iskeleti (Next.js + wagmi + viem + UI)
-- Smart contract tooling (Foundry/Hardhat) + deploy script'leri
-- Bunların birbiriyle uyumlu çalışması
+Today a developer has to wire the following together by hand:
+- RPC URLs, chain IDs, faucet (Fuji testnet)
+- Embedded/social-login wallet integration (provider choice, key management, env config)
+- Frontend scaffold (Next.js + wagmi + viem + UI)
+- Smart contract tooling (Foundry/Hardhat) + deploy scripts
+- Making all of these work together
 
-Sonuç: "Avalanche'i deneyeyim" ile "çalışan ilk transaction" arasındaki mesafe saatler/günler. AI araçlarıyla (Claude Code, Cursor) çalışan "vibe coder"lar için ise chain-spesifik bağlam eksikliği yüzünden daha da zor.
+The result: the distance between "let me try Avalanche" and "a working first transaction" is hours/days. For "vibe coders" working with AI tools (Claude Code, Cursor), it's even harder because of the missing chain-specific context.
 
-## 2. Hedefler & hedef olmayanlar
+## 2. Goals & non-goals
 
-### Hedefler
-- G1: Sıfırdan çalışan, social-login'li, deploy edilebilir bir Avalanche dapp'ini **< 5 dakikada** ayağa kaldırmak.
-- G2: EVM dev'in **mevcut** dapp'ine social-login wallet'ı **tek component** ile eklemesini sağlamak.
-- G3: AI kod araçlarının (Claude/Cursor) Avalanche'de scaffold + deploy yapabilmesi için **MCP** + **agent context** sağlamak.
-- G4: Tamamen **açık kaynak (MIT)** ve **ücretsiz default** ile vendor lock-in'siz bir alternatif olmak.
+### Goals
+- G1: Stand up a working, social-login, deployable Avalanche dapp from scratch in **< 5 minutes.**
+- G2: Let an EVM dev add a social-login wallet to their **existing** dapp with a **single component.**
+- G3: Provide **MCP** + **agent context** so AI coding tools (Claude/Cursor) can scaffold + deploy on Avalanche.
+- G4: Be a fully **open-source (MIT)** alternative with a **free default** and no vendor lock-in.
 
-### Hedef olmayanlar (anti-goals)
-- A1: Kendi key management / cüzdan altyapısını yazmak. (Web3Auth/AvaCloud sarılır.)
-- A2: Yeni bir UI component kütüphanesi yaratmak. (shadcn/ui benimsenir; bileşenler onun üstüne kurulur.)
-- A3: Subnet/L1 launch tooling'i yeniden yazmak. (Avalanche CLI / `avalanche-cli` zaten var; MCP onu çağırabilir ama biz yeniden yazmayız.)
-- A4: Custodial / backend wallet servisi sunmak.
+### Non-goals (anti-goals)
+- A1: Writing our own key management / wallet infrastructure. (Web3Auth/AvaCloud are wrapped.)
+- A2: Creating a new UI component library. (shadcn/ui is adopted; components are built on top of it.)
+- A3: Rewriting subnet/L1 launch tooling. (Avalanche CLI / `avalanche-cli` already exists; MCP can call it but we don't rewrite it.)
+- A4: Offering a custodial / backend wallet service.
 
-## 3. Persona'lar
+## 3. Personas
 
 ### P1 — "Vibe coder" Vera
-- Web2/JS background, blockchain'e yabancı. Cursor + Claude ile geliştiriyor.
-- İhtiyaç: "Çalışsın yeter." Seed phrase, RPC, faucet gibi kavramlarla uğraşmak istemiyor.
-- AvaKit kapısı: `create-avalanche-app` + MCP. Doğal dilde "Avalanche dapp kur, social login olsun" der.
+- Web2/JS background, unfamiliar with blockchain. Develops with Cursor + Claude.
+- Need: "Just make it work." Doesn't want to deal with concepts like seed phrases, RPC, or faucets.
+- AvaKit entry point: `create-avalanche-app` + MCP. Says, in natural language, "set up an Avalanche dapp with social login."
 
 ### P2 — "EVM dev" Emir
-- Ethereum/Solidity tecrübeli. Foundry, viem, wagmi biliyor. Avalanche'a yeni geçiyor.
-- İhtiyaç: Tanıdık stack, vendor lock-in yok, mevcut projeye drop-in entegrasyon.
-- AvaKit kapısı: `@avakit/react` widget + `@avakit/core` SDK.
+- Experienced with Ethereum/Solidity. Knows Foundry, viem, wagmi. Just moving to Avalanche.
+- Need: A familiar stack, no vendor lock-in, drop-in integration into an existing project.
+- AvaKit entry point: `@avakit/react` widget + `@avakit/core` SDK.
 
-### P3 — "Ekosistem savunucusu" (ikincil)
-- Avalanche DevRel / TR topluluk lideri. Workshop, hackathon, demo için hızlı başlangıç arıyor.
-- İhtiyaç: Tek repo ile insanları 5 dakikada çalışan dapp'e ulaştırmak.
-- AvaKit kapısı: Template galerisi + dökümante onboarding.
+### P3 — "Ecosystem advocate" (secondary)
+- Avalanche DevRel / TR community leader. Looking for a fast start for workshops, hackathons, demos.
+- Need: Getting people to a working dapp in 5 minutes with a single repo.
+- AvaKit entry point: Template gallery + documented onboarding.
 
-## 4. Kullanıcı yolculukları (user journeys)
+## 4. User journeys
 
-### J1 — Vibe coder, sıfırdan (MCP)
-1. Claude Code'da: "Avalanche'de bir token-gated chat dapp'i kur, Google login'li."
-2. MCP `scaffold_app` tool'unu çağırır → proje oluşur.
-3. MCP `dev` ve `deploy_contract` ile Fuji'ye deploy eder.
-4. Tarayıcıda Google ile giriş → ilk tx. **< 5 dk.**
+### J1 — Vibe coder, from scratch (MCP)
+1. In Claude Code: "Set up a token-gated chat dapp on Avalanche, with Google login."
+2. MCP calls the `scaffold_app` tool → project is created.
+3. MCP deploys to Fuji with `dev` and `deploy_contract`.
+4. Log in with Google in the browser → first tx. **< 5 min.**
 
-### J2 — Vibe coder, sıfırdan (CLI)
+### J2 — Vibe coder, from scratch (CLI)
 1. `npm create avalanche-app@latest`
-2. İnteraktif sorular: template, wallet provider (default Web3Auth), chain (default Fuji).
-3. `cd app && pnpm dev` → çalışan social-login'li dapp.
+2. Interactive questions: template, wallet provider (default Web3Auth), chain (default Fuji).
+3. `cd app && pnpm dev` → a working social-login dapp.
 
-### J3 — EVM dev, mevcut projeye ekleme
+### J3 — EVM dev, adding to an existing project
 1. `pnpm add @avakit/react @avakit/core`
-2. `<AvaKitProvider>` ile sarıp `<ConnectAvalanche />` yerleştir.
-3. `.env`'e provider client ID. Bitti.
+2. Wrap with `<AvaKitProvider>` and place `<ConnectAvalanche />`.
+3. Provider client ID into `.env`. Done.
 
-## 5. Fonksiyonel gereksinimler
+## 5. Functional requirements
 
-| ID | Gereksinim | Öncelik | Milestone |
+| ID | Requirement | Priority | Milestone |
 |---|---|---|---|
 | FR-1 | `@avakit/core`: chain config (Fuji/C-Chain/custom L1), viem client, deploy helper | P0 | M1 |
-| FR-2 | `@avakit/core`: wallet adapter arayüzü; Web3Auth default impl | P0 | M1 |
+| FR-2 | `@avakit/core`: wallet adapter interface; Web3Auth default impl | P0 | M1 |
 | FR-3 | `@avakit/react`: `<AvaKitProvider>` + `<ConnectAvalanche>` social-login widget | P0 | M1 |
-| FR-4 | `@avakit/react`: shadcn/ui üstüne kurulu AvaKit bileşenleri (chain selector, hesap kartı) + hooks | P1 | M1 |
-| FR-5 | `create-avalanche-app`: interaktif scaffolder, ≥2 template | P0 | M2 |
-| FR-6 | Template: Next.js + social login + örnek contract + Fuji deploy script | P0 | M2 |
-| FR-7 | Her template'te `CLAUDE.md` + `llms.txt` + cursor rules | P0 | M2 |
-| FR-8 | `@avakit/mcp`: `scaffold_app`, `deploy_contract`, `read_chain`, `get_context` tool'ları | P0 | M3 |
-| FR-9 | AvaCloud WaaS opsiyonel wallet adapter | P2 | M3+ |
-| FR-10 | Custom L1 desteği (kendi chain ID/RPC ekleme) | P1 | M2 |
+| FR-4 | `@avakit/react`: AvaKit components built on shadcn/ui (chain selector, account card) + hooks | P1 | M1 |
+| FR-5 | `create-avalanche-app`: interactive scaffolder, ≥2 templates | P0 | M2 |
+| FR-6 | Template: Next.js + social login + example contract + Fuji deploy script | P0 | M2 |
+| FR-7 | `CLAUDE.md` + `llms.txt` + cursor rules in every template | P0 | M2 |
+| FR-8 | `@avakit/mcp`: `scaffold_app`, `deploy_contract`, `read_chain`, `get_context` tools | P0 | M3 |
+| FR-9 | AvaCloud WaaS optional wallet adapter | P2 | M3+ |
+| FR-10 | Custom L1 support (adding your own chain ID/RPC) | P1 | M2 |
 
-## 6. Fonksiyonel olmayan gereksinimler
+## 6. Non-functional requirements
 
-- NFR-1 (DX): `create-avalanche-app`'ten çalışan dev sunucusuna **< 5 dk**, sıfır manuel config.
-- NFR-2 (Açıklık): MIT lisans; tüm paketler npm'de public.
-- NFR-3 (Taşınabilirlik): Wallet provider değiştirilebilir; lock-in yok.
-- NFR-4 (Güvenlik): Private key hiçbir zaman AvaKit kodundan geçmez; provider HSM/enclave kullanır. Hiçbir secret repoya/log'a yazılmaz.
-- NFR-5 (Type-safety): Uçtan uca TypeScript; contract ABI'leri için tip üretimi.
-- NFR-6 (AI-ergonomi): MCP tool'ları idempotent, açıklayıcı hatalar döner; agent context dosyaları güncel.
+- NFR-1 (DX): From `create-avalanche-app` to a running dev server in **< 5 min**, zero manual config.
+- NFR-2 (Openness): MIT license; all packages public on npm.
+- NFR-3 (Portability): Wallet provider is swappable; no lock-in.
+- NFR-4 (Security): The private key never passes through AvaKit code; the provider uses an HSM/enclave. No secret is written to the repo or logs.
+- NFR-5 (Type-safety): End-to-end TypeScript; type generation for contract ABIs.
+- NFR-6 (AI ergonomics): MCP tools are idempotent and return descriptive errors; agent context files are kept up to date.
 
-## 7. Başarı metrikleri
+## 7. Success metrics
 
-| Metrik | Hedef (ilk 6 ay) |
+| Metric | Target (first 6 months) |
 |---|---|
-| Time-to-first-tx (sıfırdan) | < 5 dk |
-| `create-avalanche-app` haftalık npm indirme | büyüyen trend |
-| GitHub star | topluluk ilgisinin sinyali |
-| MCP kurulumu (Claude/Cursor) | DevRel demolarında varsayılan araç |
-| "Çalışmadı" kaynaklı issue oranı | düşük; çoğu config değil kullanım |
+| Time-to-first-tx (from scratch) | < 5 min |
+| `create-avalanche-app` weekly npm downloads | growing trend |
+| GitHub stars | a signal of community interest |
+| MCP installs (Claude/Cursor) | the default tool in DevRel demos |
+| Ratio of "it didn't work" issues | low; mostly usage, not config |
 
-## 8. Riskler & azaltımlar
+## 8. Risks & mitigations
 
-| Risk | Etki | Azaltım |
+| Risk | Impact | Mitigation |
 |---|---|---|
-| AvaCloud WaaS bizi geçersiz kılar | Yüksek | Açık kaynak + ücretsiz + multi-provider; WaaS'ı *destekle*, rakip olma |
-| Web3Auth/MetaMask API kırılması | Orta | Adapter pattern; provider'ı arkasında soyutla |
-| Web3Auth/SDK/shadcn breaking change | Orta | Pin sürümler, adapter/sarmalama katmanı |
-| Kapsam şişmesi (3 ürün aynı anda) | Yüksek | Dikey dilim: M1 çekirdek+widget önce, sonra genişlet |
-| Ava Labs benzerini resmi yapar | Orta | Önce hareket et + AI-native açıyı sahiplen; gerekirse upstream'e katkı |
+| AvaCloud WaaS makes us redundant | High | Open source + free + multi-provider; *support* WaaS, don't compete with it |
+| Web3Auth/MetaMask API breakage | Medium | Adapter pattern; abstract the provider behind it |
+| Web3Auth/SDK/shadcn breaking change | Medium | Pin versions, adapter/wrapping layer |
+| Scope creep (3 products at once) | High | Vertical slice: M1 core+widget first, then expand |
+| Ava Labs builds an official equivalent | Medium | Move first + own the AI-native angle; contribute upstream if needed |
 
-## 9. Açık sorular
+## 9. Open questions
 
-- Default template seti ne olmalı? (öneri: `minimal`, `token-gated-app`, `nft-mint`)
-- Mainnet deploy'u v1 kapsamına mı, yoksa testnet-first mi? (öneri: testnet-first, mainnet M3)
-- MCP, `avalanche-cli`'yi mi sarsın yoksa kendi deploy path'ini mi kullansın? (bkz. [ADR](04-adr.md))
+- What should the default template set be? (proposal: `minimal`, `token-gated-app`, `nft-mint`)
+- Is mainnet deploy in v1 scope, or testnet-first? (proposal: testnet-first, mainnet M3)
+- Should MCP wrap `avalanche-cli`, or use its own deploy path? (see [ADR](04-adr.md))
 
-İlgili: [Vizyon](00-vision-and-positioning.md) · [Rakip Analizi](02-competitive-landscape.md) · [Roadmap](05-roadmap.md)
+Related: [Vision](00-vision-and-positioning.md) · [Competitive Analysis](02-competitive-landscape.md) · [Roadmap](05-roadmap.md)

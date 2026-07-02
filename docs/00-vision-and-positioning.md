@@ -1,59 +1,61 @@
-# 00 — Vizyon & Konumlandırma
+# 00 — Vision & Positioning
 
-## Tek cümle
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
 
-> **AvaKit, Avalanche'in açık kaynak, AI-native `create-next-app`'idir:** tek komutla social-login onboarding'li, deploy'a hazır, içinde agent context'i gelen bir dapp üretir; ve bunu mevcut parçaları yeniden yazmadan, sararak yapar.
+## In one sentence
 
-## Bağlam: bu fikir nereden çıktı?
+> **AvaKit is Avalanche's open-source, AI-native `create-next-app`:** with a single command it produces a deploy-ready dapp with social-login onboarding and built-in agent context — and it does this by wrapping existing pieces rather than rewriting them.
 
-Avalanche TR dev lead'i ile yapılan görüşmede üç sinyal alındı:
+## Context: where did this idea come from?
 
-1. **Onboarding sürtünmesi** (seed words) — *ama bu zaten çözülmüş.* Core Wallet, Aralık 2023'ten beri Cubist/CubeSigner ile seedless (Google/Apple login) destekliyor. Yani **son kullanıcı** tarafındaki sürtünme kapanmış durumda.
-2. **EVM uyumu** — Avalanche C-Chain EVM olduğu için Ethereum tooling'i büyük ölçüde çalışıyor; bu bir avantaj.
-3. **"Dev tool eksik + vibe coder friendly olmalı"** — dev lead'in "çok iyi ipucu" dediği ve **gerçek boşluğun olduğu** yer.
+Three signals emerged from a conversation with the Avalanche TR dev lead:
 
-## Kritik içgörü
+1. **Onboarding friction** (seed words) — *but this is already solved.* Core Wallet has supported seedless login (Google/Apple) via Cubist/CubeSigner since December 2023. So the friction on the **end-user** side is already closed.
+2. **EVM compatibility** — because Avalanche C-Chain is EVM, Ethereum tooling largely works; this is an advantage.
+3. **"The dev tool is missing + it should be vibe-coder friendly"** — the thing the dev lead called a "very good hint," and where the **real gap** is.
 
-Çözülmemiş olan problem onboarding değil — **geliştiricinin o onboarding'i kullanan bir uygulamayı kurması.**
+## The critical insight
 
-Core'un seedless'i son kullanıcı için var. Ama yeni veya AI-destekli bir developer "social login'li, deploy edilebilir bir Avalanche dapp'ini 5 dakikada ayağa kaldırayım" dediğinde elinde hazır, çalışan, batteries-included bir başlangıç noktası **yok**. Her şeyi elle wire'lıyor.
+The unsolved problem isn't onboarding — it's **the developer setting up an application that uses that onboarding.**
 
-**Sürtünme son kullanıcıda değil, dev'de. AvaKit dev sürtünmesini hedefler.**
+Core's seedless flow exists for the end user. But when a new or AI-assisted developer says "let me stand up a social-login, deployable Avalanche dapp in 5 minutes," they have **no** ready-made, working, batteries-included starting point. They wire everything by hand.
 
-## Neyi yapmıyoruz (anti-scope)
+**The friction isn't with the end user, it's with the dev. AvaKit targets developer friction.**
 
-- **Kendi cüzdanımızı / key management'ımızı yazmıyoruz.** Web3Auth ve AvaCloud WaaS (Cubist destekli, HSM-backed) bunu çözmüş. Yeniden yazmak hem güvenlik riski hem de Ava Labs'in fonladığı bir ürünle rekabet demek.
-- **Yeni bir UI component kütüphanesi icat etmiyoruz.** **shadcn/ui**'i benimsiyoruz; Avalanche-spesifik bileşenleri (connect, chain selector) onun primitive'leri üstüne kuruyoruz. (BuilderKit UI kullanılmaz — bkz. [Conventions](11-conventions.md).)
-- **Yeni bir chain SDK'sı yazmıyoruz.** viem/wagmi + `avalanche-sdk-typescript` katmanını kullanıyoruz.
+## What we are not doing (anti-scope)
 
-## Konumlandırma matrisi
+- **We are not writing our own wallet / key management.** Web3Auth and AvaCloud WaaS (Cubist-backed, HSM-backed) have solved this. Rewriting it means both a security risk and competing with a product that Ava Labs funds.
+- **We are not inventing a new UI component library.** We adopt **shadcn/ui**; we build Avalanche-specific components (connect, chain selector) on top of its primitives. (BuilderKit UI is not used — see [Conventions](11-conventions.md).)
+- **We are not writing a new chain SDK.** We use the viem/wagmi + `avalanche-sdk-typescript` layer.
 
-| Eksen | AvaKit'in yeri |
+## Positioning matrix
+
+| Axis | Where AvaKit sits |
 |---|---|
-| Açık kaynak vs kapalı | **Açık kaynak (MIT)** — AvaCloud WaaS kapalı/ücretli; bu bizim ayrışma noktamız |
-| Eğitim vs üretim | **Üretime hazır** — resmi starter-kit eğitim/cross-chain demo odaklı |
-| İnsan-first vs AI-native | **AI-native by default** — üretilen her app agent context'i ile gelir |
-| Tek parça vs birleşik | **Birleşik** — scaffolder + widget + MCP tek çekirdekte |
+| Open source vs closed | **Open source (MIT)** — AvaCloud WaaS is closed/paid; this is our differentiator |
+| Education vs production | **Production-ready** — the official starter-kit is education/cross-chain-demo focused |
+| Human-first vs AI-native | **AI-native by default** — every generated app ships with agent context |
+| Single-piece vs unified | **Unified** — scaffolder + widget + MCP in one core |
 
-## Değer önerisi, kitleye göre
+## Value proposition, by audience
 
-### Vibe coder (blockchain bilmeyen, Cursor/Claude ile kod yazan)
-- `npx create-avalanche-app` veya Claude'a "Avalanche dapp kur" der → MCP halleder.
-- Sıfır config, çalışan social-login'li dapp. Seed phrase, RPC URL, faucet derdi yok.
+### Vibe coder (doesn't know blockchain, codes with Cursor/Claude)
+- Runs `npx create-avalanche-app`, or tells Claude "set up an Avalanche dapp" → MCP handles it.
+- Zero config, a working social-login dapp. No worrying about seed phrases, RPC URLs, or faucets.
 
-### EVM / Solidity dev (Ethereum'dan geçen)
-- Altta tanıdık stack görür: viem/wagmi + Foundry + Next.js.
-- `<ConnectAvalanche>` widget'ını mevcut projesine drop-in olarak gömer.
-- Vendor lock-in yok; istediği an kendi wallet sağlayıcısına geçer.
+### EVM / Solidity dev (coming from Ethereum)
+- Sees a familiar stack underneath: viem/wagmi + Foundry + Next.js.
+- Drops the `<ConnectAvalanche>` widget into their existing project.
+- No vendor lock-in; can switch to their own wallet provider at any time.
 
-## Başarı neye benzer? (kuzey yıldızı)
+## What does success look like? (north star)
 
-> Bir geliştiricinin "Avalanche'de bir şey deneyeyim" düşüncesinden, tarayıcıda Google ile giriş yapıp testnet'te ilk transaction'ını gönderen çalışan bir dapp'e kadar geçen süre **< 5 dakika.**
+> The time from a developer thinking "let me try something on Avalanche" to a working dapp where they log in with Google in the browser and send their first transaction on testnet is **< 5 minutes.**
 
-## İsimlendirme
+## Naming
 
-- Ürün/şemsiye: **AvaKit**
-- Paketler: `@avakit/core`, `@avakit/react`, `@avakit/mcp`
+- Product/umbrella: **AvaKit**
+- Packages: `@avakit/core`, `@avakit/react`, `@avakit/mcp`
 - CLI: `create-avalanche-app` (`npm create avalanche-app@latest`)
 
-Detaylı persona, hedef ve metrikler için: [PRD](01-prd.md).
+For detailed personas, goals, and metrics: [PRD](01-prd.md).

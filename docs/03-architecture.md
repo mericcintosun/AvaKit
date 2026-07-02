@@ -1,72 +1,74 @@
-# 03 — Mimari
+# 03 — Architecture
 
-## Temel ilke: 1 çekirdek, 3 yüzey
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
 
-AvaKit üç ayrı ürün değildir; **tek çekirdeğin (`@avakit/core`) üç farklı tüketim yüzeyidir.** Bir şeyi çekirdekte iyi yaparsan üç yüzey birden iyileşir.
+## Core principle: 1 core, 3 surfaces
+
+AvaKit is not three separate products; it is **three different consumption surfaces of a single core (`@avakit/core`).** If you do something well in the core, all three surfaces improve at once.
 
 ```
                   ┌──────────────────────────────────────┐
                   │           @avakit/core               │  ← KERNEL
                   │  • chain registry (Fuji/C-Chain/L1)  │
                   │  • viem public/wallet client         │
-                  │  • WalletAdapter arayüzü             │
+                  │  • WalletAdapter interface           │
                   │      └─ Web3AuthAdapter (default)    │
                   │      └─ AvaCloudAdapter (opt-in)     │
                   │      └─ InjectedAdapter (Core/MM)    │
                   │  • deploy & contract helpers         │
-                  │  • chain data okuma (RPC/Glacier)    │
+                  │  • chain data reads (RPC/Glacier)    │
                   └───────────────┬──────────────────────┘
-                                  │ herkes bunu tüketir
+                                  │ everyone consumes this
         ┌─────────────────────────┼──────────────────────────┐
         ▼                         ▼                           ▼
 ┌────────────────┐      ┌───────────────────┐       ┌────────────────────┐
 │ @avakit/react  │      │ create-avalanche- │       │   @avakit/mcp      │
 │ <AvaKitProvider>│     │ app (CLI)         │       │  MCP server        │
-│ <ConnectAva.../>│     │ • interaktif sihir│       │  • scaffold_app    │
+│ <ConnectAva.../>│     │ • interactive wiz │       │  • scaffold_app    │
 │ hooks (useAva*) │     │ • template render │       │  • deploy_contract │
 │ shadcn/ui UI    │     │ • AI context inj. │       │  • read_chain      │
 └────────┬───────┘      └─────────┬─────────┘       │  • get_context     │
          │                        │                  └─────────┬──────────┘
-         │ üretilen app içine     │ template'ler             │ çağırır
+         │ into the generated app │ templates                │ calls
          └────────────────────────┴──────────────────────────┘
-                          (scaffolder, @avakit/react + core içeren
-                           çalışan bir Next.js app üretir; MCP de
-                           aynı scaffolder'ı tool olarak sarar)
+                          (the scaffolder produces a working Next.js app
+                           containing @avakit/react + core; MCP wraps
+                           the same scaffolder as a tool)
 ```
 
-## Yüzeylerin sorumlulukları
+## Surface responsibilities
 
 ### `@avakit/core` (kernel)
-- **Chain registry:** Fuji, C-Chain mainnet, custom L1 tanımları (chainId, RPC, explorer, faucet).
-- **Client factory:** viem `publicClient` / `walletClient` üretimi.
-- **WalletAdapter arayüzü:** `connect()`, `disconnect()`, `getAddress()`, `signTransaction()` vb. Provider'ı soyutlar.
-- **Deploy helpers:** Foundry artefact'ından bytecode/ABI okuyup deploy; tx bekleme; adres döndürme.
-- **Data:** bakiye, tx, contract read (RPC; opsiyonel Glacier/AvaCloud data API).
-- Framework-agnostic, sadece TypeScript. React'e bağımlı değil.
+- **Chain registry:** Fuji, C-Chain mainnet, custom L1 definitions (chainId, RPC, explorer, faucet).
+- **Client factory:** viem `publicClient` / `walletClient` creation.
+- **WalletAdapter interface:** `connect()`, `disconnect()`, `getAddress()`, `signTransaction()`, etc. Abstracts the provider.
+- **Deploy helpers:** read bytecode/ABI from a Foundry artifact and deploy; wait for tx; return address.
+- **Data:** balance, tx, contract read (RPC; optional Glacier/AvaCloud data API).
+- Framework-agnostic, TypeScript only. Not dependent on React.
 
-### `@avakit/react` (widget katmanı)
-- `<AvaKitProvider>`: wagmi/viem config + seçilen WalletAdapter'ı context'e koyar.
-- `<ConnectAvalanche>`: social-login default Connect butonu (Web3Auth modalı), bağlı durumda hesap/zincir göstergesi.
+### `@avakit/react` (widget layer)
+- `<AvaKitProvider>`: wagmi/viem config + puts the selected WalletAdapter into context.
+- `<ConnectAvalanche>`: social-login default Connect button (Web3Auth modal), account/chain indicator when connected.
 - Hooks: `useAvaAccount()`, `useAvaChain()`, `useAvaDeploy()`, `useContract()`.
-- Tüm UI **shadcn/ui** primitive'leri üstüne kurulur (tek UI lib); `next-themes` ile dark/light, M3'e kadar siyah/beyaz. BuilderKit UI kullanılmaz (bkz. [Conventions](11-conventions.md)).
+- All UI is built on top of **shadcn/ui** primitives (single UI lib); dark/light via `next-themes`, black/white until M3. BuilderKit UI is not used (see [Conventions](11-conventions.md)).
 
 ### `create-avalanche-app` (scaffolder)
-- İnteraktif CLI (template, wallet provider, chain seçimi).
-- Template render + dependency kurulumu + `.env.example` üretimi.
-- **AI context enjeksiyonu:** üretilen projeye `CLAUDE.md`, `llms.txt`, `.cursor/rules` ekler.
-- `@avakit/react` + `@avakit/core` kullanan, çalışan bir Next.js app çıkarır.
+- Interactive CLI (template, wallet provider, chain selection).
+- Template render + dependency installation + `.env.example` generation.
+- **AI context injection:** adds `CLAUDE.md`, `llms.txt`, `.cursor/rules` to the generated project.
+- Produces a working Next.js app that uses `@avakit/react` + `@avakit/core`.
 
-### `@avakit/mcp` (AI yüzeyi)
-- MCP server (stdio). Claude Code / Cursor / Claude Desktop'a bağlanır.
-- Tool'lar scaffolder + core'u sarar: `scaffold_app`, `deploy_contract`, `read_chain`, `get_context`.
-- Resmi `llms.txt`'i tüketerek dokümantasyon bağlamı sağlar (kendi docs'unu yazmaz).
+### `@avakit/mcp` (AI surface)
+- MCP server (stdio). Connects to Claude Code / Cursor / Claude Desktop.
+- Tools wrap the scaffolder + core: `scaffold_app`, `deploy_contract`, `read_chain`, `get_context`.
+- Provides documentation context by consuming the official `llms.txt` (does not write its own docs).
 
-## Monorepo yapısı
+## Monorepo structure
 
 ```
 avakit/  (repo)
 ├── apps/
-│   └── docs/                 # dokümantasyon sitesi (sonra)
+│   └── docs/                 # documentation site (later)
 ├── packages/
 │   ├── core/                 # @avakit/core
 │   ├── react/                # @avakit/react
@@ -76,42 +78,42 @@ avakit/  (repo)
 │   ├── minimal/
 │   ├── token-gated-app/
 │   └── nft-mint/
-├── examples/                 # canlı demo dapp'ler
-└── docs/                     # bu planlama dokümanları (şu anki repo)
+├── examples/                 # live demo dapps
+└── docs/                     # these planning documents (the current repo)
 ```
 
-- **Monorepo aracı:** pnpm workspaces + Turborepo (bkz. [ADR-002](04-adr.md)).
-- **Sürümleme:** Changesets.
-- **Build:** tsup (paketler), Next.js (template/örnekler).
+- **Monorepo tool:** pnpm workspaces + Turborepo (see [ADR-002](04-adr.md)).
+- **Versioning:** Changesets.
+- **Build:** tsup (packages), Next.js (templates/examples).
 
-## Veri akışı: "social login ile ilk tx"
+## Data flow: "first tx with social login"
 
 ```
-Kullanıcı  →  <ConnectAvalanche>  →  Web3AuthAdapter.connect()
+User  →  <ConnectAvalanche>  →  Web3AuthAdapter.connect()
                                           │  (Google OAuth → HSM-backed key)
                                           ▼
                                    viem walletClient  ←  @avakit/core
                                           │
                                           ▼
-                                   Fuji RPC  →  tx gönderilir  →  explorer linki
+                                   Fuji RPC  →  tx sent  →  explorer link
 ```
-Private key hiçbir zaman AvaKit kodundan geçmez; adapter yalnızca imzalama arayüzünü kullanır.
+The private key never passes through AvaKit code; the adapter only uses the signing interface.
 
-## Bağımlılık yönü (katı kural)
+## Dependency direction (strict rule)
 
 ```
-core  ──(bağımlı değil)──>  hiçbir yüzey
+core  ──(not dependent)──>  no surface
 react ────────────────────>  core
-cli   ────────────────────>  core, react (template aracılığıyla)
-mcp   ────────────────────>  core, cli (scaffold için)
+cli   ────────────────────>  core, react (via templates)
+mcp   ────────────────────>  core, cli (for scaffolding)
 ```
-Çekirdek hiçbir yüzeye bağlı olamaz. Döngüsel bağımlılık yasak.
+The core cannot depend on any surface. Circular dependencies are forbidden.
 
-## Genişleme noktaları
+## Extension points
 
-- **Yeni wallet provider:** `WalletAdapter` implemente et, registry'e ekle. (Privy, Dynamic, Turnkey...)
-- **Yeni template:** `templates/` altına klasör + manifest. CLI ve MCP otomatik görür.
-- **Yeni chain/L1:** chain registry'e entry. Custom L1 için kullanıcı runtime'da ekleyebilir.
-- **Yeni MCP tool:** `@avakit/mcp` içinde tool tanımı; core/cli'yi çağırır.
+- **New wallet provider:** implement `WalletAdapter`, add it to the registry. (Privy, Dynamic, Turnkey...)
+- **New template:** a folder + manifest under `templates/`. The CLI and MCP see it automatically.
+- **New chain/L1:** an entry in the chain registry. For a custom L1, the user can add it at runtime.
+- **New MCP tool:** a tool definition inside `@avakit/mcp`; it calls core/cli.
 
-İlgili: [ADR](04-adr.md) · [Core Spec](06-spec-core-sdk.md) · [Widget Spec](07-spec-wallet-widget.md) · [Scaffolder Spec](08-spec-scaffolder.md) · [MCP Spec](09-spec-mcp.md)
+Related: [ADR](04-adr.md) · [Core Spec](06-spec-core-sdk.md) · [Widget Spec](07-spec-wallet-widget.md) · [Scaffolder Spec](08-spec-scaffolder.md) · [MCP Spec](09-spec-mcp.md)

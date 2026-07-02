@@ -1,181 +1,183 @@
-# 04 — Mimari Karar Kayıtları (ADR)
+# 04 — Architecture Decision Records (ADR)
 
-Her karar: **bağlam → karar → gerekçe → sonuçlar → alternatifler.** Durum: `Kabul` (planlama fazında onaylı) / `Öneri` (tartışmaya açık).
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
 
----
-
-## ADR-001 — Default embedded wallet sağlayıcı: Web3Auth (MetaMask Embedded Wallets)
-**Durum:** Kabul
-
-**Bağlam.** Social-login onboarding ürünün kalbi. Kendi key management'ımızı yazmak güvenlik riski ve Ava Labs WaaS ile rekabet demek. Adaylar: Web3Auth (ücretsiz tier, açık SDK, C-Chain destekli), AvaCloud WaaS (ücretli/kapalı, Cubist HSM), Privy/Dynamic/Turnkey (genel).
-
-**Karar.** Default sağlayıcı **Web3Auth**. `WalletAdapter` arayüzü ardında soyutlanır; **AvaCloud WaaS** ve **Injected (Core/MetaMask)** adapter'ları opsiyonel.
-
-**Gerekçe.**
-- Ücretsiz tier → vibe coder sıfır maliyetle başlar (anti-lock-in, açık kaynak ruhu).
-- Avalanche C-Chain'de resmi olarak destekli.
-- Adapter pattern sayesinde sağlayıcı değiştirmek tek satır.
-
-**Sonuçlar.** Web3Auth client ID gerektirir (ücretsiz alınır); template `.env.example` bunu belgelemeli. Web3Auth API kırılırsa adapter izole eder.
-
-**Alternatifler & neden değil.** AvaCloud WaaS default olursa ücret + lock-in + kapalı kaynak → konumlandırmaya aykırı (yine de opt-in adapter olarak değerli). Kendi cüzdanı → güvenlik riski (reddedildi).
+Each decision: **context → decision → rationale → consequences → alternatives.** Status: `Accepted` (approved in the planning phase) / `Proposed` (open for discussion).
 
 ---
 
-## ADR-002 — Monorepo aracı: pnpm workspaces + Turborepo
-**Durum:** Kabul
+## ADR-001 — Default embedded wallet provider: Web3Auth (MetaMask Embedded Wallets)
+**Status:** Accepted
 
-**Bağlam.** 4 paket + template'ler + örnekler tek repoda. Paylaşılan tipler, atomic değişiklik gerekiyor.
+**Context.** Social-login onboarding is the heart of the product. Writing our own key management would be a security risk and would mean competing with Ava Labs WaaS. Candidates: Web3Auth (free tier, open SDK, C-Chain support), AvaCloud WaaS (paid/closed, Cubist HSM), Privy/Dynamic/Turnkey (general).
 
-**Karar.** **pnpm workspaces** (paket yönetimi) + **Turborepo** (task orchestration/cache) + **Changesets** (sürümleme).
+**Decision.** The default provider is **Web3Auth**. It is abstracted behind the `WalletAdapter` interface; the **AvaCloud WaaS** and **Injected (Core/MetaMask)** adapters are optional.
 
-**Gerekçe.** pnpm hızlı + disk-verimli + sıkı dependency izolasyonu. Turbo cache CI'yı hızlandırır. Ekosistemde standart, vibe coder/EVM dev tanıdık bulur.
+**Rationale.**
+- Free tier → a vibe coder starts at zero cost (anti-lock-in, open-source spirit).
+- Officially supported on Avalanche C-Chain.
+- Thanks to the adapter pattern, switching providers is a single line.
 
-**Sonuçlar.** `pnpm` zorunlu (CI'da enforce). Alternatif: Nx (daha ağır), Lerna (bakım azalan) — reddedildi.
+**Consequences.** Requires a Web3Auth client ID (obtained for free); the template `.env.example` must document it. If the Web3Auth API breaks, the adapter isolates it.
+
+**Alternatives & why not.** If AvaCloud WaaS were the default: cost + lock-in + closed source → contrary to our positioning (still valuable as an opt-in adapter). Own wallet → security risk (rejected).
+
+---
+
+## ADR-002 — Monorepo tool: pnpm workspaces + Turborepo
+**Status:** Accepted
+
+**Context.** 4 packages + templates + examples in a single repo. Shared types and atomic changes are needed.
+
+**Decision.** **pnpm workspaces** (package management) + **Turborepo** (task orchestration/cache) + **Changesets** (versioning).
+
+**Rationale.** pnpm is fast + disk-efficient + provides strict dependency isolation. The Turbo cache speeds up CI. It is standard in the ecosystem; vibe coders / EVM devs find it familiar.
+
+**Consequences.** `pnpm` is mandatory (enforced in CI). Alternatives: Nx (heavier), Lerna (declining maintenance) — rejected.
 
 ---
 
 ## ADR-003 — Frontend stack: Next.js 16 + React 19 + wagmi + viem + Tailwind v4 + shadcn/ui
-**Durum:** Kabul (proje kuralları ile güncellendi — bkz. [doc 11](11-conventions.md))
+**Status:** Accepted (updated with project rules — see [doc 11](11-conventions.md))
 
-**Bağlam.** Template'ler ve widget için modern, EVM dev'e tanıdık, AI araçlarının iyi bildiği bir stack lazım. Proje sahibi UI kütüphanesini **yalnızca shadcn/ui** olarak sabitledi.
+**Context.** For the templates and the widget we need a modern stack that is familiar to EVM devs and well understood by AI tools. The project owner fixed the UI library to **shadcn/ui only**.
 
-**Karar.** **Next.js (App Router, latest stable — şu an 16)** + **React 19** + **wagmi** (React hooks) + **viem** (düşük seviye) + **Tailwind v4** + **shadcn/ui** (tek UI kütüphanesi). Animasyon: **Framer Motion / GSAP**. Tema: **next-themes** ile dark/light en baştan; M3 bitene kadar **sadece siyah/beyaz**.
+**Decision.** **Next.js (App Router, latest stable — currently 16)** + **React 19** + **wagmi** (React hooks) + **viem** (low level) + **Tailwind v4** + **shadcn/ui** (single UI library). Animation: **Framer Motion / GSAP**. Theme: dark/light from the start with **next-themes**; **black/white only** until M3 is done.
 
-**Gerekçe.** viem/wagmi EVM standardı; Claude/Cursor bu API'leri iyi biliyor (AI-ergonomi). Next.js en yaygın React meta-framework. shadcn/ui Tailwind + Radix üstüne kurulu, a11y bedava, AI araçları iyi biliyor, kopyala-sahiplen modeli vendor lock-in'siz.
+**Rationale.** viem/wagmi is the EVM standard; Claude/Cursor know these APIs well (AI ergonomics). Next.js is the most widespread React meta-framework. shadcn/ui is built on Tailwind + Radix, a11y for free, well understood by AI tools, and its copy-and-own model is free of vendor lock-in.
 
-**Sonuçlar.**
-- Çekirdek (`@avakit/core`) yine de framework-agnostic kalır (sadece viem'e bağlı); React'e özgü her şey `@avakit/react`'te.
-- **BuilderKit UI olarak KULLANILMAZ** (önceki "BuilderKit sarılır" kararı iptal). Avalanche-spesifik bileşenler shadcn primitive'leri üstüne sıfırdan kurulur. Bu, Ava Labs ile çakışma yaratabilir ama proje kuralı (shadcn-only) bağlayıcı; ayrıca kendi tasarım dilimizi (siyah/beyaz, tema-öncelikli) tam kontrol etmemizi sağlar.
+**Consequences.**
+- The core (`@avakit/core`) still stays framework-agnostic (depends on viem only); everything React-specific lives in `@avakit/react`.
+- **BuilderKit UI is NOT USED** (the previous "wrap BuilderKit" decision is cancelled). Avalanche-specific components are built from scratch on top of shadcn primitives. This may create overlap with Ava Labs, but the project rule (shadcn-only) is binding; it also lets us fully control our own design language (black/white, theme-first).
 
-**Alternatifler.** ethers.js (viem lehine bırakıldı), Vite SPA (Next.js daha yaygın; ileride Vite template eklenebilir), BuilderKit UI (shadcn-only kuralı nedeniyle reddedildi).
-
----
-
-## ADR-004 — Smart contract tooling: Foundry birincil, Hardhat opsiyonel
-**Durum:** Kabul
-
-**Bağlam.** Resmi `avalanche-starter-kit` Foundry kullanıyor; tutarlılık ve hız önemli.
-
-**Karar.** **Foundry (forge/cast)** birincil derleme/deploy yolu; **Hardhat** opsiyonel template variant.
-
-**Gerekçe.** Resmi starter-kit ile hizalı, hızlı, yaygın. Hardhat'ı isteyen JS-ağırlıklı ekipler için variant bırakılır.
-
-**Sonuçlar.** `@avakit/core` deploy helper'ı Foundry artefact formatını (`out/*.json`) okur. Hardhat variant ayrı artefact path'i ele alır.
+**Alternatives.** ethers.js (dropped in favor of viem), Vite SPA (Next.js is more widespread; a Vite template may be added later), BuilderKit UI (rejected due to the shadcn-only rule).
 
 ---
 
-## ADR-005 — MCP deploy yolu: `@avakit/core`'u sar, `avalanche-cli`'yi yeniden yazma
-**Durum:** Öneri
+## ADR-004 — Smart contract tooling: Foundry primary, Hardhat optional
+**Status:** Accepted
 
-**Bağlam.** MCP `deploy_contract` tool'u nasıl deploy etsin? İki yol: (a) kendi core deploy helper'ımız, (b) `avalanche-cli`'yi shell'den çağır.
+**Context.** The official `avalanche-starter-kit` uses Foundry; consistency and speed matter.
 
-**Karar (öneri).** Contract/dapp deploy için **`@avakit/core` deploy helper'ını** kullan. Subnet/L1 *launch* gerekirse `avalanche-cli`'yi sarmak makul (orada `utkucy/avalanche-mcp-tools` zaten var; tekrar yapmayız, gerekirse compose ederiz).
+**Decision.** **Foundry (forge/cast)** is the primary compile/deploy path; **Hardhat** is an optional template variant.
 
-**Gerekçe.** Tek deploy path → tutarlı davranış (CLI ve MCP aynı core'u kullanır). L1 launch nadir ve ayrı bir domain.
+**Rationale.** Aligned with the official starter-kit, fast, and widespread. A variant is kept for JS-heavy teams that want Hardhat.
 
-**Sonuçlar.** v1 MCP kapsamı dapp/contract'a odaklanır; L1 launch backlog'a.
-
----
-
-## ADR-006 — Lisans: MIT
-**Durum:** Kabul
-
-**Bağlam.** Açık kaynak + ücretsiz, AvaCloud WaaS'a karşı temel ayrışma.
-
-**Karar.** Tüm paketler **MIT**.
-
-**Gerekçe.** İzin verici lisans benimsemeyi maksimize eder; vibe coder ve şirketler çekinmeden kullanır. Konumlandırmanın ("açık alternatif") yasal omurgası.
-
-**Sonuçlar.** Sarılan bağımlılıkların (Web3Auth, BuilderKit, viem) lisansları MIT-uyumlu olmalı; M1 öncesi doğrulanmalı.
+**Consequences.** The `@avakit/core` deploy helper reads the Foundry artifact format (`out/*.json`). The Hardhat variant handles a separate artifact path.
 
 ---
 
-## ADR-007 — Chain varsayılanı: testnet-first (Fuji), mainnet opt-in
-**Durum:** Kabul
+## ADR-005 — MCP deploy path: wrap `@avakit/core`, don't rewrite `avalanche-cli`
+**Status:** Proposed
 
-**Bağlam.** Yeni dev'i mainnet'te gerçek parayla riske atmamak gerekir.
+**Context.** How should the MCP `deploy_contract` tool deploy? Two paths: (a) our own core deploy helper, (b) call `avalanche-cli` from the shell.
 
-**Karar.** Default chain **Fuji testnet**; faucet linki ve test AVAX akışı dökümante. Mainnet (C-Chain) açık opt-in + deploy öncesi onay.
+**Decision (proposed).** For contract/dapp deploys, use the **`@avakit/core` deploy helper**. If a Subnet/L1 *launch* is needed, wrapping `avalanche-cli` is reasonable (there `utkucy/avalanche-mcp-tools` already exists; we don't redo it, we compose if needed).
 
-**Gerekçe.** Güvenli default = düşük sürtünme + düşük risk. Time-to-first-tx testnet'te ölçülür.
+**Rationale.** A single deploy path → consistent behavior (CLI and MCP use the same core). L1 launch is rare and a separate domain.
 
-**Sonuçlar.** Template'ler Fuji'ye deploy ile gelir; mainnet için ek doğrulama adımı (bkz. Scaffolder/MCP spec).
-
----
-
-## ADR-008 — Dil: TypeScript + Solidity, uçtan uca tip güvenliği
-**Durum:** Kabul
-
-**Bağlam.** AI araçları ve EVM dev'ler için tip güvenliği DX'in büyük kısmı.
-
-**Karar.** Tüm JS/TS paketleri **TypeScript**; contract ABI'lerinden tip üretimi (ör. wagmi cli / abitype).
-
-**Gerekçe.** Hatalar compile-time'da yakalanır; AI üretimi kod tiplerle "doğrulanır"; otomatik tamamlama güçlü.
-
-**Sonuçlar.** Build pipeline'da codegen adımı; ABI değişince tipler yenilenir.
+**Consequences.** The v1 MCP scope focuses on dapp/contract; L1 launch goes to the backlog.
 
 ---
 
-## ADR-009 — Tasarım kısıtları: shadcn-only UI, Framer/GSAP, siyah-beyaz + tema-öncelikli
-**Durum:** Kabul (proje sahibi kuralı)
+## ADR-006 — License: MIT
+**Status:** Accepted
 
-**Bağlam.** Tutarlı, sade, sonradan kolay renklendirilebilir bir tasarım dili isteniyor.
+**Context.** Open source + free is the core differentiation against AvaCloud WaaS.
 
-**Karar.**
-- UI yalnızca **shadcn/ui** (başka component lib yok, BuilderKit UI dahil değil).
-- Animasyon yalnızca **Framer Motion** veya **GSAP**.
-- M1–M3 (ürün) bitene kadar **sadece siyah/beyaz**; **dark/light tema en baştan** (`next-themes`); renk **en sona**.
-- Hedef: **2026-modern, profesyonel devtools** estetiği (Linear/Vercel/shadcn-dashboard cilası, şimdilik renksiz).
+**Decision.** All packages **MIT**.
 
-**Gerekçe.** Tek UI dili = tutarlılık + düşük bakım + güçlü AI-ergonomi (ajan tek pattern üretir). Tema token'ları üstüne sonradan renk eklemek refactor değil token değişimi olur.
+**Rationale.** A permissive license maximizes adoption; vibe coders and companies use it without hesitation. It is the legal backbone of the positioning ("the open alternative").
 
-**Sonuçlar.** Tüm bileşenler her iki temada test edilir. Renk token'ları baştan tema değişkenleri olarak tanımlanır. Detay: [doc 11](11-conventions.md).
+**Consequences.** The licenses of the wrapped dependencies (Web3Auth, BuilderKit, viem) must be MIT-compatible; this must be verified before M1.
 
 ---
 
-## ADR-010 — Sürüm politikası: her frontend teknolojisinin en son stabil sürümü
-**Durum:** Kabul (proje sahibi kuralı)
+## ADR-007 — Chain default: testnet-first (Fuji), mainnet opt-in
+**Status:** Accepted
 
-**Bağlam.** Modern görünüm ve uzun ömür için güncel stack gerekiyor.
+**Context.** A new dev should not be put at risk with real money on mainnet.
 
-**Karar.** Her frontend teknolojisi **latest stable** (ör. Next.js 16, React 19, Tailwind v4, son shadcn/ui, son next-themes). Sürümler lockfile'da pin'lenir.
+**Decision.** The default chain is **Fuji testnet**; the faucet link and test AVAX flow are documented. Mainnet (C-Chain) is explicit opt-in + confirmation before deploy.
 
-**Gerekçe.** 2026-modern hedefi ve AI araçlarının güncel API bilgisiyle uyum.
+**Rationale.** A safe default = low friction + low risk. Time-to-first-tx is measured on the testnet.
 
-**Sonuçlar.** Implementasyon anında "latest stable" yeniden doğrulanır (bu numaralar değişebilir). Major upgrade'ler Changesets ile yönetilir.
-
----
-
-## ADR-011 — M1 react katmanı: viem + React context (wagmi ertelendi)
-**Durum:** Kabul (M1)
-
-**Bağlam.** ADR-003 stack'te wagmi vardı. Ama M1'de social-login için Web3Auth modal v11'in wagmi entegrasyonu (`@web3auth/modal/react/wagmi`) sürüm-oynak ve client ID + tarayıcı olmadan **doğrulanamaz**. Ayrıca kendi `WalletAdapter` soyutlamamız zaten connector katmanını karşılıyor.
-
-**Karar.** M1'de `@avakit/react` **viem + React context** üstüne kuruldu (wagmi değil). `AvaKitProvider` bağlantı durumunu tutar; hook'lar (`useAvaAccount`, `useBalance`, `useContract`, `useAvaDeploy`) viem'i sarar.
-
-**Gerekçe.** Tam kontrol, test edilebilirlik, oynak bir entegrasyona bağımlılık yok. `InjectedAdapter` (Core/MetaMask) M1'in doğrulanmış yolu; `Web3AuthAdapter` `@avakit/core/web3auth` subpath'inde yazıldı/tiplendi ama **canlı testi client ID ile ertelendi**.
-
-**Sonuçlar.** wagmi uyumluluğu gelecekte opsiyonel bir katman olarak eklenebilir (aynı adapter'ı saran bir wagmi connector). Web3Auth adapter'ı izole; SDK API'si değişirse yalnızca tek dosya etkilenir.
+**Consequences.** Templates ship with a deploy to Fuji; mainnet has an extra verification step (see the Scaffolder/MCP spec).
 
 ---
 
-## ADR-012 — Kütüphanede shadcn: stil-gönder, kopyala-içe-al değil
-**Durum:** Kabul (M1)
+## ADR-008 — Language: TypeScript + Solidity, end-to-end type safety
+**Status:** Accepted
 
-**Bağlam.** shadcn'in modeli bileşenleri uygulamaya kopyalamaktır; bir npm kütüphanesi (`@avakit/react`) bunu doğrudan yapamaz.
+**Context.** For AI tools and EVM devs, type safety is a large part of the DX.
 
-**Karar.** `@avakit/react`, shadcn **stilini** (Radix + Tailwind token'ları) gömülü olarak yollar; tüketici Tailwind'i shadcn token'larıyla yapılandırmış olmalı (scaffolder template'leri ve örnek app bunu sağlar). Bileşenler `bg-primary`, `text-muted-foreground` gibi token sınıfları kullanır.
+**Decision.** All JS/TS packages in **TypeScript**; type generation from contract ABIs (e.g. wagmi cli / abitype).
 
-**Gerekçe.** "shadcn-only" kuralını korur, tek tasarım dili sağlar, vendor lock-in yok. Tailwind v4'te `@source` ile kütüphanenin sınıfları taranır.
+**Rationale.** Errors are caught at compile time; AI-generated code is "validated" by the types; autocomplete is strong.
 
-**Sonuçlar.** Örnek app `globals.css`'inde `@source "../../../packages/react/src"` ile AvaKit sınıfları taranır. M2 template'leri shadcn'i app içine kopyalar (kanonik shadcn) ve AvaKit hook'larını kullanır.
+**Consequences.** A codegen step in the build pipeline; when the ABI changes, the types are regenerated.
 
 ---
 
-## Bekleyen kararlar
-- Default template seti (öneri: `minimal`, `token-gated-app`, `nft-mint`).
-- Web3Auth client ID dağıtımı: her dev kendi mi alır, yoksa demo için paylaşılan bir ID mi? (öneri: dev kendi alır, dökümante; demo için throwaway).
-- Docs sitesi aracı (öneri: Nextra veya Fumadocs).
+## ADR-009 — Design constraints: shadcn-only UI, Framer/GSAP, black-and-white + theme-first
+**Status:** Accepted (project owner rule)
 
-İlgili: [Mimari](03-architecture.md) · [PRD](01-prd.md)
+**Context.** A consistent, minimal design language that can be easily colored later is desired.
+
+**Decision.**
+- UI only **shadcn/ui** (no other component lib, BuilderKit UI not included).
+- Animation only **Framer Motion** or **GSAP**.
+- **Black/white only** until M1–M3 (product) is done; **dark/light theme from the start** (`next-themes`); color **last**.
+- Goal: a **2026-modern, professional devtools** aesthetic (Linear/Vercel/shadcn-dashboard polish, colorless for now).
+
+**Rationale.** A single UI language = consistency + low maintenance + strong AI ergonomics (the agent produces a single pattern). Adding color later on top of theme tokens becomes a token change rather than a refactor.
+
+**Consequences.** All components are tested in both themes. Color tokens are defined as theme variables from the start. Details: [doc 11](11-conventions.md).
+
+---
+
+## ADR-010 — Version policy: the latest stable version of every frontend technology
+**Status:** Accepted (project owner rule)
+
+**Context.** A current stack is needed for a modern look and longevity.
+
+**Decision.** Every frontend technology at **latest stable** (e.g. Next.js 16, React 19, Tailwind v4, latest shadcn/ui, latest next-themes). Versions are pinned in the lockfile.
+
+**Rationale.** Alignment with the 2026-modern goal and with AI tools' up-to-date API knowledge.
+
+**Consequences.** "Latest stable" is re-verified at implementation time (these numbers may change). Major upgrades are managed with Changesets.
+
+---
+
+## ADR-011 — M1 react layer: viem + React context (wagmi deferred)
+**Status:** Accepted (M1)
+
+**Context.** ADR-003's stack included wagmi. But at M1, for social login, the Web3Auth modal v11 wagmi integration (`@web3auth/modal/react/wagmi`) is version-volatile and **cannot be verified** without a client ID + a browser. Also, our own `WalletAdapter` abstraction already covers the connector layer.
+
+**Decision.** At M1, `@avakit/react` is built on top of **viem + React context** (not wagmi). `AvaKitProvider` holds the connection state; the hooks (`useAvaAccount`, `useBalance`, `useContract`, `useAvaDeploy`) wrap viem.
+
+**Rationale.** Full control, testability, no dependency on a volatile integration. `InjectedAdapter` (Core/MetaMask) is M1's verified path; `Web3AuthAdapter` is written/typed at the `@avakit/core/web3auth` subpath but its **live test is deferred pending a client ID**.
+
+**Consequences.** wagmi compatibility can be added later as an optional layer (a wagmi connector wrapping the same adapter). The Web3Auth adapter is isolated; if the SDK API changes, only a single file is affected.
+
+---
+
+## ADR-012 — shadcn in a library: ship-style, not copy-in
+**Status:** Accepted (M1)
+
+**Context.** shadcn's model is to copy components into the application; an npm library (`@avakit/react`) cannot do that directly.
+
+**Decision.** `@avakit/react` ships the shadcn **style** (Radix + Tailwind tokens) embedded; the consumer must have configured Tailwind with the shadcn tokens (the scaffolder templates and the example app provide this). Components use token classes such as `bg-primary`, `text-muted-foreground`.
+
+**Rationale.** It preserves the "shadcn-only" rule, provides a single design language, and has no vendor lock-in. In Tailwind v4, the library's classes are scanned with `@source`.
+
+**Consequences.** In the example app's `globals.css`, AvaKit classes are scanned with `@source "../../../packages/react/src"`. The M2 templates copy shadcn into the app (canonical shadcn) and use the AvaKit hooks.
+
+---
+
+## Pending decisions
+- Default template set (proposal: `minimal`, `token-gated-app`, `nft-mint`).
+- Web3Auth client ID distribution: does each dev obtain their own, or is there a shared ID for the demo? (proposal: dev obtains their own, documented; a throwaway for the demo).
+- Docs site tool (proposal: Nextra or Fumadocs).
+
+Related: [Architecture](03-architecture.md) · [PRD](01-prd.md)

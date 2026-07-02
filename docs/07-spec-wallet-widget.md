@@ -1,12 +1,14 @@
 # 07 — Spec: `@avakit/react` (`<ConnectAvalanche>`)
 
-**Rol:** EVM dev'in mevcut dapp'ine **drop-in** social-login cüzdan + AvaKit hook'ları.
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
+
+**Role:** A **drop-in** social-login wallet + AvaKit hooks for the EVM developer's existing dapp.
 **Milestone:** M1.
-**Bağımlı:** `@avakit/core`, `wagmi`, `viem`, **shadcn/ui** (tek UI kütüphanesi), Framer Motion (animasyon), `next-themes` (tema).
+**Depends on:** `@avakit/core`, `wagmi`, `viem`, **shadcn/ui** (the only UI library), Framer Motion (animation), `next-themes` (theming).
 
-> Tasarım kısıtları ([doc 11](11-conventions.md)): UI sadece shadcn; siyah/beyaz; dark/light baştan; BuilderKit UI kullanılmaz.
+> Design constraints ([doc 11](11-conventions.md)): UI is shadcn-only; black/white; dark/light from the start; BuilderKit UI is not used.
 
-## Hedef DX
+## Target DX
 
 ```tsx
 // app/providers.tsx
@@ -26,64 +28,64 @@ export function Providers({ children }) {
 ```
 
 ```tsx
-// herhangi bir component
+// any component
 import { ConnectAvalanche, useAvaAccount } from '@avakit/react'
 
 export function Header() {
   const { address, isConnected } = useAvaAccount()
-  return <ConnectAvalanche />   // Google/Apple/email modal'ı + bağlı durumda hesap kartı
+  return <ConnectAvalanche />   // Google/Apple/email modal + account card when connected
 }
 ```
 
-İki satır: provider sar + butonu koy. Sonuç: social-login'li, Fuji'ye bağlı dapp.
+Two lines: wrap the provider + drop in the button. Result: a Fuji-connected dapp with social login.
 
-## Bileşenler
+## Components
 
 ### `<AvaKitProvider>`
 Props:
-- `chains: AvaChain[]` — desteklenen zincirler (default ilk eleman).
+- `chains: AvaChain[]` — supported chains (default is the first element).
 - `wallet: { provider: 'web3auth' | 'avacloud' | 'injected'; clientId?: string; ...providerOpts }`
-- `theme?` — açık/koyu/özel.
-- İçeride: wagmi `WagmiProvider` + viem config + seçilen `WalletAdapter`'ı context'e koyar.
+- `theme?` — light/dark/custom.
+- Internally: wagmi `WagmiProvider` + viem config + puts the selected `WalletAdapter` into context.
 
 ### `<ConnectAvalanche>`
-- Bağlı değilse: "Connect" → social-login modal (Web3Auth). Google/Apple/email/injected seçenekleri.
-- Bağlıysa: kısaltılmış adres, zincir rozeti, bakiye, disconnect.
+- When not connected: "Connect" → social-login modal (Web3Auth). Google/Apple/email/injected options.
+- When connected: truncated address, chain badge, balance, disconnect.
 - Props: `label?`, `chainSelector?: boolean`, `onConnect?`, `onDisconnect?`.
-- Tüm görsel primitive'ler **shadcn/ui** (Dialog, Button, DropdownMenu, Avatar, Badge) üstüne kurulur; siyah/beyaz token'lar; modal geçişleri Framer Motion ile.
+- All visual primitives are built on **shadcn/ui** (Dialog, Button, DropdownMenu, Avatar, Badge); black/white tokens; modal transitions via Framer Motion.
 
-### `<ChainSelector>` (shadcn DropdownMenu tabanlı)
-- Desteklenen zincirler arası geçiş; custom L1 destekli. shadcn `DropdownMenu` + `Command` ile.
+### `<ChainSelector>` (based on shadcn DropdownMenu)
+- Switch between supported chains; custom L1 supported. Built with shadcn `DropdownMenu` + `Command`.
 
 ## Hooks
 
-| Hook | Döndürür |
+| Hook | Returns |
 |---|---|
 | `useAvaAccount()` | `{ address, isConnected, isConnecting }` |
 | `useAvaChain()` | `{ chain, switchChain(id) }` |
-| `useContract({ address, abi })` | tipli `read` / `write` yardımcıları |
+| `useContract({ address, abi })` | typed `read` / `write` helpers |
 | `useAvaDeploy()` | `{ deploy(artifact, args), status, result }` |
 | `useBalance(addr?)` | `{ data: bigint, isLoading }` |
 
-- Hook'lar `@avakit/core` fonksiyonlarını React state'e bağlar; çoğu wagmi üstüne ince sarma.
+- The hooks bind `@avakit/core` functions to React state; most are a thin wrapper over wagmi.
 
-## UI kütüphanesi: shadcn-only (kritik)
-- Proje kuralı gereği ([doc 11](11-conventions.md)) tüm bileşenler **shadcn/ui** primitive'leri üstüne kurulur. BuilderKit UI **kullanılmaz**.
-- Avantaj: tek tasarım dili, tam kontrol (siyah/beyaz + tema-öncelikli), AI-ergonomi (ajan tek pattern üretir), vendor lock-in yok.
-- Trade-off: Avalanche-spesifik bileşenleri (connect, chain selector) kendimiz kuruyoruz; Ava Labs BuilderKit ile çakışmayı kabul ediyoruz.
+## UI library: shadcn-only (critical)
+- Per the project rule ([doc 11](11-conventions.md)), all components are built on **shadcn/ui** primitives. BuilderKit UI is **not used**.
+- Advantage: a single design language, full control (black/white + theme-first), AI ergonomics (the agent produces a single pattern), no vendor lock-in.
+- Trade-off: we build the Avalanche-specific components (connect, chain selector) ourselves; we accept overlapping with Ava Labs BuilderKit.
 
-## Stil & tema
-- **Tailwind v4 + shadcn token'ları.** M3 bitene kadar **sadece siyah/beyaz**.
-- **Dark/light en baştan** `next-themes` ile; her bileşen iki temada da test edilir.
-- Animasyon: **Framer Motion** (modal/durum geçişleri).
-- Headless varyant düşünülebilir (M2+), ama M1 hazır-stilli (shadcn default'ları, renksiz).
+## Style & theme
+- **Tailwind v4 + shadcn tokens.** **Black/white only** until M3 is done.
+- **Dark/light from the very start** via `next-themes`; every component is tested in both themes.
+- Animation: **Framer Motion** (modal/state transitions).
+- A headless variant may be considered (M2+), but M1 is pre-styled (shadcn defaults, colorless).
 
-## SSR / Next.js notları
-- `<AvaKitProvider>` client component (`'use client'`).
-- Web3Auth SDK yalnızca client'ta yüklenir (dynamic import / `ssr: false`).
-- Hidrasyon güvenli: bağlantı durumu mount sonrası okunur.
+## SSR / Next.js notes
+- `<AvaKitProvider>` is a client component (`'use client'`).
+- The Web3Auth SDK loads only on the client (dynamic import / `ssr: false`).
+- Hydration-safe: connection state is read after mount.
 
-## Kabul kriteri (M1)
-- Boş `create-next-app`'e `@avakit/react` eklenip 2 satırla Fuji'de Google login + bakiye + 1 tx — **< 5 dk.**
+## Acceptance criteria (M1)
+- Add `@avakit/react` to an empty `create-next-app` and, in 2 lines, get Google login + balance + 1 tx on Fuji — **< 5 min.**
 
-İlgili: [Core Spec](06-spec-core-sdk.md) · [Scaffolder Spec](08-spec-scaffolder.md) · [ADR-003](04-adr.md)
+Related: [Core Spec](06-spec-core-sdk.md) · [Scaffolder Spec](08-spec-scaffolder.md) · [ADR-003](04-adr.md)

@@ -1,69 +1,71 @@
-# 10 — AI-Native Strateji
+# 10 — AI-Native Strategy
 
-> Bu, AvaKit'in **asıl ayrışma noktası.** Scaffolder ve embedded-wallet parçaları bir gün kopyalanabilir; "AI-native by default" konumunu erken ve net sahiplenmek savunulabilir bir avantaj yaratır. Dev lead'in "vibe coder friendly olmalı" ipucunun somut karşılığı budur.
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
 
-## İlke: bağlam, üretilen artefakta gömülüdür
+> This is AvaKit's **main differentiator.** The scaffolder and embedded-wallet pieces can be copied one day; owning the "AI-native by default" position early and clearly creates a defensible advantage. This is the concrete answer to the dev lead's "it should be vibe-coder friendly" hint.
 
-Çoğu proje AI desteğini "dışarıda" (ayrı bir docs MCP) bırakır. AvaKit bağlamı **ürettiği her dapp'in içine** koyar; böylece geliştirici Cursor/Claude'u açtığı an ajan Avalanche + AvaKit'i zaten "biliyor".
+## Principle: context is embedded in the generated artifact
 
-## Üç katman
+Most projects leave AI support "outside" (a separate docs MCP). AvaKit puts the context **inside every dapp it generates**; so the moment the developer opens Cursor/Claude, the agent already "knows" Avalanche + AvaKit.
 
-### Katman 1 — Üretilen app içindeki context dosyaları
-`create-avalanche-app` her projeye ekler:
+## Three layers
 
-**`CLAUDE.md`** (ajan için operasyonel rehber)
-- Proje mimarisi: hangi dosya ne yapar (`app/providers.tsx`, `lib/avakit.ts`, `contracts/`).
-- AvaKit API hatırlatmaları: `<ConnectAvalanche>`, `useAvaAccount`, deploy helper.
-- Yaygın görevler: "contract ekle", "yeni sayfa", "Fuji'ye deploy", "wallet provider değiştir".
-- **Yapma kuralları:** "Private key'i koda yazma", "mainnet'e onaysız deploy etme", "RPC URL'i hardcode etme — env kullan".
-- Komutlar: `pnpm dev`, `pnpm deploy:fuji`, `pnpm typegen`.
+### Layer 1 — Context files inside the generated app
+`create-avalanche-app` adds to every project:
 
-**`llms.txt`** (proje haritası, AI-friendly)
-- Dosya/dizin haritası + önemli giriş noktaları + harici docs linkleri (resmi Avalanche `llms.txt`).
+**`CLAUDE.md`** (an operational guide for the agent)
+- Project architecture: which file does what (`app/providers.tsx`, `lib/avakit.ts`, `contracts/`).
+- AvaKit API reminders: `<ConnectAvalanche>`, `useAvaAccount`, the deploy helper.
+- Common tasks: "add a contract", "new page", "deploy to Fuji", "change the wallet provider".
+- **Do-not rules:** "Don't write the private key into code", "Don't deploy to mainnet without confirmation", "Don't hardcode the RPC URL — use env".
+- Commands: `pnpm dev`, `pnpm deploy:fuji`, `pnpm typegen`.
+
+**`llms.txt`** (project map, AI-friendly)
+- File/directory map + key entry points + external docs links (the official Avalanche `llms.txt`).
 
 **`.cursor/rules/avakit.mdc`**
-- Cursor için aynı bağlam, Cursor rule formatında.
+- The same context for Cursor, in the Cursor rule format.
 
-### Katman 2 — MCP tool'ları (eylem)
-`@avakit/mcp` ajana docs değil **yapabilme** verir: `scaffold_app`, `deploy_contract`, `read_chain`, `get_context`. (bkz. [09](09-spec-mcp.md)). Resmi `llms.txt`'i tüketir, kendi docs'unu yeniden yazmaz.
+### Layer 2 — MCP tools (action)
+`@avakit/mcp` gives the agent not docs but the **ability to act**: `scaffold_app`, `deploy_contract`, `read_chain`, `get_context`. (see [09](09-spec-mcp.md)). It consumes the official `llms.txt`, it does not rewrite its own docs.
 
-### Katman 3 — AvaKit'in kendi dokümantasyonu AI-friendly
-- Tüm AvaKit docs `.md` olarak erişilebilir + bir `llms.txt` index.
-- API referansları kısa, kopyalanabilir, "tek doğru yol" örnekleriyle (ajan yanlış pattern üretmesin).
+### Layer 3 — AvaKit's own documentation is AI-friendly
+- All AvaKit docs are accessible as `.md` + an `llms.txt` index.
+- API references are short, copy-pasteable, with "the one correct way" examples (so the agent does not generate the wrong pattern).
 
-## Tasarım kuralları (AI çıktısının kalitesi için)
-1. **Tek kanonik yol.** Aynı işi yapmanın tek önerilen yolu olsun; ajan alternatifler arasında savrulmasın. (ör. her zaman `<ConnectAvalanche>`, elle Web3Auth kurma yok.)
-2. **Tipler sözleşmedir.** Uçtan uca TS + ABI tipgen → ajanın ürettiği kod compile-time'da doğrulanır.
-3. **Eyleme dönük hatalar.** Hata mesajı bir sonraki adımı söyler (faucet linki, eksik env). Ajan kendini düzeltebilsin.
-4. **Güvenli default'lar makinede de geçerli.** chain=fuji, mainnet explicit+confirm — ajan yanlışlıkla mainnet'e deploy edemez.
-5. **Yan etki şeffaflığı.** Scaffolder/MCP hangi dosyayı yazdığını döker; ajan ve insan ne olduğunu görür.
+## Design rules (for the quality of AI output)
+1. **A single canonical path.** Let there be only one recommended way to do a given task; don't let the agent drift between alternatives. (e.g. always `<ConnectAvalanche>`, no manual Web3Auth setup.)
+2. **Types are the contract.** End-to-end TS + ABI typegen → the code the agent produces is verified at compile time.
+3. **Actionable errors.** The error message tells the next step (faucet link, missing env). Let the agent fix itself.
+4. **Safe defaults apply on the machine too.** chain=fuji, mainnet explicit+confirm — the agent cannot accidentally deploy to mainnet.
+5. **Side-effect transparency.** The scaffolder/MCP dumps which file it wrote; the agent and the human see what happened.
 
-## `CLAUDE.md` şablon iskeleti (üretilen app için)
+## `CLAUDE.md` template skeleton (for the generated app)
 ```md
-# <ProjectName> — Avalanche dapp (AvaKit ile üretildi)
+# <ProjectName> — Avalanche dapp (generated with AvaKit)
 
 ## Stack
 Next.js 16 (App Router) · React 19 · @avakit/react · @avakit/core · wagmi/viem · shadcn/ui · next-themes · Foundry
 (UI: shadcn-only, black & white until M3, dark/light from day one, animations via Framer Motion)
 
-## Mimari
+## Architecture
 - app/providers.tsx — <AvaKitProvider> (wallet + chain config)
-- lib/avakit.ts — chain ve adapter
-- contracts/ — Foundry; out/ artefact'ları
+- lib/avakit.ts — chain and adapter
+- contracts/ — Foundry; out/ artifacts
 
-## Yaygın görevler
-- Wallet butonu: `<ConnectAvalanche />`
-- Hesap: `useAvaAccount()`; Bakiye: `useBalance()`
+## Common tasks
+- Wallet button: `<ConnectAvalanche />`
+- Account: `useAvaAccount()`; Balance: `useBalance()`
 - Deploy (testnet): `pnpm deploy:fuji`
 
-## Kurallar
-- Private key / secret'ı koda yazma; .env kullan.
-- Mainnet deploy: önce onay + bakiye kontrolü.
-- Yeni contract → `pnpm typegen` çalıştır.
+## Rules
+- Don't write the private key / secret into code; use .env.
+- Mainnet deploy: confirmation + balance check first.
+- New contract → run `pnpm typegen`.
 ```
 
-## Başarı ölçütü
-- Yeni bir dev Cursor/Claude açtığında, AvaKit'i hiç bilmeden, ajanın ilk denemede çalışan + doğru pattern'li kod üretmesi.
-- MCP ile uçtan uca "scaffold → deploy → çalışır dev" doğal dille tamamlanır.
+## Success measure
+- When a new dev opens Cursor/Claude, without knowing AvaKit at all, the agent produces working, correctly-patterned code on the first try.
+- With the MCP, the end-to-end "scaffold → deploy → running dev" is completed in natural language.
 
-İlgili: [Scaffolder](08-spec-scaffolder.md) · [MCP](09-spec-mcp.md) · [Vizyon](00-vision-and-positioning.md)
+Related: [Scaffolder](08-spec-scaffolder.md) · [MCP](09-spec-mcp.md) · [Vision](00-vision-and-positioning.md)

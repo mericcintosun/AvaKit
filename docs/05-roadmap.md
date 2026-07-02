@@ -1,130 +1,132 @@
-# 05 — Yol Haritası
+# 05 — Roadmap
 
-## Felsefe: dikey dilim, geniş-ama-sığ değil
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
 
-Üç yüzeyi aynı anda yapmak tuzaktır. Her milestone **kendi başına kullanılabilir** bir şey teslim eder; yarıda kalsa bile elde değer kalır. Sıra: **çekirdek → scaffolder → AI yüzeyi.**
+## Philosophy: vertical slice, not broad-but-shallow
+
+Doing all three surfaces at once is a trap. Each milestone ships something **usable on its own**; even if it stalls halfway, there is value left in hand. Order: **core → scaffolder → AI surface.**
 
 ```
-M1  @avakit/core + @avakit/react        →  "çalışan social-login + ilk tx" kanıtı
-M2  create-avalanche-app + template'ler →  "tek komutla dapp" (vibe coder hook'u)
-M3  @avakit/mcp + AI context            →  "Claude/Cursor'dan scaffold+deploy" (AI-native)
+M1  @avakit/core + @avakit/react        →  "working social-login + first tx" proof
+M2  create-avalanche-app + templates    →  "dapp in one command" (vibe coder hook)
+M3  @avakit/mcp + AI context            →  "scaffold+deploy from Claude/Cursor" (AI-native)
 ```
 
 ---
 
-## M0 — Repo kurulumu (TAMAMLANDI ✅)
-**Amaç:** çalışılabilir monorepo iskeleti. (Kod değil, altyapı.)
+## M0 — Repo setup (COMPLETED ✅)
+**Goal:** a workable monorepo skeleton. (Not code, infrastructure.)
 
-Teslimatlar:
-- [x] pnpm workspaces + Turborepo + Changesets monorepo (pnpm catalog ile merkezi sürümler)
-- [x] TypeScript base config + **Biome** (lint/format tek araç)
-- [x] Paket stub'ları: `@avakit/core` (chain registry + WalletAdapter), `@avakit/react`, `@avakit/mcp` (çalışan stdio skeleton), `create-avalanche-app`
-- [x] MIT lisans (nötr), CONTRIBUTING, CODE_OF_CONDUCT, SECURITY
-- [x] Bağımlılık lisans denetimi (tümü permissive; sharp/libvips LGPL native binary — Next transitive, sorun değil)
-- [x] UI baseline: shadcn/ui + Tailwind v4 + next-themes (dark/light), **siyah/beyaz token seti** — latest stable (Next 16, React 19, TS 6)
-- [x] CI (`.github/workflows/ci.yml`): lint + typecheck + build + test (pnpm + Node 24). Repo push'landığında çalışır.
+Deliverables:
+- [x] pnpm workspaces + Turborepo + Changesets monorepo (centralized versions via pnpm catalog)
+- [x] TypeScript base config + **Biome** (single tool for lint/format)
+- [x] Package stubs: `@avakit/core` (chain registry + WalletAdapter), `@avakit/react`, `@avakit/mcp` (working stdio skeleton), `create-avalanche-app`
+- [x] MIT license (neutral), CONTRIBUTING, CODE_OF_CONDUCT, SECURITY
+- [x] Dependency license audit (all permissive; sharp/libvips LGPL native binary — Next transitive, not a problem)
+- [x] UI baseline: shadcn/ui + Tailwind v4 + next-themes (dark/light), **black/white token set** — latest stable (Next 16, React 19, TS 6)
+- [x] CI (`.github/workflows/ci.yml`): lint + typecheck + build + test (pnpm + Node 24). Runs when the repo is pushed.
 
-Çıkış kriteri: `pnpm build`, `pnpm test`, `pnpm lint`, `pnpm typecheck` geçiyor; `apps/web` çalışıyor. ✅
+Exit criterion: `pnpm build`, `pnpm test`, `pnpm lint`, `pnpm typecheck` pass; `apps/web` runs. ✅
 
-> Not: M0 "boş paket" yerine, çekirdeğin chain registry'si gibi gerçek-ama-minimal içerikle geldi (kapsamlı kurulum tercih edildi).
+> Note: instead of "empty packages", M0 came with real-but-minimal content such as the core's chain registry (a comprehensive setup was preferred).
 
 ---
 
-## M1 — Çekirdek + Widget (TAMAMLANDI ✅ — canlı social-login testi hariç)
-**Amaç:** Fuji'de cüzdan bağla, bakiye gör, bir tx gönder — **bir örnek app içinde.**
+## M1 — Core + Widget (COMPLETED ✅ — except the live social-login test)
+**Goal:** connect a wallet on Fuji, see the balance, send a tx — **inside an example app.**
 
 `@avakit/core`:
-- [x] Chain registry: Fuji, C-Chain, custom L1 ekleme (M0'dan)
+- [x] Chain registry: Fuji, C-Chain, adding a custom L1 (from M0)
 - [x] viem client factory (public + wallet)
-- [x] `WalletAdapter` arayüzü + `InjectedAdapter` (tam, test edildi) + `Web3AuthAdapter` (`@avakit/core/web3auth` subpath; yazıldı/tiplendi, **canlı testi client ID ile ertelendi** — ADR-011)
-- [x] Deploy helper (artefact → deploy → adres) + `getBytecode`
-- [x] Data: bakiye / tx receipt / contract read
+- [x] `WalletAdapter` interface + `InjectedAdapter` (complete, tested) + `Web3AuthAdapter` (`@avakit/core/web3auth` subpath; written/typed, **live test deferred pending a client ID** — ADR-011)
+- [x] Deploy helper (artifact → deploy → address) + `getBytecode`
+- [x] Data: balance / tx receipt / contract read
 
 `@avakit/react` (viem + context — ADR-011; UI shadcn-style — ADR-012):
-- [x] `<AvaKitProvider>` (chains + adapters + bağlantı durumu)
-- [x] `<ConnectAvalanche>` (Radix Dialog, adapter seçici)
+- [x] `<AvaKitProvider>` (chains + adapters + connection state)
+- [x] `<ConnectAvalanche>` (Radix Dialog, adapter selector)
 - [x] Hooks: `useAvaAccount`, `useAvaChain`, `useBalance`, `useContract`, `useAvaDeploy`
-- [x] shadcn-style bileşenler (Button/Dialog); dark/light + siyah/beyaz
+- [x] shadcn-style components (Button/Dialog); dark/light + black/white
 
 `examples/`:
-- [x] `examples/hello-avax`: injected (Core/MetaMask) bağlan + bakiye + Fuji'de 0-AVAX tx (canlı demo; build + prerender doğrulandı)
+- [x] `examples/hello-avax`: connect via injected (Core/MetaMask) + balance + 0-AVAX tx on Fuji (live demo; build + prerender verified)
 
-**Çıkış kriteri:** `@avakit/react` + `<ConnectAvalanche>` ile bir Next app'te bağlan→bakiye→ilk tx çalışıyor (injected yol doğrulandı). Social-login yolu (Web3Auth) ücretsiz client ID + tarayıcı ile doğrulanmayı bekliyor.
+**Exit criterion:** with `@avakit/react` + `<ConnectAvalanche>`, connect→balance→first tx works in a Next app (the injected path is verified). The social-login path (Web3Auth) awaits verification with a free client ID + a browser.
 
-> **Kapsam notu:** wagmi yerine viem+context seçildi (ADR-011); Web3Auth canlı akışı sürüm-oynak ve client ID gerektirdiği için izole/işaretli bırakıldı. Injected (Core — Avalanche'in native cüzdanı) M1'in doğrulanmış "wow"u.
+> **Scope note:** viem+context was chosen instead of wagmi (ADR-011); because the Web3Auth live flow is version-volatile and requires a client ID, it was left isolated/flagged. Injected (Core — Avalanche's native wallet) is M1's verified "wow".
 
 ---
 
-## M2 — Scaffolder + Template'ler (TAMAMLANDI ✅)
-**Amaç:** Tek komutla, M1 çekirdeğini kullanan, deploy edilebilir tam dapp.
+## M2 — Scaffolder + Templates (COMPLETED ✅)
+**Goal:** a full, deployable dapp in one command, using the M1 core.
 
 `create-avalanche-app`:
-- [x] İnteraktif CLI (@clack/prompts: template, wallet, chain, paket yöneticisi)
-- [x] Template render + dependency install + `.env.example` + dotfile rename (`gitignore`→`.gitignore` vb.)
-- [x] AI context enjeksiyonu: `CLAUDE.md`, `llms.txt`, `.cursor/rules/avakit.mdc`
-- [x] `--yes` non-interactive mod (MCP/CI için) + `--no-install` + `--local` (workspace link)
+- [x] Interactive CLI (@clack/prompts: template, wallet, chain, package manager)
+- [x] Template render + dependency install + `.env.example` + dotfile rename (`gitignore`→`.gitignore`, etc.)
+- [x] AI context injection: `CLAUDE.md`, `llms.txt`, `.cursor/rules/avakit.mdc`
+- [x] `--yes` non-interactive mode (for MCP/CI) + `--no-install` + `--local` (workspace link)
 
-Template'ler:
-- [x] `minimal` — social login + bağlan + bakiye + tx (shadcn + siyah/beyaz + dark/light)
-- [x] `nft-mint` — tarayıcıdan deploy + mint; **self-contained ERC-721** (`contracts/src/AvaKitNFT.sol`) forge ile derlenip bytecode `lib/nft-artifact.ts`'e gömüldü → Foundry kurmadan tarayıcıdan deploy
-- [x] `token-gated-app` — access-pass NFT sahipliğine göre içerik kilidi (`balanceOf > 0` → açık); aynı ERC-721'i yeniden kullanır + güvenlik notu (client-side gating illustratif)
+Templates:
+- [x] `minimal` — social login + connect + balance + tx (shadcn + black/white + dark/light)
+- [x] `nft-mint` — deploy + mint from the browser; **self-contained ERC-721** (`contracts/src/AvaKitNFT.sol`) compiled with forge and the bytecode embedded in `lib/nft-artifact.ts` → deploy from the browser without installing Foundry
+- [x] `token-gated-app` — content lock based on access-pass NFT ownership (`balanceOf > 0` → open); reuses the same ERC-721 + a security note (client-side gating is illustrative)
 
-**Doğrulama:** Her iki template de `--local` ile workspace'e üretilip **gerçekten build edildi** (Next compile + TS + prerender). Scaffolder çıktısı: doğru yapı, placeholder yok, dotfile rename'leri ✓, `manifest.json` sızmıyor ✓, AI context ✓. NFT contract forge ile derlendi.
+**Verification:** both templates were generated into the workspace with `--local` and **actually built** (Next compile + TS + prerender). Scaffolder output: correct structure, no placeholders, dotfile renames ✓, `manifest.json` does not leak ✓, AI context ✓. The NFT contract was compiled with forge.
 
-**Çıkış kriteri:** ✅ `create-avalanche-app` → build edilen, social-login'li, AI-context'li dapp; `nft-mint`'te tarayıcıdan deploy edilebilir contract. (Gerçek on-chain deploy/mint gas gerektirir — kod yolu doğrulandı.)
+**Exit criterion:** ✅ `create-avalanche-app` → a built dapp with social login and AI context; in `nft-mint`, a contract deployable from the browser. (A real on-chain deploy/mint requires gas — the code path is verified.)
 
-> Not: AvaKit paketleri henüz npm'de değil; üretilen app gerçek kullanımda `@avakit/*@^0.1.0`'a bağlanır (publish sonrası). `--local` repo-içi test/geliştirme içindir.
+> Note: the AvaKit packages are not on npm yet; the generated app depends on `@avakit/*@^0.1.0` in real usage (after publish). `--local` is for in-repo testing/development.
 
 ---
 
-## M3 — MCP + AI-native katman (TAMAMLANDI ✅)
-**Amaç:** Claude Code / Cursor'dan doğal dille scaffold + deploy.
+## M3 — MCP + AI-native layer (COMPLETED ✅)
+**Goal:** scaffold + deploy from Claude Code / Cursor in natural language.
 
 `@avakit/mcp` (stdio, `@modelcontextprotocol/sdk` 1.29 + zod 4):
-- [x] MCP server (stdio) — `initialize`/`tools/list`/`tools/call` doğrulandı
-- [x] Tool: `scaffold_app` (create-avalanche-app'i programatik `scaffoldApp` API'siyle sarar)
+- [x] MCP server (stdio) — `initialize`/`tools/list`/`tools/call` verified
+- [x] Tool: `scaffold_app` (wraps create-avalanche-app via the programmatic `scaffoldApp` API)
 - [x] Tool: `list_templates`
-- [x] Tool: `read_chain` (balance / txReceipt / contractRead) — **canlı Fuji RPC ile test edildi**
-- [x] Tool: `deploy_contract` (viem + `AVAKIT_DEPLOYER_KEY`; testnet-default, **mainnet confirm:true zorunlu** — guardrail test edildi)
-- [x] Tool: `get_context` (AvaKit API + konvansiyon + doc linkleri)
-- [x] Kurulum: `{ "mcpServers": { "avakit": { "command": "npx", "args": ["-y", "@avakit/mcp"] } } }`
+- [x] Tool: `read_chain` (balance / txReceipt / contractRead) — **tested against live Fuji RPC**
+- [x] Tool: `deploy_contract` (viem + `AVAKIT_DEPLOYER_KEY`; testnet-default, **mainnet confirm:true required** — guardrail tested)
+- [x] Tool: `get_context` (AvaKit API + conventions + doc links)
+- [x] Setup: `{ "mcpServers": { "avakit": { "command": "npx", "args": ["-y", "@avakit/mcp"] } } }`
 
-AI context (ürün geneli):
-- [x] Her template `CLAUDE.md` + `llms.txt` + `.cursor/rules` ile geliyor (M2)
-- [x] `get_context` tool'u AvaKit bağlamını + resmi `llms.txt` linkini veriyor
+AI context (product-wide):
+- [x] Each template ships with `CLAUDE.md` + `llms.txt` + `.cursor/rules` (M2)
+- [x] The `get_context` tool provides the AvaKit context + a link to the official `llms.txt`
 
-**Doğrulama:** MCP sunucusu spawn edilip JSON-RPC ile konuşuldu: 5 tool listelendi, `list_templates`/`scaffold_app` (15 dosya) çalıştı, `read_chain` **canlıda Fuji bakiyesi okudu**, `deploy_contract` mainnet'i confirm olmadan reddetti. create-avalanche-app programatik API (`/api`) olarak dışa açıldı.
+**Verification:** the MCP server was spawned and spoken to over JSON-RPC: 5 tools listed, `list_templates`/`scaffold_app` (15 files) worked, `read_chain` **read the Fuji balance live**, `deploy_contract` rejected mainnet without confirm. create-avalanche-app was exposed as a programmatic API (`/api`).
 
-**Çıkış kriteri:** ✅ Claude/Cursor MCP client'ından `scaffold_app` → (fonlu key ile) `deploy_contract` zinciri kurulabiliyor.
+**Exit criterion:** ✅ From a Claude/Cursor MCP client, the `scaffold_app` → (with a funded key) `deploy_contract` chain can be established.
 
 ---
 
-## M4+ — Sonrası (backlog)
-- [x] **npm publish hazırlığı** — sürümler 0.1.0, metadata/README/LICENSE, dry-run doğrulandı (bkz. RELEASING.md)
-- [x] **Ürün sitesi (`apps/web`)** — landing (hero/surfaces/features/steps/templates/mcp/faq) + `/docs` (5 sayfa + sidebar) + `/templates`; shadcn-only, siyah/beyaz, dark/light, Framer Motion; 8 route prerender
-- [x] **`erc20-token` template'i** — self-contained ERC-20, tarayıcıdan deploy + mint + transfer (toplam 4 template)
+## M4+ — After (backlog)
+- [x] **npm publish preparation** — versions 0.1.0, metadata/README/LICENSE, dry-run verified (see RELEASING.md)
+- [x] **Product site (`apps/web`)** — landing (hero/surfaces/features/steps/templates/mcp/faq) + `/docs` (5 pages + sidebar) + `/templates`; shadcn-only, black/white, dark/light, Framer Motion; 8 routes prerendered
+- [x] **`erc20-token` template** — self-contained ERC-20, deploy + mint + transfer from the browser (4 templates total)
 - [ ] AvaCloud WaaS adapter (opt-in)
-- [ ] Mainnet deploy akışı + güvenlik onay kapıları (UI)
-- [ ] Ek template'ler (DeFi swap, DAO, payment)
-- [ ] Privy/Dynamic/Turnkey adapter'ları
-- [ ] Subnet/L1 launch tool'u (avalanche-cli compose, opsiyonel)
-- [ ] Vite/React Native template variant'ları
-- [ ] Gerçek npm publish (hesap tarafı: npm login + @avakit org)
+- [ ] Mainnet deploy flow + security confirmation gates (UI)
+- [ ] Additional templates (DeFi swap, DAO, payment)
+- [ ] Privy/Dynamic/Turnkey adapters
+- [ ] Subnet/L1 launch tool (avalanche-cli compose, optional)
+- [ ] Vite/React Native template variants
+- [ ] Real npm publish (account side: npm login + @avakit org)
 
 ---
 
-## Milestone bağımlılıkları
+## Milestone dependencies
 
 ```
 M0 ──> M1 ──> M2 ──> M3
               │
-              └─> (M2 olmadan M3'ün scaffold_app'i olmaz)
-M1 widget, M3'ün ürettiği app'lerin içinde de kullanılır.
+              └─> (without M2 there is no scaffold_app for M3)
+The M1 widget is also used inside the apps M3 generates.
 ```
 
-## Ölçüm (her milestone sonunda)
-- M1: time-to-first-tx (hedef < 5 dk)
-- M2: time-to-running-dapp (hedef < 5 dk, sıfır config)
-- M3: AI ile uçtan uca scaffold+deploy başarı oranı
+## Measurement (at the end of each milestone)
+- M1: time-to-first-tx (target < 5 min)
+- M2: time-to-running-dapp (target < 5 min, zero config)
+- M3: end-to-end scaffold+deploy success rate with AI
 
-İlgili: [PRD](01-prd.md) · [Mimari](03-architecture.md)
+Related: [PRD](01-prd.md) · [Architecture](03-architecture.md)

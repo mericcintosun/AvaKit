@@ -1,14 +1,16 @@
 # 06 — Spec: `@avakit/core`
 
-**Rol:** Kernel. Framework-agnostic TypeScript. Sadece viem'e bağımlı. Diğer tüm yüzeyler bunu tüketir.
+> **Historical planning document** — written before implementation. AvaKit has since shipped (published on npm, 8 templates, live website); treat the root `README.md` and the website docs as the current source of truth.
+
+**Role:** Kernel. Framework-agnostic TypeScript. Depends only on viem. All other surfaces consume it.
 **Milestone:** M1.
 
-> Not: Aşağıdaki imzalar **tasarım niyetini** gösterir; nihai API kodda netleşir. Amaç sözleşmeyi sabitlemek, satır satır implementasyon değil.
+> Note: The signatures below express **design intent**; the final API will crystallize in the code. The goal is to lock down the contract, not a line-by-line implementation.
 
-## Modüller
+## Modules
 
 ### 1. Chain registry
-Önceden tanımlı zincirler + custom L1 ekleme.
+Predefined chains + adding a custom L1.
 
 ```ts
 import { fuji, cChain } from '@avakit/core/chains'
@@ -33,26 +35,26 @@ function defineChain(config: AvaChain): AvaChain
 function createPublicClient(chain: AvaChain): PublicClient   // viem
 function createWalletClient(chain: AvaChain, adapter: WalletAdapter): WalletClient
 ```
-viem client'larını standart Avalanche default'larıyla (chain, transport) kurar.
+Sets up viem clients with standard Avalanche defaults (chain, transport).
 
-### 3. WalletAdapter arayüzü (provider soyutlaması)
+### 3. WalletAdapter interface (provider abstraction)
 ```ts
 interface WalletAdapter {
   readonly id: 'web3auth' | 'avacloud' | 'injected' | string
   connect(opts?: ConnectOptions): Promise<{ address: `0x${string}` }>
   disconnect(): Promise<void>
   getAddress(): Promise<`0x${string}` | null>
-  getSigner(): Promise<EIP1193Provider>   // viem walletClient buradan beslenir
+  getSigner(): Promise<EIP1193Provider>   // the viem walletClient is fed from here
   on(event: 'connect' | 'disconnect' | 'chainChanged', cb: (...a: any[]) => void): void
 }
 ```
 
-Sağlanan adapter'lar:
-- `Web3AuthAdapter(config)` — **default.** Social login (Google/Apple/email). Client ID alır.
-- `InjectedAdapter()` — Core/MetaMask gibi enjekte cüzdanlar (EIP-1193).
+Provided adapters:
+- `Web3AuthAdapter(config)` — **default.** Social login (Google/Apple/email). Takes a Client ID.
+- `InjectedAdapter()` — injected wallets like Core/MetaMask (EIP-1193).
 - `AvaCloudAdapter(config)` — opt-in, M3+.
 
-**Güvenlik kuralı:** Adapter yalnızca imzalama arayüzü (`getSigner`) sunar. Private key AvaKit kodundan geçmez; provider HSM/enclave'de tutar.
+**Security rule:** The adapter only exposes a signing interface (`getSigner`). The private key never passes through AvaKit code; the provider holds it in an HSM/enclave.
 
 ### 4. Deploy helper
 ```ts
@@ -67,29 +69,29 @@ interface DeployResult { address: `0x${string}`; txHash: `0x${string}`; explorer
 function deployContract(input: DeployInput): Promise<DeployResult>
 function loadFoundryArtifact(path: string): FoundryArtifact   // out/Foo.sol/Foo.json
 ```
-- Foundry `out/*.json` formatını okur (ADR-004).
-- Tx'i bekler, adres + explorer linki döner.
+- Reads the Foundry `out/*.json` format (ADR-004).
+- Waits for the tx, returns the address + explorer link.
 
-### 5. Data (okuma)
+### 5. Data (reads)
 ```ts
 function getBalance(addr: `0x${string}`, chain: AvaChain): Promise<bigint>
 function readContract<T>(params: ReadContractParams): Promise<T>   // viem passthrough
 function getTransaction(hash: `0x${string}`, chain: AvaChain): Promise<TxReceipt>
 ```
-- Birincil kaynak: RPC (viem). Opsiyonel: Glacier/AvaCloud Data API zenginleştirme (M3+).
+- Primary source: RPC (viem). Optional: Glacier/AvaCloud Data API enrichment (M3+).
 
-## Hata yönetimi
-- Tipli hata sınıfları: `WalletNotConnectedError`, `ChainMismatchError`, `DeployFailedError`, `InsufficientFundsError` (faucet linkini mesaja koyar).
-- Hatalar **eyleme dönük** mesaj içerir (AI ergonomisi: agent ne yapacağını anlasın).
+## Error handling
+- Typed error classes: `WalletNotConnectedError`, `ChainMismatchError`, `DeployFailedError`, `InsufficientFundsError` (puts the faucet link in the message).
+- Errors carry an **actionable** message (AI ergonomics: the agent should understand what to do).
 
-## Bağımlılıklar
-- `viem` (zorunlu), `abitype` (tipler).
-- React YOK. Web3Auth SDK yalnızca `Web3AuthAdapter` içinde lazy import.
+## Dependencies
+- `viem` (required), `abitype` (types).
+- NO React. The Web3Auth SDK is lazy-imported only inside `Web3AuthAdapter`.
 
-## Test kapsamı (M1 çıkış)
+## Test coverage (M1 exit)
 - Chain registry + custom L1.
-- Web3AuthAdapter connect/disconnect (mock + Fuji entegrasyon).
-- Deploy helper Fuji'de gerçek bir contract deploy eder (integration test).
-- Data okuma fonksiyonları.
+- Web3AuthAdapter connect/disconnect (mock + Fuji integration).
+- The deploy helper deploys a real contract on Fuji (integration test).
+- Data read functions.
 
-İlgili: [Mimari](03-architecture.md) · [Widget Spec](07-spec-wallet-widget.md) · [ADR-001](04-adr.md)
+Related: [Architecture](03-architecture.md) · [Widget Spec](07-spec-wallet-widget.md) · [ADR-001](04-adr.md)
