@@ -1,6 +1,12 @@
-import { ArrowRight, Eraser, Terminal } from "lucide-react";
+import { ArrowRight, Eraser, Rocket, Terminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type DevnetAction, type DevnetStatus, type L1Info, streamAction } from "../api";
+import {
+  type DevnetAction,
+  type DevnetStatus,
+  type L1Info,
+  type L1Params,
+  streamAction,
+} from "../api";
 import { CopyButton } from "../components/copy-button";
 import type { View } from "../components/Sidebar";
 import { useToast } from "../components/toast";
@@ -14,6 +20,10 @@ const DONE_TOAST: Record<DevnetAction, { title: string; description: string }> =
     title: "Devnet is ready",
     description:
       "Two L1s are running with ICM and a relayer. Head to Interchain to send a message.",
+  },
+  "create-l1": {
+    title: "Your L1 is live",
+    description: "It's deployed locally. Its RPC is on the card above — point a dapp at it.",
   },
   start: { title: "Network started", description: "Your local L1s are back up." },
   stop: { title: "Network stopped", description: "State is preserved — start it again anytime." },
@@ -43,6 +53,14 @@ function L1Card({ l1 }: { l1: L1Info }) {
             {l1.blockchainId && <CopyButton value={l1.blockchainId} label="" />}
           </span>
         </div>
+        {l1.rpcUrl && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">RPC</span>
+            <span className="flex items-center gap-1.5">
+              <CopyButton value={l1.rpcUrl} label="Copy" />
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -54,6 +72,34 @@ function Row({ k, v }: { k: string; v: string }) {
       <span className="text-muted-foreground">{k}</span>
       <span className="font-mono">{v}</span>
     </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  ok,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  ok: boolean;
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <input
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className={`bg-background rounded-lg border px-3 py-1.5 font-mono text-sm outline-none ${
+          value && !ok ? "border-destructive" : ""
+        }`}
+      />
+    </label>
   );
 }
 
@@ -71,7 +117,13 @@ export function DevnetView({
   const toast = useToast();
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ name: "mychain", chainId: "9999", token: "MYL1" });
   const termRef = useRef<HTMLPreElement>(null);
+
+  const nameOk = /^[a-z][a-z0-9]{1,31}$/.test(form.name);
+  const chainIdOk = /^[1-9][0-9]{0,9}$/.test(form.chainId) && Number(form.chainId) <= 4294967295;
+  const tokenOk = /^[A-Z][A-Z0-9]{0,7}$/.test(form.token);
+  const formOk = nameOk && chainIdOk && tokenOk;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-run to auto-scroll as the log grows
   useEffect(() => {
@@ -79,7 +131,7 @@ export function DevnetView({
   }, [log]);
 
   const run = useCallback(
-    (action: DevnetAction) => {
+    (action: DevnetAction, params?: L1Params) => {
       if (busy) return;
       setBusy(true);
       setLog([`▸ ${action}`]);
@@ -98,6 +150,7 @@ export function DevnetView({
               variant: "error",
             });
         },
+        params,
       );
     },
     [busy, refresh, toast],
@@ -139,6 +192,62 @@ export function DevnetView({
           </p>
         </Card>
       )}
+
+      {/* Launch your own single L1 */}
+      <Card className="p-5">
+        <div className="flex items-center gap-2">
+          <Rocket className="size-4" />
+          <p className="text-sm font-medium">Launch your own L1</p>
+        </div>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Spin up a single Subnet-EVM chain, locally, in one click. Point any dapp at the RPC it
+          gives you.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <Field
+            label="Name"
+            value={form.name}
+            ok={nameOk}
+            placeholder="mychain"
+            onChange={(v) => setForm((f) => ({ ...f, name: v }))}
+          />
+          <Field
+            label="Chain ID"
+            value={form.chainId}
+            ok={chainIdOk}
+            placeholder="9999"
+            onChange={(v) => setForm((f) => ({ ...f, chainId: v }))}
+          />
+          <Field
+            label="Token"
+            value={form.token}
+            ok={tokenOk}
+            placeholder="MYL1"
+            onChange={(v) => setForm((f) => ({ ...f, token: v.toUpperCase() }))}
+          />
+        </div>
+        <Button
+          size="sm"
+          className="mt-3"
+          disabled={busy || !hasCli || !formOk}
+          onClick={() => {
+            if (
+              window.confirm(
+                `Create and deploy L1 “${form.name}” (chain ${form.chainId}) locally? This runs avalanche-cli and can take a few minutes.`,
+              )
+            )
+              run("create-l1", { name: form.name, chainId: form.chainId, token: form.token });
+          }}
+        >
+          <Rocket className="size-4" />
+          {busy ? "Working…" : "Launch L1"}
+        </Button>
+        {!formOk && (
+          <p className="text-muted-foreground mt-2 text-xs">
+            name: lowercase letters/digits · chain ID: 1–4294967295 · token: 1–8 upper-case chars.
+          </p>
+        )}
+      </Card>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

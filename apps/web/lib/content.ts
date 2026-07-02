@@ -233,6 +233,19 @@ export const templates: Template[] = [
     ],
     art: "/abstract.jpg",
   },
+  {
+    id: "l1-launch",
+    title: "Launch your own L1",
+    description:
+      "Spin up your own Avalanche L1 with one command, then explore blocks, send transactions, and deploy a contract in a built-in dashboard.",
+    contracts: true,
+    highlights: [
+      "One command → your own Subnet-EVM chain",
+      "Built-in block explorer (no Docker, no indexer)",
+      "Graduate to Fuji when you're ready",
+    ],
+    art: "/abstract.jpg",
+  },
 ];
 
 export type McpTool = {

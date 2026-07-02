@@ -1,0 +1,10 @@
+{
+  "configured": false,
+  "network": "local",
+  "name": "mychain",
+  "token": "MYL1",
+  "evmChainId": 9999,
+  "rpcUrl": "",
+  "blockchainIdHex": "",
+  "faucetAccount": { "address": "", "privateKey": "" }
+}

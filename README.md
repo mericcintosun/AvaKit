@@ -63,6 +63,7 @@ npm create avalanche-app@latest my-app -- --template nft-mint
 | `erc20-token` | Deploy an ERC-20, mint supply, and transfer |
 | `icm-messenger` | Send a message between two Avalanche L1s over Interchain Messaging, on a one-command local devnet |
 | `eerc-token` | Register, mint, and privately transfer tokens with hidden balances (Encrypted ERC) |
+| `l1-launch` | Launch your own Avalanche L1 with one command, then explore it in a built-in dashboard |
 
 Every template ships with a social-login wallet, shadcn/ui (black & white, dark/light), and AI context files.
 

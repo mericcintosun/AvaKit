@@ -105,7 +105,40 @@ export async function getDevnetStatus(): Promise<DevnetStatus> {
 
 // --- Actions: fixed command sequences, no user input reaches argv ------------
 
-export type DevnetAction = "start" | "stop" | "create-icm";
+export type DevnetAction = "start" | "stop" | "create-icm" | "create-l1";
+
+/** Parameters for launching a single custom L1 (create-l1). */
+export interface L1Params {
+  name: string;
+  chainId: string;
+  token: string;
+}
+
+// Strict, whitelist-only validators. Even though we spawn with an argument
+// ARRAY (never a shell), we still constrain these so a value can never be read
+// as a flag or path — the same "no arbitrary user input reaches argv" posture as
+// the fixed ICM action. Callers (server/MCP) reject anything that fails these.
+export function isValidL1Name(v: string): boolean {
+  return /^[a-z][a-z0-9]{1,31}$/.test(v);
+}
+export function isValidToken(v: string): boolean {
+  return /^[A-Z][A-Z0-9]{0,7}$/.test(v);
+}
+export function isValidChainId(v: string): boolean {
+  if (!/^[1-9][0-9]{0,9}$/.test(v)) return false;
+  const n = Number(v);
+  return n >= 1 && n <= 4294967295;
+}
+export function isValidL1Params(p: Partial<L1Params>): p is L1Params {
+  return (
+    typeof p.name === "string" &&
+    isValidL1Name(p.name) &&
+    typeof p.chainId === "string" &&
+    isValidChainId(p.chainId) &&
+    typeof p.token === "string" &&
+    isValidToken(p.token)
+  );
+}
 
 // No `--force`: overwriting an existing chain's config wipes its deployment
 // metadata (sidecar Networks), so we only create chains that don't exist yet.
@@ -138,14 +171,48 @@ function createIcmSteps(): [string, string[]][] {
   ];
 }
 
-function stepsFor(action: DevnetAction): [string, string[]][] {
+// A single custom L1 — the "launch your own L1" flow. Non-sovereign for a
+// zero-prompt local deploy (same rationale as the ICM chains). Create only if it
+// doesn't exist yet, then deploy locally.
+function createL1Steps(params: L1Params): [string, string[]][] {
+  const existing = new Set(listL1Names());
+  return [
+    ...(existing.has(params.name)
+      ? []
+      : [
+          [
+            "avalanche",
+            [
+              "blockchain",
+              "create",
+              params.name,
+              "--evm",
+              "--latest",
+              "--evm-chain-id",
+              params.chainId,
+              "--evm-token",
+              params.token,
+              "--test-defaults",
+              "--sovereign=false",
+            ],
+          ] as [string, string[]],
+        ]),
+    ["avalanche", ["blockchain", "deploy", params.name, "--local"]],
+  ];
+}
+
+function stepsFor(action: DevnetAction, params?: L1Params): [string, string[]][] {
   if (action === "start") return [["avalanche", ["network", "start"]]];
   if (action === "stop") return [["avalanche", ["network", "stop"]]];
+  if (action === "create-l1") {
+    if (!params) throw new Error("create-l1 requires validated params");
+    return createL1Steps(params);
+  }
   return createIcmSteps();
 }
 
 export function isDevnetAction(v: string): v is DevnetAction {
-  return v === "start" || v === "stop" || v === "create-icm";
+  return v === "start" || v === "stop" || v === "create-icm" || v === "create-l1";
 }
 
 // A non-zero exit is benign when avalanche-cli is only telling us the target is
@@ -172,8 +239,9 @@ export function runDevnetAction(
   action: DevnetAction,
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
+  params?: L1Params,
 ): RunHandle {
-  const steps = stepsFor(action);
+  const steps = stepsFor(action, params);
   let current: ChildProcess | null = null;
   let cancelled = false;
 
@@ -226,6 +294,7 @@ export function runDevnetAction(
 /** Promise variant: run an action to completion, collecting the log (for MCP). */
 export function runDevnetActionAsync(
   action: DevnetAction,
+  params?: L1Params,
 ): Promise<{ exitCode: number; log: string[] }> {
   return new Promise((resolve) => {
     const log: string[] = [];
@@ -233,6 +302,7 @@ export function runDevnetActionAsync(
       action,
       (line) => log.push(line),
       (exitCode) => resolve({ exitCode, log }),
+      params,
     );
   });
 }

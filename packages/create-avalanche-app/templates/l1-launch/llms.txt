@@ -1,0 +1,31 @@
+# __PROJECT_NAME__
+
+> Launch your own Avalanche L1 with one command, then explore it in a built-in dashboard (live blocks, transactions, balance, contract deploy). Next.js + @avakit/react + viem + avalanche-cli, no third-party explorer.
+
+## Project map
+
+- [scripts/l1.sh](scripts/l1.sh): `pnpm l1` — create + deploy a local Subnet-EVM L1, write l1.config.json.
+- [scripts/l1-fuji.sh](scripts/l1-fuji.sh): `pnpm l1:fuji` — deploy the L1 to the Fuji testnet (advanced).
+- [l1.config.json](l1.config.json): your chain (name, token, evmChainId, rpcUrl, blockchainIdHex, faucetAccount).
+- [lib/l1.ts](lib/l1.ts): config → AvaKit chain (`defineChain`) + `isConfigured`.
+- [components/demo.tsx](components/demo.tsx): the dashboard/explorer — polls RPC for blocks/txs/gas/balance, deploys + mints the demo token.
+- [contracts/src/AvaKitToken.sol](contracts/src/AvaKitToken.sol) + [lib/token-artifact.ts](lib/token-artifact.ts): bundled ERC-20 for browser deploy.
+- [CLAUDE.md](CLAUDE.md): agent guide — the flow, an explainer for every L1 config decision, the EWOQ warning, and the Fuji graduation path.
+
+## Key APIs
+
+- Chain: `chain` and `isConfigured` from `@/lib/l1`.
+- Explorer reads (all read-only viem): `getPublicClient(chain)` → `getBlockNumber()`, `getGasPrice()`, `getBlock({ blockNumber, includeTransactions: true })`, `getBalance({ address })`.
+- Deploy: `deployContract({ artifact: { abi, bytecode }, chain, provider, account })` from `@avakit/core`.
+- Write: `getWalletClient(chain, provider).writeContract({ address, abi, functionName: "mint", account })`.
+
+## Config decisions
+
+Subnet-EVM VM, EVM chain id (default 9999), native token symbol, `--sovereign=false` for a
+zero-prompt local chain (Fuji path uses a sovereign PoA L1), `--test-defaults` (EWOQ pre-funded).
+
+## External docs
+
+- Create/deploy an L1 locally: https://build.avax.network/docs/tooling/avalanche-cli/create-deploy-avalanche-l1s/deploy-locally
+- Deploy on Fuji: https://build.avax.network/docs/tooling/avalanche-cli/create-deploy-avalanche-l1s/deploy-on-fuji-testnet
+- avalanche-cli: https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli

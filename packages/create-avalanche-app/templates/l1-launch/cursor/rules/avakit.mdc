@@ -1,0 +1,36 @@
+---
+description: AvaKit L1-launch conventions for this project
+globs: ["**/*.ts", "**/*.tsx", "**/*.sol", "**/*.sh", "**/*.css"]
+alwaysApply: true
+---
+
+# AvaKit L1-launch project rules
+
+Launch your own Avalanche L1, then explore it in a built-in dashboard.
+
+## Flow
+
+- `pnpm l1` (scripts/l1.sh) creates + deploys a local Subnet-EVM L1 and writes `l1.config.json`.
+- `lib/l1.ts` turns that into an AvaKit `chain` + `isConfigured`.
+- `components/demo.tsx` is the explorer: poll `getPublicClient(chain)` for `getBlockNumber`,
+  `getGasPrice`, `getBlock({ blockNumber, includeTransactions: true })`, `getBalance`.
+- Deploy the demo token: `deployContract({ artifact: { abi, bytecode }, chain, provider, account })`.
+- `pnpm l1:fuji` deploys the same L1 to Fuji (advanced; needs test AVAX + an always-on validator).
+
+## L1 config decisions
+
+VM = Subnet-EVM (`--evm`); EVM chain id (`--evm-chain-id`, avoid collisions); native token
+(`--evm-token`); `--sovereign=false` for a zero-prompt local chain (a true sovereign L1 picks a
+Validator Manager model — PoA / PoS-native / PoS-erc20); `--test-defaults` pre-funds the EWOQ key.
+See CLAUDE.md for the full explainer — surface it when the user asks "what does this setting do".
+
+## Explorer
+
+- Read-only viem only. No server, no indexer, no Docker. Poll on an interval, clean up the timer.
+
+## UI & safety
+
+- shadcn/ui only; black & white for now; dark/light via next-themes; both must work.
+- Animations: Framer Motion or GSAP only.
+- EWOQ (`0x56289e…8027`) is a PUBLIC local-only dev key — never use it or commit a real key on Fuji/mainnet.
+- Deploying/minting cost gas — on local, import the EWOQ key; on Fuji, fund your own wallet.

@@ -31,16 +31,27 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
-export type DevnetAction = "start" | "stop" | "create-icm";
+export type DevnetAction = "start" | "stop" | "create-icm" | "create-l1";
+
+/** Params for the create-l1 action (launch your own single L1). */
+export interface L1Params {
+  name: string;
+  chainId: string;
+  token: string;
+}
 
 /** Open the SSE action log. Returns a stop() that closes the stream. */
 export function streamAction(
   action: DevnetAction,
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
+  params?: L1Params,
 ): () => void {
+  const extra = params
+    ? `&name=${encodeURIComponent(params.name)}&chainId=${encodeURIComponent(params.chainId)}&token=${encodeURIComponent(params.token)}`
+    : "";
   const es = new EventSource(
-    `/api/devnet/stream?action=${action}&token=${encodeURIComponent(TOKEN)}`,
+    `/api/devnet/stream?action=${action}&token=${encodeURIComponent(TOKEN)}${extra}`,
   );
   es.addEventListener("line", (e) => onLine(JSON.parse((e as MessageEvent).data).line as string));
   es.addEventListener("done", (e) => {

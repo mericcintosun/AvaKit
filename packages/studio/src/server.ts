@@ -11,7 +11,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAddressData } from "./dataapi.js";
-import { getDevnetStatus, isDevnetAction, runDevnetAction } from "./devnet.js";
+import { getDevnetStatus, isDevnetAction, isValidL1Params, runDevnetAction } from "./devnet.js";
 import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
 
@@ -112,6 +112,24 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
           sendJson(res, 400, { error: "unknown action" });
           return;
         }
+        // create-l1 carries user-chosen name/chainId/token — validated with a
+        // strict whitelist before any value can reach the command array.
+        let l1Params: { name: string; chainId: string; token: string } | undefined;
+        if (action === "create-l1") {
+          const candidate = {
+            name: url.searchParams.get("name") ?? "",
+            chainId: url.searchParams.get("chainId") ?? "",
+            token: url.searchParams.get("token") ?? "",
+          };
+          if (!isValidL1Params(candidate)) {
+            sendJson(res, 400, {
+              error:
+                "invalid L1: name [a-z][a-z0-9]{1,31}, chainId 1–4294967295, token [A-Z][A-Z0-9]{0,7}",
+            });
+            return;
+          }
+          l1Params = candidate;
+        }
         res.writeHead(200, {
           "content-type": "text/event-stream",
           "cache-control": "no-store",
@@ -127,6 +145,7 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
             send("done", { exitCode });
             res.end();
           },
+          l1Params,
         );
         req.on("close", () => handle.cancel());
         return;

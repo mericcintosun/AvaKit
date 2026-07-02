@@ -9,7 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { getAddressData } from "./dataapi.js";
-import { getDevnetStatus, runDevnetActionAsync } from "./devnet.js";
+import { getDevnetStatus, isValidL1Params, runDevnetActionAsync } from "./devnet.js";
 import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
 
@@ -55,6 +55,36 @@ export async function runMcp(): Promise<void> {
     },
     async () => {
       const { exitCode, log } = await runDevnetActionAsync("create-icm");
+      return text(toJson({ exitCode, tail: log.slice(-12) }), exitCode !== 0);
+    },
+  );
+
+  server.registerTool(
+    "devnet_launch_l1",
+    {
+      title: "Launch your own L1",
+      description:
+        "Create a single custom Subnet-EVM L1 and deploy it locally. Returns the exit code and log tail; read the chain's RPC afterwards with devnet_status. Idempotent (won't recreate an existing chain). Takes a few minutes on first run.",
+      inputSchema: {
+        name: z
+          .string()
+          .regex(/^[a-z][a-z0-9]{1,31}$/)
+          .describe("Lowercase chain name, e.g. mychain"),
+        chainId: z
+          .string()
+          .regex(/^[1-9][0-9]{0,9}$/)
+          .describe("EVM chain id, e.g. 9999 (1–4294967295)"),
+        token: z
+          .string()
+          .regex(/^[A-Z][A-Z0-9]{0,7}$/)
+          .default("MYL1")
+          .describe("Native token symbol, 1–8 upper-case chars"),
+      },
+    },
+    async ({ name, chainId, token }) => {
+      const params = { name, chainId, token };
+      if (!isValidL1Params(params)) return text("invalid L1 parameters", true);
+      const { exitCode, log } = await runDevnetActionAsync("create-l1", params);
       return text(toJson({ exitCode, tail: log.slice(-12) }), exitCode !== 0);
     },
   );
