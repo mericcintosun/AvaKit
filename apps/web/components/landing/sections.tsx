@@ -279,16 +279,12 @@ export function McpSection() {
               title={c.mcp.title}
               lead={c.mcp.lead}
             />
-            <div className="mt-1 flex flex-col gap-3">
-              <span className="text-muted-foreground text-sm">{c.mcp.add}</span>
-              <CodeBlock code={c.mcp.config} />
-              <Button asChild variant="outline" size="sm" className="w-fit">
-                <Link href="/docs/mcp">
-                  {c.mcp.cta}
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-            </div>
+            <Button asChild variant="outline" size="sm" className="mt-1 w-fit">
+              <Link href="/docs/mcp">
+                {c.mcp.cta}
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
           </div>
           <Reveal className="lg:pt-2">
             <div className="overflow-hidden rounded-xl border">
