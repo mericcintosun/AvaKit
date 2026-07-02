@@ -50,4 +50,12 @@ The `icm-messenger`, `l1-launch`, and `token-bridge` templates run a local devne
     --no-install        do not install dependencies
 ```
 
+## Notes
+
+- When you scaffold with `--pm pnpm` (the default) and let the CLI install, it uses its own
+  bundled **pnpm 11**, so the generated `pnpm-lock.yaml` is a pnpm-11 lockfile even if your system
+  pnpm is 10. If your team pins pnpm 10, run `pnpm install` yourself after `--no-install`.
+- Each template ships a `pnpm-workspace.yaml` that pre-approves native builds (e.g. `sharp`) and
+  exempts `@avakit/*` from pnpm's supply-chain age gate, so `pnpm install` is clean out of the box.
+
 MIT © AvaKit contributors

@@ -73,5 +73,5 @@ build to compile under the size limit — this template ships pre-compiled bytec
   Chains are named `br1`/`br2` (chainIds 2001/2002) so this can run alongside the icm-messenger devnet.
 - `CLEAN=1 pnpm bridge` — wipe any existing local network first, then rebuild (use after a reboot or
   when a stale network blocks the deploy)
-- `pnpm dev` — dev server (http://localhost:3000)
+- `pnpm dev` — dev server (http://localhost:3000 by default)
 - `avalanche network stop | clean` — pause | wipe the local devnet

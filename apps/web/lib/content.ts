@@ -39,10 +39,10 @@ const TEMPLATE_META = [
   { id: "nft-mint", contracts: true, art: "/nft-mint.jpg" },
   { id: "token-gated-app", contracts: true, art: "/token-gated.jpg" },
   { id: "erc20-token", contracts: true, art: "/erc-20.jpg" },
-  { id: "icm-messenger", contracts: true, art: "/abstract.jpg" },
-  { id: "eerc-token", contracts: false, art: "/abstract.jpg" },
-  { id: "l1-launch", contracts: true, art: "/abstract.jpg" },
-  { id: "token-bridge", contracts: false, art: "/abstract.jpg" },
+  { id: "icm-messenger", contracts: true, art: "/island.jpg" },
+  { id: "eerc-token", contracts: false, art: "/eERC.jpg" },
+  { id: "l1-launch", contracts: true, art: "/l1.jpg" },
+  { id: "token-bridge", contracts: false, art: "/ictt.jpg" },
 ];
 // The recommender goal at index i maps to TEMPLATE_META[i]'s id.
 const GOAL_TEMPLATE_IDS = [
@@ -135,7 +135,7 @@ const EN: Strings = {
   tagline: "The open-source, AI-native devtools for Avalanche.",
   description:
     "Scaffold a deploy-ready, social-login dapp with agent context baked in. One core, four surfaces. No seed phrases, no boilerplate.",
-  nav: ["Docs", "Templates", "MCP"],
+  nav: ["Docs", "Templates", "MCP", "AvaKit Studio"],
   header: { search: "Search", getStarted: "Get started" },
   hero: {
     badge: "Open source · AI-native · MIT",
@@ -469,7 +469,7 @@ const TR: Strings = {
   tagline: "Avalanche için açık kaynak, AI-native geliştirici araçları.",
   description:
     "Sosyal-girişli, deploy'a hazır bir dapp'i tek komutla kur; AI ajan bağlamı gömülü gelir. Tek çekirdek, dört yüzey. Seed phrase yok, boilerplate yok.",
-  nav: ["Dokümanlar", "Şablonlar", "MCP"],
+  nav: ["Dokümanlar", "Şablonlar", "MCP", "AvaKit Studio"],
   header: { search: "Ara", getStarted: "Başla" },
   hero: {
     badge: "Açık kaynak · AI-native · MIT",
@@ -823,7 +823,10 @@ export function getContent(locale: Locale) {
   return {
     site: { name: "AvaKit", url: SITE_URL, tagline: s.tagline, description: s.description },
     createCommand: CREATE_COMMAND,
-    nav: s.nav.map((label, i) => ({ label, href: ["/docs", "/templates", "/docs/mcp"][i] })),
+    nav: s.nav.map((label, i) => ({
+      label,
+      href: ["/docs", "/templates", "/docs/mcp", "/docs/studio"][i],
+    })),
     header: s.header,
     hero: s.hero,
     surfacesSection: s.surfacesSection,

@@ -9,7 +9,7 @@ An Avalanche **cross-chain messaging** dapp scaffolded with [AvaKit](https://git
 pnpm devnet
 
 # 2. run the app
-pnpm dev    # http://localhost:3000
+pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 `pnpm devnet` needs [avalanche-cli](https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli) and a Unix-like shell (macOS, Linux, or **WSL2** on Windows — the script is bash):

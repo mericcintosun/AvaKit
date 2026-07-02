@@ -1,7 +1,7 @@
 "use client";
 
 import { getWalletClient } from "@avakit/core";
-import {
+import { humanizeError,
   Button,
   ConnectAvalanche,
   shortenAddress,
@@ -54,7 +54,7 @@ export function Demo() {
       setTxHash(hash);
       void refetch();
     } catch (e) {
-      setTxError(e instanceof Error ? e.message : String(e));
+      setTxError(humanizeError(e));
     } finally {
       setSending(false);
     }

@@ -10,7 +10,7 @@ cp .env.example .env.local
 #    → get one at https://dashboard.web3auth.io (Sapphire Devnet, EVM)
 
 # 2. run it
-pnpm dev    # http://localhost:3000
+pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then connect a wallet (social login or Core / MetaMask), read your balance, and send a first transaction on Avalanche Fuji.

@@ -1,7 +1,7 @@
 "use client";
 
 import { deployContract, ensureChain, getPublicClient, getWalletClient } from "@avakit/core";
-import {
+import { humanizeError,
   Button,
   ConnectAvalanche,
   shortenAddress,
@@ -135,7 +135,7 @@ function Dashboard() {
       window.localStorage.setItem(CONTRACT_KEY, deployed);
       setToken(deployed);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(humanizeError(e));
     } finally {
       setBusy(null);
     }
@@ -155,7 +155,7 @@ function Dashboard() {
         account: address,
       } as never);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(humanizeError(e));
     } finally {
       setBusy(null);
     }

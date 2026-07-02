@@ -8,7 +8,7 @@ import {
   readContract,
 } from "@avakit/core";
 import type { AvaChain } from "@avakit/core/chains";
-import {
+import { humanizeError,
   Button,
   ConnectAvalanche,
   shortenAddress,
@@ -136,7 +136,7 @@ export function Demo() {
         });
         setAddr(chain.id, deployed);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(humanizeError(e));
       } finally {
         setBusy(null);
       }
@@ -164,7 +164,7 @@ export function Demo() {
       } as never);
       setInFlight(text);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(humanizeError(e));
     } finally {
       setBusy(null);
     }

@@ -29,7 +29,7 @@
 
 ```
 pnpm devnet   # start 2 local L1s + ICM + relayer
-pnpm dev      # http://localhost:3000
+pnpm dev      # http://localhost:3000 (or the port Next prints)
 ```
 
 ## External docs

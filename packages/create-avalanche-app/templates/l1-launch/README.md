@@ -14,7 +14,7 @@ pnpm l1
 #    optional: L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 pnpm l1
 
 # 2. run the app
-pnpm dev    # http://localhost:3000
+pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then: import the printed EWOQ dev key into your wallet (pre-funded on your chain, local-only) →

@@ -119,7 +119,7 @@ cat <<EOF
 Next:
   1. In your wallet (Core / MetaMask), import the EWOQ dev key (pre-funded on both chains):
        0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027
-  2. pnpm dev  →  http://localhost:3000
+  2. pnpm dev  →  http://localhost:3000 (or the port Next prints)
   3. Deploy the messenger on both chains, then send a message across.
 
 Stop / reset the devnet:

@@ -1,7 +1,7 @@
 "use client";
 
 import { getPublicClient, toViemChain } from "@avakit/core";
-import { Button, ConnectAvalanche, shortenAddress, useAvaKit } from "@avakit/react";
+import { humanizeError, Button, ConnectAvalanche, shortenAddress, useAvaKit } from "@avakit/react";
 import { useEERC } from "@avalabs/eerc-sdk";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -99,7 +99,7 @@ function EercPanel({
       }
       balance.refetchBalance();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(humanizeError(e));
     } finally {
       setBusy(null);
     }

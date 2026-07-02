@@ -16,33 +16,32 @@ export function SiteHeader() {
   const c = getContent(useLocale() as Locale);
   return (
     <header className="sticky top-0 z-40 border-b backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
-        <div className="flex items-center gap-7">
-          <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/logo.png"
-              alt="AvaKit logo"
-              width={582}
-              height={653}
-              priority
-              className="h-[22px] w-auto dark:invert"
-            />
-            <span className="font-mono text-sm font-semibold tracking-tight">{site.name}</span>
-          </Link>
-          <nav className="hidden items-center gap-5 md:flex">
-            {c.nav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
+      <div className="mx-auto grid h-14 max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 sm:px-8">
+        <Link href="/" className="flex items-center gap-2 justify-self-start">
+          <Image
+            src="/logo.png"
+            alt="AvaKit logo"
+            width={582}
+            height={653}
+            priority
+            className="h-[22px] w-auto dark:invert"
+          />
+          <span className="font-mono text-sm font-semibold tracking-tight">{site.name}</span>
+        </Link>
 
-        <div className="flex items-center gap-2">
+        <nav className="hidden items-center justify-center gap-5 md:flex">
+          {c.nav.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-muted-foreground hover:text-foreground text-sm whitespace-nowrap transition-colors"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={openCommandMenu}

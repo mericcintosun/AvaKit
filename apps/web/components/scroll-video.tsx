@@ -52,6 +52,8 @@ export interface ScrollVideoProps {
   captions?: ReactNode[];
   /** Extra classes for the section wrapper. */
   className?: string;
+  /** Override the <video> classes (e.g. to crop a baked-in watermark). */
+  videoClassName?: string;
   /** Desktop-only by default (avoids shipping a heavy video to phones). */
   desktopOnly?: boolean;
 }
@@ -67,6 +69,7 @@ export function ScrollVideo({
   heightVh = 300,
   captions = [],
   className,
+  videoClassName = "absolute inset-0 h-full w-full object-cover",
   desktopOnly = true,
 }: ScrollVideoProps) {
   const isDesktop = useIsDesktop();
@@ -127,7 +130,7 @@ export function ScrollVideo({
           muted
           playsInline
           preload="auto"
-          className="absolute inset-0 h-full w-full object-cover"
+          className={videoClassName}
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-black/25 to-black/60" />
         <div className="pointer-events-none absolute inset-0 bg-black/10" />

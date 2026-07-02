@@ -1,7 +1,7 @@
 "use client";
 
 import { ensureChain, getPublicClient, getWalletClient, readContract } from "@avakit/core";
-import {
+import { humanizeError,
   Button,
   ConnectAvalanche,
   useAvaAccount,
@@ -88,7 +88,7 @@ function Bridge({ addrs }: { addrs: NonNullable<typeof bridge.bridge> }) {
       try {
         await fn();
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(humanizeError(e));
       } finally {
         setBusy(null);
       }

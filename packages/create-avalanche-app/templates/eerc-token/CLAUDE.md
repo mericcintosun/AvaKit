@@ -97,5 +97,5 @@ mint from your own wallet:
 
 ## Commands
 
-- `pnpm dev` — dev server (http://localhost:3000)
+- `pnpm dev` — dev server (http://localhost:3000 by default)
 - `pnpm build` — production build

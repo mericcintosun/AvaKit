@@ -1,6 +1,6 @@
 import { Moon, Sun } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { api, type DevnetStatus, type Inventory } from "./api";
+import { ApiError, api, type DevnetStatus, type Inventory } from "./api";
 import { Sidebar, type View } from "./components/Sidebar";
 import { Button } from "./components/ui/button";
 import { DataPanel } from "./views/DataView";
@@ -55,6 +55,7 @@ export function App() {
   const [env, setEnv] = useState<Inventory | null>(null);
   const [status, setStatus] = useState<DevnetStatus | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
+  const [staleToken, setStaleToken] = useState(false);
   const [view, setView] = useState<View>("overview");
 
   const refreshStatus = useCallback(async () => {
@@ -72,8 +73,9 @@ export function App() {
         setEnv(await api<Inventory>("/api/env"));
         await refreshStatus();
         setOnline(true);
-      } catch {
+      } catch (e) {
         setOnline(false);
+        setStaleToken(e instanceof ApiError && e.status === 401);
       }
     })();
     const timer = setInterval(() => void refreshStatus(), 5000);
@@ -108,9 +110,22 @@ export function App() {
 
         <div className="px-8 py-8">
           {online === false ? (
-            <p className="text-muted-foreground text-sm">
-              Could not reach the Studio server. Is it still running in your terminal?
-            </p>
+            staleToken ? (
+              <div className="flex flex-col items-start gap-3">
+                <p className="text-muted-foreground text-sm">
+                  Studio didn't recognize this tab's session token — the server was likely restarted
+                  since this page was opened. Reload to pick up the new token, or reopen the URL
+                  printed in your terminal.
+                </p>
+                <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                  Reload
+                </Button>
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Could not reach the Studio server. Is it still running in your terminal?
+              </p>
+            )
           ) : view === "overview" ? (
             <OverviewView env={env} status={status} navigate={setView} />
           ) : view === "devnet" ? (

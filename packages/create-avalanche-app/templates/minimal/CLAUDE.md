@@ -32,6 +32,6 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 ## Commands
 
-- `pnpm dev` — start the dev server (http://localhost:3000)
+- `pnpm dev` — start the dev server (http://localhost:3000 by default)
 - `pnpm build` — production build
 - `pnpm typecheck` — TypeScript check

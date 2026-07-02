@@ -43,4 +43,4 @@ export {
 } from "./transaction-button.js";
 
 export { Button, buttonVariants } from "./ui.js";
-export { cn, shortenAddress } from "./utils.js";
+export { cn, humanizeError, shortenAddress } from "./utils.js";

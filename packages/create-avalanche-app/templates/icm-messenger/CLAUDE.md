@@ -66,6 +66,6 @@ cd contracts && forge build
   `icm1`/`icm2` (chainIds 1001/1002) so this can run alongside the token-bridge devnet.
 - `CLEAN=1 pnpm devnet` — wipe any existing local network first, then rebuild (use after a reboot or
   when a stale network blocks the deploy)
-- `pnpm dev` — dev server (http://localhost:3000)
+- `pnpm dev` — dev server (http://localhost:3000 by default)
 - `cd contracts && forge build` — recompile the contract
 - `avalanche network stop | clean` — pause | wipe the devnet

@@ -108,7 +108,7 @@ Next:
   1. Import the EWOQ dev key into your wallet (Core / MetaMask), pre-funded on both chains:
        0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027
      (public dev key, local only)
-  2. pnpm dev  →  http://localhost:3000
+  2. pnpm dev  →  http://localhost:3000 (or the port Next prints)
   3. Mint the demo token on $CHAIN1, then bridge it to $CHAIN2 and watch it arrive.
 
 Reset:

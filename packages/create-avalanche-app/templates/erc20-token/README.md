@@ -10,7 +10,7 @@ cp .env.example .env.local
 #    → https://dashboard.web3auth.io (Sapphire Devnet, EVM)
 
 # 2. run it
-pnpm dev    # http://localhost:3000
+pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then: connect a wallet → **Deploy token contract** → **Mint 100 AKT** → **Burn 10 AKT**. These cost gas, so fund your wallet on Fuji first (in-app faucet link).

@@ -15,7 +15,7 @@ pnpm bridge
 #    (chains are named br1/br2 so this can run alongside the icm-messenger devnet)
 
 # 2. run the app
-pnpm dev    # http://localhost:3000
+pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then: import the printed EWOQ dev key into your wallet (pre-funded on both chains, local-only) →

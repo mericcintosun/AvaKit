@@ -6,5 +6,5 @@
   "evmChainId": 9999,
   "rpcUrl": "",
   "blockchainIdHex": "",
-  "faucetAccount": { "address": "", "privateKey": "" }
+  "faucetAccount": { "note": "EWOQ: avalanche-cli's PUBLIC local dev key, pre-funded on every local network. Local-only — never use on Fuji or mainnet.", "address": "", "privateKey": "" }
 }

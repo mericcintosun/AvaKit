@@ -6,9 +6,24 @@ declare global {
 
 const TOKEN = window.__AVAKIT_STUDIO__?.token ?? "";
 
+/** An API failure that carries the HTTP status so callers can special-case 401. */
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message?: string) {
+    super(
+      message ??
+        (status === 401
+          ? "Studio didn't recognize this tab's session token — it was likely restarted. Reload this page, or reopen the URL printed in your terminal."
+          : `HTTP ${status}`),
+    );
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function api<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { "x-studio-token": TOKEN } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status);
   return (await res.json()) as T;
 }
 
@@ -19,14 +34,14 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
+    let msg: string | undefined;
     try {
       const j = (await res.json()) as { error?: string };
       if (j.error) msg = j.error;
     } catch {
       /* ignore */
     }
-    throw new Error(msg);
+    throw new ApiError(res.status, msg);
   }
   return (await res.json()) as T;
 }

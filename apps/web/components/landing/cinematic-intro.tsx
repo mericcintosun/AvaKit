@@ -13,6 +13,9 @@ export function CinematicIntro() {
     <ScrollVideo
       src="/mountain-scrub.mp4"
       poster="/mountain-poster.jpg"
+      // Crop ~18% off the bottom (anchored to the top) to hide the generator
+      // watermark baked into the lower-right of the source clip.
+      videoClassName="absolute left-0 top-0 h-[122%] w-full object-cover object-top"
       heightVh={300}
       captions={[
         <p

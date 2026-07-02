@@ -103,7 +103,7 @@ cat > "$CONFIG" <<EOF
   "evmChainId": $CHAIN_ID,
   "rpcUrl": "$RPC",
   "blockchainIdHex": "${BID:-}",
-  "faucetAccount": { "address": "$EWOQ_ADDR", "privateKey": "$EWOQ_PK" }
+  "faucetAccount": { "note": "EWOQ: avalanche-cli's PUBLIC local dev key, pre-funded on every local network. Local-only — never use on Fuji or mainnet.", "address": "$EWOQ_ADDR", "privateKey": "$EWOQ_PK" }
 }
 EOF
 
@@ -116,7 +116,7 @@ Next:
   1. Import the EWOQ dev key into your wallet (Core / MetaMask) — pre-funded on your chain:
        $EWOQ_PK
      (public dev key, local only)
-  2. pnpm dev  →  http://localhost:3000  (your chain dashboard + explorer)
+  2. pnpm dev  →  http://localhost:3000 (or the port Next prints)  (your chain dashboard + explorer)
   3. Deploy the demo token, watch blocks and transactions land in real time.
 
 Manage the network:

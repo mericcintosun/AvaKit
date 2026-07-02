@@ -1,6 +1,6 @@
 "use client";
 
-import {
+import { humanizeError,
   Button,
   ConnectAvalanche,
   shortenAddress,
@@ -70,7 +70,7 @@ export function Demo() {
       const result = await deploy({ abi, bytecode });
       setContractAddress(result.address);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(humanizeError(e));
     }
   }
 
@@ -81,7 +81,7 @@ export function Demo() {
       await fn();
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(humanizeError(e));
     } finally {
       setBusy(null);
     }

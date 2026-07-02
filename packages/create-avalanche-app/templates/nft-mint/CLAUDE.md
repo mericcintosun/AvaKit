@@ -40,6 +40,6 @@ cd contracts && forge build
 
 ## Commands
 
-- `pnpm dev` — dev server (http://localhost:3000)
+- `pnpm dev` — dev server (http://localhost:3000 by default)
 - `pnpm build` — production build
 - `cd contracts && forge build` — recompile the contract
