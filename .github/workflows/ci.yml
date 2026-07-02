@@ -42,3 +42,46 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  # Scaffold every create-avalanche-app template from the LOCAL build and verify it
+  # installs, type-checks, and production-builds — the real `npm create avalanche-app`
+  # flow. One broken template fails only its own matrix leg (fail-fast: false).
+  # Templates that need avalanche-cli at runtime (icm-messenger, l1-launch,
+  # token-bridge) are scaffold+typecheck+build tested only; their devnet/L1 scripts
+  # are not exercised here (no avalanche-cli in CI). @avakit/* resolves from npm.
+  smoke-templates:
+    name: Smoke · ${{ matrix.template }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        template:
+          - minimal
+          - nft-mint
+          - token-gated-app
+          - erc20-token
+          - icm-messenger
+          - eerc-token
+          - l1-launch
+          - token-bridge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the scaffolder
+        run: pnpm --filter create-avalanche-app build
+
+      - name: Scaffold + typecheck + build "${{ matrix.template }}"
+        run: bash scripts/smoke-template.sh "${{ matrix.template }}" "$RUNNER_TEMP/smoke"

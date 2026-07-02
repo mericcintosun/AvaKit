@@ -1,5 +1,16 @@
 # create-avalanche-app
 
+## 0.1.9
+
+### Patch Changes
+
+- Fix `pnpm install` failing on pnpm 11 for freshly scaffolded apps: the templates'
+  `pnpm-workspace.yaml` only pre-approved `sharp`, but the default (Web3Auth) wallet
+  pulls in `protobufjs` and `tiny-secp256k1`, whose unapproved build scripts made
+  `pnpm install`/`pnpm dev` exit with ERR_PNPM_IGNORED_BUILDS. All eight templates now
+  pre-approve those builds. Verified by a new CI smoke matrix that scaffolds, installs,
+  type-checks, and builds every template.
+
 ## 0.1.8
 
 ### Patch Changes

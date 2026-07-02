@@ -126,7 +126,9 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
           const candidate = {
             name: url.searchParams.get("name") ?? "",
             chainId: url.searchParams.get("chainId") ?? "",
-            token: url.searchParams.get("token") ?? "",
+            // The L1 native-token symbol travels as `symbol`, not `token`, so it
+            // never collides with the `token` session-auth query param above.
+            token: url.searchParams.get("symbol") ?? "",
           };
           if (!isValidL1Params(candidate)) {
             sendJson(res, 400, {
@@ -168,7 +170,9 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
         const p = {
           name: url.searchParams.get("name") ?? "",
           chainId: url.searchParams.get("chainId") ?? undefined,
-          token: url.searchParams.get("token") ?? undefined,
+          // L1 native-token symbol as `symbol` — see the note in /api/devnet/stream;
+          // `token` is reserved for the session-auth query param.
+          token: url.searchParams.get("symbol") ?? undefined,
           amount: url.searchParams.get("amount") ?? undefined,
         };
         res.writeHead(200, {

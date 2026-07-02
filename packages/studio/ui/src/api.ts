@@ -48,7 +48,7 @@ export function streamAction(
   params?: L1Params,
 ): () => void {
   const extra = params
-    ? `&name=${encodeURIComponent(params.name)}&chainId=${encodeURIComponent(params.chainId)}&token=${encodeURIComponent(params.token)}`
+    ? `&name=${encodeURIComponent(params.name)}&chainId=${encodeURIComponent(params.chainId)}&symbol=${encodeURIComponent(params.token)}`
     : "";
   const es = new EventSource(
     `/api/devnet/stream?action=${action}&token=${encodeURIComponent(TOKEN)}${extra}`,
@@ -91,9 +91,11 @@ export function streamFuji(
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
 ): () => void {
+  // `token` carries the session auth; the L1 native-token symbol travels as
+  // `symbol` so it can't clobber the auth token (that broke the deploy step).
   const q = new URLSearchParams({ action, token: TOKEN, name: params.name });
   if (params.chainId) q.set("chainId", params.chainId);
-  if (params.token) q.set("token", params.token);
+  if (params.token) q.set("symbol", params.token);
   if (params.amount) q.set("amount", params.amount);
   const es = new EventSource(`/api/fuji/stream?${q.toString()}`);
   es.addEventListener("line", (e) => onLine(JSON.parse((e as MessageEvent).data).line as string));

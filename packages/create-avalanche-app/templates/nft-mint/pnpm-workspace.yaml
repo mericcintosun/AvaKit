@@ -6,6 +6,8 @@
 #   (third-party deps keep the protection). Delete this file to opt back into defaults.
 allowBuilds:
   sharp: true
+  protobufjs: true
+  tiny-secp256k1: true
 minimumReleaseAgeExclude:
   - '@avakit/core'
   - '@avakit/react'
