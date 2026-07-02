@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { CodeBlock } from "@/components/code-block";
 import { C, DocHeader, H2, NextLinks, Note, P } from "@/components/docs/prose";
-import { mcpTools } from "@/lib/content";
+import { getContent } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "@avakit/mcp",
@@ -44,7 +44,7 @@ export default function McpDocs() {
             </tr>
           </thead>
           <tbody>
-            {mcpTools.map((tool) => (
+            {getContent("en").mcp.tools.map((tool) => (
               <tr key={tool.name} className="border-t">
                 <td className="px-4 py-2 align-top">
                   <code className="font-mono text-xs">{tool.name}</code>

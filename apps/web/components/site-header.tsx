@@ -2,15 +2,18 @@
 
 import { Menu, Search } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
+import { useLocale } from "next-intl";
 
 import { openCommandMenu } from "@/components/command-menu";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { nav, site } from "@/lib/content";
+import { Link } from "@/i18n/navigation";
+import { getContent, type Locale, site } from "@/lib/content";
 
 export function SiteHeader() {
+  const c = getContent(useLocale() as Locale);
   return (
     <header className="sticky top-0 z-40 border-b backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
@@ -27,7 +30,7 @@ export function SiteHeader() {
             <span className="font-mono text-sm font-semibold tracking-tight">{site.name}</span>
           </Link>
           <nav className="hidden items-center gap-5 md:flex">
-            {nav.map((item) => (
+            {c.nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -46,7 +49,7 @@ export function SiteHeader() {
             className="text-muted-foreground hover:bg-accent hidden h-9 items-center gap-2 rounded-md border pr-2 pl-3 text-sm transition-colors sm:flex"
           >
             <Search className="size-3.5" />
-            <span>Search</span>
+            <span>{c.header.search}</span>
             <kbd className="bg-muted ml-2 hidden rounded border px-1.5 py-0.5 font-mono text-[10px] lg:inline-block">
               ⌘K
             </kbd>
@@ -55,17 +58,18 @@ export function SiteHeader() {
             type="button"
             variant="ghost"
             size="icon"
-            aria-label="Search"
+            aria-label={c.header.search}
             className="sm:hidden"
             onClick={openCommandMenu}
           >
             <Search className="size-4" />
           </Button>
 
+          <LanguageSwitcher />
           <ThemeToggle />
 
           <Button asChild size="sm" className="hidden sm:inline-flex">
-            <Link href="/docs">Get started</Link>
+            <Link href="/docs">{c.header.getStarted}</Link>
           </Button>
 
           <Sheet>
@@ -77,7 +81,7 @@ export function SiteHeader() {
             <SheetContent side="right">
               <SheetTitle>{site.name}</SheetTitle>
               <nav className="mt-2 flex flex-col gap-1">
-                {nav.map((item) => (
+                {c.nav.map((item) => (
                   <SheetClose asChild key={item.href}>
                     <Link href={item.href} className="hover:bg-accent rounded-md px-3 py-2 text-sm">
                       {item.label}
@@ -89,7 +93,7 @@ export function SiteHeader() {
                     href="/docs"
                     className="hover:bg-accent rounded-md px-3 py-2 text-sm font-medium"
                   >
-                    Get started →
+                    {c.header.getStarted} →
                   </Link>
                 </SheetClose>
               </nav>

@@ -1,46 +1,50 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useLocale } from "next-intl";
 import type { ReactNode } from "react";
 
+import { getContent, type Locale } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
-const lines: { text: ReactNode; muted?: boolean }[] = [
-  {
-    text: (
-      <>
-        <span className="text-primary select-none">$ </span>npm create avalanche-app@latest my-app
-      </>
-    ),
-  },
-  { text: "◆  Template · nft-mint", muted: true },
-  { text: "◆  Wallet · social login (Web3Auth)", muted: true },
-  { text: "◆  Chain · Avalanche Fuji", muted: true },
-  {
-    text: (
-      <>
-        <span className="text-primary">✓</span> Created 16 files
-      </>
-    ),
-  },
-  {
-    text: (
-      <>
-        <span className="text-primary">✓</span> Installed dependencies
-      </>
-    ),
-  },
-  { text: "→  cd my-app && pnpm dev", muted: true },
-  {
-    text: (
-      <>
-        <span className="text-muted-foreground">▸ Local:</span> http://localhost:3000
-      </>
-    ),
-  },
-];
-
 export function Terminal({ className }: { className?: string }) {
+  const t = getContent(useLocale() as Locale).hero.terminal;
+  const lines: { text: ReactNode; muted?: boolean }[] = [
+    {
+      text: (
+        <>
+          <span className="text-primary select-none">$ </span>npm create avalanche-app@latest my-app
+        </>
+      ),
+    },
+    { text: `◆  ${t[0]}`, muted: true },
+    { text: `◆  ${t[1]}`, muted: true },
+    { text: `◆  ${t[2]}`, muted: true },
+    {
+      text: (
+        <>
+          <span className="text-primary">✓</span> {t[3]}
+        </>
+      ),
+    },
+    {
+      text: (
+        <>
+          <span className="text-primary">✓</span> {t[4]}
+        </>
+      ),
+    },
+    { text: `→  ${t[5]}`, muted: true },
+    {
+      text: (
+        <>
+          <span className="text-muted-foreground">▸ </span>
+          {t[6]}
+        </>
+      ),
+    },
+  ];
+
   return (
     <div
       className={cn(

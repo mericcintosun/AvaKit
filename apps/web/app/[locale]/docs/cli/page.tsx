@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { C, DocHeader, H2, NextLinks, P, UL } from "@/components/docs/prose";
 import { Badge } from "@/components/ui/badge";
-import { templates } from "@/lib/content";
+import { getContent } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "create-avalanche-app",
@@ -42,7 +42,7 @@ export default function CliDocs() {
 
       <H2>Templates</H2>
       <div className="flex flex-col gap-3">
-        {templates.map((t) => (
+        {getContent("en").templates.map((t) => (
           <div key={t.id} className="flex flex-col gap-1 rounded-lg border p-4">
             <div className="flex items-center gap-2">
               <span className="font-medium">{t.title}</span>

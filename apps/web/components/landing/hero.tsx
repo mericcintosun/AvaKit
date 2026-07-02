@@ -2,13 +2,14 @@
 
 import { motion, type Variants } from "framer-motion";
 import { ArrowRight, Check, Copy } from "lucide-react";
-import Link from "next/link";
+import { useLocale } from "next-intl";
 import { useState } from "react";
 
 import { Container } from "@/components/section";
 import { Terminal } from "@/components/terminal";
 import { Button } from "@/components/ui/button";
-import { site } from "@/lib/content";
+import { Link } from "@/i18n/navigation";
+import { getContent, type Locale } from "@/lib/content";
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -19,13 +20,13 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } },
 };
 
-function CopyPill() {
+function CopyPill({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
       onClick={() =>
-        navigator.clipboard.writeText(site.createCommand).then(() => {
+        navigator.clipboard.writeText(command).then(() => {
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         })
@@ -34,7 +35,7 @@ function CopyPill() {
     >
       <span>
         <span className="text-primary select-none">$ </span>
-        {site.createCommand}
+        {command}
       </span>
       <span className="bg-background flex size-6 items-center justify-center rounded-full border">
         {copied ? <Check className="size-3" /> : <Copy className="text-muted-foreground size-3" />}
@@ -44,6 +45,7 @@ function CopyPill() {
 }
 
 export function Hero() {
+  const c = getContent(useLocale() as Locale);
   return (
     <section className="relative overflow-hidden">
       <div
@@ -68,15 +70,15 @@ export function Hero() {
               className="text-muted-foreground inline-flex items-center gap-2 font-mono text-xs tracking-[0.2em] uppercase"
             >
               <span className="bg-primary inline-block size-1.5 rounded-full" />
-              Open source · AI-native · MIT
+              {c.hero.badge}
             </motion.span>
             <motion.h1
               variants={item}
               className="text-5xl font-semibold tracking-[-0.03em] text-balance sm:text-6xl lg:text-[5rem] lg:leading-[0.95]"
             >
-              The developer toolkit for building on{" "}
+              {c.hero.titleBefore}{" "}
               <span className="decoration-primary underline decoration-2 underline-offset-[8px]">
-                Avalanche
+                {c.hero.titleHighlight}
               </span>
               .
             </motion.h1>
@@ -84,21 +86,21 @@ export function Hero() {
               variants={item}
               className="text-muted-foreground max-w-lg text-lg leading-relaxed text-pretty"
             >
-              {site.description}
+              {c.site.description}
             </motion.p>
             <motion.div variants={item} className="flex flex-wrap items-center gap-3 pt-1">
               <Button asChild size="lg">
                 <Link href="/docs">
-                  Get started
+                  {c.hero.ctaPrimary}
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/templates">Browse templates</Link>
+                <Link href="/templates">{c.hero.ctaSecondary}</Link>
               </Button>
             </motion.div>
             <motion.div variants={item}>
-              <CopyPill />
+              <CopyPill command={c.createCommand} />
             </motion.div>
           </div>
 

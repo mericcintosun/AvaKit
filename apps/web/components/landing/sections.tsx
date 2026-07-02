@@ -3,7 +3,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
+import { useLocale } from "next-intl";
 import { useRef } from "react";
 
 import { CodeBlock } from "@/components/code-block";
@@ -25,13 +25,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { faqs, features, mcpTools, steps, surfaces, templates } from "@/lib/content";
+import { Link } from "@/i18n/navigation";
+import { getContent, type Locale } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
 const pad = (n: number) => String(n + 1).padStart(2, "0");
 
 /* ── Surfaces: bento grid ─────────────────────────────────────────────── */
 export function SurfacesSection() {
+  const c = getContent(useLocale() as Locale);
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
   const bgY = useTransform(scrollYProgress, [0, 1], [-50, 50]);
@@ -57,12 +59,12 @@ export function SurfacesSection() {
         <Container>
           <SectionHeading
             index="01"
-            eyebrow="Architecture"
-            title="One core, four surfaces"
-            lead="A single framework-agnostic kernel, delivered through the surface that fits how you work."
+            eyebrow={c.surfacesSection.eyebrow}
+            title={c.surfacesSection.title}
+            lead={c.surfacesSection.lead}
           />
           <RevealGroup className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:grid-rows-2">
-            {surfaces.map((s, i) => {
+            {c.surfaces.map((s, i) => {
               const featured = i === 0;
               return (
                 <motion.div
@@ -99,7 +101,7 @@ export function SurfacesSection() {
                         </ul>
                       ) : (
                         <span className="text-foreground inline-flex items-center gap-1 text-sm opacity-0 transition-opacity group-hover:opacity-100">
-                          Read docs <ArrowRight className="size-3.5" />
+                          {c.surfacesSection.readDocs} <ArrowRight className="size-3.5" />
                         </span>
                       )}
                     </div>
@@ -116,18 +118,19 @@ export function SurfacesSection() {
 
 /* ── Features: datasheet rows ─────────────────────────────────────────── */
 export function FeaturesSection() {
+  const c = getContent(useLocale() as Locale);
   return (
     <Section id="features">
       <Container>
         <SectionHeading
           index="02"
-          eyebrow="Why AvaKit"
-          title="Everything you need, nothing you don't"
-          lead="The boring parts — onboarding, wallets, chain switching, deploy — handled with safe defaults."
+          eyebrow={c.featuresSection.eyebrow}
+          title={c.featuresSection.title}
+          lead={c.featuresSection.lead}
         />
         <Reveal className="mt-10 border-t">
           <dl>
-            {features.map((f, i) => (
+            {c.features.map((f, i) => (
               <div
                 key={f.title}
                 className="hover:bg-muted/30 grid gap-2 border-b px-1 py-6 transition-colors md:grid-cols-12 md:gap-8 md:px-3"
@@ -154,22 +157,23 @@ export function FeaturesSection() {
 
 /* ── Steps: vertical timeline ─────────────────────────────────────────── */
 export function StepsSection() {
+  const c = getContent(useLocale() as Locale);
   return (
     <Section id="how-it-works">
       <Container>
         <SectionHeading
-          index="03"
-          eyebrow="How it works"
-          title="From zero to first transaction"
-          lead="Three steps. No seed phrases, no boilerplate, no chain-config spelunking."
+          index="05"
+          eyebrow={c.stepsSection.eyebrow}
+          title={c.stepsSection.title}
+          lead={c.stepsSection.lead}
         />
         <ol className="mt-12 flex flex-col">
-          {steps.map((step, i) => (
+          {c.steps.map((step, i) => (
             <Reveal key={step.title}>
               <li
                 className={cn(
                   "grid gap-6 border-l pb-10 pl-8 md:grid-cols-2 md:items-center md:gap-10",
-                  i === steps.length - 1 && "border-l-transparent pb-0",
+                  i === c.steps.length - 1 && "border-l-transparent pb-0",
                 )}
               >
                 <div className="relative flex flex-col gap-2">
@@ -193,25 +197,26 @@ export function StepsSection() {
 
 /* ── Templates preview ────────────────────────────────────────────────── */
 export function TemplatesSection() {
+  const c = getContent(useLocale() as Locale);
   return (
     <Section id="templates">
       <Container>
         <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
           <SectionHeading
-            index="04"
-            eyebrow="Templates"
-            title="Start from a working example"
-            lead="Real, deploy-ready dapps with a social-login wallet and AI context baked in."
+            index="06"
+            eyebrow={c.templatesSection.eyebrow}
+            title={c.templatesSection.title}
+            lead={c.templatesSection.lead}
           />
           <Button asChild variant="outline" className="shrink-0">
             <Link href="/templates">
-              All templates
+              {c.templatesSection.all}
               <ArrowRight className="size-4" />
             </Link>
           </Button>
         </div>
         <RevealGroup className="mt-10 grid gap-3 sm:grid-cols-2">
-          {templates.map((t, i) => (
+          {c.templates.map((t, i) => (
             <motion.div key={t.id} variants={fadeUp}>
               <Link
                 href="/templates"
@@ -251,30 +256,22 @@ export function TemplatesSection() {
 }
 
 /* ── MCP: split with tools table ──────────────────────────────────────── */
-const MCP_CONFIG = `{
-  "mcpServers": {
-    "avakit": {
-      "command": "npx",
-      "args": ["-y", "@avakit/mcp"]
-    }
-  }
-}`;
-
 export function McpSection() {
+  const c = getContent(useLocale() as Locale);
   return (
     <Section id="mcp">
       <Container>
         <div className="grid gap-12 lg:grid-cols-2">
           <div className="flex flex-col gap-5">
             <SectionHeading
-              index="05"
-              eyebrow="AI-native"
-              title="Let your agent build on Avalanche"
-              lead="@avakit/mcp exposes actions — not just docs — to Claude Code and Cursor. Ask in natural language."
+              index="08"
+              eyebrow={c.mcp.eyebrow}
+              title={c.mcp.title}
+              lead={c.mcp.lead}
             />
             <div className="mt-1 flex flex-col gap-2">
-              <span className="text-muted-foreground text-sm">Add it to your MCP client:</span>
-              <CodeBlock code={MCP_CONFIG} />
+              <span className="text-muted-foreground text-sm">{c.mcp.add}</span>
+              <CodeBlock code={c.mcp.config} />
             </div>
           </div>
           <Reveal className="lg:pt-2">
@@ -282,12 +279,12 @@ export function McpSection() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tool</TableHead>
-                    <TableHead>Does</TableHead>
+                    <TableHead>{c.mcp.headTool}</TableHead>
+                    <TableHead>{c.mcp.headDoes}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mcpTools.map((tool) => (
+                  {c.mcp.tools.map((tool) => (
                     <TableRow key={tool.name}>
                       <TableCell className="align-top">
                         <code className="font-mono text-xs">{tool.name}</code>
@@ -309,13 +306,14 @@ export function McpSection() {
 
 /* ── FAQ ──────────────────────────────────────────────────────────────── */
 export function FaqSection() {
+  const c = getContent(useLocale() as Locale);
   return (
     <Section id="faq">
       <Container className="max-w-3xl">
-        <SectionHeading index="06" eyebrow="FAQ" title="Questions, answered" />
+        <SectionHeading index="09" eyebrow={c.faq.eyebrow} title={c.faq.title} />
         <Reveal className="mt-8">
           <Accordion type="single" collapsible className="w-full">
-            {faqs.map((faq) => (
+            {c.faq.items.map((faq) => (
               <AccordionItem key={faq.q} value={faq.q}>
                 <AccordionTrigger className="text-base">{faq.q}</AccordionTrigger>
                 <AccordionContent>{faq.a}</AccordionContent>
@@ -330,18 +328,17 @@ export function FaqSection() {
 
 /* ── CTA: inverted band ───────────────────────────────────────────────── */
 export function CtaSection() {
+  const c = getContent(useLocale() as Locale);
   return (
     <Section>
       <Container>
         <Reveal>
           <div className="bg-foreground text-background relative flex flex-col items-center gap-6 overflow-hidden rounded-3xl px-6 py-16 text-center">
-            <Eyebrow>Ship today</Eyebrow>
+            <Eyebrow>{c.cta.eyebrow}</Eyebrow>
             <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Your first Avalanche dapp is one command away
+              {c.cta.title}
             </h2>
-            <p className="text-background/70 max-w-md text-balance">
-              Open source, MIT licensed, free. No seed phrases, no boilerplate.
-            </p>
+            <p className="text-background/70 max-w-md text-balance">{c.cta.body}</p>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <Button
                 asChild
@@ -349,7 +346,7 @@ export function CtaSection() {
                 className="bg-background text-foreground hover:bg-background/90"
               >
                 <Link href="/docs">
-                  Get started
+                  {c.cta.primary}
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
@@ -359,7 +356,7 @@ export function CtaSection() {
                 variant="outline"
                 className="border-background/25 text-background hover:bg-background/10 hover:text-background bg-transparent"
               >
-                <Link href="/templates">Browse templates</Link>
+                <Link href="/templates">{c.cta.secondary}</Link>
               </Button>
             </div>
           </div>

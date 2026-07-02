@@ -1,6 +1,8 @@
 import { AmbientBand } from "@/components/landing/ambient-band";
 import { CinematicIntro } from "@/components/landing/cinematic-intro";
 import { Hero } from "@/components/landing/hero";
+import { DifferentiationSection, WhoForSection } from "@/components/landing/positioning";
+import { RecommenderSection } from "@/components/landing/recommender";
 import {
   CtaSection,
   FaqSection,
@@ -18,9 +20,12 @@ export default function Home() {
       <Hero />
       <SurfacesSection />
       <FeaturesSection />
+      <DifferentiationSection />
+      <WhoForSection />
       <StepsSection />
       <AmbientBand />
       <TemplatesSection />
+      <RecommenderSection />
       <McpSection />
       <FaqSection />
       <CtaSection />

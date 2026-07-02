@@ -1,7 +1,8 @@
 import Image from "next/image";
-import Link from "next/link";
+import { getLocale } from "next-intl/server";
 
-import { site } from "@/lib/content";
+import { Link } from "@/i18n/navigation";
+import { getContent, type Locale, site } from "@/lib/content";
 
 const columns = [
   {
@@ -30,7 +31,9 @@ const columns = [
   },
 ];
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const locale = (await getLocale()) as Locale;
+  const c = getContent(locale);
   return (
     <footer className="border-t">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-4">
@@ -46,7 +49,7 @@ export function SiteFooter() {
             <span className="font-mono text-sm font-semibold">{site.name}</span>
           </div>
           <p className="text-muted-foreground max-w-xs text-sm leading-relaxed">
-            The open-source, AI-native developer toolkit for Avalanche.
+            {c.footer.tagline}
           </p>
         </div>
         {columns.map((col) => (
@@ -57,14 +60,23 @@ export function SiteFooter() {
                 const external = link.href.startsWith("http");
                 return (
                   <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      target={external ? "_blank" : undefined}
-                      rel={external ? "noreferrer" : undefined}
-                      className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-                    >
-                      {link.label}
-                    </Link>
+                    {external ? (
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+                      >
+                        {link.label}
+                      </a>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+                      >
+                        {link.label}
+                      </Link>
+                    )}
                   </li>
                 );
               })}
