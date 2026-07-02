@@ -19,7 +19,7 @@ import {
 export type Locale = "en" | "tr";
 
 // Production origin — invariant, used by robots / sitemap / metadata / JSON-LD.
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://avakit.vercel.app";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://avakit.dev";
 export const site = {
   name: "AvaKit",
   url: SITE_URL,

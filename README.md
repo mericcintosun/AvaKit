@@ -10,7 +10,7 @@
 
 Scaffold a social-login dapp, deploy-ready, with agent context baked in. One core, four surfaces. **No seed phrases, no boilerplate.**
 
-**[avakit.vercel.app](https://avakit.vercel.app)** · **[Documentation](https://avakit.vercel.app/docs)** · **[Templates](https://avakit.vercel.app/templates)**
+**[avakit.dev](https://avakit.dev)** · **[Documentation](https://avakit.dev/docs)** · **[Templates](https://avakit.dev/templates)**
 
 ```bash
 npm create avalanche-app@latest
@@ -116,7 +116,7 @@ packages/
   mcp/                  @avakit/mcp
   studio/               @avakit/studio (local dashboard + MCP)
   create-avalanche-app/ scaffolder + 8 templates
-apps/web/               the avakit.vercel.app site (EN + TR)
+apps/web/               the avakit.dev site (EN + TR)
 examples/               live demo dapps (hello-avax, web3auth-demo)
 docs/                   planning, PRD, architecture, ADRs, specs, security review
 ```
