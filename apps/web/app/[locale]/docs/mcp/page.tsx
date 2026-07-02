@@ -56,6 +56,12 @@ export default function McpDocs() {
         </table>
       </div>
 
+      <Note>
+        Tool inputs are validated with strict schemas — unknown parameters are rejected rather than
+        silently ignored, so a mistyped field (e.g. <C>network</C> instead of <C>chain</C>) fails
+        loudly instead of falling back to a default.
+      </Note>
+
       <H2>Example</H2>
       <P>Ask your agent in natural language:</P>
       <CodeBlock code={"“Scaffold an nft-mint dapp called gm-avax and deploy it to Fuji.”"} />

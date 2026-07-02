@@ -29,10 +29,10 @@ export default function DocsHome() {
       <H2>Quickstart</H2>
       <P>Scaffold a full dapp with one command:</P>
       <CodeBlock code="npm create avalanche-app@latest my-app" prefix="$" />
-      <P>Then:</P>
+      <P>Then follow the steps the CLI prints (they vary by template and wallet):</P>
       <CodeBlock
         code={
-          "cd my-app\npnpm install\ncp .env.example .env.local   # optional: Web3Auth client ID\npnpm dev"
+          "cd my-app\npnpm install\ncp .env.example .env.local   # social login only; injected scaffolds skip this\npnpm dev"
         }
         prefix="$"
       />
@@ -40,6 +40,12 @@ export default function DocsHome() {
         Open <A href="http://localhost:3000">localhost:3000</A>, connect a wallet, and send your
         first transaction on Avalanche Fuji.
       </P>
+      <Note>
+        The <C>icm-messenger</C>, <C>l1-launch</C>, and <C>token-bridge</C> templates start a local
+        Avalanche devnet first — run <C>pnpm run devnet</C> / <C>l1</C> / <C>bridge</C> (needs{" "}
+        <C>avalanche-cli</C> and a Unix-like shell) before <C>pnpm dev</C>. See the{" "}
+        <A href="/docs/cli">CLI docs</A>.
+      </Note>
 
       <H2>The packages</H2>
       <P>

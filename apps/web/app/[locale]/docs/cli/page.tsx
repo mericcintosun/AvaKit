@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { CodeBlock } from "@/components/code-block";
-import { C, DocHeader, H2, NextLinks, P, UL } from "@/components/docs/prose";
+import { C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
 import { Badge } from "@/components/ui/badge";
 import { getContent } from "@/lib/content";
 
@@ -54,6 +54,27 @@ export default function CliDocs() {
           </div>
         ))}
       </div>
+
+      <H2>Next steps</H2>
+      <P>The CLI prints the exact next steps for your choices. Two things vary:</P>
+      <UL>
+        <li>
+          <C>.env.example</C> is only for social login (Web3Auth). With <C>--wallet injected</C> the
+          scaffolder omits it, so there is nothing to copy.
+        </li>
+        <li>
+          The <C>icm-messenger</C>, <C>l1-launch</C>, and <C>token-bridge</C> templates run a local
+          devnet first: <C>pnpm run devnet</C> / <C>pnpm run l1</C> / <C>pnpm run bridge</C> before{" "}
+          <C>pnpm dev</C>. These need <C>avalanche-cli</C> and a Unix-like shell (macOS, Linux, or
+          WSL2 on Windows).
+        </li>
+      </UL>
+      <Note>
+        The devnet templates use distinct local chain names — <C>icm1</C>/<C>icm2</C> for
+        icm-messenger and <C>br1</C>/<C>br2</C> for token-bridge — so you can run both at once. If a
+        stale local network blocks a deploy, reset with <C>avalanche network clean</C> or rebuild in
+        one step with <C>CLEAN=1 pnpm run devnet</C> (or <C>l1</C> / <C>bridge</C>).
+      </Note>
 
       <H2>Options</H2>
       <CodeBlock

@@ -8,6 +8,8 @@ Framework-agnostic kernel for [AvaKit](https://github.com/mericcintosun/AvaKit) 
 npm install @avakit/core viem
 ```
 
+> **ESM-only.** `@avakit/core` ships ES modules (no CommonJS build) — use `import`, not `require`. In a CommonJS file, load it with a dynamic `await import("@avakit/core")`. Requires Node `>= 20.11`.
+
 ## Usage
 
 ```ts
@@ -30,7 +32,8 @@ Chains live at `@avakit/core/chains`; the optional Web3Auth social-login adapter
 - **Adapters** — `injectedAdapter()` (Core / MetaMask); `web3authAdapter({ clientId })` (social login, from `@avakit/core/web3auth`)
 - **Network** — `ensureChain(provider, chain)` (add + switch)
 - **Deploy** — `deployContract`, `getBytecode`
-- **Data** — `getBalance`, `getTransactionReceipt`, `readContract`
+- **RPC data** — `getBalance`, `getTransactionReceipt`, `readContract` (take an `AvaChain`)
+- **Indexed data (AvaCloud)** — `getNativeBalance`, `listErc20Balances`, `listNfts`, `listTransactions` (take an address + a chain, either an `AvaChain` like `fuji` or a raw chain id like `43113`)
 
 For React components and hooks, see [`@avakit/react`](https://www.npmjs.com/package/@avakit/react). To scaffold a full app, use [`create-avalanche-app`](https://www.npmjs.com/package/create-avalanche-app).
 

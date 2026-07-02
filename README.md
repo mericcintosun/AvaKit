@@ -91,6 +91,8 @@ export function App() {
 
 Add social login by installing `@web3auth/modal` and passing `web3authAdapter({ clientId })` (from `@avakit/core/web3auth`).
 
+> `@avakit/core` and `@avakit/react` are **ESM-only** (use `import`, not `require`; Node ≥ 20.11).
+
 ## Build with an AI agent
 
 Add the MCP server to Claude Code, Cursor, or Claude Desktop:

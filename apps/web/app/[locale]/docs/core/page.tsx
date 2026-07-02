@@ -21,6 +21,11 @@ export default function CoreDocs() {
 
       <H2>Install</H2>
       <InstallTabs pkg="@avakit/core viem" />
+      <Note>
+        <C>@avakit/core</C> is <strong>ESM-only</strong> — use <C>import</C>, not <C>require</C>. In
+        a CommonJS file, load it with a dynamic <C>await import("@avakit/core")</C>. Requires Node{" "}
+        <C>&gt;= 20.11</C>.
+      </Note>
 
       <H2>Chains</H2>
       <P>

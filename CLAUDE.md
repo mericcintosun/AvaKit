@@ -4,9 +4,9 @@ Guidance for AI agents (Claude Code / Cursor) working in this repository.
 
 ## What this is
 
-**AvaKit** — an open-source, AI-native Avalanche developer toolkit: one core with three surfaces (`@avakit/core`, `@avakit/react`, `create-avalanche-app`, `@avakit/mcp`). Positioning: "Avalanche's open-source, AI-native `create-next-app`." Strategy: **wrap mature pieces, don't rewrite them.** See `README.md` and `docs/00`–`docs/11`.
+**AvaKit** — an open-source, AI-native Avalanche developer toolkit: one core with surfaces (`@avakit/core`, `@avakit/react`, `create-avalanche-app`, `@avakit/mcp`, plus the `@avakit/studio` local dashboard). Positioning: "Avalanche's open-source, AI-native `create-next-app`." Strategy: **wrap mature pieces, don't rewrite them.** See `README.md` and `docs/00`–`docs/11`.
 
-Current state: **planning phase** — docs only, no code yet. Implementation starts at milestone M0/M1 (see `docs/05-roadmap.md`).
+Current state: **0.x pre-release, shipped.** All five packages are published on npm and proven live on Fuji; 8 templates ship. APIs may still change before 1.0. (The `docs/00`–`docs/10` planning specs predate the build and are partly stale — treat the code, `README.md`, and the website docs as the source of truth.)
 
 ## Binding rules (do not violate)
 

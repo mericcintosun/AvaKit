@@ -12,11 +12,13 @@ pnpm devnet
 pnpm dev    # http://localhost:3000
 ```
 
-`pnpm devnet` needs [avalanche-cli](https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli):
+`pnpm devnet` needs [avalanche-cli](https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli) and a Unix-like shell (macOS, Linux, or **WSL2** on Windows — the script is bash):
 
 ```bash
 curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts/install.sh | sh -s -- -b /usr/local/bin
 ```
+
+The two local chains are named `icm1`/`icm2` (EVM chainIds 1001/1002), so this can run alongside the token-bridge devnet without colliding.
 
 Then in your wallet (Core / MetaMask), **import the EWOQ dev key** (pre-funded on both local chains — public dev key, never use on a real network):
 
@@ -26,7 +28,7 @@ Then in your wallet (Core / MetaMask), **import the EWOQ dev key** (pre-funded o
 
 ## The flow
 
-1. **Deploy the messenger** on chain1 and chain2 (one click each — deploys from your browser).
+1. **Deploy the messenger** on both chains — `icm1` and `icm2` (one click each — deploys from your browser).
 2. **Send** a message from one chain to the other.
 3. The relayer delivers it; the destination contract stores it. The app polls and shows it **arrive** on the other L1.
 

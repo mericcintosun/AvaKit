@@ -30,7 +30,8 @@ packages/
   core/                 @avakit/core — framework-agnostic kernel
   react/                @avakit/react — <ConnectAvalanche> + hooks (shadcn/ui)
   mcp/                  @avakit/mcp — MCP server
-  create-avalanche-app/ scaffolder CLI
+  studio/               @avakit/studio — local dev dashboard + MCP
+  create-avalanche-app/ scaffolder CLI + 8 templates
 apps/
   web/                  AvaKit web frontend (shadcn/ui baseline)
 docs/                   planning, PRD, architecture, ADRs, specs
@@ -43,7 +44,7 @@ Read [`docs/11-conventions.md`](docs/11-conventions.md) before contributing. In 
 - **English** for everything in the repo (code, comments, commits, docs).
 - **shadcn/ui only** for UI — no other component library.
 - **Framer Motion / GSAP only** for animation.
-- **Black & white only** until milestones M1–M3 ship; **dark/light wired from day one**; color comes last.
+- **Dark/light wired from day one** (`next-themes`); both must work. The website (`apps/web`) uses a brand accent ("Ember Crimson", in `globals.css` tokens only); keep the scaffolder templates neutral/grayscale.
 - **Latest stable** versions of all frontend tech.
 
 ## Code style

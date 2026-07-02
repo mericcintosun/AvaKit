@@ -69,8 +69,12 @@ export default async function TemplatesPage({ params }: { params: Promise<{ loca
                       {t.id}
                     </Badge>
                     {t.contracts ? (
-                      <Badge variant="secondary" className="font-mono text-[10px]">
-                        Foundry contract
+                      <Badge
+                        variant="secondary"
+                        className="font-mono text-[10px]"
+                        title="Contract bytecode is bundled — no Foundry needed to run. Foundry is only for editing the contract."
+                      >
+                        Bundled contract
                       </Badge>
                     ) : null}
                   </div>

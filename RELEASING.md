@@ -1,54 +1,47 @@
 # Releasing AvaKit to npm
 
-Published packages: `@avakit/core`, `@avakit/react`, `@avakit/mcp`, `create-avalanche-app`.
+Published packages: `@avakit/core`, `@avakit/react`, `@avakit/mcp`, `@avakit/studio`, `create-avalanche-app`.
 (`@avakit/web` and the examples are private and never published.)
 
-All four names are currently **available** on npm and versioned at **0.1.0**.
+Currently published: `@avakit/core@0.1.3` · `@avakit/react@0.1.3` · `create-avalanche-app@0.1.10` ·
+`@avakit/mcp@0.1.10` · `@avakit/studio@0.1.6`. (Run `npm view <pkg> version` for the live value.)
 
-## One-time prerequisites (account side — do these yourself)
+## One-time prerequisites (account side)
 
-1. **npm account** — create/log in at https://www.npmjs.com.
-2. **Create the `avakit` org** (free) so you can publish the `@avakit/*` scope:
-   https://www.npmjs.com/org/create — org name `avakit`.
-   (`create-avalanche-app` is unscoped and needs no org.)
-3. **Log in from the CLI:**
-   ```bash
-   npm login
-   ```
-   Enable 2FA and, if you use it, an automation/publish token for CI.
-4. **Set the real repository URL.** The `repository`, `homepage`, and `bugs`
-   fields in each `package.json` currently point at the placeholder
-   `github.com/avakit/avakit`. Update them to your actual repo before publishing.
-   (These are metadata only — nothing here runs git.)
+1. **npm account + `avakit` org** — the `@avakit/*` scope publishes under the `avakit` org;
+   `create-avalanche-app` is unscoped. Both are already live.
+2. **Log in from the CLI:** `npm login` (verify with `npm whoami`).
 
-## Publish (first release, 0.1.0)
+## Ongoing releases
 
-Versions are already set to 0.1.0, so you can publish directly:
+Bump the changed packages, rebuild, and publish. Two paths:
 
-```bash
-pnpm install
-pnpm build                              # build all packages first
-pnpm -r publish --access public --no-git-checks
-```
-
-`pnpm` automatically rewrites `workspace:*` dependencies to the real versions
-(e.g. `@avakit/react` → `@avakit/core@0.1.0`) in the published tarballs.
-
-Verify beforehand without publishing:
-
-```bash
-pnpm -r publish --dry-run --no-git-checks
-```
-
-## Ongoing releases (Changesets)
-
-This repo is set up with [Changesets](https://github.com/changesets/changesets):
+**A. Changesets (preferred for changelogs):**
 
 ```bash
 pnpm changeset            # describe your change + choose bump (patch/minor/major)
 pnpm version-packages     # apply version bumps + update changelogs
 pnpm release              # build, then changeset publish
 ```
+
+**B. Manual (what recent releases used):** bump `version` in each changed package's
+`package.json`, then:
+
+```bash
+pnpm build                                                  # rebuild (core injects its version at build)
+pnpm -r publish --dry-run --no-git-checks --access public   # verify tarball contents first
+# publish in dependency order so consumers resolve: core → create-avalanche-app → mcp
+pnpm --filter @avakit/core publish --no-git-checks --access public
+```
+
+`pnpm` automatically rewrites `workspace:*` dependencies to the real versions
+(e.g. `@avakit/mcp` → `@avakit/core@0.1.3`) in the published tarballs.
+
+> Note: `create-avalanche-app`'s `AVAKIT_DEP_VERSION` (the `^` pin stamped into scaffolded apps)
+> is separate from package versions — keep it at the **lowest** published `@avakit/*` version so
+> `^x` resolves every `@avakit/*` package. Templates ship a `pnpm-workspace.yaml` with
+> `minimumReleaseAgeExclude: ['@avakit/*']` so a freshly published `@avakit/*` isn't blocked by
+> pnpm's supply-chain age gate for its first ~2 days.
 
 ## What ships in each package
 
@@ -61,4 +54,4 @@ pnpm release              # build, then changeset publish
 
 - Node `>=20.11` is declared via `engines`.
 - npm **provenance** (`--provenance`) requires publishing from CI with OIDC; skip it for local publishes.
-- After the first publish, test the real flow: `npm create avalanche-app@latest my-app` in a clean directory.
+- After every publish, smoke-test the real flow: `npm create avalanche-app@latest my-app` in a clean directory, then `pnpm install && pnpm build`.

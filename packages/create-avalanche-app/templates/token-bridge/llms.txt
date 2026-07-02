@@ -14,7 +14,7 @@
 ## Key APIs
 
 - Bridge home→remote: `approve(home, amount)` on the token, then `home.send(SendTokensInput, amount)`.
-- Bridge remote→home: `remote.send(SendTokensInput, amount)` (no approval; burns the remote token).
+- Bridge remote→home: `approve(remote, amount)` on the remote token, then `remote.send(SendTokensInput, amount)` (ERC20TokenRemote is an ERC-20 and pulls via transferFrom before burning, so the approval is required).
 - SendTokensInput: `{ destinationBlockchainID (bytes32 via blockchainIdOf), destinationTokenTransferrerAddress, recipient, primaryFeeTokenAddress (0x0 local), primaryFee (0), secondaryFee (0), requiredGasLimit (250000), multiHopFallback (0x0) }`.
 - Balances: `demoToken.balanceOf` on the home chain, `remote.balanceOf` on the remote chain. 18 decimals — use parseEther/formatEther.
 

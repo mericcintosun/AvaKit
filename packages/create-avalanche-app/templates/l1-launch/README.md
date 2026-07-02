@@ -4,6 +4,9 @@ Launch **your own Avalanche L1** with one command, then explore it in a built-in
 
 ## Getting started
 
+> Requires a Unix-like shell (macOS, Linux, or **WSL2** on Windows): `pnpm l1` runs bash +
+> avalanche-cli. The pure-Fuji templates work on native Windows; this one needs WSL.
+
 ```bash
 # 1. launch your L1 (needs avalanche-cli; downloads avalanchego on first run)
 pnpm l1
@@ -16,6 +19,14 @@ pnpm dev    # http://localhost:3000
 
 Then: import the printed EWOQ dev key into your wallet (pre-funded on your chain, local-only) →
 **Deploy demo token** → **Mint** → watch the transactions land in the built-in explorer.
+
+## Reset the network
+
+```bash
+avalanche network stop     # pause (keeps state)
+avalanche network clean    # wipe (new blockchain ID — re-run pnpm l1)
+CLEAN=1 pnpm l1            # wipe + rebuild in one step (use if a stale network blocks the deploy)
+```
 
 ## What you get
 
