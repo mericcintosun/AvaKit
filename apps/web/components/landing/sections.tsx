@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
-import { getContent, type Locale } from "@/lib/content";
+import { getContent, type Locale, site } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
 const pad = (n: number) => String(n + 1).padStart(2, "0");
@@ -110,6 +110,17 @@ export function SurfacesSection() {
               );
             })}
           </RevealGroup>
+          <div className="mt-8 flex justify-center">
+            <a
+              href={site.npm}
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 font-mono text-xs transition-colors"
+            >
+              {c.surfacesSection.onNpm}
+              <ArrowRight className="size-3.5" />
+            </a>
+          </div>
         </Container>
       </div>
     </Section>
@@ -128,27 +139,26 @@ export function FeaturesSection() {
           title={c.featuresSection.title}
           lead={c.featuresSection.lead}
         />
-        <Reveal className="mt-10 border-t">
-          <dl>
+        <Reveal className="mt-10">
+          <Accordion type="single" collapsible className="w-full border-t">
             {c.features.map((f, i) => (
-              <div
-                key={f.title}
-                className="hover:bg-muted/30 grid gap-2 border-b px-1 py-6 transition-colors md:grid-cols-12 md:gap-8 md:px-3"
-              >
-                <dt className="flex items-baseline gap-4 md:col-span-5">
-                  <span className="text-muted-foreground/50 font-mono text-sm tabular-nums">
-                    {pad(i)}
+              <AccordionItem key={f.title} value={f.title}>
+                <AccordionTrigger className="gap-4 py-5 hover:no-underline">
+                  <span className="flex items-baseline gap-4 text-left">
+                    <span className="text-muted-foreground/50 font-mono text-sm tabular-nums">
+                      {pad(i)}
+                    </span>
+                    <span className="text-lg font-semibold tracking-tight uppercase sm:text-xl">
+                      {f.title}
+                    </span>
                   </span>
-                  <span className="text-xl font-semibold tracking-tight uppercase sm:text-2xl">
-                    {f.title}
-                  </span>
-                </dt>
-                <dd className="text-muted-foreground pl-7 text-sm leading-relaxed md:col-span-7 md:pl-0">
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground pl-11 text-sm leading-relaxed">
                   {f.body}
-                </dd>
-              </div>
+                </AccordionContent>
+              </AccordionItem>
             ))}
-          </dl>
+          </Accordion>
         </Reveal>
       </Container>
     </Section>
@@ -269,9 +279,15 @@ export function McpSection() {
               title={c.mcp.title}
               lead={c.mcp.lead}
             />
-            <div className="mt-1 flex flex-col gap-2">
+            <div className="mt-1 flex flex-col gap-3">
               <span className="text-muted-foreground text-sm">{c.mcp.add}</span>
               <CodeBlock code={c.mcp.config} />
+              <Button asChild variant="outline" size="sm" className="w-fit">
+                <Link href="/docs/mcp">
+                  {c.mcp.cta}
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
             </div>
           </div>
           <Reveal className="lg:pt-2">

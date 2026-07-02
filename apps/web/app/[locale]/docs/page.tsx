@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { CodeBlock } from "@/components/code-block";
 import { A, C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
+import { site } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "Introduction",
@@ -83,6 +84,22 @@ export default function DocsHome() {
         AvaKit is pre-1.0. The core, React layer, scaffolder, MCP, and Studio are built, published,
         and verified live on Fuji; APIs may still change before 1.0.
       </Note>
+
+      <H2>Go deeper</H2>
+      <P>
+        Curious how AvaKit is actually put together? The full story lives in the repo: the{" "}
+        <A href={`${site.github}/blob/main/docs/00-vision-and-positioning.md`}>vision</A>, the{" "}
+        <A href={`${site.github}/blob/main/docs/01-prd.md`}>PRD</A>, the{" "}
+        <A href={`${site.github}/blob/main/docs/03-architecture.md`}>architecture</A>, the{" "}
+        <A href={`${site.github}/blob/main/docs/04-adr.md`}>decision records</A>, and per-package
+        specs (00–12) — plus a{" "}
+        <A href={`${site.github}/blob/main/docs/12-security-review.md`}>security review</A>.
+      </P>
+      <P>
+        Feel like a builder? <A href={site.github}>Star the repo on GitHub</A>, read the{" "}
+        <A href={site.githubDocs}>deep-dive docs</A>, or grab all five packages{" "}
+        <A href={site.npm}>on npm</A>.
+      </P>
 
       <NextLinks
         items={[

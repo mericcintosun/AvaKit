@@ -20,7 +20,13 @@ export type Locale = "en" | "tr";
 
 // Production origin — invariant, used by robots / sitemap / metadata / JSON-LD.
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://avakit.vercel.app";
-export const site = { name: "AvaKit", url: SITE_URL };
+export const site = {
+  name: "AvaKit",
+  url: SITE_URL,
+  github: "https://github.com/mericcintosun/AvaKit",
+  githubDocs: "https://github.com/mericcintosun/AvaKit/tree/main/docs",
+  npm: "https://www.npmjs.com/search?q=%40avakit",
+};
 
 // Language-invariant command shown across the site.
 const CREATE_COMMAND = "npm create avalanche-app@latest";
@@ -55,14 +61,17 @@ const GOAL_TEMPLATE_IDS = [
   "l1-launch",
   "token-bridge",
 ];
-// AvaKit column is highlighted; cells are invariant (the facts don't change by language).
+// AvaKit column is highlighted; cells are invariant (the facts don't change by
+// language). Columns: AvaKit · thirdweb · Official starter-kit · BuilderKit ·
+// Embedded-wallet SaaS. thirdweb (multichain, AI + MCP too) is included so the
+// table is honest — AvaKit is still the only all-✓ column.
 const COMPARISON_CELLS = [
-  [true, true, true, false],
-  [true, false, false, false],
-  [true, false, false, true],
-  [true, false, false, false],
-  [true, false, false, false],
-  [true, false, false, false],
+  [true, true, true, true, false], // open-source & free (WaaS is hosted, not FOSS)
+  [true, true, false, false, false], // batteries-included scaffolder
+  [true, true, false, false, true], // social-login by default
+  [true, true, false, false, false], // AI-native (agent context + MCP)
+  [true, false, false, false, false], // one core (SDK + widget + CLI + MCP + Studio)
+  [true, false, false, false, false], // own your UI (copy-in shadcn, no lock-in)
 ];
 const MCP_CONFIG = `{
   "mcpServers": {
@@ -86,7 +95,13 @@ type Strings = {
     ctaSecondary: string;
     terminal: string[];
   };
-  surfacesSection: { eyebrow: string; title: string; lead: string; readDocs: string };
+  surfacesSection: {
+    eyebrow: string;
+    title: string;
+    lead: string;
+    readDocs: string;
+    onNpm: string;
+  };
   surfaces: { name: string; tagline: string; points: string[] }[];
   featuresSection: { eyebrow: string; title: string; lead: string };
   features: { title: string; body: string }[];
@@ -121,6 +136,7 @@ type Strings = {
     headTool: string;
     headDoes: string;
     tools: string[];
+    cta: string;
   };
   mcpToolNames: string[];
   faq: { eyebrow: string; title: string; items: { q: string; a: string }[] };
@@ -158,6 +174,7 @@ const EN: Strings = {
     title: "One core, four surfaces",
     lead: "A single framework-agnostic kernel, delivered through the surface that fits how you work.",
     readDocs: "Read docs",
+    onNpm: "All five packages on npm",
   },
   surfaces: [
     {
@@ -240,9 +257,9 @@ const EN: Strings = {
   differentiation: {
     eyebrow: "Why AvaKit",
     title: "The only one that combines it all",
-    lead: "Every piece exists somewhere: a starter kit here, a wallet SDK there. AvaKit is the open-source toolkit that brings them together, AI-native by default.",
-    note: "Official starter-kit = ava-labs/avalanche-starter-kit · BuilderKit = ava-labs/builderkit · Embedded-wallet SaaS = AvaCloud WaaS / hosted providers.",
-    columns: ["AvaKit", "Official starter-kit", "BuilderKit", "Embedded-wallet SaaS"],
+    lead: "Every piece exists somewhere: a starter kit here, a wallet SDK there, an AI tool elsewhere. AvaKit is the open-source toolkit that brings them together — Avalanche-native, with code you own and no vendor lock-in.",
+    note: "thirdweb = multichain SDK/CLI (great, but not Avalanche-specific; prebuilt clientId-gated UI) · Official starter-kit = ava-labs/avalanche-starter-kit · BuilderKit = ava-labs/builderkit · Embedded-wallet SaaS = AvaCloud WaaS / hosted providers.",
+    columns: ["AvaKit", "thirdweb", "Official starter-kit", "BuilderKit", "Embedded-wallet SaaS"],
   },
   comparisonRows: [
     "Open-source & free",
@@ -417,6 +434,7 @@ const EN: Strings = {
       "Deploy compiled bytecode. Fuji by default; mainnet needs confirmation.",
       "AvaKit + Avalanche coding context and doc links.",
     ],
+    cta: "Read the MCP docs",
   },
   mcpToolNames: ["scaffold_app", "list_templates", "read_chain", "deploy_contract", "get_context"],
   faq: {
@@ -452,10 +470,10 @@ const EN: Strings = {
     primary: "Get started",
     secondary: "Browse templates",
   },
-  footer: { tagline: "The open-source, AI-native developer toolkit for Avalanche." },
+  footer: { tagline: "The open-source, AI‑native developer toolkit for Avalanche." },
   cinematic: {
-    line1: "Onboarding, without the friction.",
-    line2: "From idea to first transaction, in minutes.",
+    line1: "Next.js, but for Avalanche.",
+    line2: "One command. A live dapp.",
     introducing: "Introducing",
   },
   feedback: "Feedback",
@@ -492,6 +510,7 @@ const TR: Strings = {
     title: "Tek çekirdek, dört yüzey",
     lead: "Tek, framework-bağımsız bir çekirdek; sana en uygun yüzeyden sunulur.",
     readDocs: "Dokümanları oku",
+    onNpm: "Beş paketin tümü npm'de",
   },
   surfaces: [
     {
@@ -574,9 +593,9 @@ const TR: Strings = {
   differentiation: {
     eyebrow: "Neden AvaKit",
     title: "Hepsini birleştiren tek araç",
-    lead: "Her parça bir yerlerde var: burada bir starter kit, orada bir cüzdan SDK'sı. AvaKit, bunları bir araya getiren, varsayılan olarak AI-native açık kaynak araç setidir.",
-    note: "Resmi starter-kit = ava-labs/avalanche-starter-kit · BuilderKit = ava-labs/builderkit · Gömülü-cüzdan SaaS = AvaCloud WaaS / barındırılan sağlayıcılar.",
-    columns: ["AvaKit", "Resmi starter-kit", "BuilderKit", "Gömülü-cüzdan SaaS"],
+    lead: "Her parça bir yerlerde var: burada bir starter kit, orada bir cüzdan SDK'sı, başka yerde bir AI aracı. AvaKit bunları bir araya getirir — Avalanche'e özgü, kodunu sen sahiplenirsin, sağlayıcı kilidi yok.",
+    note: "thirdweb = çok-zincirli SDK/CLI (harika ama Avalanche'e özgü değil; hazır, clientId'e bağlı UI) · Resmi starter-kit = ava-labs/avalanche-starter-kit · BuilderKit = ava-labs/builderkit · Gömülü-cüzdan SaaS = AvaCloud WaaS / barındırılan sağlayıcılar.",
+    columns: ["AvaKit", "thirdweb", "Resmi starter-kit", "BuilderKit", "Gömülü-cüzdan SaaS"],
   },
   comparisonRows: [
     "Açık kaynak & ücretsiz",
@@ -750,6 +769,7 @@ const TR: Strings = {
       "Derlenmiş bytecode deploy eder. Varsayılan Fuji; mainnet onay ister.",
       "AvaKit + Avalanche kodlama bağlamı ve doküman linkleri.",
     ],
+    cta: "MCP dokümanlarını oku",
   },
   mcpToolNames: ["scaffold_app", "list_templates", "read_chain", "deploy_contract", "get_context"],
   faq: {
@@ -785,10 +805,10 @@ const TR: Strings = {
     primary: "Başla",
     secondary: "Şablonlara göz at",
   },
-  footer: { tagline: "Avalanche için açık kaynak, AI-native geliştirici araç seti." },
+  footer: { tagline: "Avalanche için açık kaynak, AI‑native geliştirici araç seti." },
   cinematic: {
-    line1: "Katılım, sürtünme olmadan.",
-    line2: "Fikirden ilk işleme, dakikalar içinde.",
+    line1: "Next.js, ama Avalanche için.",
+    line2: "Tek komut. Canlı bir dapp.",
     introducing: "Karşınızda",
   },
   feedback: "Geri bildirim",

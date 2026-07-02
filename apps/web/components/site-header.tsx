@@ -16,7 +16,7 @@ export function SiteHeader() {
   const c = getContent(useLocale() as Locale);
   return (
     <header className="sticky top-0 z-40 border-b backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto grid h-14 max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 sm:px-8">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
         <Link href="/" className="flex items-center gap-2 justify-self-start">
           <Image
             src="/logo.png"
@@ -42,17 +42,23 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={openCommandMenu}
-            className="text-muted-foreground hover:bg-accent hidden h-9 items-center gap-2 rounded-md border pr-2 pl-3 text-sm transition-colors sm:flex"
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            aria-label="AvaKit on GitHub"
+            className="hidden sm:inline-flex"
           >
-            <Search className="size-3.5" />
-            <span>{c.header.search}</span>
-            <kbd className="bg-muted ml-2 hidden rounded border px-1.5 py-0.5 font-mono text-[10px] lg:inline-block">
-              ⌘K
-            </kbd>
-          </button>
+            <a href={site.github} target="_blank" rel="noreferrer">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="size-4" aria-hidden="true">
+                <path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-1.8c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17 4.8 18 5.1 18 5.1c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.3.8 1 .8 2.1v3.1c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5Z" />
+              </svg>
+              <span className="sr-only">GitHub</span>
+            </a>
+          </Button>
+          <LanguageSwitcher />
+          <ThemeToggle />
+
           <Button
             type="button"
             variant="ghost"
@@ -62,13 +68,6 @@ export function SiteHeader() {
             onClick={openCommandMenu}
           >
             <Search className="size-4" />
-          </Button>
-
-          <LanguageSwitcher />
-          <ThemeToggle />
-
-          <Button asChild size="sm" className="hidden sm:inline-flex">
-            <Link href="/docs">{c.header.getStarted}</Link>
           </Button>
 
           <Sheet>
@@ -98,6 +97,18 @@ export function SiteHeader() {
               </nav>
             </SheetContent>
           </Sheet>
+
+          <button
+            type="button"
+            onClick={openCommandMenu}
+            className="text-muted-foreground hover:bg-accent hidden h-9 items-center gap-2 rounded-md border pr-2 pl-3 text-sm transition-colors sm:flex"
+          >
+            <Search className="size-3.5" />
+            <span>{c.header.search}</span>
+            <kbd className="bg-muted ml-2 hidden rounded border px-1.5 py-0.5 font-mono text-[10px] lg:inline-block">
+              ⌘K
+            </kbd>
+          </button>
         </div>
       </div>
     </header>

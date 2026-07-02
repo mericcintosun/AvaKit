@@ -52,15 +52,17 @@ export default async function TemplatesPage({ params }: { params: Promise<{ loca
           <Reveal key={t.id}>
             <div className="overflow-hidden rounded-xl border">
               <div className="grid md:grid-cols-[minmax(0,280px)_1fr] md:divide-x">
-                <div className="bg-muted/20 relative aspect-square">
-                  <Image
-                    src={t.art}
-                    alt={`${t.title} illustration`}
-                    fill
-                    sizes="(min-width: 768px) 280px, 100vw"
-                    quality={95}
-                    className={artClass}
-                  />
+                <div className="relative bg-white dark:bg-[#101010]">
+                  <div className="relative aspect-square w-full">
+                    <Image
+                      src={t.art}
+                      alt={`${t.title} illustration`}
+                      fill
+                      sizes="(min-width: 768px) 280px, 100vw"
+                      quality={95}
+                      className={artClass}
+                    />
+                  </div>
                 </div>
                 <div className="flex min-w-0 flex-col gap-5 p-6">
                   <div className="flex flex-wrap items-center gap-2">

@@ -1,6 +1,15 @@
 "use client";
 
-import { Bot, Boxes, FileText, House, LayoutTemplate, Terminal, Wallet } from "lucide-react";
+import {
+  Bot,
+  Boxes,
+  FileText,
+  House,
+  LayoutDashboard,
+  LayoutTemplate,
+  Terminal,
+  Wallet,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -30,6 +39,7 @@ const groups = [
       { label: "@avakit/react", href: "/docs/react", icon: Wallet },
       { label: "create-avalanche-app", href: "/docs/cli", icon: Terminal },
       { label: "@avakit/mcp", href: "/docs/mcp", icon: Bot },
+      { label: "@avakit/studio", href: "/docs/studio", icon: LayoutDashboard },
     ],
   },
 ];

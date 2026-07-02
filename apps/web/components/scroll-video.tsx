@@ -122,7 +122,9 @@ export function ScrollVideo({
       style={{ height: `${heightVh}vh` }}
       className={cn("relative", desktopOnly && "hidden md:block", className)}
     >
-      <div className="sticky top-0 h-screen w-full overflow-hidden bg-black">
+      {/* Pin below the 56px (h-14) sticky header so the first scroll doesn't
+          shift the video up by the header's height. */}
+      <div className="sticky top-14 h-[calc(100dvh-3.5rem)] w-full overflow-hidden bg-black">
         <video
           ref={videoRef}
           src={!desktopOnly || isDesktop ? src : undefined}
@@ -130,6 +132,12 @@ export function ScrollVideo({
           muted
           playsInline
           preload="auto"
+          // Nudge to the first frame on load so the poster doesn't visibly swap
+          // to a different frame on the first scroll.
+          onLoadedData={() => {
+            const v = videoRef.current;
+            if (v && v.currentTime === 0) v.currentTime = 0.01;
+          }}
           className={videoClassName}
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-black/25 to-black/60" />

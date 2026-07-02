@@ -19,6 +19,8 @@ const columns = [
       { label: "@avakit/core", href: "/docs/core" },
       { label: "@avakit/react", href: "/docs/react" },
       { label: "create-avalanche-app", href: "/docs/cli" },
+      { label: "@avakit/mcp", href: "/docs/mcp" },
+      { label: "@avakit/studio", href: "/docs/studio" },
     ],
   },
   {
@@ -85,9 +87,27 @@ export async function SiteFooter() {
         ))}
       </div>
       <div className="border-t">
-        <div className="text-muted-foreground mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs sm:flex-row sm:px-6">
+        <div className="text-muted-foreground mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs sm:flex-row sm:px-6">
           <span>MIT © {site.name} contributors</span>
-          <span className="font-mono">Open-source · AI-native · Avalanche</span>
+          <div className="flex items-center gap-4">
+            <a
+              href={site.github}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
+              GitHub
+            </a>
+            <a
+              href={site.npm}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
+              npm
+            </a>
+            <span className="font-mono">Open-source · AI-native · Avalanche</span>
+          </div>
         </div>
       </div>
     </footer>
