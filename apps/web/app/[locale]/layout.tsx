@@ -20,7 +20,7 @@ const DESCRIPTION =
 const OG_IMAGE = {
   url: "/og-image.png",
   width: 1376,
-  height: 768,
+  height: 610,
   alt: "AvaKit — Build. Deploy. Perfect.",
 };
 
