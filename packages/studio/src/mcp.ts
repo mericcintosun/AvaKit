@@ -12,6 +12,7 @@ import { getAddressData } from "./dataapi.js";
 import { getDevnetStatus, isValidL1Params, runDevnetActionAsync } from "./devnet.js";
 import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
+import { VERSION } from "./version.js";
 
 function toJson(value: unknown): string {
   return JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v), 2);
@@ -22,7 +23,7 @@ function text(body: string, isError = false) {
 }
 
 export async function runMcp(): Promise<void> {
-  const server = new McpServer({ name: "avakit-studio", version: "0.1.0" });
+  const server = new McpServer({ name: "avakit-studio", version: VERSION });
 
   server.registerTool(
     "avalanche_env",

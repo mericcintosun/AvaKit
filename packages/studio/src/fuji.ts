@@ -31,6 +31,9 @@ const ANSI = /\x1b\[[0-9;]*[a-zA-Z]/g;
 
 /** The key's C-Chain (0x) address, derived from avalanche-cli's stored key. */
 function keyAddress(name: string): `0x${string}` | null {
+  // Never let a request-derived name reach a filesystem path unvalidated
+  // (defence-in-depth: /api/fuji/balance passes `name` straight here).
+  if (!isValidL1Name(name)) return null;
   const file = path.join(KEY_DIR, `${name}.pk`);
   if (!existsSync(file)) return null;
   try {

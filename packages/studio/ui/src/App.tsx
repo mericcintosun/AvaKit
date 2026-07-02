@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type DevnetStatus, type Inventory } from "./api";
 import { Sidebar, type View } from "./components/Sidebar";
 import { Button } from "./components/ui/button";
-import { DataView } from "./views/DataView";
+import { DataPanel } from "./views/DataView";
 import { DevnetView } from "./views/DevnetView";
 import { EnvironmentView } from "./views/EnvironmentView";
 import { FujiView } from "./views/FujiView";
@@ -125,7 +125,7 @@ export function App() {
           ) : view === "interchain" ? (
             <InterchainView />
           ) : view === "data" ? (
-            <DataView />
+            <DataPanel />
           ) : (
             <EnvironmentView env={env} />
           )}

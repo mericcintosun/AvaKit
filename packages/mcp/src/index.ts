@@ -13,7 +13,7 @@
  * explicit confirmation.
  */
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
   type AvaChain,
@@ -44,7 +44,16 @@ function text(body: string, isError = false) {
   return { content: [{ type: "text" as const, text: body }], isError };
 }
 
-const server = new McpServer({ name: "avakit-mcp", version: "0.1.0" });
+// Read the version from package.json at runtime (single source of truth — it
+// can never drift from the published version). dist/index.js ships next to
+// package.json, so `../package.json` resolves in the published tarball.
+const VERSION = (
+  JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+    version: string;
+  }
+).version;
+
+const server = new McpServer({ name: "avakit-mcp", version: VERSION });
 
 server.registerTool(
   "list_templates",

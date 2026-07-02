@@ -42,7 +42,7 @@ function Section({
   );
 }
 
-export function DataView() {
+export function DataPanel() {
   const toast = useToast();
   const [address, setAddress] = useState("");
   const [chainId, setChainId] = useState<number>(43113);

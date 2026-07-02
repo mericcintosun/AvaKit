@@ -1,6 +1,6 @@
 "use client";
 
-import { type WalletAdapter, injectedAdapter } from "@avakit/core";
+import { injectedAdapter, type WalletAdapter } from "@avakit/core";
 import { fuji } from "@avakit/core/chains";
 import { web3authAdapter } from "@avakit/core/web3auth";
 import { AvaKitProvider } from "@avakit/react";

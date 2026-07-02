@@ -10,6 +10,10 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 
+# Foundry (smart-contract build artifacts — only src/ + foundry.toml are tracked)
+cache/
+broadcast/
+
 # Turbo
 .turbo/
 
@@ -32,6 +36,9 @@ pnpm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 *.swp
+
+# Local AI-assistant settings (personal, not shared)
+.claude/settings.local.json
 
 # Misc
 .cache/

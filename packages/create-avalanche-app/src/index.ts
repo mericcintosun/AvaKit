@@ -1,11 +1,17 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { type ChainId, listTemplates, scaffoldApp, type WalletId } from "./api.js";
 
-const VERSION = "0.1.7";
+// The CLI's own version — read from package.json at runtime (single source of
+// truth, can never drift). dist/index.js ships next to package.json.
+const VERSION = (
+  JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+    version: string;
+  }
+).version;
 
 // The @avakit/* dependency version stamped into scaffolded apps' package.json
 // (as `^AVAKIT_DEP_VERSION`). Kept separate from the CLI's own VERSION: it must
