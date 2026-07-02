@@ -30,6 +30,18 @@ EWOQ_ADDR="0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
 say() { printf "\033[1;37m▸\033[0m %s\n" "$1"; }
 die() { printf "\033[1;31m✖\033[0m %s\n" "$1" >&2; exit 1; }
 
+# Deploy the L1 to the local network with an actionable error on stale state.
+deploy_local() {
+  local name="$1"
+  avalanche blockchain deploy "$name" --local </dev/null && return 0
+  die "Deploy of '$name' failed.
+     If it says a blockchain is already deployed, a previous local network is still
+     around. Reset it and re-run:
+       avalanche network clean && pnpm l1
+     Or wipe automatically on the next run:
+       CLEAN=1 pnpm l1"
+}
+
 # --- 0. avalanche-cli present? ---------------------------------------------
 if ! command -v avalanche >/dev/null 2>&1; then
   cat >&2 <<'EOF'
@@ -42,6 +54,14 @@ if ! command -v avalanche >/dev/null 2>&1; then
 Then re-run: pnpm l1
 EOF
   exit 1
+fi
+
+# --- 0b. Opt-in clean slate -------------------------------------------------
+# `CLEAN=1 pnpm l1` wipes any existing local network first. Off by default so it
+# never silently destroys unrelated local L1s (e.g. an icm-messenger devnet).
+if [ "${CLEAN:-}" = "1" ]; then
+  say "CLEAN=1 → wiping any existing local network…"
+  avalanche network clean >/dev/null 2>&1 || true
 fi
 
 # --- 1. Create the L1 -------------------------------------------------------
@@ -62,7 +82,7 @@ avalanche blockchain create "$NAME" \
 
 # --- 2. Deploy it to a local network ----------------------------------------
 say "Deploying '$NAME' locally (first run boots the local network)…"
-avalanche blockchain deploy "$NAME" --local </dev/null || die "Deploy of '$NAME' failed."
+deploy_local "$NAME"
 
 # --- 3. Discover RPC URL + hex blockchain ID --------------------------------
 # `describe` prints both. We grep by shape (robust across CLI versions).
@@ -102,6 +122,7 @@ Next:
 Manage the network:
   avalanche network stop     # pause (keeps state)
   avalanche network clean    # wipe (new blockchain ID — re-run pnpm l1)
+  CLEAN=1 pnpm l1            # wipe + rebuild in one step
 
 Graduate to the Fuji testnet (advanced, needs test AVAX + an always-on node):
   pnpm l1:fuji

@@ -123,6 +123,8 @@ After changing `contracts/src/AvaKitToken.sol`: `cd contracts && forge build`, t
 ## Commands
 
 - `pnpm l1` — launch your local L1 (writes `l1.config.json`)
+- `CLEAN=1 pnpm l1` — wipe any existing local network first, then rebuild (use after a reboot or when
+  a stale network blocks the deploy)
 - `pnpm dev` — dev server (http://localhost:3000)
 - `pnpm l1:fuji` — deploy the L1 to Fuji (advanced)
 - `avalanche network stop | clean` — pause | wipe the local network

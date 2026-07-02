@@ -4,7 +4,7 @@
  * replacement in one place.
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scaffold } from "./scaffold.js";
@@ -23,6 +23,8 @@ export interface TemplateInfo {
   title: string;
   description: string;
   contracts: boolean;
+  /** One-time setup command to run before `dev` (e.g. `pnpm devnet`), if any. */
+  setup?: string;
 }
 
 export function listTemplates(): TemplateInfo[] {
@@ -38,6 +40,7 @@ export function listTemplates(): TemplateInfo[] {
         title: manifest.title ?? e.name,
         description: manifest.description ?? "",
         contracts: manifest.contracts ?? false,
+        ...(manifest.setup ? { setup: manifest.setup } : {}),
       };
     });
 }
@@ -79,7 +82,7 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
     __AVAKIT_DEP__: opts.local ? "workspace:*" : `^${opts.avakitVersion ?? "0.1.0"}`,
   };
 
-  const files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
+  let files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
 
   // The social-login wallet needs @web3auth/modal (an optional peer of
   // @avakit/core). Add it to the app so `web3authAdapter` can load at runtime.
@@ -89,6 +92,16 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
       "@web3auth/modal",
       WEB3AUTH_MODAL_VERSION,
     );
+  }
+
+  // The only env var in `.env.example` is the Web3Auth client id, which the
+  // injected-wallet path never reads — drop the file so it isn't dead noise.
+  if (opts.wallet === "injected") {
+    const envExample = path.join(opts.targetDir, ".env.example");
+    if (existsSync(envExample)) {
+      rmSync(envExample);
+      files = files.filter((f) => f !== ".env.example");
+    }
   }
 
   return { targetDir: opts.targetDir, files };

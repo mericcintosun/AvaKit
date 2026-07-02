@@ -10,8 +10,10 @@
 
 set -uo pipefail
 
-CHAIN1="chain1"
-CHAIN2="chain2"
+# Blockchain names + EVM chain ids are unique to this template so it can coexist
+# with the token-bridge devnet (br1/br2 · 2001/2002) on one machine.
+CHAIN1="icm1"
+CHAIN2="icm2"
 EVM_CHAIN_ID_1=1001
 EVM_CHAIN_ID_2=1002
 TOKEN_1="TOK1"
@@ -21,6 +23,18 @@ CONFIG="$ROOT/icm.config.json"
 
 say() { printf "\033[1;37m▸\033[0m %s\n" "$1"; }
 die() { printf "\033[1;31m✖\033[0m %s\n" "$1" >&2; exit 1; }
+
+# Deploy an L1 to the local network with an actionable error on stale state.
+deploy_local() {
+  local name="$1"
+  avalanche blockchain deploy "$name" --local </dev/null && return 0
+  die "Deploy of '$name' failed.
+     If it says a blockchain is already deployed, a previous local network is still
+     around. Reset it and re-run:
+       avalanche network clean && pnpm devnet
+     Or wipe automatically on the next run:
+       CLEAN=1 pnpm devnet"
+}
 
 # --- 0. avalanche-cli present? ---------------------------------------------
 if ! command -v avalanche >/dev/null 2>&1; then
@@ -34,6 +48,14 @@ if ! command -v avalanche >/dev/null 2>&1; then
 Then re-run: pnpm devnet
 EOF
   exit 1
+fi
+
+# --- 0b. Opt-in clean slate -------------------------------------------------
+# `CLEAN=1 pnpm devnet` wipes any existing local network first. Off by default
+# so it never silently destroys unrelated local L1s (e.g. an l1-launch chain).
+if [ "${CLEAN:-}" = "1" ]; then
+  say "CLEAN=1 → wiping any existing local network…"
+  avalanche network clean >/dev/null 2>&1 || true
 fi
 
 # --- 1. Create the two L1s (ICM + relayer are on by default) ----------------
@@ -56,9 +78,9 @@ create_l1 "$CHAIN2" "$EVM_CHAIN_ID_2" "$TOKEN_2"
 # The first deploy boots the local network (C-Chain included) and auto-deploys
 # the TeleporterMessenger + configures the relayer for every chain pair.
 say "Deploying '$CHAIN1' locally (this also starts the local network)…"
-avalanche blockchain deploy "$CHAIN1" --local </dev/null || die "Deploy of '$CHAIN1' failed."
+deploy_local "$CHAIN1"
 say "Deploying '$CHAIN2' locally…"
-avalanche blockchain deploy "$CHAIN2" --local </dev/null || die "Deploy of '$CHAIN2' failed."
+deploy_local "$CHAIN2"
 
 # --- 3. Discover RPC URL + hex blockchain ID for each chain -----------------
 # `describe` prints the RPC URL and the blockchain ID in hex. We grep by shape
@@ -103,4 +125,5 @@ Next:
 Stop / reset the devnet:
   avalanche network stop     # pause (keeps state)
   avalanche network clean    # wipe (new blockchain IDs — re-run pnpm devnet)
+  CLEAN=1 pnpm devnet        # wipe + rebuild in one step
 EOF

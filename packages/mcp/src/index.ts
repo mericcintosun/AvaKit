@@ -60,7 +60,7 @@ server.registerTool(
   {
     title: "List templates",
     description: "List the Avalanche dapp templates available to scaffold_app.",
-    inputSchema: {},
+    inputSchema: z.object({}).strict(),
   },
   async () => text(toJson(listTemplates())),
 );
@@ -71,25 +71,27 @@ server.registerTool(
     title: "Scaffold an Avalanche dapp",
     description:
       "Create a new Avalanche dapp from a template (minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge). Wraps create-avalanche-app. Returns the created files and next steps.",
-    inputSchema: {
-      name: z.string().describe("Project directory name, e.g. my-avax-app"),
-      template: z
-        .enum([
-          "minimal",
-          "nft-mint",
-          "token-gated-app",
-          "erc20-token",
-          "icm-messenger",
-          "eerc-token",
-          "l1-launch",
-          "token-bridge",
-        ])
-        .default("minimal"),
-      chain: z.enum(["fuji", "c-chain"]).default("fuji"),
-      wallet: z.enum(["web3auth", "injected"]).default("web3auth"),
-      directory: z.string().optional().describe("Parent directory (default: cwd)"),
-      local: z.boolean().optional().describe("Link @avakit/* via workspace (repo dev only)"),
-    },
+    inputSchema: z
+      .object({
+        name: z.string().describe("Project directory name, e.g. my-avax-app"),
+        template: z
+          .enum([
+            "minimal",
+            "nft-mint",
+            "token-gated-app",
+            "erc20-token",
+            "icm-messenger",
+            "eerc-token",
+            "l1-launch",
+            "token-bridge",
+          ])
+          .default("minimal"),
+        chain: z.enum(["fuji", "c-chain"]).default("fuji"),
+        wallet: z.enum(["web3auth", "injected"]).default("web3auth"),
+        directory: z.string().optional().describe("Parent directory (default: cwd)"),
+        local: z.boolean().optional().describe("Link @avakit/* via workspace (repo dev only)"),
+      })
+      .strict(),
   },
   async ({ name, template, chain, wallet, directory, local }) => {
     const parent = directory ? path.resolve(directory) : process.cwd();
@@ -105,10 +107,12 @@ server.registerTool(
       wallet,
       local,
     });
+    const setup = listTemplates().find((t) => t.id === template)?.setup;
     const nextSteps = [
       `cd ${name}`,
       "pnpm install",
       ...(wallet === "web3auth" ? ["cp .env.example .env.local  # add Web3Auth client ID"] : []),
+      ...(setup ? [`pnpm run ${setup}  # start the local Avalanche network (run once)`] : []),
       "pnpm dev",
     ];
     return text(toJson({ path: targetDir, filesCreated: files.length, files, nextSteps }));
@@ -121,15 +125,17 @@ server.registerTool(
     title: "Read Avalanche chain data",
     description:
       "Read a native AVAX balance, a transaction receipt, or a contract view/pure function over RPC.",
-    inputSchema: {
-      action: z.enum(["balance", "txReceipt", "contractRead"]),
-      chain: z.enum(["fuji", "c-chain"]).default("fuji"),
-      address: z.string().optional().describe("Address for balance / contractRead"),
-      hash: z.string().optional().describe("Tx hash for txReceipt"),
-      abi: z.array(z.any()).optional().describe("Contract ABI for contractRead"),
-      functionName: z.string().optional().describe("View function for contractRead"),
-      args: z.array(z.any()).optional(),
-    },
+    inputSchema: z
+      .object({
+        action: z.enum(["balance", "txReceipt", "contractRead"]),
+        chain: z.enum(["fuji", "c-chain"]).default("fuji"),
+        address: z.string().optional().describe("Address for balance / contractRead"),
+        hash: z.string().optional().describe("Tx hash for txReceipt"),
+        abi: z.array(z.any()).optional().describe("Contract ABI for contractRead"),
+        functionName: z.string().optional().describe("View function for contractRead"),
+        args: z.array(z.any()).optional(),
+      })
+      .strict(),
   },
   async ({ action, chain, address, hash, abi, functionName, args }) => {
     const c = chainFrom(chain);
@@ -165,13 +171,15 @@ server.registerTool(
     title: "Deploy a contract",
     description:
       "Deploy compiled bytecode to Avalanche using a deployer key from the AVAKIT_DEPLOYER_KEY env var. Fuji testnet by default; mainnet (c-chain) requires confirm:true.",
-    inputSchema: {
-      abi: z.array(z.any()),
-      bytecode: z.string().describe("Creation bytecode (0x-prefixed)"),
-      args: z.array(z.any()).optional(),
-      chain: z.enum(["fuji", "c-chain"]).default("fuji"),
-      confirm: z.boolean().optional().describe("Required to deploy to mainnet"),
-    },
+    inputSchema: z
+      .object({
+        abi: z.array(z.any()),
+        bytecode: z.string().describe("Creation bytecode (0x-prefixed)"),
+        args: z.array(z.any()).optional(),
+        chain: z.enum(["fuji", "c-chain"]).default("fuji"),
+        confirm: z.boolean().optional().describe("Required to deploy to mainnet"),
+      })
+      .strict(),
   },
   async ({ abi, bytecode, args, chain, confirm }) => {
     const c = chainFrom(chain);
@@ -249,7 +257,9 @@ server.registerTool(
     title: "Get AvaKit context",
     description:
       "Return AvaKit + Avalanche context for coding: the API surface, conventions, and doc links.",
-    inputSchema: { topic: z.string().optional().describe("Optional focus topic") },
+    inputSchema: z
+      .object({ topic: z.string().optional().describe("Optional focus topic") })
+      .strict(),
   },
   async ({ topic }) =>
     text(topic ? `${AVAKIT_CONTEXT}\n\n(Requested focus: ${topic})` : AVAKIT_CONTEXT),

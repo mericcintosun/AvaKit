@@ -119,12 +119,14 @@ function Bridge({ addrs }: { addrs: NonNullable<typeof bridge.bridge> }) {
       const wallet = getWalletClient(source, provider!);
       const pub = getPublicClient(source);
 
-      // Home locks the underlying ERC-20, so bridging OUT of home needs an
-      // approval first. The remote token is burned on send back — no approval.
-      if (toRemote) {
-        const approveHash = await wallet.writeContract({ address: addrs.demoToken, abi: erc20Abi, functionName: "approve", args: [addrs.home, value], account: address as Address } as never);
-        await pub.waitForTransactionReceipt({ hash: approveHash });
-      }
+      // Both legs pull tokens via transferFrom, so both need an approval first.
+      // home → remote: approve the home transferrer on the underlying ERC-20.
+      // remote → home: approve the remote transferrer on the remote token itself
+      // (ERC20TokenRemote is an ERC-20; send() calls transferFrom before burning).
+      const approveToken = toRemote ? addrs.demoToken : addrs.remote;
+      const approveAbi = toRemote ? erc20Abi : remoteAbi;
+      const approveHash = await wallet.writeContract({ address: approveToken, abi: approveAbi, functionName: "approve", args: [transferrer, value], account: address as Address } as never);
+      await pub.waitForTransactionReceipt({ hash: approveHash });
 
       const input = {
         destinationBlockchainID: blockchainIdOf(destination),

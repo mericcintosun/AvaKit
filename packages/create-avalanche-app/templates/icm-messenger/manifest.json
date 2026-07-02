@@ -2,5 +2,6 @@
   "id": "icm-messenger",
   "title": "ICM cross-chain messenger",
   "description": "Send a message between two Avalanche L1s with Interchain Messaging (local devnet)",
-  "contracts": true
+  "contracts": true,
+  "setup": "devnet"
 }

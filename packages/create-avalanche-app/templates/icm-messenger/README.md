@@ -50,6 +50,7 @@ cd contracts && forge build
 ```bash
 avalanche network stop     # pause (keeps state)
 avalanche network clean    # wipe (new blockchain IDs — re-run pnpm devnet)
+CLEAN=1 pnpm devnet        # wipe + rebuild in one step (use if a stale network blocks the deploy)
 ```
 
 ## Stack

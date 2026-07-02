@@ -38,8 +38,10 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 1. `home → remote`: `approve(home, amount)` on the demo token, then `home.send(SendTokensInput, amount)`.
    The home locks the token; the relayer delivers; the remote mints `TOK1.b` to you on chain2.
-2. `remote → home`: `remote.send(SendTokensInput, amount)` (no approval — the remote burns its own
-   ERC-20); the relayer delivers; the home unlocks your original token on chain1.
+2. `remote → home`: `approve(remote, amount)` on the remote token itself, then
+   `remote.send(SendTokensInput, amount)` — `ERC20TokenRemote` is an ERC-20 and `send` pulls the
+   tokens via `transferFrom` before burning, so the approval is required. The relayer delivers; the
+   home unlocks your original token on chain1.
 
 `SendTokensInput` = `{ destinationBlockchainID (bytes32), destinationTokenTransferrerAddress,
 recipient, primaryFeeTokenAddress, primaryFee, secondaryFee, requiredGasLimit, multiHopFallback }`.
@@ -67,6 +69,9 @@ build to compile under the size limit — this template ships pre-compiled bytec
 
 ## Commands
 
-- `pnpm bridge` — spin up the 2-L1 devnet + deploy the ICTT bridge (writes `bridge.config.json`)
+- `pnpm bridge` — spin up the 2-L1 devnet + deploy the ICTT bridge (writes `bridge.config.json`).
+  Chains are named `br1`/`br2` (chainIds 2001/2002) so this can run alongside the icm-messenger devnet.
+- `CLEAN=1 pnpm bridge` — wipe any existing local network first, then rebuild (use after a reboot or
+  when a stale network blocks the deploy)
 - `pnpm dev` — dev server (http://localhost:3000)
 - `avalanche network stop | clean` — pause | wipe the local devnet

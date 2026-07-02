@@ -10,6 +10,7 @@
  */
 
 import type { Address } from "viem";
+import type { AvaChain } from "./chains.js";
 import { AvaKitError } from "./errors.js";
 
 /** Public Glacier Data API base URL (keyless, rate-limited). */
@@ -132,38 +133,50 @@ async function dataFetch<T>(path: string, opts: DataApiOptions): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Native AVAX balance for an address on the given EVM chain id (43113 = Fuji, 43114 = C-Chain). */
+/**
+ * A chain reference for the Data API: either a raw EVM chain id (43113 = Fuji,
+ * 43114 = C-Chain) or an `AvaChain` (its `.id` is used). Accepting both keeps
+ * these helpers consistent with the RPC helpers in `data.ts`, which take an
+ * `AvaChain` — passing a chain object here used to 404.
+ */
+export type ChainRef = number | AvaChain;
+
+function chainIdOf(chain: ChainRef): number {
+  return typeof chain === "number" ? chain : chain.id;
+}
+
+/** Native AVAX balance for an address on the given chain (id or AvaChain). */
 export function getNativeBalance(
   address: Address,
-  chainId: number,
+  chain: ChainRef,
   opts: DataApiOptions = {},
 ): Promise<NativeBalanceResponse> {
-  return dataFetch(`/chains/${chainId}/addresses/${address}/balances:getNative`, opts);
+  return dataFetch(`/chains/${chainIdOf(chain)}/addresses/${address}/balances:getNative`, opts);
 }
 
 /** ERC-20 token balances (plus the native balance) held by an address. */
 export function listErc20Balances(
   address: Address,
-  chainId: number,
+  chain: ChainRef,
   opts: DataApiOptions = {},
 ): Promise<Erc20BalancesResponse> {
-  return dataFetch(`/chains/${chainId}/addresses/${address}/balances:listErc20`, opts);
+  return dataFetch(`/chains/${chainIdOf(chain)}/addresses/${address}/balances:listErc20`, opts);
 }
 
 /** ERC-721 (NFT) holdings of an address. */
 export function listNfts(
   address: Address,
-  chainId: number,
+  chain: ChainRef,
   opts: DataApiOptions = {},
 ): Promise<Erc721BalancesResponse> {
-  return dataFetch(`/chains/${chainId}/addresses/${address}/balances:listErc721`, opts);
+  return dataFetch(`/chains/${chainIdOf(chain)}/addresses/${address}/balances:listErc721`, opts);
 }
 
 /** Recent transactions for an address, newest first. */
 export function listTransactions(
   address: Address,
-  chainId: number,
+  chain: ChainRef,
   opts: DataApiOptions = {},
 ): Promise<TransactionsResponse> {
-  return dataFetch(`/chains/${chainId}/addresses/${address}/transactions`, opts);
+  return dataFetch(`/chains/${chainIdOf(chain)}/addresses/${address}/transactions`, opts);
 }

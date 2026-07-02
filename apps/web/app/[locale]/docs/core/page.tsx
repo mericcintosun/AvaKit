@@ -83,6 +83,20 @@ const { address, txHash, explorerUrl } = await deployContract({
 });`}
       />
 
+      <H2>Chain data (Data API)</H2>
+      <P>
+        Indexed, read-only balances, NFT holdings, and transaction history from the AvaCloud Data
+        API — no indexer to run. Each helper takes the address and the chain, which can be an{" "}
+        <C>AvaChain</C> (like <C>fuji</C>) or a raw EVM chain id (<C>43113</C> Fuji, <C>43114</C>{" "}
+        C-Chain).
+      </P>
+      <CodeBlock
+        code={`import { getNativeBalance, listNfts, fuji } from "@avakit/core";
+
+const native = await getNativeBalance("0x…", fuji);   // or: getNativeBalance("0x…", 43113)
+const nfts = await listNfts("0x…", fuji);`}
+      />
+
       <H2>API surface</H2>
       <UL>
         <li>

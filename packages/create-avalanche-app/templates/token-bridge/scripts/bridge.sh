@@ -12,13 +12,27 @@
 
 set -uo pipefail
 
-CHAIN1="chain1"; EVM1=1001; TOK1="TOK1"
-CHAIN2="chain2"; EVM2=1002; TOK2="TOK2"
+# Blockchain names + EVM chain ids are unique to this template so it can coexist
+# with the icm-messenger devnet (icm1/icm2 · 1001/1002) on one machine.
+CHAIN1="br1"; EVM1=2001; TOK1="TOK1"
+CHAIN2="br2"; EVM2=2002; TOK2="TOK2"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="$ROOT/bridge.config.json"
 
 say() { printf "\033[1;37m▸\033[0m %s\n" "$1"; }
 die() { printf "\033[1;31m✖\033[0m %s\n" "$1" >&2; exit 1; }
+
+# Deploy an L1 to the local network with an actionable error on stale state.
+deploy_local() {
+  local name="$1"
+  avalanche blockchain deploy "$name" --local </dev/null && return 0
+  die "Deploy of '$name' failed.
+     If it says a blockchain is already deployed, a previous local network is still
+     around. Reset it and re-run:
+       avalanche network clean && pnpm bridge
+     Or wipe automatically on the next run:
+       CLEAN=1 pnpm bridge"
+}
 
 if ! command -v avalanche >/dev/null 2>&1; then
   cat >&2 <<'EOF'
@@ -29,6 +43,14 @@ if ! command -v avalanche >/dev/null 2>&1; then
 Then re-run: pnpm bridge
 EOF
   exit 1
+fi
+
+# --- 0b. Opt-in clean slate -------------------------------------------------
+# `CLEAN=1 pnpm bridge` wipes any existing local network first. Off by default
+# so it never silently destroys unrelated local L1s (e.g. an icm-messenger devnet).
+if [ "${CLEAN:-}" = "1" ]; then
+  say "CLEAN=1 → wiping any existing local network…"
+  avalanche network clean >/dev/null 2>&1 || true
 fi
 
 # --- 1. Create + deploy the two L1s (ICM + relayer on by default) -----------
@@ -44,9 +66,9 @@ create_l1 "$CHAIN1" "$EVM1" "$TOK1"
 create_l1 "$CHAIN2" "$EVM2" "$TOK2"
 
 say "Deploying '$CHAIN1' locally (this also starts the local network)…"
-avalanche blockchain deploy "$CHAIN1" --local </dev/null || die "Deploy of '$CHAIN1' failed."
+deploy_local "$CHAIN1"
 say "Deploying '$CHAIN2' locally…"
-avalanche blockchain deploy "$CHAIN2" --local </dev/null || die "Deploy of '$CHAIN2' failed."
+deploy_local "$CHAIN2"
 
 # --- 2. Discover each chain's RPC URL + hex blockchain ID -------------------
 discover() {
@@ -92,4 +114,5 @@ Next:
 Reset:
   avalanche network stop     # pause (keeps state)
   avalanche network clean    # wipe (re-run pnpm bridge)
+  CLEAN=1 pnpm bridge        # wipe + rebuild in one step
 EOF

@@ -235,11 +235,15 @@ async function main(): Promise<void> {
     }
   }
 
+  const setup = listTemplates().find((t) => t.id === resolved.template)?.setup;
   const next = [
     `cd ${resolved.projectName}`,
     ...(opts.install ? [] : [`${resolved.pm} install`]),
     ...(resolved.wallet === "web3auth"
       ? ["cp .env.example .env.local   # add your Web3Auth client ID"]
+      : []),
+    ...(setup
+      ? [`${resolved.pm} run ${setup}   # start the local Avalanche network (run once)`]
       : []),
     `${resolved.pm} run dev`,
   ];
