@@ -9,5 +9,4 @@ allowBuilds:
   protobufjs: true
   tiny-secp256k1: true
 minimumReleaseAgeExclude:
-  - '@avakit/core'
-  - '@avakit/react'
+  - '@avakit/*'

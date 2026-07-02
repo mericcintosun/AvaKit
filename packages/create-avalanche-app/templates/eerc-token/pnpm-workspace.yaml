@@ -14,5 +14,4 @@ allowBuilds:
   bufferutil: true
   utf-8-validate: true
 minimumReleaseAgeExclude:
-  - '@avakit/core'
-  - '@avakit/react'
+  - '@avakit/*'
