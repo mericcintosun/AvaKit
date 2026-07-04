@@ -1,5 +1,16 @@
 # @avakit/studio
 
+## 0.1.10
+
+### Patch Changes
+
+- 7d493d9: Add an AvaKit brand banner to every terminal session — an ASCII mountain (snow
+  cap) above a block-letter AVAKIT wordmark in an Ember Crimson gradient. Printed on
+  startup by `create-avalanche-app`, `@avakit/mcp`, and `@avakit/studio`. It's raw
+  ANSI with no dependencies; color auto-disables on a non-TTY / when `NO_COLOR` is
+  set, and the MCP servers write it to stderr so the JSON-RPC channel stays clean.
+  `@avakit/studio`'s dashboard also gains a one-time terminal-style boot splash.
+
 ## 0.1.9
 
 ### Patch Changes
