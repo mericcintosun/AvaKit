@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Abi, Address, Hex } from "viem";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fuji } from "./chains.js";
 
 /**

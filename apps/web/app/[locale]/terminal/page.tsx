@@ -22,11 +22,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function TerminalPage({
-  params,
-}: {
-  params: Promise<{ locale: Locale }>;
-}) {
+export default async function TerminalPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
 

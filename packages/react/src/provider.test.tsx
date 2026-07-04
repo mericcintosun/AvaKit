@@ -1,5 +1,5 @@
-import { fuji } from "@avakit/core/chains";
 import type { WalletAdapter, WalletConnection } from "@avakit/core";
+import { fuji } from "@avakit/core/chains";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Address, EIP1193Provider } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -22,7 +22,11 @@ const TEST_ADDRESS = "0x000000000000000000000000000000000000dEaD" as Address;
 
 /** A tiny stand-in for an EIP-1193 provider — never actually called in tests. */
 function fakeProvider(): EIP1193Provider {
-  return { request: vi.fn(async () => null), on: vi.fn(), removeListener: vi.fn() } as unknown as EIP1193Provider;
+  return {
+    request: vi.fn(async () => null),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+  } as unknown as EIP1193Provider;
 }
 
 /** In-memory wallet adapter: resolves instantly, never hits the network. */
@@ -32,9 +36,7 @@ function makeMockAdapter(overrides: Partial<WalletAdapter> = {}): WalletAdapter 
     id: "mock",
     name: "Mock Wallet",
     isAvailable: () => true,
-    connect: vi.fn(
-      async (): Promise<WalletConnection> => ({ address: TEST_ADDRESS, provider }),
-    ),
+    connect: vi.fn(async (): Promise<WalletConnection> => ({ address: TEST_ADDRESS, provider })),
     disconnect: vi.fn(async () => {}),
     getProvider: () => provider,
     // No-op switch so the provider's post-connect chain sync never hits RPC.
