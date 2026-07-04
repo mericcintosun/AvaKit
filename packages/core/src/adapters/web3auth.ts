@@ -26,10 +26,30 @@ import type { WalletAdapter, WalletConnection } from "./types.js";
 export interface Web3AuthAdapterOptions {
   /** Web3Auth client ID (free, from the Web3Auth / MetaMask developer dashboard). */
   clientId: string;
+  /**
+   * Chains to configure Web3Auth with. The first is the default the embedded
+   * wallet connects on. Pass your app's target chain(s) (e.g. `[fuji]`) so the
+   * wallet lands on the right network instead of Web3Auth's default (Ethereum),
+   * which would otherwise force a chain switch the embedded provider may reject.
+   */
+  chains?: AvaChain[];
   /** Network. Defaults to "sapphire_devnet" for testing, "sapphire_mainnet" for production. */
   network?: "sapphire_devnet" | "sapphire_mainnet";
   /** Display name for UI. */
   name?: string;
+}
+
+/** Convert an AvaChain into Web3Auth's `CustomChainConfig` shape. */
+function toWeb3AuthChain(chain: AvaChain): Record<string, unknown> {
+  return {
+    chainNamespace: "eip155",
+    chainId: `0x${chain.id.toString(16)}`,
+    rpcTarget: chain.rpcUrl,
+    displayName: chain.name,
+    blockExplorerUrl: chain.explorerUrl,
+    ticker: chain.nativeCurrency.symbol,
+    tickerName: chain.nativeCurrency.name,
+  };
 }
 
 // Minimal structural types — we intentionally do not couple to the SDK's exact
@@ -64,9 +84,15 @@ export function web3authAdapter(options: Web3AuthAdapterOptions): WalletAdapter 
     } catch {
       throw new WalletNotAvailableError("web3auth");
     }
+    const chainConfigs = (options.chains ?? []).map(toWeb3AuthChain);
     instance = new mod.Web3Auth({
       clientId: options.clientId,
       web3AuthNetwork: network,
+      // Configure the target chain(s) up front so the embedded wallet connects on
+      // the right network (e.g. Fuji) rather than Web3Auth's default.
+      ...(chainConfigs.length > 0
+        ? { chains: chainConfigs, defaultChainId: chainConfigs[0]?.chainId }
+        : {}),
     });
     await instance.init();
     return instance;

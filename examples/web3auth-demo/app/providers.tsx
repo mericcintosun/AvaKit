@@ -13,7 +13,7 @@ export function Providers({ children }: { children: ReactNode }) {
     // Social login appears only when a Web3Auth client ID is configured.
     const clientId = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
     if (clientId) {
-      list.push(web3authAdapter({ clientId }));
+      list.push(web3authAdapter({ clientId, chains: [fuji] }));
     }
     // Injected (Core / MetaMask) is always available.
     list.push(injectedAdapter());

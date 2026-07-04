@@ -21,6 +21,7 @@ export function Providers({ children }: { children: ReactNode }) {
     list.push(
       web3authAdapter({
         clientId: process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID || DEMO_WEB3AUTH_CLIENT_ID,
+        chains: [__CHAIN_CONST__],
       }),
     );
     // Injected (Core / MetaMask) is always available.
