@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://avakit.dev/docs
+    about: Read the AvaKit docs — many questions are answered here.
+  - name: Questions & Discussions
+    url: https://github.com/mericcintosun/AvaKit/discussions
+    about: Ask questions, share ideas, and talk with the community.
+  - name: Report a security issue
+    url: https://github.com/mericcintosun/AvaKit/blob/main/SECURITY.md
+    about: Please report vulnerabilities privately — do not open a public issue.

@@ -15,11 +15,11 @@ const VERSION = (
 ).version;
 
 // The @avakit/* dependency version stamped into scaffolded apps' package.json
-// (as `^AVAKIT_DEP_VERSION`). Kept separate from the CLI's own VERSION: it must
-// resolve every published @avakit package, so it tracks the LOWEST current
-// @avakit version (core 0.1.2 · react 0.1.3 → ^0.1.2 satisfies both). Bump only
-// when the minimum @avakit version a fresh app needs goes up.
-const AVAKIT_DEP_VERSION = "0.1.2";
+// (as `^AVAKIT_DEP_VERSION`). Separate from the CLI's own VERSION: it's the
+// minimum @avakit version a fresh app needs. Bumped to 0.1.6 because the
+// templates pass `chains` to `web3authAdapter` (added in core 0.1.6) — an older
+// resolve would fail to typecheck. `^0.1.6` still satisfies both core and react.
+const AVAKIT_DEP_VERSION = "0.1.6";
 
 type PackageManager = "pnpm" | "npm" | "yarn" | "bun";
 

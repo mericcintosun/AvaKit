@@ -133,7 +133,7 @@ function App(props: WizardProps) {
   const askSteps = useMemo(() => STEP_ORDER.filter((k) => !props.presets[k]), [props.presets]);
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<Partial<Answers>>({ ...props.presets });
-  const [phase, setPhase] = useState<"form" | "scaffolding" | "done" | "error">(
+  const [phase, setPhase] = useState<"form" | "confirm" | "scaffolding" | "done" | "error">(
     askSteps.length ? "form" : "scaffolding",
   );
   const [nameError, setNameError] = useState<string | null>(null);
@@ -199,7 +199,7 @@ function App(props: WizardProps) {
     const next = { ...answers, [currentKey]: value };
     setAnswers(next);
     if (idx + 1 < askSteps.length) setIdx(idx + 1);
-    else setPhase("scaffolding");
+    else setPhase("confirm");
   }
 
   const answered = STEP_ORDER.filter((k) => k !== currentKey && answers[k] != null);
@@ -271,7 +271,35 @@ function App(props: WizardProps) {
           </Panel>
         ) : null}
 
-        {phase !== "form" ? (
+        {phase === "confirm" ? (
+          <Panel>
+            <Text bold color={C.white}>
+              Review
+            </Text>
+            <Box marginTop={1} flexDirection="column">
+              {STEP_ORDER.filter((k) => answers[k] != null).map((k) => (
+                <Text key={k}>
+                  <Text color={C.dim}>{`${LABELS[k].padEnd(16)}`}</Text>
+                  <Text color={C.white}>
+                    {displayValue(props.templates, k, answers[k] as string)}
+                  </Text>
+                </Text>
+              ))}
+            </Box>
+            <Box marginTop={1}>
+              <Text color={C.crimsonBright}>Create the app now? </Text>
+              <ConfirmInput
+                onConfirm={() => setPhase("scaffolding")}
+                onCancel={() => {
+                  props.onFinish(null);
+                  exit();
+                }}
+              />
+            </Box>
+          </Panel>
+        ) : null}
+
+        {phase === "scaffolding" || phase === "done" || phase === "error" ? (
           <Panel>
             <Box flexDirection="column">
               {STEP_ORDER.filter((k) => answers[k] != null).map((k) => (

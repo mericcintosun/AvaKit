@@ -167,6 +167,51 @@ server.registerTool(
 );
 
 server.registerTool(
+  "estimate_gas",
+  {
+    title: "Estimate gas",
+    description:
+      "Estimate the gas a transaction (to / data / value) would use and report the current gas price and rough AVAX cost, over RPC. No key needed.",
+    inputSchema: z
+      .object({
+        chain: z.enum(["fuji", "c-chain"]).default("fuji"),
+        to: z.string().describe("Recipient / contract address (0x…)"),
+        from: z.string().optional().describe("Sender address (0x…)"),
+        data: z.string().optional().describe("Calldata (0x…)"),
+        value: z.string().optional().describe("Native value in wei (decimal string)"),
+      })
+      .strict(),
+  },
+  async ({ chain, to, from, data, value }) => {
+    const c = chainFrom(chain);
+    try {
+      const client = getPublicClient(c);
+      const [gas, gasPrice] = await Promise.all([
+        client.estimateGas({
+          account: (from as Address | undefined) ?? undefined,
+          to: to as Address,
+          data: data as Hex | undefined,
+          value: value ? BigInt(value) : undefined,
+        }),
+        client.getGasPrice(),
+      ]);
+      const costWei = gas * gasPrice;
+      return text(
+        toJson({
+          chain: c.name,
+          gas,
+          gasPrice,
+          estimatedCostWei: costWei,
+          estimatedCostAvax: (Number(costWei) / 1e18).toString(),
+        }),
+      );
+    } catch (e) {
+      return text(`estimate_gas failed: ${e instanceof Error ? e.message : String(e)}`, true);
+    }
+  },
+);
+
+server.registerTool(
   "deploy_contract",
   {
     title: "Deploy a contract",

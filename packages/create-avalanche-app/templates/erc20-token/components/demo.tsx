@@ -1,5 +1,6 @@
 "use client";
 
+import { getPublicClient } from "@avakit/core";
 import { humanizeError,
   Button,
   ConnectAvalanche,
@@ -74,11 +75,17 @@ export function Demo() {
     }
   }
 
-  async function run(kind: "mint" | "transfer", fn: () => Promise<unknown>) {
+  async function run(kind: "mint" | "transfer", fn: () => Promise<`0x${string}`>) {
     setBusy(kind);
     setError(null);
     try {
-      await fn();
+      const hash = await fn();
+      // Wait for the tx to be mined before re-reading balances — otherwise the
+      // reads race the pending tx and the numbers look unchanged.
+      const receipt = await getPublicClient(chain).waitForTransactionReceipt({ hash });
+      if (receipt.status === "reverted") {
+        throw new Error("The transaction reverted on-chain.");
+      }
       await refresh();
     } catch (e) {
       setError(humanizeError(e));

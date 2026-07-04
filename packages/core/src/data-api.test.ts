@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { fuji } from "./chains.js";
 import {
   DATA_API_BASE_URL,
   DataApiError,
@@ -63,6 +64,26 @@ describe("data-api", () => {
     expect(url.searchParams.get("pageToken")).toBe("abc");
     const headers = spy.mock.calls.at(0)?.[1]?.headers as Record<string, string> | undefined;
     expect(headers).toMatchObject({ "x-glacier-api-key": "secret" });
+  });
+
+  // Regression: passing a ChainRef that is an AvaChain OBJECT used to serialize
+  // as `[object Object]` in the URL path, producing a 404. It must now resolve
+  // to the numeric chain id, exactly like passing the id directly.
+  it("normalizes a chain object to its numeric id (no [object Object]/404)", async () => {
+    const spy = mockFetch({ nativeTokenBalance: { balance: "1" } });
+
+    await getNativeBalance(ADDR, 43113);
+    await getNativeBalance(ADDR, fuji);
+
+    const fromId = requestedUrl(spy, 0);
+    const fromObject = requestedUrl(spy, 1);
+
+    expect(fromId.pathname).toContain("/chains/43113/");
+    expect(fromObject.pathname).toContain("/chains/43113/");
+    expect(fromObject.pathname).not.toContain("[object Object]");
+    // Both forms must hit byte-for-byte the same endpoint.
+    expect(fromObject.pathname).toBe(fromId.pathname);
+    expect(fuji.id).toBe(43113);
   });
 
   it("throws a DataApiError with the status on a non-ok response", async () => {
