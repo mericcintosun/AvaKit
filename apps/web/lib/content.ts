@@ -34,7 +34,8 @@ const CREATE_COMMAND = "npm create avalanche-app@latest";
 // The landing plays a muted, silent preview of the walkthrough (public/
 // avakittutorial.mp4). This is the full, narrated version on YouTube — set the
 // URL (env or here) to reveal a "Watch on YouTube" link under the preview.
-export const TUTORIAL_YOUTUBE_URL = process.env.NEXT_PUBLIC_TUTORIAL_YOUTUBE_URL ?? "";
+export const TUTORIAL_YOUTUBE_URL =
+  process.env.NEXT_PUBLIC_TUTORIAL_YOUTUBE_URL ?? "https://youtu.be/GeSpcrmIpnc";
 
 // Google Form for user feedback. Set NEXT_PUBLIC_FEEDBACK_FORM_URL to the form's
 // share link (…/viewform). The floating feedback button opens it in a new tab.
