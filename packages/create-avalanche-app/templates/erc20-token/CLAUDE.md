@@ -37,7 +37,7 @@ cd contracts && forge build
 - Animations: Framer Motion or GSAP only.
 - Amounts are in wei — always convert with `parseUnits` / `formatUnits` (18 decimals).
 - Deploying, minting, and transferring cost gas — fund the wallet on Fuji first.
-- Social login needs `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` in `.env.local`.
+- Social login works out of the box on localhost via a bundled demo Web3Auth key. Set your own `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (free at https://dashboard.web3auth.io) in `.env.local` before deploying — the demo key only allows localhost.
 
 ## Commands
 

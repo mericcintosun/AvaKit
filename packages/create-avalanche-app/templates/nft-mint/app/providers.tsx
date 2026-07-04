@@ -7,13 +7,22 @@ import { AvaKitProvider } from "@avakit/react";
 import { ThemeProvider } from "next-themes";
 import { type ReactNode, useMemo } from "react";
 
+// Shared AvaKit demo Web3Auth client ID so social login works with zero setup on
+// localhost. It only allows localhost origins — replace it with your own (free at
+// dashboard.web3auth.io) before deploying.
+const DEMO_WEB3AUTH_CLIENT_ID =
+  "BI14QqLFixs0HxS-XPTpHav_oVgLsntWv54Tjz69ruuqP5NP8rdcc0yl1CUKdlu9Nk--sKdQUVV7mOz41lsnhmg";
+
 export function Providers({ children }: { children: ReactNode }) {
   const adapters = useMemo(() => {
     const list: WalletAdapter[] = [];
-    // Always show social login. Until NEXT_PUBLIC_WEB3AUTH_CLIENT_ID is set the
-    // adapter reports itself unavailable (with a hint), so the option stays
-    // discoverable instead of silently missing.
-    list.push(web3authAdapter({ clientId: process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "" }));
+    // Social login works out of the box on localhost via the bundled demo key;
+    // NEXT_PUBLIC_WEB3AUTH_CLIENT_ID overrides it (set your own for deployment).
+    list.push(
+      web3authAdapter({
+        clientId: process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID || DEMO_WEB3AUTH_CLIENT_ID,
+      }),
+    );
     // Injected (Core / MetaMask) is always available.
     list.push(injectedAdapter());
     return list;

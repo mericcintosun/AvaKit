@@ -37,7 +37,7 @@ To gate on a different token (e.g. an existing ERC-20 or NFT), point `useContrac
 - Animations: Framer Motion or GSAP only.
 - Deploying/minting costs gas — fund the wallet on Fuji first.
 - Never gate sensitive data purely client-side: the gated content here is illustrative. For real secrets, verify ownership server-side (e.g. sign-in-with-Ethereum + an API check).
-- Social login needs `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` in `.env.local`.
+- Social login works out of the box on localhost via a bundled demo Web3Auth key. Set your own `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (free at https://dashboard.web3auth.io) in `.env.local` before deploying — the demo key only allows localhost.
 
 ## Commands
 

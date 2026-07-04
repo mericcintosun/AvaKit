@@ -94,6 +94,7 @@ mint from your own wallet:
   `formatUnits`, read `decimals` from `balance.decimals` rather than hardcoding it.
 - Never hardcode private keys; wallet signing always goes through the connected adapter.
 - Default chain is Fuji testnet; mainnet requires explicit opt-in.
+- Social login works out of the box on localhost via a bundled demo Web3Auth key. Set your own `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (free at https://dashboard.web3auth.io) in `.env.local` before deploying — the demo key only allows localhost.
 
 ## Commands
 

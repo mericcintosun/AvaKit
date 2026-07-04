@@ -28,7 +28,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 - **Black & white only** for now; dark/light is wired via `next-themes`. Don't add brand colors yet — edit the tokens in `app/globals.css` when you do.
 - Animations: **Framer Motion** or **GSAP** only.
 - Never hardcode RPC URLs or secrets; use the chain config and `.env.local`.
-- Social login needs `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` in `.env.local` (free, from https://dashboard.web3auth.io). Without it, only the browser wallet shows.
+- Social login works out of the box on localhost via a bundled demo Web3Auth key. Set your own `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (free at https://dashboard.web3auth.io) in `.env.local` before deploying — the demo key only allows localhost.
 
 ## Commands
 

@@ -36,7 +36,7 @@ cd contracts && forge build
 - Animations: **Framer Motion** or **GSAP** only.
 - Never hardcode secrets; private keys live in the wallet provider.
 - Deploying/minting costs gas — fund the wallet on Fuji first (in-app faucet link).
-- Social login needs `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` in `.env.local` (free, dashboard.web3auth.io).
+- Social login works out of the box on localhost via a bundled demo Web3Auth key. Set your own `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (free at https://dashboard.web3auth.io) in `.env.local` before deploying — the demo key only allows localhost.
 
 ## Commands
 
