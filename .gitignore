@@ -46,3 +46,6 @@ pnpm-debug.log*
 
 # Local Turkish translations (the repo itself stays English-only)
 *.tr.md
+
+# Local launch screenshots (heavy PNGs, uploaded to Typefully, not committed)
+docs/launch/screenshots/
