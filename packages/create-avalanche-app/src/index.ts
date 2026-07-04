@@ -4,6 +4,7 @@ import path from "node:path";
 import pc from "picocolors";
 import { type ChainId, listTemplates, scaffoldApp, type WalletId } from "./api.js";
 import { banner, bannerColor } from "./banner.js";
+import type { StartCommand } from "./ui/wizard.js";
 
 // The CLI's own version — read from package.json at runtime (single source of
 // truth, can never drift). dist/index.js ships next to package.json.
@@ -183,6 +184,7 @@ async function main(): Promise<void> {
   }
 
   const { runWizard } = await import("./ui/wizard.js");
+  const chosen: { start: StartCommand | null } = { start: null };
   await runWizard({
     version: VERSION,
     templates: templates.map((t) => ({ id: t.id, title: t.title, description: t.description })),
@@ -215,7 +217,29 @@ async function main(): Promise<void> {
             .status === 0
       : null,
     nextSteps: (a) => nextSteps(opts.install, a.pm, a.projectName, a.template),
+    // Offer to start the dev server, but only when deps are installed and the
+    // template doesn't need a one-time devnet/setup step first.
+    startCommand: (a) => {
+      if (!opts.install) return null;
+      if (templates.find((t) => t.id === a.template)?.setup) return null;
+      return {
+        command: [a.pm, "run", "dev"],
+        cwd: path.resolve(cwd, a.projectName),
+        label: `Start the dev server now? (${a.pm} run dev)`,
+      };
+    },
+    onFinish: (start) => {
+      chosen.start = start;
+    },
   });
+
+  // The user opted in — run it for them (inherits the terminal; Ctrl+C stops it).
+  const startAfter = chosen.start;
+  if (startAfter) {
+    const { command, cwd: runCwd } = startAfter;
+    process.stdout.write("\n");
+    spawnSync(command[0] as string, command.slice(1), { cwd: runCwd, stdio: "inherit" });
+  }
 }
 
 main().catch((error: unknown) => {

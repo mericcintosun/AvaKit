@@ -27,6 +27,18 @@ function openBrowser(url: string): void {
   });
 }
 
+/** A small crimson-bordered panel (raw ANSI — matches the banner, no deps). */
+function panel(lines: string[], color: boolean): string {
+  const ansi = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+  const visible = (s: string) => s.replace(ansi, "").length;
+  const cr = color ? "\x1b[38;2;225;29;72m" : "";
+  const rs = color ? "\x1b[0m" : "";
+  const width = Math.max(...lines.map(visible)) + 2;
+  const bar = "─".repeat(width);
+  const rows = lines.map((l) => `${cr}│${rs} ${l}${" ".repeat(width - visible(l) - 1)}${cr}│${rs}`);
+  return [`${cr}╭${bar}╮${rs}`, ...rows, `${cr}╰${bar}╯${rs}`].join("\n");
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
 
@@ -60,8 +72,12 @@ async function main(): Promise<void> {
 
   const { url } = await startServer({ port: parsePort(argv), cwd: process.cwd() });
 
-  process.stdout.write(banner(bannerColor(process.stdout)));
-  process.stdout.write(`  ▸ ${url}\n\n  Press Ctrl+C to stop.\n\n`);
+  const color = bannerColor(process.stdout);
+  const boldUrl = color ? `\x1b[1m\x1b[97m${url}\x1b[0m` : url;
+  process.stdout.write(banner(color));
+  process.stdout.write(
+    `${panel(["AvaKit Studio — local control center", `▸ ${boldUrl}`, "Press Ctrl+C to stop."], color)}\n\n`,
+  );
   if (!argv.includes("--no-open")) openBrowser(url);
 }
 

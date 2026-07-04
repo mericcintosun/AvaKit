@@ -1,4 +1,4 @@
-import { Select, Spinner, TextInput, ThemeProvider } from "@inkjs/ui";
+import { ConfirmInput, Select, Spinner, TextInput, ThemeProvider } from "@inkjs/ui";
 import { Box, render, Text, useApp } from "ink";
 import { useEffect, useMemo, useState } from "react";
 import { C, crimsonAt, uiTheme } from "./theme.js";
@@ -30,6 +30,9 @@ export type Answers = {
 };
 export type TemplateInfo = { id: string; title: string; description: string };
 
+/** A command to optionally run for the user once scaffolding finishes. */
+export type StartCommand = { command: string[]; cwd: string; label: string };
+
 export type WizardProps = {
   version: string;
   templates: TemplateInfo[];
@@ -37,6 +40,10 @@ export type WizardProps = {
   scaffold: (a: Answers) => Promise<{ created: number }>;
   install: ((a: Answers) => boolean) | null;
   nextSteps: (a: Answers) => string[];
+  /** If it returns a command, the wizard offers to run it (e.g. the dev server). */
+  startCommand: (a: Answers) => StartCommand | null;
+  /** Called once before exit with the command the user chose to run, or null. */
+  onFinish: (start: StartCommand | null) => void;
 };
 
 type StepKey = keyof Answers;
@@ -136,6 +143,7 @@ function App(props: WizardProps) {
     props.install ? "pending" : "done",
   );
   const [error, setError] = useState<string | null>(null);
+  const [startCmd, setStartCmd] = useState<StartCommand | null>(null);
 
   const currentKey = askSteps[idx];
 
@@ -167,13 +175,24 @@ function App(props: WizardProps) {
     };
   }, [phase, answers, props]);
 
-  // Leave the final frame on screen, then unmount.
+  // On completion: offer to start the dev server if eligible; otherwise finish.
   useEffect(() => {
-    if (phase !== "done" && phase !== "error") return;
-    if (phase === "error") process.exitCode = 1;
-    const t = setTimeout(() => exit(), 40);
-    return () => clearTimeout(t);
-  }, [phase, exit]);
+    if (phase === "error") {
+      process.exitCode = 1;
+      props.onFinish(null);
+      const t = setTimeout(() => exit(), 40);
+      return () => clearTimeout(t);
+    }
+    if (phase === "done") {
+      const cmd = props.startCommand(answers as Answers);
+      setStartCmd(cmd);
+      if (!cmd) {
+        props.onFinish(null);
+        const t = setTimeout(() => exit(), 40);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [phase, exit, props, answers]);
 
   function submit(value: string) {
     if (!currentKey) return;
@@ -299,6 +318,21 @@ function App(props: WizardProps) {
                   <Text color={C.dim}>Docs → </Text>
                   <Text color={C.crimson}>avakit.dev/docs</Text>
                 </Box>
+                {startCmd ? (
+                  <Box marginTop={1}>
+                    <Text color={C.crimsonBright}>{`${startCmd.label} `}</Text>
+                    <ConfirmInput
+                      onConfirm={() => {
+                        props.onFinish(startCmd);
+                        exit();
+                      }}
+                      onCancel={() => {
+                        props.onFinish(null);
+                        exit();
+                      }}
+                    />
+                  </Box>
+                ) : null}
               </Box>
             ) : null}
 
