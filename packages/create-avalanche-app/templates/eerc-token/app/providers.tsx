@@ -12,11 +12,10 @@ import { WagmiProvider, http, createConfig } from "wagmi";
 export function Providers({ children }: { children: ReactNode }) {
   const adapters = useMemo(() => {
     const list: WalletAdapter[] = [];
-    // Social login appears only when a Web3Auth client ID is configured.
-    const clientId = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
-    if (clientId) {
-      list.push(web3authAdapter({ clientId }));
-    }
+    // Always show social login. Until NEXT_PUBLIC_WEB3AUTH_CLIENT_ID is set the
+    // adapter reports itself unavailable (with a hint), so the option stays
+    // discoverable instead of silently missing.
+    list.push(web3authAdapter({ clientId: process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID ?? "" }));
     // Injected (Core / MetaMask) is always available.
     list.push(injectedAdapter());
     return list;

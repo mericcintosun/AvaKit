@@ -67,6 +67,7 @@ export {
   ChainMismatchError,
   DeployFailedError,
   InsufficientFundsError,
+  MainnetConfirmationError,
   WalletConnectionError,
   WalletNotAvailableError,
 } from "./errors.js";

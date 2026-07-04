@@ -31,6 +31,16 @@ export class DeployFailedError extends AvaKitError {
   override name = "DeployFailedError";
 }
 
+export class MainnetConfirmationError extends AvaKitError {
+  override name = "MainnetConfirmationError";
+  constructor(chainName: string) {
+    super(
+      `Refusing to deploy to ${chainName} (mainnet) without explicit confirmation. ` +
+        "Check the balance, then pass confirmMainnet: true — deploying here spends real funds.",
+    );
+  }
+}
+
 export class InsufficientFundsError extends AvaKitError {
   override name = "InsufficientFundsError";
   constructor(faucetUrl?: string) {

@@ -21,6 +21,12 @@ export interface WalletAdapter {
   readonly name: string;
   /** Whether this adapter can be used in the current environment. */
   isAvailable(): boolean | Promise<boolean>;
+  /**
+   * Optional human-readable reason this adapter is unavailable (e.g. a missing
+   * client ID). UIs can show it instead of silently hiding the adapter. Only
+   * meaningful when `isAvailable()` returns false.
+   */
+  readonly unavailableReason?: string;
   /** Prompt the user to connect; resolves with their address + provider. */
   connect(): Promise<WalletConnection>;
   /** Disconnect / log out. */

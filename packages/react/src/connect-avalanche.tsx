@@ -95,19 +95,26 @@ export function ConnectAvalanche({ label = "Connect wallet", className }: Connec
         <div className="flex flex-col gap-2">
           {adapters.map((adapter) => {
             const isBusy = status === "connecting" && activeAdapterId === adapter.id;
+            // isAvailable() is synchronous for the built-in adapters; only a
+            // definite `false` disables the option (a pending Promise stays live).
+            const unavailable = adapter.isAvailable() === false;
             return (
-              <Button
-                key={adapter.id}
-                variant="outline"
-                className={cn("justify-between")}
-                disabled={status === "connecting"}
-                onClick={() => {
-                  void connect(adapter.id);
-                }}
-              >
-                <span>{adapter.name}</span>
-                {isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
-              </Button>
+              <div key={adapter.id} className="flex flex-col gap-1">
+                <Button
+                  variant="outline"
+                  className={cn("justify-between")}
+                  disabled={status === "connecting" || unavailable}
+                  onClick={() => {
+                    if (!unavailable) void connect(adapter.id);
+                  }}
+                >
+                  <span>{adapter.name}</span>
+                  {isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                </Button>
+                {unavailable && adapter.unavailableReason ? (
+                  <p className="text-muted-foreground px-1 text-xs">{adapter.unavailableReason}</p>
+                ) : null}
+              </div>
             );
           })}
           {error ? <p className="text-muted-foreground text-sm">{error.message}</p> : null}

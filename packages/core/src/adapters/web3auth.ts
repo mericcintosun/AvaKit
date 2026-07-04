@@ -75,6 +75,9 @@ export function web3authAdapter(options: Web3AuthAdapterOptions): WalletAdapter 
   return {
     id: "web3auth",
     name: options.name ?? "Social login (Google, Apple, email)",
+    unavailableReason: options.clientId
+      ? undefined
+      : "Add NEXT_PUBLIC_WEB3AUTH_CLIENT_ID (free at dashboard.web3auth.io) to enable social login.",
 
     isAvailable() {
       return Boolean(options.clientId);

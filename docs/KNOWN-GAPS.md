@@ -3,87 +3,97 @@
 > Snapshot from a full-repo review (2026-07-04). Ordered by risk. This is an
 > engineering to-do list, not user-facing docs. Update or delete items as they
 > are fixed.
+>
+> **2026-07-04 follow-up pass:** items 1–5 and 8 are now fixed (see below). The
+> changes ship in `@avakit/core`, `@avakit/react`, and `create-avalanche-app`.
 
 ## Critical / user-visible
 
-1. **Social login button hidden unless a Web3Auth client ID is configured.**
-   - `providers.tsx` only adds `web3authAdapter` when
-     `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` is set. A fresh scaffold ships an empty
-     `.env.example`, so a just-scaffolded app shows **only** the injected
-     (Core/MetaMask) button — which reads as "social login is missing."
-   - This is **config, not a code bug**: the wiring is correct and the adapter
-     matches `@web3auth/modal` v11.2.0's real API (`init()` → `connect()` →
-     `Connection.ethereumProvider`, verified against the installed SDK types).
-     Set the (free, public) client ID from dashboard.web3auth.io in `.env.local`
-     and the social-login button appears. `examples/web3auth-demo/.env.local`
-     already has a working one.
-   - Still-open risk: the adapter has **no automated test** and a full Google
-     sign-in → Fuji chain-switch has not been machine-validated (can't be, it
-     needs a human browser login). Test it manually before relying on it.
-   - DX improvement worth doing: when scaffolded for `web3auth` but the client ID
-     is missing at runtime, surface a hint instead of silently hiding the button.
+1. **Social login was silently hidden without a Web3Auth client ID — FIXED.**
+   - Before: `providers.tsx` only added `web3authAdapter` when
+     `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` was set, so a fresh scaffold showed only the
+     injected (Core/MetaMask) button and social login looked missing.
+   - Fix: `WalletAdapter` gained an optional `unavailableReason`; `web3authAdapter`
+     sets it when no client ID is configured, and `ConnectAvalanche` now renders
+     unavailable adapters as a **disabled button with the hint** instead of hiding
+     them. The five social-login templates (minimal, nft-mint, token-gated-app,
+     erc20-token, eerc-token) always add the adapter, so the option is
+     discoverable ("Add NEXT_PUBLIC_WEB3AUTH_CLIENT_ID to enable social login").
+     Verified an injected scaffold (no `@web3auth/modal` installed) still
+     typechecks and builds.
+   - The wiring matches `@web3auth/modal` v11.2.0's real API (`init()` →
+     `connect()` → `Connection.ethereumProvider`, checked against the installed
+     SDK types). `web3authAdapter` now has unit tests.
+   - **Still open:** a full Google sign-in → Fuji chain-switch has not been
+     machine-validated (it needs a human browser login). Test it manually before
+     relying on it in a demo.
 
 2. **Mint (and other writes) did not reflect success in the UI — FIXED.**
    - Root cause: `contract.write(...)` returns the tx hash right after broadcast;
-     the templates then called `refreshCounts()`/`refreshOwned()` immediately,
-     racing the still-pending tx, so `totalSupply`/`balanceOf` stayed at their
-     old values and the mint looked like it failed. A silent on-chain revert was
-     also swallowed with no user feedback.
-   - Fix (2026-07-04): after `write`, wait for the receipt via
+     the templates then re-read `totalSupply`/`balanceOf` immediately, racing the
+     still-pending tx, so the counts stayed stale and the mint looked like it did
+     nothing. A silent on-chain revert was also swallowed.
+   - Fix: after `write`, wait for the receipt via
      `getPublicClient(chain).waitForTransactionReceipt({ hash })`, throw on
      `status === "reverted"`, then refresh. Applied to `nft-mint` +
-     `token-gated-app` templates and `examples/web3auth-demo`. Verified: typecheck
-     clean, `getPublicClient(...).waitForTransactionReceipt` confirmed at runtime.
-   - Durable follow-up: bake receipt-waiting into `useContract` in
-     `@avakit/react` so every template gets it for free (needs a react republish;
-     `erc20-token` still uses the raw `write` pattern).
+     `token-gated-app` templates and `examples/web3auth-demo`. Smoke-tested.
+   - **Still open:** `erc20-token` still uses the raw `write` pattern; the durable
+     fix is to bake receipt-waiting into `useContract` in `@avakit/react`.
 
-3. **`testnet` guard is not enforced in core deploy.**
-   - `packages/core/src/chains.ts` comments claim mainnet deploys "require
-     explicit confirmation / opt-in," but `deployContract`
-     (`packages/core/src/deploy.ts`) has **no** such guard — it will deploy to
-     `cChain` (mainnet) with no confirmation. The guard only exists at the MCP
-     layer (`deploy_contract` needs `confirm:true`). Comment/behavior mismatch;
-     a browser/`@avakit/react` caller can hit mainnet unguarded.
+3. **Mainnet deploy guard was not enforced in core — FIXED.**
+   - Before: `deployContract` had no testnet check, so a browser/`@avakit/react`
+     caller could deploy to `cChain` (mainnet) unguarded, despite the docs.
+   - Fix: `DeployParams` gained `confirmMainnet?: boolean`; `deployContract` throws
+     `MainnetConfirmationError` for any `chain.testnet === false` unless
+     `confirmMainnet: true` is passed. `useAvaDeploy().deploy(artifact, args, {
+     confirmMainnet })` threads it through. Fuji (testnet) is unaffected. Covered
+     by tests.
 
 ## Testing
 
-4. **`@avakit/react` has zero tests.** The entire provider/hooks/UI surface
-   (the part users actually touch) is untested. `vitest run --passWithNoTests`.
+4. **`@avakit/react` had zero tests — PARTIALLY FIXED.**
+   - Added `utils.test.ts` (11 tests) covering `cn`, `shortenAddress`, and every
+     `humanizeError` branch. The provider/hooks/component render paths are still
+     untested (would need a jsdom + Testing Library harness) — follow-up.
 
-5. **`@avakit/core` coverage is thin.** 5 files / ~15 tests, happy-path only on
-   pure functions. Untested: `network.ts` (`ensureChain`), `data.ts` (RPC),
-   `errors.ts`, and the riskiest module `adapters/web3auth.ts`.
+5. **`@avakit/core` coverage was thin — IMPROVED.**
+   - Added `errors.test.ts`, `network.test.ts` (`ensureChain`), and
+     `adapters/web3auth.test.ts`, plus the mainnet-guard cases in `deploy.test.ts`.
+     Core is now at 29 tests (was 15). Still untested: `data.ts` (RPC helpers).
 
 6. **No integration / e2e coverage.** Smoke tests only scaffold→install→
-   typecheck→build. No test drives connect → deploy → mint against a chain,
-   so regressions in the two critical bugs above would not be caught by CI.
+   typecheck→build. No test drives connect → deploy → mint against a chain, so a
+   regression in the mint/deploy flow would not be caught by CI. Follow-up: a
+   headless viem/anvil-backed test, or a Playwright flow with a mock provider.
 
 ## Fragility
 
 7. **`humanizeError` is brittle string matching.** `packages/react/src/utils.ts`
-   maps errors by substring on lowercased messages (user-rejected, insufficient
-   funds, allowance, nonce). Breaks on wallet wording changes / localization.
+   maps errors by substring on lowercased messages. Now unit-tested, but still
+   breaks on wallet wording changes / localization — the tests will at least flag
+   a regression.
 
-8. **`ensureChain` 4902 handling** relies on numeric error-code matching across
-   heterogeneous wallet implementations (`packages/core/src/network.ts`).
+8. **`ensureChain` 4902 handling — now tested.** Still relies on numeric
+   error-code matching across heterogeneous wallets, but `network.test.ts` locks
+   in the switch / add-then-switch / rethrow behavior.
 
 9. **viem overload escape hatches.** `as never` / `as Parameters<...>` casts in
    `deploy.ts`, `data.ts`, and `hooks.ts` (`useContract`, `useSendTransaction`)
-   drop type-safety at those call sites to satisfy viem generics.
+   drop type-safety at those call sites to satisfy viem generics. Intentional;
+   revisit if viem's typings improve.
 
 10. **Web3Auth SDK is structurally typed**, not using the real SDK types — a
     version bump in `@web3auth/modal` could silently break the adapter with no
-    type error.
+    type error. Intentional (keeps the optional dep out of the build), but the
+    adapter tests only cover availability, not a live connect.
 
 ## Housekeeping
 
-11. **Stale build artifacts.** `.turbo/turbo-test.log` shows 0.1.2/0.1.3 while
-    packages are at 0.1.4 — harmless cache drift.
+11. **Stale build artifacts.** `.turbo/turbo-test.log` files lag the package
+    versions — harmless cache drift, gitignored.
 
 12. **`data-api.ts` past 404 bug** (chain-object vs id) is only documented in a
     comment; worth a regression test given the API surface evolved.
 
 13. **Version constant only correct in built artifacts.** `VERSION` is injected
-    at build time; raw `tsc`/`vitest` yields `"0.0.0-dev"`. Expected, but note
-    it when reading values in dev.
+    at build time; raw `tsc`/`vitest` yields `"0.0.0-dev"`. Expected.

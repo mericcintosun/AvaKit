@@ -104,6 +104,7 @@ export function useAvaDeploy() {
     async (
       artifact: FoundryArtifact | { abi: Abi; bytecode: Hex },
       args?: readonly unknown[],
+      opts?: { confirmMainnet?: boolean },
     ): Promise<DeployResult> => {
       if (!provider || !address) {
         throw new Error("Connect a wallet before deploying.");
@@ -117,6 +118,7 @@ export function useAvaDeploy() {
           chain,
           provider,
           account: address,
+          confirmMainnet: opts?.confirmMainnet,
         });
         setResult(deployed);
         setStatus("success");

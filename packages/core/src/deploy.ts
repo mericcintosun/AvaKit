@@ -10,7 +10,7 @@
 import { type Abi, type Address, type EIP1193Provider, getAddress, type Hex } from "viem";
 import type { AvaChain } from "./chains.js";
 import { getPublicClient, getWalletClient } from "./clients.js";
-import { DeployFailedError } from "./errors.js";
+import { DeployFailedError, MainnetConfirmationError } from "./errors.js";
 
 /** Shape of a parsed Foundry artifact (`out/Contract.sol/Contract.json`). */
 export interface FoundryArtifact {
@@ -24,6 +24,12 @@ export interface DeployParams {
   chain: AvaChain;
   provider: EIP1193Provider;
   account: Address;
+  /**
+   * Required to deploy to a non-testnet (mainnet) chain. AvaKit is testnet-first:
+   * deploying to a chain with `testnet: false` costs real funds, so it refuses
+   * unless you opt in explicitly. No effect on testnet chains (e.g. Fuji).
+   */
+  confirmMainnet?: boolean;
 }
 
 export interface DeployResult {
@@ -43,7 +49,11 @@ export function getBytecode(artifact: DeployParams["artifact"]): Hex {
 }
 
 export async function deployContract(params: DeployParams): Promise<DeployResult> {
-  const { artifact, args, chain, provider, account } = params;
+  const { artifact, args, chain, provider, account, confirmMainnet } = params;
+  // Testnet-first guardrail: never deploy to a mainnet chain without opt-in.
+  if (chain.testnet === false && !confirmMainnet) {
+    throw new MainnetConfirmationError(chain.name);
+  }
   const walletClient = getWalletClient(chain, provider);
   const publicClient = getPublicClient(chain);
 
