@@ -1,5 +1,6 @@
 "use client";
 
+import { getPublicClient } from "@avakit/core";
 import {
   Button,
   ConnectAvalanche,
@@ -82,6 +83,12 @@ export function Demo() {
     try {
       const hash = await contract.write("mint", []);
       setMintHash(hash);
+      // Wait for the mint to be mined before reading counts — otherwise the
+      // reads race the pending tx and the UI looks like nothing happened.
+      const receipt = await getPublicClient(chain).waitForTransactionReceipt({ hash });
+      if (receipt.status === "reverted") {
+        throw new Error("The mint transaction reverted on-chain.");
+      }
       await refreshCounts();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
