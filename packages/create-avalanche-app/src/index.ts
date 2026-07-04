@@ -129,72 +129,83 @@ async function resolveOptions(
     };
   }
 
-  p.intro(pc.bgCyan(pc.black(" create-avalanche-app ")));
+  p.intro(`${pc.bold("Let's build on Avalanche")} ${pc.dim(`· create-avalanche-app v${VERSION}`)}`);
 
-  const projectName =
-    opts.projectName ??
-    (await p.text({
-      message: "Project name?",
-      placeholder: "my-avax-app",
-      defaultValue: "my-avax-app",
-      validate: (v) => (!v || isValidName(v) ? undefined : "Use lowercase letters, digits, - . _"),
-    }));
-  if (p.isCancel(projectName)) cancel();
-
-  const template =
-    opts.template ??
-    (await p.select({
-      message: "Template?",
-      options: templates.map((t) => ({ value: t.id, label: t.title, hint: t.description })),
-      initialValue: "minimal",
-    }));
-  if (p.isCancel(template)) cancel();
-
-  const wallet =
-    opts.wallet ??
-    (await p.select({
-      message: "Wallet provider?",
-      options: [
-        { value: "web3auth", label: "Social login (Web3Auth)", hint: "free, recommended" },
-        { value: "injected", label: "Browser wallet (Core / MetaMask)" },
-      ],
-      initialValue: "web3auth",
-    }));
-  if (p.isCancel(wallet)) cancel();
-
-  const chain =
-    opts.chain ??
-    (await p.select({
-      message: "Target chain?",
-      options: [
-        { value: "fuji", label: "Avalanche Fuji (testnet)", hint: "recommended" },
-        { value: "c-chain", label: "Avalanche C-Chain (mainnet)" },
-      ],
-      initialValue: "fuji",
-    }));
-  if (p.isCancel(chain)) cancel();
-
-  const pm =
-    opts.pm ??
-    (await p.select({
-      message: "Package manager?",
-      options: (["pnpm", "npm", "yarn", "bun"] as const).map((m) => ({ value: m, label: m })),
-      initialValue: "pnpm",
-    }));
-  if (p.isCancel(pm)) cancel();
+  // One cohesive group: every prompt is a single unit with a shared cancel
+  // handler, and any answer already passed as a flag skips its prompt.
+  const answers = await p.group(
+    {
+      projectName: () =>
+        opts.projectName
+          ? Promise.resolve(opts.projectName)
+          : p.text({
+              message: "Project name",
+              placeholder: "my-avax-app",
+              defaultValue: "my-avax-app",
+              validate: (v) =>
+                !v || isValidName(v) ? undefined : "Use lowercase letters, digits, - . _",
+            }),
+      template: () =>
+        opts.template
+          ? Promise.resolve(opts.template)
+          : p.select({
+              message: "Template",
+              options: templates.map((t) => ({ value: t.id, label: t.title, hint: t.description })),
+              initialValue: "minimal",
+            }),
+      wallet: () =>
+        opts.wallet
+          ? Promise.resolve(opts.wallet)
+          : p.select({
+              message: "Wallet",
+              options: [
+                {
+                  value: "web3auth",
+                  label: "Social login (Google, Apple, email)",
+                  hint: "recommended · works on localhost out of the box",
+                },
+                { value: "injected", label: "Browser wallet (Core / MetaMask)" },
+              ],
+              initialValue: "web3auth",
+            }),
+      chain: () =>
+        opts.chain
+          ? Promise.resolve(opts.chain)
+          : p.select({
+              message: "Network",
+              options: [
+                { value: "fuji", label: "Fuji testnet", hint: "recommended" },
+                { value: "c-chain", label: "C-Chain (mainnet)" },
+              ],
+              initialValue: "fuji",
+            }),
+      pm: () =>
+        opts.pm
+          ? Promise.resolve(opts.pm)
+          : p.select({
+              message: "Package manager",
+              options: (["pnpm", "npm", "yarn", "bun"] as const).map((m) => ({
+                value: m,
+                label: m,
+              })),
+              initialValue: "pnpm",
+            }),
+    },
+    {
+      onCancel: () => {
+        p.cancel("Cancelled — no files were written.");
+        process.exit(0);
+      },
+    },
+  );
 
   return {
-    projectName: projectName as string,
-    template: template as string,
-    wallet: wallet as WalletId,
-    chain: chain as ChainId,
-    pm: pm as PackageManager,
+    projectName: answers.projectName as string,
+    template: answers.template as string,
+    wallet: answers.wallet as WalletId,
+    chain: answers.chain as ChainId,
+    pm: answers.pm as PackageManager,
   };
-}
-
-function cancel(): never {
-  p.cancel("Cancelled.");
-  process.exit(0);
 }
 
 async function main(): Promise<void> {
@@ -206,57 +217,67 @@ async function main(): Promise<void> {
 
   const targetDir = path.resolve(process.cwd(), resolved.projectName);
   if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
-    process.stderr.write(
-      pc.red(`\nDirectory "${resolved.projectName}" already exists and is not empty.\n`),
-    );
+    const msg = `Directory "${resolved.projectName}" already exists and is not empty.`;
+    if (opts.yes) process.stderr.write(pc.red(`\n${msg}\n`));
+    else p.cancel(msg);
     process.exit(1);
   }
 
-  const spin = opts.yes ? null : p.spinner();
-  spin?.start("Scaffolding project");
-  const { files } = await scaffoldApp({
-    projectName: resolved.projectName,
-    targetDir,
-    template: resolved.template,
-    wallet: resolved.wallet,
-    chain: resolved.chain,
-    local: opts.local,
-    avakitVersion: AVAKIT_DEP_VERSION,
-  });
-  spin?.stop(`Created ${files.length} files`);
-
-  if (opts.install) {
-    const installSpin = opts.yes ? null : p.spinner();
-    installSpin?.start(`Installing dependencies with ${resolved.pm}`);
-    const result = spawnSync(resolved.pm, ["install"], {
-      cwd: targetDir,
-      stdio: opts.yes ? "inherit" : "ignore",
+  const runScaffold = () =>
+    scaffoldApp({
+      projectName: resolved.projectName,
+      targetDir,
+      template: resolved.template,
+      wallet: resolved.wallet,
+      chain: resolved.chain,
+      local: opts.local,
+      avakitVersion: AVAKIT_DEP_VERSION,
     });
-    if (result.status === 0) {
-      installSpin?.stop("Dependencies installed");
-    } else {
-      installSpin?.stop(pc.yellow("Install skipped/failed — run it manually"));
+  const runInstall = () =>
+    spawnSync(resolved.pm, ["install"], { cwd: targetDir, stdio: opts.yes ? "inherit" : "ignore" });
+
+  if (opts.yes) {
+    await runScaffold();
+    if (opts.install) runInstall();
+  } else {
+    // A professional, sequential task list with ticked-off steps.
+    let fileCount = 0;
+    const taskList = [
+      {
+        title: "Scaffolding project",
+        task: async () => {
+          fileCount = (await runScaffold()).files.length;
+          return `Created ${fileCount} files`;
+        },
+      },
+    ];
+    if (opts.install) {
+      taskList.push({
+        title: `Installing dependencies with ${resolved.pm}`,
+        task: async () => {
+          const result = runInstall();
+          return result.status === 0
+            ? "Dependencies installed"
+            : pc.yellow("Install skipped — run it manually");
+        },
+      });
     }
+    await p.tasks(taskList);
   }
 
   const setup = listTemplates().find((t) => t.id === resolved.template)?.setup;
   const next = [
     `cd ${resolved.projectName}`,
     ...(opts.install ? [] : [`${resolved.pm} install`]),
-    ...(resolved.wallet === "web3auth"
-      ? ["cp .env.example .env.local   # add your Web3Auth client ID"]
-      : []),
-    ...(setup
-      ? [`${resolved.pm} run ${setup}   # start the local Avalanche network (run once)`]
-      : []),
+    ...(setup ? [`${resolved.pm} run ${setup}   # start the local devnet (run once)`] : []),
     `${resolved.pm} run dev`,
   ];
 
   if (opts.yes) {
     process.stdout.write(`\nDone. Next steps:\n  ${next.join("\n  ")}\n`);
   } else {
-    p.note(next.join("\n"), "Next steps");
-    p.outro(pc.green("Your Avalanche dapp is ready."));
+    p.note(next.map((s) => pc.cyan(s)).join("\n"), "Next steps");
+    p.outro(`${pc.green("✓ Your Avalanche dapp is ready.")}  ${pc.dim("Docs → avakit.dev/docs")}`);
   }
 }
 
