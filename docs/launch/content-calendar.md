@@ -141,6 +141,26 @@ npm create avalanche-app@latest 🔺
 
 ---
 
+## Screenshots → posts
+
+Generated shots live in `docs/launch/screenshots/` (local, gitignored). Attach:
+
+- **1 hero** → `09-cli-banner.png` (or the demo video)
+- **2 social login** → your own "sign in with google → wallet address" screenshot
+- **3 browser deploy** → your own deploy → mint → snowtrace screenshot
+- **4 mcp / ai** → `05-docs-mcp.png` (or a cursor mcp-call screenshot)
+- **5 templates** → `03-templates.png`
+- **6 studio** → `07-studio-dashboard.png` (or `10-studio-cli.png`)
+- **7 build in public** → `02-terminal-page.png` (or your wizard screenshot)
+- **8 team1** → `01-landing.png` (or `09-cli-banner.png`)
+- **9 code tip** → a screenshot of the snippet in your editor
+- **10 demo re-share** → the demo video
+- **11 poll** → none (native poll)
+- **12 open source** → a screenshot of the github repo
+- **13 confidential (eERC)** → your own eerc screenshot, or none
+- **14 cross-chain (ICM)** → `07-studio-dashboard.png`, or none
+- **15 milestone** → `09-cli-banner.png`
+
 ## Using Typefully
 
 1. connect the typefully mcp (see the recommendation), or use the web app.
