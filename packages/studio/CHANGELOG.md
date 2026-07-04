@@ -1,5 +1,12 @@
 # @avakit/studio
 
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [c2b044b]
+  - @avakit/core@0.1.5
+
 ## 0.1.6
 
 ### Patch Changes

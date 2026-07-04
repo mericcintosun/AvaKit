@@ -1,5 +1,13 @@
 # examples/web3auth-demo
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [c2b044b]
+  - @avakit/core@0.1.5
+  - @avakit/react@0.1.5
+
 ## 0.1.1
 
 ### Patch Changes
