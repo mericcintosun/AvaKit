@@ -8,6 +8,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { banner, bannerColor } from "./banner.js";
 import { getAddressData } from "./dataapi.js";
 import { getDevnetStatus, isValidL1Params, runDevnetActionAsync } from "./devnet.js";
 import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
@@ -169,5 +170,9 @@ export async function runMcp(): Promise<void> {
     },
   );
 
+  // Banner to STDERR only — stdout carries the JSON-RPC protocol here.
+  if (process.stderr.isTTY) {
+    process.stderr.write(banner(bannerColor(process.stderr)));
+  }
   await server.connect(new StdioServerTransport());
 }

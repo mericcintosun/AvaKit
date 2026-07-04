@@ -4,6 +4,7 @@ import path from "node:path";
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { type ChainId, listTemplates, scaffoldApp, type WalletId } from "./api.js";
+import { banner, bannerColor } from "./banner.js";
 
 // The CLI's own version — read from package.json at runtime (single source of
 // truth, can never drift). dist/index.js ships next to package.json.
@@ -198,6 +199,9 @@ function cancel(): never {
 
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv);
+  // Brand banner — parseArgs has already handled/exited for --version and --help,
+  // so this only prints on an actual scaffold run (keeps `-v` clean for scripts).
+  process.stdout.write(banner(bannerColor(process.stdout)));
   const resolved = await resolveOptions(opts);
 
   const targetDir = path.resolve(process.cwd(), resolved.projectName);

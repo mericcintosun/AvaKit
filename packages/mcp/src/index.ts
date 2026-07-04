@@ -31,6 +31,7 @@ import { listTemplates, scaffoldApp } from "create-avalanche-app/api";
 import { type Abi, type Address, createWalletClient, type Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { z } from "zod";
+import { banner, bannerColor } from "./banner.js";
 
 function chainFrom(id: string | undefined): AvaChain {
   return id === "c-chain" ? cChain : fuji;
@@ -266,6 +267,12 @@ server.registerTool(
 );
 
 async function main(): Promise<void> {
+  // Banner goes to STDERR only — stdout is the JSON-RPC channel and must stay
+  // clean. Show the full art when a human runs it in a terminal; MCP clients
+  // launch us with pipes (not a TTY), so they just get the one-line log.
+  if (process.stderr.isTTY) {
+    process.stderr.write(banner(bannerColor(process.stderr)));
+  }
   const transport = new StdioServerTransport();
   await server.connect(transport);
   process.stderr.write("avakit-mcp running on stdio\n");

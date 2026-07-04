@@ -5,6 +5,7 @@
 
 import { execFile } from "node:child_process";
 import { platform } from "node:os";
+import { banner, bannerColor } from "./banner.js";
 import { startServer } from "./server.js";
 import { VERSION } from "./version.js";
 
@@ -59,9 +60,8 @@ async function main(): Promise<void> {
 
   const { url } = await startServer({ port: parsePort(argv), cwd: process.cwd() });
 
-  process.stdout.write(
-    `\n  \x1b[1mAvaKit Studio\x1b[0m\n  ▸ ${url}\n\n  Press Ctrl+C to stop.\n\n`,
-  );
+  process.stdout.write(banner(bannerColor(process.stdout)));
+  process.stdout.write(`  ▸ ${url}\n\n  Press Ctrl+C to stop.\n\n`);
   if (!argv.includes("--no-open")) openBrowser(url);
 }
 

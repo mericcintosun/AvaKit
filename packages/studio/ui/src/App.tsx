@@ -1,6 +1,7 @@
 import { Moon, Sun } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type DevnetStatus, type Inventory } from "./api";
+import { BootSplash } from "./components/BootSplash";
 import { Sidebar, type View } from "./components/Sidebar";
 import { Button } from "./components/ui/button";
 import { DataPanel } from "./views/DataView";
@@ -87,6 +88,9 @@ export function App() {
 
   return (
     <div className="min-h-dvh">
+      {/* One-shot terminal boot splash — overlays the dashboard, which mounts
+          underneath and is revealed when the splash fades. */}
+      <BootSplash />
       <Sidebar active={view} onNavigate={setView} network={status?.running ?? null} />
 
       <main className="ml-60 min-h-dvh">
