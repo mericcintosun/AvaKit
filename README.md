@@ -7,10 +7,13 @@
 [![@avakit/react](https://img.shields.io/npm/v/@avakit/react?label=%40avakit%2Freact&color=black)](https://www.npmjs.com/package/@avakit/react)
 [![license](https://img.shields.io/npm/l/@avakit/core?color=black)](./LICENSE)
 [![live on Fuji](https://img.shields.io/badge/live_on-Avalanche_Fuji-black)](https://testnet.snowtrace.io/tx/0x9a1f139577964587ac03123d719f25c0b68024a4c8eab0dc258ad9c925a8e090)
+[![watch the demo](https://img.shields.io/badge/▶_watch-90s_demo-e11d48)](https://youtu.be/GeSpcrmIpnc)
 
 Scaffold a social-login dapp, deploy-ready, with agent context baked in. One core, four surfaces. **No seed phrases, no boilerplate.**
 
 **[avakit.dev](https://avakit.dev)** · **[Documentation](https://avakit.dev/docs)** · **[Templates](https://avakit.dev/templates)**
+
+> **▶ [Watch the 90-second demo](https://youtu.be/GeSpcrmIpnc)** — one command to a live, social-login Avalanche dapp: sign in with Google, deploy an NFT from the browser, and mint it on Fuji.
 
 ```bash
 npm create avalanche-app@latest
