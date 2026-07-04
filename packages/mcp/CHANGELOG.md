@@ -1,5 +1,12 @@
 # @avakit/mcp
 
+## 0.1.20
+
+### Patch Changes
+
+- Updated dependencies [bbc240a]
+  - create-avalanche-app@0.1.20
+
 ## 0.1.19
 
 ### Patch Changes
