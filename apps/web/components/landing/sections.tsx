@@ -273,12 +273,21 @@ export function McpSection() {
       <Container>
         <div className="grid gap-12 lg:grid-cols-2">
           <div className="flex flex-col gap-5">
+            <Badge
+              variant="outline"
+              className="border-primary/40 text-primary w-fit font-mono text-[10px]"
+            >
+              {c.mcp.advanced}
+            </Badge>
             <SectionHeading
               index="08"
               eyebrow={c.mcp.eyebrow}
               title={c.mcp.title}
               lead={c.mcp.lead}
             />
+            <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm leading-relaxed">
+              {c.mcp.beginner}
+            </p>
             <Button asChild variant="outline" size="sm" className="mt-1 w-fit">
               <Link href="/docs/mcp">
                 {c.mcp.cta}

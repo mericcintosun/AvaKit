@@ -1,6 +1,7 @@
 import { AmbientBand } from "@/components/landing/ambient-band";
 import { CinematicIntro } from "@/components/landing/cinematic-intro";
 import { Hero } from "@/components/landing/hero";
+import { HowToSection } from "@/components/landing/how-to";
 import { DifferentiationSection, WhoForSection } from "@/components/landing/positioning";
 import { RecommenderSection } from "@/components/landing/recommender";
 import {
@@ -23,6 +24,7 @@ export default function Home() {
       <DifferentiationSection />
       <WhoForSection />
       <StepsSection />
+      <HowToSection />
       <AmbientBand />
       <TemplatesSection />
       <RecommenderSection />

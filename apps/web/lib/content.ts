@@ -31,6 +31,10 @@ export const site = {
 // Language-invariant command shown across the site.
 const CREATE_COMMAND = "npm create avalanche-app@latest";
 
+// YouTube video ID for the "how to use" walkthrough. Leave empty to show a
+// placeholder; set it (env or here) once the tutorial is recorded to embed it.
+export const TUTORIAL_VIDEO_ID = process.env.NEXT_PUBLIC_TUTORIAL_VIDEO_ID ?? "";
+
 // Google Form for user feedback. Set NEXT_PUBLIC_FEEDBACK_FORM_URL to the form's
 // share link (…/viewform). The floating feedback button opens it in a new tab.
 export const FEEDBACK_FORM_URL =
@@ -117,6 +121,7 @@ type Strings = {
   audiences: { title: string; body: string }[];
   stepsSection: { eyebrow: string; title: string; lead: string };
   steps: { title: string; body: string; code: string }[];
+  howTo: { eyebrow: string; title: string; lead: string; placeholder: string };
   templatesSection: { eyebrow: string; title: string; lead: string; all: string };
   templatesPage: { eyebrow: string; title: string; lead: string; more: string };
   templates: { title: string; description: string; highlights: string[] }[];
@@ -137,6 +142,8 @@ type Strings = {
     headDoes: string;
     tools: string[];
     cta: string;
+    advanced: string;
+    beginner: string;
   };
   mcpToolNames: string[];
   faq: { eyebrow: string; title: string; items: { q: string; a: string }[] };
@@ -310,6 +317,12 @@ const EN: Strings = {
       code: "pnpm dev  →  http://localhost:3000",
     },
   ],
+  howTo: {
+    eyebrow: "Watch first",
+    title: "See it, start to finish",
+    lead: "New to this? A short, zero-to-dapp walkthrough: run one command, sign in with Google, deploy and mint on Fuji. No prior web3 experience needed.",
+    placeholder: "Walkthrough video coming soon",
+  },
   templatesSection: {
     eyebrow: "Templates",
     title: "Start from a working example",
@@ -434,7 +447,10 @@ const EN: Strings = {
       "Deploy compiled bytecode. Fuji by default; mainnet needs confirmation.",
       "AvaKit + Avalanche coding context and doc links.",
     ],
-    cta: "Read the MCP docs",
+    cta: "Set up the MCP server",
+    advanced: "Advanced · for Claude Code / Cursor users",
+    beginner:
+      "New here? You don't need this. Start with the one-command scaffold above (or watch the walkthrough). MCP is an optional power-up once you already build with Claude Code or Cursor — it needs a config file, not a chat message.",
   },
   mcpToolNames: ["scaffold_app", "list_templates", "read_chain", "deploy_contract", "get_context"],
   faq: {
@@ -646,6 +662,12 @@ const TR: Strings = {
       code: "pnpm dev  →  http://localhost:3000",
     },
   ],
+  howTo: {
+    eyebrow: "Önce izle",
+    title: "Baştan sona, gözünle gör",
+    lead: "Yeni misin? Sıfırdan dapp'e kısa bir anlatım: tek komut çalıştır, Google ile giriş yap, Fuji'de deploy edip mint et. Önceden web3 deneyimi gerekmez.",
+    placeholder: "Anlatım videosu yakında",
+  },
   templatesSection: {
     eyebrow: "Şablonlar",
     title: "Çalışan bir örnekten başla",
@@ -769,7 +791,10 @@ const TR: Strings = {
       "Derlenmiş bytecode deploy eder. Varsayılan Fuji; mainnet onay ister.",
       "AvaKit + Avalanche kodlama bağlamı ve doküman linkleri.",
     ],
-    cta: "MCP dokümanlarını oku",
+    cta: "MCP sunucusunu kur",
+    advanced: "İleri seviye · Claude Code / Cursor kullananlar için",
+    beginner:
+      "Yeni misin? Buna ihtiyacın yok. Yukarıdaki tek-komut scaffold ile başla (ya da anlatım videosunu izle). MCP, zaten Claude Code veya Cursor ile geliştirdiğinde işine yarayan opsiyonel bir güçlendirme — ve bir chat mesajına değil, bir config dosyasına eklenir.",
   },
   mcpToolNames: ["scaffold_app", "list_templates", "read_chain", "deploy_contract", "get_context"],
   faq: {
@@ -865,6 +890,7 @@ export function getContent(locale: Locale) {
     audiences: s.audiences,
     stepsSection: s.stepsSection,
     steps: s.steps,
+    howTo: s.howTo,
     templatesSection: s.templatesSection,
     templatesPage: s.templatesPage,
     templates: s.templates.map((x, i) => ({ ...TEMPLATE_META[i], ...x })) as Template[],
