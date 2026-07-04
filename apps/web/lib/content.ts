@@ -31,9 +31,10 @@ export const site = {
 // Language-invariant command shown across the site.
 const CREATE_COMMAND = "npm create avalanche-app@latest";
 
-// YouTube video ID for the "how to use" walkthrough. Leave empty to show a
-// placeholder; set it (env or here) once the tutorial is recorded to embed it.
-export const TUTORIAL_VIDEO_ID = process.env.NEXT_PUBLIC_TUTORIAL_VIDEO_ID ?? "";
+// The landing plays a muted, silent preview of the walkthrough (public/
+// avakittutorial.mp4). This is the full, narrated version on YouTube — set the
+// URL (env or here) to reveal a "Watch on YouTube" link under the preview.
+export const TUTORIAL_YOUTUBE_URL = process.env.NEXT_PUBLIC_TUTORIAL_YOUTUBE_URL ?? "";
 
 // Google Form for user feedback. Set NEXT_PUBLIC_FEEDBACK_FORM_URL to the form's
 // share link (…/viewform). The floating feedback button opens it in a new tab.
@@ -121,7 +122,7 @@ type Strings = {
   audiences: { title: string; body: string }[];
   stepsSection: { eyebrow: string; title: string; lead: string };
   steps: { title: string; body: string; code: string }[];
-  howTo: { eyebrow: string; title: string; lead: string; placeholder: string };
+  howTo: { eyebrow: string; title: string; lead: string; watchOnYoutube: string };
   templatesSection: { eyebrow: string; title: string; lead: string; all: string };
   templatesPage: { eyebrow: string; title: string; lead: string; more: string };
   templates: { title: string; description: string; highlights: string[] }[];
@@ -321,7 +322,7 @@ const EN: Strings = {
     eyebrow: "Watch first",
     title: "See it, start to finish",
     lead: "New to this? A short, zero-to-dapp walkthrough: run one command, sign in with Google, deploy and mint on Fuji. No prior web3 experience needed.",
-    placeholder: "Walkthrough video coming soon",
+    watchOnYoutube: "Watch the full walkthrough with sound on YouTube",
   },
   templatesSection: {
     eyebrow: "Templates",
@@ -666,7 +667,7 @@ const TR: Strings = {
     eyebrow: "Önce izle",
     title: "Baştan sona, gözünle gör",
     lead: "Yeni misin? Sıfırdan dapp'e kısa bir anlatım: tek komut çalıştır, Google ile giriş yap, Fuji'de deploy edip mint et. Önceden web3 deneyimi gerekmez.",
-    placeholder: "Anlatım videosu yakında",
+    watchOnYoutube: "Sesli tam anlatımı YouTube'da izle",
   },
   templatesSection: {
     eyebrow: "Şablonlar",
