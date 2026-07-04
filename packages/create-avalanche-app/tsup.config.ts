@@ -8,5 +8,10 @@ export default defineConfig({
   sourcemap: true,
   target: "node20",
   banner: { js: "#!/usr/bin/env node" },
-  external: ["@clack/prompts", "picocolors"],
+  // Keep the interactive UI stack (Ink + React) external — it installs alongside
+  // the bin, so the published bundle stays small.
+  external: ["picocolors", "ink", "react", "react/jsx-runtime", "@inkjs/ui"],
+  esbuildOptions(options) {
+    options.jsx = "automatic";
+  },
 });

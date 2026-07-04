@@ -1,7 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { type ChainId, listTemplates, scaffoldApp, type WalletId } from "./api.js";
 import { banner, bannerColor } from "./banner.js";
@@ -108,177 +107,115 @@ function printHelp(): void {
   );
 }
 
-function isValidName(name: string): boolean {
-  return /^[a-z0-9][a-z0-9._-]*$/.test(name);
+// Curated display order — starters first, advanced/niche templates last — so the
+// list reads intentionally instead of alphabetically (and the default lands on a
+// sensible starter, not a niche one).
+const TEMPLATE_ORDER = [
+  "minimal",
+  "nft-mint",
+  "token-gated-app",
+  "erc20-token",
+  "icm-messenger",
+  "token-bridge",
+  "eerc-token",
+  "l1-launch",
+];
+
+/** Resolve options without prompting (non-interactive / `--yes` / non-TTY). */
+function resolveDefaults(
+  opts: Options,
+  templateIds: string[],
+): Required<Omit<Options, "yes" | "local" | "install">> {
+  return {
+    projectName: opts.projectName ?? "my-avax-app",
+    template: opts.template && templateIds.includes(opts.template) ? opts.template : "minimal",
+    wallet: opts.wallet ?? "web3auth",
+    chain: opts.chain ?? "fuji",
+    pm: opts.pm ?? "pnpm",
+  };
 }
 
-async function resolveOptions(
-  opts: Options,
-): Promise<Required<Omit<Options, "yes" | "local" | "install">>> {
-  const templates = listTemplates();
-  const templateIds = templates.map((t) => t.id);
-
-  if (opts.yes) {
-    const projectName = opts.projectName ?? "my-avax-app";
-    return {
-      projectName,
-      template: opts.template && templateIds.includes(opts.template) ? opts.template : "minimal",
-      wallet: opts.wallet ?? "web3auth",
-      chain: opts.chain ?? "fuji",
-      pm: opts.pm ?? "pnpm",
-    };
-  }
-
-  p.intro(`${pc.bold("Let's build on Avalanche")} ${pc.dim(`· create-avalanche-app v${VERSION}`)}`);
-
-  // One cohesive group: every prompt is a single unit with a shared cancel
-  // handler, and any answer already passed as a flag skips its prompt.
-  const answers = await p.group(
-    {
-      projectName: () =>
-        opts.projectName
-          ? Promise.resolve(opts.projectName)
-          : p.text({
-              message: "Project name",
-              placeholder: "my-avax-app",
-              defaultValue: "my-avax-app",
-              validate: (v) =>
-                !v || isValidName(v) ? undefined : "Use lowercase letters, digits, - . _",
-            }),
-      template: () =>
-        opts.template
-          ? Promise.resolve(opts.template)
-          : p.select({
-              message: "Template",
-              options: templates.map((t) => ({ value: t.id, label: t.title, hint: t.description })),
-              initialValue: "minimal",
-            }),
-      wallet: () =>
-        opts.wallet
-          ? Promise.resolve(opts.wallet)
-          : p.select({
-              message: "Wallet",
-              options: [
-                {
-                  value: "web3auth",
-                  label: "Social login (Google, Apple, email)",
-                  hint: "recommended · works on localhost out of the box",
-                },
-                { value: "injected", label: "Browser wallet (Core / MetaMask)" },
-              ],
-              initialValue: "web3auth",
-            }),
-      chain: () =>
-        opts.chain
-          ? Promise.resolve(opts.chain)
-          : p.select({
-              message: "Network",
-              options: [
-                { value: "fuji", label: "Fuji testnet", hint: "recommended" },
-                { value: "c-chain", label: "C-Chain (mainnet)" },
-              ],
-              initialValue: "fuji",
-            }),
-      pm: () =>
-        opts.pm
-          ? Promise.resolve(opts.pm)
-          : p.select({
-              message: "Package manager",
-              options: (["pnpm", "npm", "yarn", "bun"] as const).map((m) => ({
-                value: m,
-                label: m,
-              })),
-              initialValue: "pnpm",
-            }),
-    },
-    {
-      onCancel: () => {
-        p.cancel("Cancelled — no files were written.");
-        process.exit(0);
-      },
-    },
-  );
-
-  return {
-    projectName: answers.projectName as string,
-    template: answers.template as string,
-    wallet: answers.wallet as WalletId,
-    chain: answers.chain as ChainId,
-    pm: answers.pm as PackageManager,
-  };
+function nextSteps(install: boolean, pm: string, projectName: string, template: string): string[] {
+  const setup = listTemplates().find((t) => t.id === template)?.setup;
+  return [
+    `cd ${projectName}`,
+    ...(install ? [] : [`${pm} install`]),
+    ...(setup ? [`${pm} run ${setup}`] : []),
+    `${pm} run dev`,
+  ];
 }
 
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv);
-  // Brand banner — parseArgs has already handled/exited for --version and --help,
-  // so this only prints on an actual scaffold run (keeps `-v` clean for scripts).
-  process.stdout.write(banner(bannerColor(process.stdout)));
-  const resolved = await resolveOptions(opts);
+  const cwd = process.cwd();
+  const templates = listTemplates().sort(
+    (a, b) => TEMPLATE_ORDER.indexOf(a.id) - TEMPLATE_ORDER.indexOf(b.id),
+  );
+  const templateIds = templates.map((t) => t.id);
 
-  const targetDir = path.resolve(process.cwd(), resolved.projectName);
-  if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
-    const msg = `Directory "${resolved.projectName}" already exists and is not empty.`;
-    if (opts.yes) process.stderr.write(pc.red(`\n${msg}\n`));
-    else p.cancel(msg);
-    process.exit(1);
-  }
+  // The rich Ink UI needs a real terminal; anything else (CI, pipes, --yes) gets
+  // a plain, scriptable run.
+  const interactive = !opts.yes && Boolean(process.stdin.isTTY);
 
-  const runScaffold = () =>
-    scaffoldApp({
-      projectName: resolved.projectName,
+  if (!interactive) {
+    process.stdout.write(banner(bannerColor(process.stdout)));
+    const r = resolveDefaults(opts, templateIds);
+    const targetDir = path.resolve(cwd, r.projectName);
+    if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
+      process.stderr.write(
+        pc.red(`\nDirectory "${r.projectName}" already exists and is not empty.\n`),
+      );
+      process.exit(1);
+    }
+    await scaffoldApp({
+      projectName: r.projectName,
       targetDir,
-      template: resolved.template,
-      wallet: resolved.wallet,
-      chain: resolved.chain,
+      template: r.template,
+      wallet: r.wallet,
+      chain: r.chain,
       local: opts.local,
       avakitVersion: AVAKIT_DEP_VERSION,
     });
-  const runInstall = () =>
-    spawnSync(resolved.pm, ["install"], { cwd: targetDir, stdio: opts.yes ? "inherit" : "ignore" });
+    if (opts.install) spawnSync(r.pm, ["install"], { cwd: targetDir, stdio: "inherit" });
+    const steps = nextSteps(opts.install, r.pm, r.projectName, r.template);
+    process.stdout.write(`\nDone. Next steps:\n  ${steps.join("\n  ")}\n`);
+    return;
+  }
 
-  if (opts.yes) {
-    await runScaffold();
-    if (opts.install) runInstall();
-  } else {
-    // A professional, sequential task list with ticked-off steps.
-    let fileCount = 0;
-    const taskList = [
-      {
-        title: "Scaffolding project",
-        task: async () => {
-          fileCount = (await runScaffold()).files.length;
-          return `Created ${fileCount} files`;
-        },
-      },
-    ];
-    if (opts.install) {
-      taskList.push({
-        title: `Installing dependencies with ${resolved.pm}`,
-        task: async () => {
-          const result = runInstall();
-          return result.status === 0
-            ? "Dependencies installed"
-            : pc.yellow("Install skipped — run it manually");
-        },
+  const { runWizard } = await import("./ui/wizard.js");
+  await runWizard({
+    version: VERSION,
+    templates: templates.map((t) => ({ id: t.id, title: t.title, description: t.description })),
+    presets: {
+      ...(opts.projectName ? { projectName: opts.projectName } : {}),
+      ...(opts.template && templateIds.includes(opts.template) ? { template: opts.template } : {}),
+      ...(opts.wallet ? { wallet: opts.wallet } : {}),
+      ...(opts.chain ? { chain: opts.chain } : {}),
+      ...(opts.pm ? { pm: opts.pm } : {}),
+    },
+    scaffold: async (a) => {
+      const targetDir = path.resolve(cwd, a.projectName);
+      if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
+        throw new Error(`Directory "${a.projectName}" already exists and is not empty.`);
+      }
+      const { files } = await scaffoldApp({
+        projectName: a.projectName,
+        targetDir,
+        template: a.template,
+        wallet: a.wallet as WalletId,
+        chain: a.chain as ChainId,
+        local: opts.local,
+        avakitVersion: AVAKIT_DEP_VERSION,
       });
-    }
-    await p.tasks(taskList);
-  }
-
-  const setup = listTemplates().find((t) => t.id === resolved.template)?.setup;
-  const next = [
-    `cd ${resolved.projectName}`,
-    ...(opts.install ? [] : [`${resolved.pm} install`]),
-    ...(setup ? [`${resolved.pm} run ${setup}   # start the local devnet (run once)`] : []),
-    `${resolved.pm} run dev`,
-  ];
-
-  if (opts.yes) {
-    process.stdout.write(`\nDone. Next steps:\n  ${next.join("\n  ")}\n`);
-  } else {
-    p.note(next.map((s) => pc.cyan(s)).join("\n"), "Next steps");
-    p.outro(`${pc.green("✓ Your Avalanche dapp is ready.")}  ${pc.dim("Docs → avakit.dev/docs")}`);
-  }
+      return { created: files.length };
+    },
+    install: opts.install
+      ? (a) =>
+          spawnSync(a.pm, ["install"], { cwd: path.resolve(cwd, a.projectName), stdio: "ignore" })
+            .status === 0
+      : null,
+    nextSteps: (a) => nextSteps(opts.install, a.pm, a.projectName, a.template),
+  });
 }
 
 main().catch((error: unknown) => {
