@@ -43,3 +43,6 @@ pnpm-debug.log*
 # Misc
 .cache/
 .vercel/
+
+# Local Turkish translations (the repo itself stays English-only)
+*.tr.md
