@@ -1,3 +1,4 @@
+export { type BurnerAdapterOptions, burnerAdapter, clearBurner } from "./burner.js";
 export { type InjectedAdapterOptions, injectedAdapter } from "./injected.js";
 export type { WalletAdapter, WalletConnection } from "./types.js";
 // web3authAdapter is intentionally NOT re-exported here. It lives behind the

@@ -17,6 +17,9 @@ export const VERSION: string =
 
 // Wallet adapters (web3auth lives at the `@avakit/core/web3auth` subpath)
 export {
+  type BurnerAdapterOptions,
+  burnerAdapter,
+  clearBurner,
   type InjectedAdapterOptions,
   injectedAdapter,
   type WalletAdapter,
@@ -66,10 +69,17 @@ export {
   AvaKitError,
   ChainMismatchError,
   DeployFailedError,
+  FaucetError,
   InsufficientFundsError,
   MainnetConfirmationError,
   WalletConnectionError,
   WalletNotAvailableError,
 } from "./errors.js";
+// Faucet (AvaKit-hosted testnet drip)
+export {
+  type FaucetRequestOptions,
+  type FaucetResult,
+  requestFaucet,
+} from "./faucet.js";
 // Network switching
 export { ensureChain } from "./network.js";

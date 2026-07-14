@@ -3,6 +3,7 @@
 import {
   type AvaChain,
   ensureChain,
+  requestFaucet,
   type WalletAdapter,
   type WalletConnection,
 } from "@avakit/core";
@@ -13,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { Address, EIP1193Provider } from "viem";
@@ -33,6 +35,8 @@ export interface AvaKitContextValue {
   disconnect: () => Promise<void>;
   /** Optional AvaCloud Data API key used by the data hooks (keyless otherwise). */
   dataApiKey?: string;
+  /** Optional AvaKit faucet endpoint used by useFaucet() and burner auto-funding. */
+  faucetUrl?: string;
 }
 
 const AvaKitContext = createContext<AvaKitContextValue | null>(null);
@@ -52,10 +56,21 @@ export interface AvaKitProviderProps {
   adapters: WalletAdapter[];
   /** Optional AvaCloud Data API key for the data hooks (useTokenBalances, useNfts, useTxHistory). */
   dataApiKey?: string;
+  /** Optional AvaKit faucet endpoint. Enables useFaucet() and auto-funds a burner on connect. */
+  faucetUrl?: string;
+  /** Auto-connect a temporary (burner) wallet on mount when no injected wallet is present. */
+  autoConnect?: "burner";
   children: ReactNode;
 }
 
-export function AvaKitProvider({ chains, adapters, dataApiKey, children }: AvaKitProviderProps) {
+export function AvaKitProvider({
+  chains,
+  adapters,
+  dataApiKey,
+  faucetUrl,
+  autoConnect,
+  children,
+}: AvaKitProviderProps) {
   const [chain, setChain] = useState<AvaChain>(() => {
     const first = chains[0];
     if (!first) {
@@ -68,6 +83,8 @@ export function AvaKitProvider({ chains, adapters, dataApiKey, children }: AvaKi
   const [provider, setProvider] = useState<EIP1193Provider | null>(null);
   const [activeAdapterId, setActiveAdapterId] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const autoBurnerTried = useRef(false);
+  const fundedAddresses = useRef<Set<string>>(new Set());
 
   const connect = useCallback(
     async (adapterId?: string) => {
@@ -120,6 +137,36 @@ export function AvaKitProvider({ chains, adapters, dataApiKey, children }: AvaKi
     void run.catch((e) => setError(e instanceof Error ? e : new Error(String(e))));
   }, [status, provider, chain, adapters, activeAdapterId]);
 
+  // Auto-connect a temporary (burner) wallet when the app opts in and the visitor
+  // has no injected wallet, so a stranger lands already connected. Runs once.
+  useEffect(() => {
+    if (autoConnect !== "burner" || autoBurnerTried.current || status !== "disconnected") {
+      return;
+    }
+    const hasInjected =
+      typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
+    if (!hasInjected && adapters.some((a) => a.id === "burner")) {
+      autoBurnerTried.current = true;
+      void connect("burner");
+    }
+  }, [autoConnect, status, adapters, connect]);
+
+  // Auto-fund a freshly-connected burner from the app's faucet (once per address)
+  // so the zero-config wallet can transact with no manual faucet step.
+  useEffect(() => {
+    if (!faucetUrl || status !== "connected" || !address || activeAdapterId !== "burner") {
+      return;
+    }
+    if (fundedAddresses.current.has(address)) {
+      return;
+    }
+    fundedAddresses.current.add(address);
+    void requestFaucet({ url: faucetUrl, address, chainId: chain.id }).catch(() => {
+      // Allow a retry on a transient failure.
+      fundedAddresses.current.delete(address);
+    });
+  }, [faucetUrl, status, address, activeAdapterId, chain.id]);
+
   const value = useMemo<AvaKitContextValue>(
     () => ({
       chains,
@@ -134,6 +181,7 @@ export function AvaKitProvider({ chains, adapters, dataApiKey, children }: AvaKi
       connect,
       disconnect,
       dataApiKey,
+      faucetUrl,
     }),
     [
       chains,
@@ -147,6 +195,7 @@ export function AvaKitProvider({ chains, adapters, dataApiKey, children }: AvaKi
       connect,
       disconnect,
       dataApiKey,
+      faucetUrl,
     ],
   );
 

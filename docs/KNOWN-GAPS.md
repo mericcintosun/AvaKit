@@ -97,3 +97,193 @@
 
 13. **Version constant only correct in built artifacts.** `VERSION` is injected
     at build time; raw `tsc`/`vitest` yields `"0.0.0-dev"`. Expected.
+
+---
+
+# 2026-07-15 — full-repo review (all 5 packages + templates + website)
+
+> Second-pass audit covering everything the 2026-07-04 snapshot did not:
+> `create-avalanche-app`, `@avakit/mcp`, `@avakit/studio`, all 8 templates, and
+> `apps/web`. Grouped by area, ordered by risk within each group. None of these
+> are release blockers (0.x is shipped and proven on Fuji); they are the next
+> tier of engineering debt. File:line refs are from this review — verify before
+> editing.
+
+## A. Scaffolding correctness
+
+A1. **MCP-scaffolded apps get the wrong `@avakit/*` version floor.** The CLI
+   passes `avakitVersion: AVAKIT_DEP_VERSION` (`^0.1.6`) into `scaffoldApp`
+   (`packages/create-avalanche-app/src/index.ts:178,210`), but the MCP
+   `scaffold_app` tool calls `scaffoldApp` **without** `avakitVersion`
+   (`packages/mcp/src/index.ts:103`), so `api.ts:82` falls back to `^0.1.0`.
+   Low impact today (`^0.1.0` still resolves to the latest published 0.1.x =
+   0.1.6), but it diverges from the CLI and defeats the point of the pin. Fix:
+   pass `avakitVersion` from MCP, or export the constant from `./api` and use it
+   as the shared default.
+   **FIXED (2026-07-15):** MCP now inherits the shared pin via the scaffolder
+   default (see A2) — no code change needed in MCP.
+
+A2. **`AVAKIT_DEP_VERSION` is a hand-maintained magic constant** decoupled from
+   the CLI's own version (`packages/create-avalanche-app/src/index.ts:22`), and
+   `api.ts:82` has an unrelated fallback default `"0.1.0"`. Both must be bumped by
+   hand on every core/react release; nothing enforces they stay in sync with the
+   published versions. Consider deriving the pin from the published core version
+   at build time.
+   **FIXED (2026-07-15):** `AVAKIT_DEP_VERSION` now lives in
+   `create-avalanche-app/src/api.ts` as the default `scaffoldApp` uses and the
+   CLI imports — one source of truth for both scaffolding paths. Bumped to 0.1.7
+   for the burner-wallet release. (Auto-deriving from the published version is
+   still a possible future improvement.)
+
+## B. Testing (whole packages untested)
+
+B1. **`create-avalanche-app`, `@avakit/mcp`, and `@avakit/studio` have zero
+   tests.** No `*.test.*` / `vitest.config.*` under any of the three; all declare
+   `"test": "vitest run --passWithNoTests"`, so `pnpm test` is a green no-op that
+   masks the gap. This is despite security-sensitive logic: Studio arg
+   validation, path-traversal guard, session-token gating, CB58 decoding; the
+   scaffolder's placeholder replacement and dot-segment renaming; the MCP tools.
+   Typecheck is the only real gate.
+
+B2. **No integration / e2e coverage anywhere** (carried over from item 6). Nothing
+   drives connect → deploy → mint against a chain, or scaffold → install → run.
+
+## C. `@avakit/studio`
+
+C1. **Hardcoded EWOQ private key in source** (`packages/studio/src/icm.ts:25`).
+   It is the well-known public local-devnet key and only used against local
+   chains, but it is a literal private key committed to the repo and passed on the
+   `cast` command line (visible in process listings). Document loudly / centralize.
+
+C2. **`detached: true` orphan processes** (`devnet.ts:260`, `fuji.ts:285`):
+   avalanche-cli children intentionally outlive Studio, so stopping Studio can
+   leave a running local network/validator with no obvious owner and no "stop
+   everything" affordance.
+
+C3. **`token` vs `symbol` query-param split is a latent landmine**
+   (`server.ts:130-132`, `api.ts:110`, `fuji.ts` note): the L1 native-token symbol
+   once collided with the session-auth `token` param and broke the Fuji deploy;
+   the workaround is comment-guarded only.
+
+C4. **Fuji deploy depends on avalanche-cli's interactive prompt behavior**
+   (`fuji.ts:216-222` relies on stdin being closed to auto-skip the "fund
+   relayer?" prompt). A CLI update could hang or change the flow.
+
+C5. **Side-effecting GET SSE routes, session-token as the only CSRF defense.**
+   `GET /api/devnet/stream` spawns avalanche-cli via a GET (EventSource can't
+   POST); same-origin + `x-studio-token` is the whole defense. Acceptable for a
+   localhost tool, but unconventional.
+
+C6. **`getFujiKeyBalance` does lossy integer math on wei**
+   (`fuji.ts:82`, `Number(wei / 1e12n) / 1e6`) to avoid a bignum dep — truncates;
+   display-only, fine for now.
+
+C7. **`messenger-artifact.ts` is a hand-copied build artifact** with only a
+   comment on how to regenerate — can silently drift from the `icm-messenger`
+   template's Solidity source.
+
+## D. `@avakit/mcp`
+
+D1. **`deploy_contract` uses `as never` casts** (`mcp/src/index.ts:~159,~254`) to
+   bypass viem's generics — brittle if viem's `deployContract`/`readContract`
+   signatures change.
+
+D2. **`estimate_gas` loses precision on large costs** — computes AVAX cost as
+   `Number(costWei) / 1e18`. Display-only, but note it.
+
+## E. `@avakit/core` / `@avakit/react` (beyond the 2026-07-04 items)
+
+E1. **`viem` is a devDependency-only in `@avakit/react`.** Works today purely
+   because every viem import in react is type-only (erased at build) and runtime
+   viem arrives transitively through `@avakit/core`. Adding any runtime viem value
+   import to react would silently break consumers who don't independently install
+   viem. Make viem a real peer dep, or keep a lint rule forbidding value imports.
+
+E2. **No connection persistence / auto-reconnect** in `AvaKitProvider` — state is
+   in-memory only, so a reload drops the wallet. Adapters expose `on` /
+   `removeListener` but the provider never subscribes to `accountsChanged` /
+   `chainChanged`.
+
+E3. **Data hooks silently drop pagination.** `DataApiOptions` plumbs
+   `pageSize`/`pageToken` through core, but `useTokenBalances`/`useNfts`/
+   `useTxHistory` only read the first page and discard `nextPageToken`.
+
+E4. **shadcn "style-only" shipping model** (ADR-012): `@avakit/react` emits
+   Tailwind token classes and renders unstyled if the consumer hasn't configured
+   shadcn tokens — documented but easy to miss.
+
+E5. **`ReadContractParams` (`data.ts`) and `ChainRef` (`data-api.ts`) are not
+   exported**, so consumers can't name them.
+
+E6. **No AvaCloud WaaS wallet adapter.** ADR-004 lists it as an opt-in wallet, but
+   only `injected` and `web3auth` exist; "AvaCloud" ships solely as the Glacier
+   Data API. Either build the adapter or drop it from the positioning docs.
+
+## F. Templates
+
+F1. **`l1-launch` stale references a non-existent file.** `templates/l1-launch/lib/l1.ts`
+   and its `CLAUDE.md` point at `components/explorer.tsx`, but the explorer is
+   inlined in `components/demo.tsx` — no such file exists.
+
+F2. **`eerc-token` demo Mint reverts for most users.** It points at a *shared*
+   pre-deployed Fuji eERC whose `privateMint` is `onlyOwner`; minting only works
+   if you deploy your own instance and connect as its deployer (documented, but
+   the Mint button will fail out of the box). Also: circuits are fetched from a
+   commit-pinned jsDelivr CDN (2–14 MB, network-dependent), and `wagmi` is pinned
+   to 2.x, intentionally off the repo's "latest stable" rule.
+
+F3. **Cross-chain "in flight" UX is timing-heuristic.** `token-bridge` uses a
+   hardcoded `setTimeout(…, 12000)` and `deploy-bridge.mjs` a fixed `sleep(8000)`;
+   `icm-messenger` clears the banner when the destination inbox string matches, so
+   sending identical text twice can clear it prematurely.
+
+F4. **Source/artifact duplication (maintenance smell).** `AvaKitNFT.sol` +
+   `lib/nft-artifact.ts` are byte-identical between `nft-mint` and
+   `token-gated-app`; `AvaKitToken.sol` + `lib/token-artifact.ts` are duplicated
+   between `erc20-token` and `l1-launch`. No shared source of truth.
+
+F5. **Setup templates need external tooling and only run locally.** `icm-messenger`,
+   `l1-launch`, `token-bridge` require `avalanche-cli` and ship
+   `*.config.json` as `configured:false` placeholders (a `SetupPanel` blocks the
+   app until the one-command script runs). Scripts use `set -uo pipefail` (no `-e`).
+
+F6. **Bundled Solidity is intentionally minimal (not production).** `AvaKitNFT.sol`
+   is deliberately not a full ERC-721 (no transfer/approve); the ERC-20 `mint` is a
+   public faucet with no access control. Fine for demos; flag before anyone copies
+   it to prod.
+
+## G. `apps/web` (website)
+
+G1. **next-intl message files are empty.** `messages/en.json` and `messages/tr.json`
+   are both `{}` while `NextIntlClientProvider` is fed `getMessages()`. All real
+   bilingual copy lives in `lib/content.ts` instead, so the entire next-intl
+   message layer is vestigial — any component calling `useTranslations`/`t()` would
+   fail (none do yet).
+
+G2. **The `/avatar` 3D-mascot feature is unfinished and untracked.**
+   `app/[locale]/avatar/` + `public/3d/` are new, uncommitted, and not linked from
+   nav / command menu / sitemap. It loads Google `<model-viewer>` from a CDN at
+   runtime (external dependency, no offline/SRI fallback), and the
+   `fox-loop.webm` / `core-loop.webm` assets aren't referenced by the page.
+
+G3. **Hidden pages have no inbound links.** `/terminal`, `/pitch`, `/avatar` are
+   reachable only by direct URL (not in header, mobile sheet, command menu, or
+   sitemap). `/pitch` is a grant deck ("Team1 Mini Grant") — arguably intentional.
+
+G4. **Copy inconsistency: "four surfaces" vs "five surfaces/packages."** The layout
+   and docs say "one core, four surfaces" (= 5 packages); the pitch deck / npm
+   counts say five. Pick one framing.
+
+G5. **No test/lint gate beyond Biome + `tsc`** in `apps/web`; no `test` script.
+
+G6. **Hardcoded external config in `lib/content.ts`** (GitHub, a YouTube tutorial
+   URL, a Google Forms feedback link, `SITE_URL`), overridable via `NEXT_PUBLIC_*`
+   but baked in as defaults.
+
+## H. Cross-cutting
+
+H1. **The ASCII banner is duplicated 5×.** Three byte-identical `banner.ts`
+   (`create-avalanche-app`, `mcp`, `studio`) plus two inline React re-embeds of the
+   same art (the Ink wizard `Banner()` and Studio's `BootSplash`). Intentional per
+   the file headers, but a copy-paste hazard — a shared `@avakit/brand` asset would
+   remove the drift risk.

@@ -20,6 +20,10 @@
     "./web3auth": {
       "types": "./dist/web3auth.d.ts",
       "import": "./dist/web3auth.js"
+    },
+    "./coinbase": {
+      "types": "./dist/coinbase.d.ts",
+      "import": "./dist/coinbase.js"
     }
   },
   "files": [
@@ -39,9 +43,13 @@
     "viem": "2.54.1"
   },
   "peerDependencies": {
+    "@coinbase/wallet-sdk": ">=4",
     "@web3auth/modal": ">=11"
   },
   "peerDependenciesMeta": {
+    "@coinbase/wallet-sdk": {
+      "optional": true
+    },
     "@web3auth/modal": {
       "optional": true
     }

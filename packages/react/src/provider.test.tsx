@@ -182,4 +182,24 @@ describe("ConnectAvalanche", () => {
     expect((option as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText("Missing client ID.")).toBeTruthy();
   });
+
+  it("leads with a burner 'Start instantly' option and still offers real wallets", async () => {
+    const burner = makeMockAdapter({ id: "burner", name: "Temporary wallet (no setup)" });
+    const social = makeMockAdapter({ id: "web3auth", name: "Social login" });
+
+    render(
+      <AvaKitProvider chains={[fuji]} adapters={[social, burner]}>
+        <ConnectAvalanche />
+      </AvaKitProvider>,
+    );
+
+    fireEvent.click(screen.getByText("Connect wallet"));
+
+    const start = await screen.findByRole("button", { name: /Start instantly/i });
+    // The real wallet is still offered as the "already have a wallet?" upgrade.
+    expect(screen.getByRole("button", { name: /Social login/i })).toBeTruthy();
+
+    fireEvent.click(start);
+    expect(burner.connect).toHaveBeenCalledTimes(1);
+  });
 });

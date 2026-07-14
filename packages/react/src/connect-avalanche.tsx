@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Loader2, LogOut, Wallet } from "lucide-react";
+import { Loader2, LogOut, Sparkles, Wallet } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useAvaKit } from "./provider.js";
 import { Button } from "./ui.js";
@@ -41,13 +41,23 @@ export interface ConnectAvalancheProps {
 }
 
 /**
- * Drop-in wallet button. Closed → opens a dialog of configured adapters
- * (social login, browser wallet). Connected → shows the address with a
- * disconnect option. Built on Radix Dialog + shadcn tokens.
+ * Drop-in wallet button. Closed → opens a dialog that lets the user start
+ * instantly with a temporary (burner) wallet or connect their own (social login,
+ * browser wallet). Connected → shows the address with a disconnect option. Built
+ * on Radix Dialog + shadcn tokens.
+ *
+ * If a "burner" adapter is present, it becomes the front-and-center zero-setup
+ * option so a new user can transact immediately, with real wallets offered as the
+ * "already have a wallet?" upgrade.
  */
 export function ConnectAvalanche({ label = "Connect wallet", className }: ConnectAvalancheProps) {
   const { status, address, adapters, activeAdapterId, error, connect, disconnect } = useAvaKit();
   const [open, setOpen] = useState(false);
+
+  // Split the burner (zero-config) path from real wallets so the dialog can lead
+  // with "start instantly" and present the rest as the bring-your-own upgrade.
+  const burner = adapters.find((a) => a.id === "burner");
+  const others = adapters.filter((a) => a.id !== "burner");
 
   // Close the picker once a connection lands.
   useEffect(() => {
@@ -91,32 +101,79 @@ export function ConnectAvalanche({ label = "Connect wallet", className }: Connec
           {label}
         </Button>
       </Dialog.Trigger>
-      <DialogShell title="Connect a wallet" description="Choose how you want to sign in.">
-        <div className="flex flex-col gap-2">
-          {adapters.map((adapter) => {
-            const isBusy = status === "connecting" && activeAdapterId === adapter.id;
-            // isAvailable() is synchronous for the built-in adapters; only a
-            // definite `false` disables the option (a pending Promise stays live).
-            const unavailable = adapter.isAvailable() === false;
-            return (
-              <div key={adapter.id} className="flex flex-col gap-1">
-                <Button
-                  variant="outline"
-                  className={cn("justify-between")}
-                  disabled={status === "connecting" || unavailable}
-                  onClick={() => {
-                    if (!unavailable) void connect(adapter.id);
-                  }}
-                >
-                  <span>{adapter.name}</span>
-                  {isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
-                </Button>
-                {unavailable && adapter.unavailableReason ? (
-                  <p className="text-muted-foreground px-1 text-xs">{adapter.unavailableReason}</p>
-                ) : null}
-              </div>
-            );
-          })}
+      <DialogShell
+        title={burner ? "Get started" : "Connect a wallet"}
+        description={
+          burner
+            ? "Start instantly with a temporary wallet, or connect your own."
+            : "Choose how you want to sign in."
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {burner ? (
+            <div className="flex flex-col gap-1">
+              <Button
+                className="justify-between"
+                disabled={status === "connecting"}
+                onClick={() => {
+                  void connect(burner.id);
+                }}
+              >
+                <span>Start instantly</span>
+                {status === "connecting" && activeAdapterId === burner.id ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="size-4" />
+                )}
+              </Button>
+              <p className="text-muted-foreground px-1 text-xs">
+                No wallet? We&apos;ll create a temporary one in your browser. No seed phrase, no
+                setup.
+              </p>
+            </div>
+          ) : null}
+
+          {burner && others.length > 0 ? (
+            <div className="flex items-center gap-3">
+              <span className="bg-border h-px flex-1" />
+              <span className="text-muted-foreground whitespace-nowrap text-xs">
+                already have a wallet?
+              </span>
+              <span className="bg-border h-px flex-1" />
+            </div>
+          ) : null}
+
+          {others.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {others.map((adapter) => {
+                const isBusy = status === "connecting" && activeAdapterId === adapter.id;
+                // isAvailable() is synchronous for the built-in adapters; only a
+                // definite `false` disables the option (a pending Promise stays live).
+                const unavailable = adapter.isAvailable() === false;
+                return (
+                  <div key={adapter.id} className="flex flex-col gap-1">
+                    <Button
+                      variant="outline"
+                      className={cn("justify-between")}
+                      disabled={status === "connecting" || unavailable}
+                      onClick={() => {
+                        if (!unavailable) void connect(adapter.id);
+                      }}
+                    >
+                      <span>{adapter.name}</span>
+                      {isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                    </Button>
+                    {unavailable && adapter.unavailableReason ? (
+                      <p className="text-muted-foreground px-1 text-xs">
+                        {adapter.unavailableReason}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
           {error ? <p className="text-muted-foreground text-sm">{error.message}</p> : null}
         </div>
       </DialogShell>

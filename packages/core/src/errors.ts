@@ -51,3 +51,12 @@ export class InsufficientFundsError extends AvaKitError {
     );
   }
 }
+
+export class FaucetError extends AvaKitError {
+  override name = "FaucetError";
+  readonly status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}

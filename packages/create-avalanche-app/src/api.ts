@@ -12,6 +12,15 @@ import { scaffold } from "./scaffold.js";
 /** Web3Auth Modal SDK version added to apps that use the social-login wallet. */
 const WEB3AUTH_MODAL_VERSION = "11.2.0";
 
+/**
+ * The `@avakit/*` version range stamped into a scaffolded app's package.json (as
+ * `^AVAKIT_DEP_VERSION`) when not linking locally. Single source of truth shared
+ * by the CLI and `@avakit/mcp`, so both scaffolding paths pin the same version.
+ * Bump on every `@avakit/core`/`react` release whose features the templates rely
+ * on (0.1.7 added the burner wallet the default templates wire up).
+ */
+export const AVAKIT_DEP_VERSION = "0.1.7";
+
 export const templatesDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -79,7 +88,7 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
   const replacements: Record<string, string> = {
     __PROJECT_NAME__: opts.projectName,
     __CHAIN_CONST__: opts.chain === "c-chain" ? "cChain" : "fuji",
-    __AVAKIT_DEP__: opts.local ? "workspace:*" : `^${opts.avakitVersion ?? "0.1.0"}`,
+    __AVAKIT_DEP__: opts.local ? "workspace:*" : `^${opts.avakitVersion ?? AVAKIT_DEP_VERSION}`,
   };
 
   let files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });

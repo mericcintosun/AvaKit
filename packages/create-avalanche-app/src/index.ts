@@ -2,7 +2,13 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
-import { type ChainId, listTemplates, scaffoldApp, type WalletId } from "./api.js";
+import {
+  AVAKIT_DEP_VERSION,
+  type ChainId,
+  listTemplates,
+  scaffoldApp,
+  type WalletId,
+} from "./api.js";
 import { banner, bannerColor } from "./banner.js";
 import type { StartCommand } from "./ui/wizard.js";
 
@@ -14,12 +20,8 @@ const VERSION = (
   }
 ).version;
 
-// The @avakit/* dependency version stamped into scaffolded apps' package.json
-// (as `^AVAKIT_DEP_VERSION`). Separate from the CLI's own VERSION: it's the
-// minimum @avakit version a fresh app needs. Bumped to 0.1.6 because the
-// templates pass `chains` to `web3authAdapter` (added in core 0.1.6) — an older
-// resolve would fail to typecheck. `^0.1.6` still satisfies both core and react.
-const AVAKIT_DEP_VERSION = "0.1.6";
+// AVAKIT_DEP_VERSION (the @avakit/* range stamped into scaffolded apps) now lives
+// in ./api.ts so the CLI and @avakit/mcp share one source of truth.
 
 type PackageManager = "pnpm" | "npm" | "yarn" | "bun";
 

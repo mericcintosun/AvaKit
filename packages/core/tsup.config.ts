@@ -6,12 +6,12 @@ import { defineConfig } from "tsup";
 const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/chains.ts", "src/web3auth.ts"],
+  entry: ["src/index.ts", "src/chains.ts", "src/web3auth.ts", "src/coinbase.ts"],
   format: ["esm"],
   dts: true,
   clean: true,
   sourcemap: true,
   treeshake: true,
-  external: ["viem", "@web3auth/modal"],
+  external: ["viem", "@web3auth/modal", "@coinbase/wallet-sdk"],
   define: { __AVAKIT_VERSION__: JSON.stringify(version) },
 });

@@ -22,12 +22,14 @@ export { ConnectAvalanche, type ConnectAvalancheProps } from "./connect-avalanch
 export { useNfts, useTokenBalances, useTxHistory } from "./data-hooks.js";
 export {
   type DeployStatus,
+  type FaucetStatus,
   type TxStatus,
   useAvaAccount,
   useAvaChain,
   useAvaDeploy,
   useBalance,
   useContract,
+  useFaucet,
   useSendTransaction,
 } from "./hooks.js";
 export {

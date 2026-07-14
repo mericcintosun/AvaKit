@@ -1,6 +1,6 @@
 "use client";
 
-import { type WalletAdapter, injectedAdapter, toViemChain } from "@avakit/core";
+import { type WalletAdapter, burnerAdapter, injectedAdapter, toViemChain } from "@avakit/core";
 import { __CHAIN_CONST__ } from "@avakit/core/chains";
 import { web3authAdapter } from "@avakit/core/web3auth";
 import { AvaKitProvider } from "@avakit/react";
@@ -28,6 +28,9 @@ export function Providers({ children }: { children: ReactNode }) {
     );
     // Injected (Core / MetaMask) is always available.
     list.push(injectedAdapter());
+    // Zero-config fallback: a temporary in-browser wallet so a new user can try
+    // everything with no setup. The wallets above are the bring-your-own upgrade.
+    list.push(burnerAdapter({ chain: __CHAIN_CONST__ }));
     return list;
   }, []);
 

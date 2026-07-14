@@ -1,0 +1,21 @@
+{
+  "name": "@avakit/faucet-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AvaKit Cloud faucet — a tiny self-hostable testnet AVAX drip service.",
+  "license": "MIT",
+  "bin": {
+    "avakit-faucet": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js"
+  },
+  "dependencies": {
+    "viem": "2.54.1"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
