@@ -23,10 +23,11 @@ Works with Claude Code, Cursor, and Claude Desktop.
 
 | Tool | Description |
 | --- | --- |
-| `scaffold_app` | Create an Avalanche dapp from a template (minimal, nft-mint, token-gated-app) |
+| `scaffold_app` | Create an Avalanche dapp from any of the 8 templates (`list_templates` returns the current set) |
 | `list_templates` | List available templates |
 | `read_chain` | Read a balance, a transaction receipt, or a contract view function |
 | `deploy_contract` | Deploy compiled bytecode (Fuji by default; mainnet requires `confirm: true`) |
+| `estimate_gas` | Estimate gas for a call before you send it |
 | `get_context` | AvaKit + Avalanche coding context and doc links |
 
 ## Deploy key

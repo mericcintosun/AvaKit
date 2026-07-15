@@ -180,7 +180,7 @@ const EN: Strings = {
   },
   surfacesSection: {
     eyebrow: "Architecture",
-    title: "One core, four surfaces",
+    title: "One core, five packages",
     lead: "A single framework-agnostic kernel, delivered through the surface that fits how you work.",
     readDocs: "Read docs",
     onNpm: "All five packages on npm",
@@ -240,7 +240,7 @@ const EN: Strings = {
   features: [
     {
       title: "Social-login onboarding",
-      body: "Users sign in with Google. No seed phrases. Web3Auth keeps the HSM-backed keys; AvaKit never touches them.",
+      body: "Users sign in with Google. No seed phrases. Web3Auth keeps the HSM-backed keys; AvaKit never touches them. Or skip sign-in entirely — a temporary in-browser wallet gets you a real transaction with nothing installed.",
     },
     {
       title: "AI-native by default",
@@ -447,6 +447,7 @@ const EN: Strings = {
       "List available templates.",
       "Read a balance, a tx receipt, or a contract view function.",
       "Deploy compiled bytecode. Fuji by default; mainnet needs confirmation.",
+      "Estimate gas for a call before you send it.",
       "AvaKit + Avalanche coding context and doc links.",
     ],
     cta: "Set up the MCP server",
@@ -454,18 +455,25 @@ const EN: Strings = {
     beginner:
       "New here? You don't need this. Start with the one-command scaffold above (or watch the walkthrough). MCP is an optional power-up once you already build with Claude Code or Cursor — it needs a config file, not a chat message.",
   },
-  mcpToolNames: ["scaffold_app", "list_templates", "read_chain", "deploy_contract", "get_context"],
+  mcpToolNames: [
+    "scaffold_app",
+    "list_templates",
+    "read_chain",
+    "deploy_contract",
+    "estimate_gas",
+    "get_context",
+  ],
   faq: {
     eyebrow: "FAQ",
     title: "Questions, answered",
     items: [
       {
         q: "Do my users need a seed phrase?",
-        a: "No. AvaKit defaults to social login (Google/Apple/email) via Web3Auth. Keys are HSM-backed and never pass through AvaKit. Browser wallets like Core and MetaMask work too.",
+        a: "No. AvaKit offers social login (Google/Apple/email) via Web3Auth, where keys are HSM-backed and never pass through AvaKit, plus browser wallets like Core and MetaMask. It also ships a temporary burner wallet for zero-setup demos — that one does hold a throwaway testnet key in the browser, by design.",
       },
       {
         q: "Is it locked to a specific wallet or provider?",
-        a: "No. Wallet providers sit behind an adapter interface, so you can swap Web3Auth for AvaCloud, injected, or your own. Components are copy-in shadcn, so there's no vendor lock-in.",
+        a: "No. Wallet providers sit behind an adapter interface, so you can swap Web3Auth for a browser wallet, a burner, Coinbase Smart Wallet, or your own. Components are copy-in shadcn, so there's no vendor lock-in.",
       },
       {
         q: "What chains are supported?",
@@ -525,7 +533,7 @@ const TR: Strings = {
   },
   surfacesSection: {
     eyebrow: "Mimari",
-    title: "Tek çekirdek, dört yüzey",
+    title: "Tek çekirdek, beş paket",
     lead: "Tek, framework-bağımsız bir çekirdek; sana en uygun yüzeyden sunulur.",
     readDocs: "Dokümanları oku",
     onNpm: "Beş paketin tümü npm'de",
@@ -585,7 +593,7 @@ const TR: Strings = {
   features: [
     {
       title: "Sosyal-girişli onboarding",
-      body: "Kullanıcılar Google ile giriş yapar; seed phrase yok. Anahtarlar Web3Auth'un HSM-destekli sisteminde durur; AvaKit onlara asla dokunmaz.",
+      body: "Kullanıcılar Google ile giriş yapar; seed phrase yok. Anahtarlar Web3Auth'un HSM-destekli sisteminde durur; AvaKit onlara asla dokunmaz. Ya da girişi tümden atla — tarayıcıda beliren geçici bir cüzdanla, hiçbir şey kurmadan gerçek bir işlem gönder.",
     },
     {
       title: "Varsayılan olarak AI-native",
@@ -791,6 +799,7 @@ const TR: Strings = {
       "Mevcut şablonları listeler.",
       "Bir bakiye, işlem makbuzu veya kontrat view fonksiyonu okur.",
       "Derlenmiş bytecode deploy eder. Varsayılan Fuji; mainnet onay ister.",
+      "Göndermeden önce bir çağrının gazını tahmin et.",
       "AvaKit + Avalanche kodlama bağlamı ve doküman linkleri.",
     ],
     cta: "MCP sunucusunu kur",
@@ -798,7 +807,14 @@ const TR: Strings = {
     beginner:
       "Yeni misin? Buna ihtiyacın yok. Yukarıdaki tek-komut scaffold ile başla (ya da anlatım videosunu izle). MCP, zaten Claude Code veya Cursor ile geliştirdiğinde işine yarayan opsiyonel bir güçlendirme — ve bir chat mesajına değil, bir config dosyasına eklenir.",
   },
-  mcpToolNames: ["scaffold_app", "list_templates", "read_chain", "deploy_contract", "get_context"],
+  mcpToolNames: [
+    "scaffold_app",
+    "list_templates",
+    "read_chain",
+    "deploy_contract",
+    "estimate_gas",
+    "get_context",
+  ],
   faq: {
     eyebrow: "SSS",
     title: "Sorular, yanıtlandı",
@@ -809,7 +825,7 @@ const TR: Strings = {
       },
       {
         q: "Belirli bir cüzdana veya sağlayıcıya kilitli mi?",
-        a: "Hayır. Cüzdan sağlayıcıları bir adaptör arayüzünün arkasında; Web3Auth'u AvaCloud, injected veya kendinkiyle değiştirebilirsin. Bileşenler kopyala-gel shadcn; sağlayıcıya bağımlılık yok.",
+        a: "Hayır. Cüzdan sağlayıcıları bir adaptör arayüzünün arkasında; Web3Auth'u tarayıcı cüzdanı, burner, Coinbase Smart Wallet veya kendinkiyle değiştirebilirsin. Bileşenler kopyala-gel shadcn; sağlayıcıya bağımlılık yok.",
       },
       {
         q: "Hangi zincirler destekleniyor?",

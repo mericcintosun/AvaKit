@@ -29,7 +29,7 @@ export const l1 = config as L1Config;
 /** True once `pnpm l1` has filled in the chain's RPC URL. */
 export const isConfigured = Boolean(l1.configured && l1.rpcUrl);
 
-/** Your L1 as an AvaKit chain. Explorer is built into this app (see components/explorer.tsx). */
+/** Your L1 as an AvaKit chain. The explorer is built into this app (see components/demo.tsx). */
 export const chain: AvaChain = defineChain({
   id: l1.evmChainId,
   name: l1.name,

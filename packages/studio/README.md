@@ -6,10 +6,11 @@ A local control center for Avalanche development — L1s, Interchain Messaging, 
 npx @avakit/studio
 ```
 
-It starts a small server on `127.0.0.1`, opens your browser, and gives you five views:
+It starts a small server on `127.0.0.1`, opens your browser, and gives you six views:
 
 - **Overview** — your toolchain, project, and network at a glance.
 - **Devnet** — spin up two local L1s with Interchain Messaging and a relayer, start/stop the network, with a **live log** streamed from avalanche-cli.
+- **Launch on Fuji** — create your own L1 on the Fuji testnet and watch it come up, without touching the CLI.
 - **Interchain** — deploy messengers and watch a message travel from one L1 to the other.
 - **Data** — balances, NFTs, and transactions for any Fuji or C-Chain address (AvaCloud Data API, no indexer).
 - **Environment** — the tools and project detected on this machine.
