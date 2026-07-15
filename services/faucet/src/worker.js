@@ -32,7 +32,12 @@ const DEFAULT_CHAIN_ID = 43113;
 
 const ADDRESS_TTL_S = 24 * 60 * 60; // one drip per address / 24h
 const IP_TTL_S = 60 * 60; // per-IP window
-const IP_MAX = 5; // ...max drips per IP per window
+// A whole hackathon room shares one NAT'd IP, and that room is exactly the
+// audience this faucet exists for — so this is deliberately generous. It is the
+// real drain defense though (the per-address limit is trivially bypassed by
+// generating addresses), so it caps a single IP at IP_MAX * drip per hour.
+// Add Cloudflare Turnstile before advertising widely; that, not this, is the fix.
+const IP_MAX = 20;
 
 function clientsFor(chainId, env) {
   const cfg = CHAINS[chainId];
