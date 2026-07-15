@@ -4,7 +4,7 @@
  * replacement in one place.
  */
 
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scaffold } from "./scaffold.js";
@@ -95,27 +95,23 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
     __AVAKIT_DEP__: opts.local ? "workspace:*" : `^${opts.avakitVersion ?? AVAKIT_DEP_VERSION}`,
   };
 
-  let files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
+  const files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
 
-  // The social-login wallet needs @web3auth/modal (an optional peer of
-  // @avakit/core). Add it to the app so `web3authAdapter` can load at runtime.
-  if (opts.wallet === "web3auth") {
-    addDependency(
-      path.join(opts.targetDir, "package.json"),
-      "@web3auth/modal",
-      WEB3AUTH_MODAL_VERSION,
-    );
-  }
-
-  // The only env var in `.env.example` is the Web3Auth client id, which the
-  // injected-wallet path never reads — drop the file so it isn't dead noise.
-  if (opts.wallet === "injected") {
-    const envExample = path.join(opts.targetDir, ".env.example");
-    if (existsSync(envExample)) {
-      rmSync(envExample);
-      files = files.filter((f) => f !== ".env.example");
-    }
-  }
+  // Every template's `providers.tsx` registers all three adapters — burner,
+  // injected, and web3auth — regardless of `wallet`, so @web3auth/modal (an
+  // optional peer of @avakit/core) is always needed at runtime.
+  //
+  // This used to be added only for `wallet === "web3auth"`, which shipped a
+  // broken app: `web3authAdapter.isAvailable()` is `Boolean(clientId)` and the
+  // templates inline a demo client id, so the Social login button rendered
+  // enabled in an `--wallet injected` scaffold and then threw
+  // WalletNotAvailableError on click, because the SDK it dynamic-imports was
+  // never installed. Install what the code imports.
+  addDependency(
+    path.join(opts.targetDir, "package.json"),
+    "@web3auth/modal",
+    WEB3AUTH_MODAL_VERSION,
+  );
 
   return { targetDir: opts.targetDir, files };
 }
