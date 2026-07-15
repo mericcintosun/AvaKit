@@ -5,8 +5,14 @@ compatibility_date = "2026-07-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-FAUCET_DRIP_AVAX = "0.05"
-# Lock this down to the site origin once the Worker is live, e.g. "https://avakit.dev".
+# A deploy + mint burns ~443k gas. Fuji's fee is dynamic: ~0 when idle (2 wei),
+# but ~0.011 AVAX if the base fee returns to its historical 25 nAVAX. 0.02 covers
+# the worst case with ~2x headroom. Note the real cost per visitor is the *drip*,
+# not the gas — the remainder is stranded in a throwaway wallet forever.
+FAUCET_DRIP_AVAX = "0.02"
+# Left open on purpose: CORS is a browser rule, not a security boundary (a bot can
+# POST directly anyway), so locking it down would only break local dev and Vercel
+# previews. The KV rate limits + the testnet-only allowlist are the real defense.
 FAUCET_CORS_ORIGIN = "*"
 
 # Rate-limit store. Created once with:
