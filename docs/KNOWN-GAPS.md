@@ -265,10 +265,18 @@ G2. **The `/avatar` 3D-mascot feature is unfinished and untracked.**
    nav / command menu / sitemap. It loads Google `<model-viewer>` from a CDN at
    runtime (external dependency, no offline/SRI fallback), and the
    `fox-loop.webm` / `core-loop.webm` assets aren't referenced by the page.
+   **FIXED (2026-07-15):** committed; `<model-viewer>` is now a real npm
+   dependency, imported client-side and code-split to `/avatar` alone (a ~1 MB
+   chunk, out of the main bundle) — no external CDN at runtime. `/avatar` is
+   linked from the site footer. The two `*-loop.webm` files are intentionally kept
+   as the social-ready mascot loops (see `docs/launch/content-calendar-v2.md`
+   post 9); they are brand assets, not page assets.
 
 G3. **Hidden pages have no inbound links.** `/terminal`, `/pitch`, `/avatar` are
    reachable only by direct URL (not in header, mobile sheet, command menu, or
    sitemap). `/pitch` is a grant deck ("Team1 Mini Grant") — arguably intentional.
+   **PARTIALLY FIXED (2026-07-15):** `/avatar` is now linked from the footer.
+   `/terminal` and `/pitch` remain deliberate direct-URL-only pages.
 
 G4. **Copy inconsistency: "four surfaces" vs "five surfaces/packages."** The layout
    and docs say "one core, four surfaces" (= 5 packages); the pitch deck / npm
