@@ -101,12 +101,12 @@ fully open source. self-host all of it if you want. we just run it so you don't 
 
 avakit.dev
 
-### 9 — mascots / brand  · [visual: avafox + obsidian core 3d]  · [needs: mascots shipped]
-meet the crew 🔺
+### 9 — mascot / brand  · [visual: `apps/web/public/brand/avafox.png`]  · [ready]
+meet avafox 🔺
 
-avafox and the obsidian core. they'll be showing you around avakit from here on.
+he'll be showing you around avakit from here on.
 
-(say hi, they don't bite. one of them is literally a rock.)
+(the 3d one at avakit.dev/avatar is his softer twin. long story.)
 
 ### 10 — code tip: gasless  · [visual: code screenshot]
 gasless on avalanche, the whole setup:

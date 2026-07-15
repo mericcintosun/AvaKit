@@ -19,9 +19,9 @@ const DESCRIPTION =
   "Avalanche's open-source, AI-native create-next-app: scaffold a social-login dapp, deploy-ready, with agent context baked in.";
 const OG_IMAGE = {
   url: "/og-image.png",
-  width: 1376,
-  height: 610,
-  alt: "AvaKit — Build. Deploy. Perfect.",
+  width: 1200,
+  height: 630,
+  alt: "AvaKit — zero to a live Avalanche app in 60 seconds. No install, no signup, no seed phrase, no gas.",
 };
 
 const jsonLd = {
