@@ -131,9 +131,12 @@ A2. **`AVAKIT_DEP_VERSION` is a hand-maintained magic constant** decoupled from
    at build time.
    **FIXED (2026-07-15):** `AVAKIT_DEP_VERSION` now lives in
    `create-avalanche-app/src/api.ts` as the default `scaffoldApp` uses and the
-   CLI imports — one source of truth for both scaffolding paths. Bumped to 0.1.7
-   for the burner-wallet release. (Auto-deriving from the published version is
-   still a possible future improvement.)
+   CLI imports — one source of truth for both scaffolding paths. Set to **0.2.0**
+   for the burner-wallet release. **Watch out:** a `minor` changeset on a 0.x
+   package publishes 0.1.x → **0.2.0**, not 0.1.7 — pinning a version Changesets
+   never publishes makes every scaffold fail to install, so always confirm the
+   bump on `changeset-release/main` before release. (Auto-deriving the pin from the
+   published version would remove this footgun for good.)
 
 ## B. Testing (whole packages untested)
 

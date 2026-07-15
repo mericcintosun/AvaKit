@@ -16,10 +16,14 @@ const WEB3AUTH_MODAL_VERSION = "11.2.0";
  * The `@avakit/*` version range stamped into a scaffolded app's package.json (as
  * `^AVAKIT_DEP_VERSION`) when not linking locally. Single source of truth shared
  * by the CLI and `@avakit/mcp`, so both scaffolding paths pin the same version.
+ *
  * Bump on every `@avakit/core`/`react` release whose features the templates rely
- * on (0.1.7 added the burner wallet the default templates wire up).
+ * on — 0.2.0 added the burner wallet the default templates wire up. Keep this in
+ * step with what Changesets actually publishes: a `minor` changeset on a 0.x
+ * package goes 0.1.x → **0.2.0**, not 0.1.7, and pinning a version that never
+ * ships makes every scaffold fail to install.
  */
-export const AVAKIT_DEP_VERSION = "0.1.7";
+export const AVAKIT_DEP_VERSION = "0.2.0";
 
 export const templatesDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
