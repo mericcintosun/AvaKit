@@ -43,21 +43,26 @@ export function coinbaseAdapter(options: CoinbaseAdapterOptions = {}): WalletAda
 
   async function ensureProvider(): Promise<EIP1193Provider> {
     if (provider) return provider;
-    let mod: CoinbaseModule;
+    // Everything here is wrapped: the optional dep may be missing, and the SDK
+    // touches browser globals at construction, so a server/non-browser caller
+    // gets a typed WalletNotAvailableError instead of a raw ReferenceError.
     try {
       // Non-literal specifier: the optional dep is resolved at runtime only, so
       // apps that don't use this adapter never need it installed or bundled.
       const spec: string = "@coinbase/wallet-sdk";
-      mod = (await import(spec)) as unknown as CoinbaseModule;
+      const mod = (await import(spec)) as unknown as CoinbaseModule;
+      const sdk = mod.createCoinbaseWalletSDK({
+        appName: options.appName ?? "AvaKit app",
+        appChainIds: (options.chains ?? []).map((c) => c.id),
+        preference: { options: options.preference ?? "smartWalletOnly" },
+      });
+      provider = sdk.getProvider();
     } catch {
       throw new WalletNotAvailableError("coinbase");
     }
-    const sdk = mod.createCoinbaseWalletSDK({
-      appName: options.appName ?? "AvaKit app",
-      appChainIds: (options.chains ?? []).map((c) => c.id),
-      preference: { options: options.preference ?? "smartWalletOnly" },
-    });
-    provider = sdk.getProvider();
+    if (!provider) {
+      throw new WalletNotAvailableError("coinbase");
+    }
     return provider;
   }
 

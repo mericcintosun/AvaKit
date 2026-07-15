@@ -22,7 +22,10 @@ describe("coinbaseAdapter", () => {
     expect(coinbaseAdapter().isAvailable()).toBe(true);
   });
 
-  it("throws a typed error when @coinbase/wallet-sdk is not installed", async () => {
+  // Outside a browser the SDK either isn't installed or blows up on browser
+  // globals at construction; either way the caller must get a typed error, never
+  // a raw ReferenceError.
+  it("throws a typed error when the SDK is missing or cannot initialize", async () => {
     await expect(coinbaseAdapter().connect()).rejects.toBeInstanceOf(WalletNotAvailableError);
   });
 });
