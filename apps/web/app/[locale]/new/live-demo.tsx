@@ -127,6 +127,7 @@ function Flow() {
   const [contractAddress, setContractAddress] = useState<Address | null>(null);
   const [mintHash, setMintHash] = useState<Hex | null>(null);
   const [nft, setNft] = useState<{ name: string; image: string } | null>(null);
+  const [nftLoading, setNftLoading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [started, setStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +175,7 @@ function Flow() {
       void refetchBalance();
       // Show them the thing they just made. The art is fully on-chain, so this
       // reads straight from the contract — no IPFS, no indexer, no server.
+      setNftLoading(true);
       try {
         // `write` resolves as soon as the tx is broadcast, so the mint has NOT
         // landed yet. Reading totalSupply here without waiting races the pending
@@ -191,6 +193,8 @@ function Flow() {
         setNft({ name: json.name, image: json.image });
       } catch {
         // Metadata is a bonus — never let it break the mint that already landed.
+      } finally {
+        setNftLoading(false);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -297,8 +301,30 @@ function Flow() {
               label="See your mint on Fuji"
             />
 
-            {nft ? (
+            {/* The mint has to be mined before the art exists, so hold the exact
+                shape of the card while we wait — no layout jump when it lands. */}
+            {nftLoading && !nft ? (
               <div className="flex items-center gap-4">
+                <div className="border-border bg-muted/40 size-28 animate-pulse rounded-xl border" />
+                <div className="flex flex-col gap-2">
+                  <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    waiting for the mint to land…
+                  </p>
+                  <p className="text-muted-foreground/70 text-xs">
+                    then we read your art straight off the chain
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {nft ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center gap-4"
+              >
                 {/* biome-ignore lint/performance/noImgElement: an on-chain SVG data URI, not a remote asset */}
                 <img
                   src={nft.image}
@@ -311,7 +337,7 @@ function Flow() {
                     yours · the art lives on-chain, inside the contract you just deployed
                   </p>
                 </div>
-              </div>
+              </motion.div>
             ) : null}
 
             <div className="border-primary/30 bg-primary/5 rounded-lg border p-4">
