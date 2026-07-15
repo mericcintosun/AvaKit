@@ -6,13 +6,13 @@
     "url": "https://github.com/mericcintosun/AvaKit",
     "source": "github"
   },
-  "version": "0.1.24",
+  "version": "0.1.25",
   "websiteUrl": "https://avakit.dev/docs/mcp",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@avakit/mcp",
-      "version": "0.1.24",
+      "version": "0.1.25",
       "transport": {
         "type": "stdio"
       }

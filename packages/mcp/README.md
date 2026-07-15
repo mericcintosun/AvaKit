@@ -4,6 +4,8 @@ The [AvaKit](https://github.com/mericcintosun/AvaKit) MCP server — scaffold, d
 
 Unlike docs-only servers, this exposes **actions**: it can create a dapp, deploy a contract, and read chain state.
 
+Listed in the official [MCP Registry](https://registry.modelcontextprotocol.io) as **`dev.avakit/avalanche`**.
+
 ## Add to your MCP client
 
 ```json

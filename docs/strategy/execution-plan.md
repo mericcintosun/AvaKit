@@ -140,8 +140,11 @@ This is the full buildable surface — sequence in §6.
   data hooks (KNOWN-GAPS E3/E5).
 
 ### W5 — Action-MCP + registries *(D6)*
-- [ ] `[P0/S]` **Publish `@avakit/mcp`** to the official MCP Registry, Smithery,
-  mcp.so, Glama, `awesome-mcp-servers`. (~1 day; our unfair advantage.)
+- [x] `[P0/S]` **Publish `@avakit/mcp`** to the official MCP Registry — **live as
+  `dev.avakit/avalanche`**, and it now shows up alongside the docs-only competitor for
+  `search=avalanche`. `awesome-mcp-servers` PR open (#10168). Smithery/mcp.so/Glama
+  need an account — `smithery.yaml` is committed and ready; see
+  `packages/mcp/REGISTRIES.md` for the process, the gotchas, and where the key lives.
 - [ ] `[P1/S]` **Derive `AVAKIT_DEP_VERSION` (KNOWN-GAPS A2)** — it's hand-maintained
   in `packages/create-avalanche-app/src/api.ts` and must stay **at or below the lowest**
   of the published `@avakit/core` / `@avakit/react` versions, or every scaffold fails
