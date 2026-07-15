@@ -57,23 +57,36 @@ function clientsFor(chainId, env) {
   };
 }
 
+function cors(env) {
+  return {
+    "access-control-allow-origin": env.FAUCET_CORS_ORIGIN || "*",
+    "access-control-allow-headers": "content-type",
+    "access-control-allow-methods": "POST, GET, OPTIONS",
+    "access-control-max-age": "86400",
+  };
+}
+
 function json(body, status, env) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      "content-type": "application/json",
-      "access-control-allow-origin": env.FAUCET_CORS_ORIGIN || "*",
-      "access-control-allow-headers": "content-type",
-      "access-control-allow-methods": "POST, GET, OPTIONS",
-    },
+    headers: { "content-type": "application/json", ...cors(env) },
   });
+}
+
+/**
+ * Preflight. This MUST be a null body: constructing a Response with a body and a
+ * 204 throws, which would take the whole Worker down and leave the browser with
+ * no CORS headers at all — i.e. every /fund call fails before it is even sent.
+ */
+function preflight(env) {
+  return new Response(null, { status: 204, headers: cors(env) });
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (request.method === "OPTIONS") return json({}, 204, env);
+    if (request.method === "OPTIONS") return preflight(env);
 
     if (request.method === "GET" && url.pathname === "/health") {
       if (!env.AVAKIT_FAUCET_KEY) return json({ error: "Faucet key not configured." }, 500, env);
