@@ -3,6 +3,7 @@
 import {
   Bot,
   Boxes,
+  ChartNoAxesColumn,
   FileText,
   House,
   LayoutDashboard,
@@ -30,6 +31,7 @@ const groups = [
       { label: "Home", href: "/", icon: House },
       { label: "Documentation", href: "/docs", icon: FileText },
       { label: "Templates", href: "/templates", icon: LayoutTemplate },
+      { label: "Stats", href: "/stats", icon: ChartNoAxesColumn },
     ],
   },
   {
