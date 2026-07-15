@@ -38,6 +38,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@avakit/core':
+        specifier: ^0.2.0
+        version: 0.2.0(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@web3auth/modal@11.2.0(@babel/runtime@7.29.7)(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@sentry/core@10.62.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.0.1)(@types/react@19.2.17)(jsdom@29.1.1(@noble/hashes@2.2.0))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.54.1(typescript@6.0.3)(zod@4.4.3))(vite@8.1.2(@types/node@26.0.1)(esbuild@0.27.7)(jiti@2.7.0))(zod@4.4.3))(typescript@6.0.3)(zod@4.4.3)
+      '@avakit/react':
+        specifier: ^0.2.0
+        version: 0.2.0(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@web3auth/modal@11.2.0(@babel/runtime@7.29.7)(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@sentry/core@10.62.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.0.1)(@types/react@19.2.17)(jsdom@29.1.1(@noble/hashes@2.2.0))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.54.1(typescript@6.0.3)(zod@4.4.3))(vite@8.1.2(@types/node@26.0.1)(esbuild@0.27.7)(jiti@2.7.0))(zod@4.4.3))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
       '@google/model-viewer':
         specifier: 4.3.1
         version: 4.3.1(three@0.183.2)
@@ -92,6 +98,9 @@ importers:
       tailwind-merge:
         specifier: 3.6.0
         version: 3.6.0
+      viem:
+        specifier: 2.54.1
+        version: 2.54.1(typescript@6.0.3)(zod@4.4.3)
     devDependencies:
       '@tailwindcss/postcss':
         specifier: 4.3.2
@@ -452,6 +461,25 @@ packages:
 
   '@asamuzakjp/nwsapi@2.3.9':
     resolution: {integrity: sha512-n8GuYSrI9bF7FFZ/SjhwevlHc8xaVlb/7HmHelnc/PZXBD2ZR49NnN9sMMuDdEGPeeRQ5d0hqlSlEpgCX3Wl0Q==}
+
+  '@avakit/core@0.2.0':
+    resolution: {integrity: sha512-brP+g9OzZAsWbgYOqDbqT2/HdIPV/O+rW9tBc3YybMayaw1JCtfF7wFJlvz1RBghMkG0F8Ouza871nlFZJvPjw==}
+    engines: {node: '>=20.11'}
+    peerDependencies:
+      '@coinbase/wallet-sdk': '>=4'
+      '@web3auth/modal': '>=11'
+    peerDependenciesMeta:
+      '@coinbase/wallet-sdk':
+        optional: true
+      '@web3auth/modal':
+        optional: true
+
+  '@avakit/react@0.2.0':
+    resolution: {integrity: sha512-tcnga8C4n4ih3GYMRiWeAgWRVj9EJcKowRWrC3jXL1xbo2qrlcv3ma/dVBLHxovM4bQ/kIlSZK6j6xlF2oQIEQ==}
+    engines: {node: '>=20.11'}
+    peerDependencies:
+      react: '>=19'
+      react-dom: '>=19'
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -5994,6 +6022,38 @@ snapshots:
   '@asamuzakjp/generational-cache@1.0.1': {}
 
   '@asamuzakjp/nwsapi@2.3.9': {}
+
+  '@avakit/core@0.2.0(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@web3auth/modal@11.2.0(@babel/runtime@7.29.7)(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@sentry/core@10.62.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.0.1)(@types/react@19.2.17)(jsdom@29.1.1(@noble/hashes@2.2.0))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.54.1(typescript@6.0.3)(zod@4.4.3))(vite@8.1.2(@types/node@26.0.1)(esbuild@0.27.7)(jiti@2.7.0))(zod@4.4.3))(typescript@6.0.3)(zod@4.4.3)':
+    dependencies:
+      viem: 2.54.1(typescript@6.0.3)(zod@4.4.3)
+    optionalDependencies:
+      '@coinbase/wallet-sdk': 4.3.7(typescript@6.0.3)(zod@4.4.3)
+      '@web3auth/modal': 11.2.0(@babel/runtime@7.29.7)(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@sentry/core@10.62.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.0.1)(@types/react@19.2.17)(jsdom@29.1.1(@noble/hashes@2.2.0))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.54.1(typescript@6.0.3)(zod@4.4.3))(vite@8.1.2(@types/node@26.0.1)(esbuild@0.27.7)(jiti@2.7.0))(zod@4.4.3)
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
+
+  '@avakit/react@0.2.0(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@web3auth/modal@11.2.0(@babel/runtime@7.29.7)(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@sentry/core@10.62.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.0.1)(@types/react@19.2.17)(jsdom@29.1.1(@noble/hashes@2.2.0))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.54.1(typescript@6.0.3)(zod@4.4.3))(vite@8.1.2(@types/node@26.0.1)(esbuild@0.27.7)(jiti@2.7.0))(zod@4.4.3))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)':
+    dependencies:
+      '@avakit/core': 0.2.0(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@web3auth/modal@11.2.0(@babel/runtime@7.29.7)(@coinbase/wallet-sdk@4.3.7(typescript@6.0.3)(zod@4.4.3))(@sentry/core@10.62.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.0.1)(@types/react@19.2.17)(jsdom@29.1.1(@noble/hashes@2.2.0))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.54.1(typescript@6.0.3)(zod@4.4.3))(vite@8.1.2(@types/node@26.0.1)(esbuild@0.27.7)(jiti@2.7.0))(zod@4.4.3))(typescript@6.0.3)(zod@4.4.3)
+      '@radix-ui/react-dialog': 1.1.18(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      class-variance-authority: 0.7.1
+      clsx: 2.1.1
+      lucide-react: 1.22.0(react@19.2.7)
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+      tailwind-merge: 3.6.0
+    transitivePeerDependencies:
+      - '@coinbase/wallet-sdk'
+      - '@types/react'
+      - '@types/react-dom'
+      - '@web3auth/modal'
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
 
   '@babel/code-frame@7.29.7':
     dependencies:

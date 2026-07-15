@@ -42,6 +42,12 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center justify-end gap-2">
+          {/* The zero-barrier entry point: a real Fuji mint in the browser.
+              Only from lg up — below that it would crowd the centre nav; smaller
+              screens get it from the mobile sheet and the hero CTA instead. */}
+          <Button asChild size="sm" className="hidden lg:inline-flex">
+            <Link href="/new">{c.header.tryIt}</Link>
+          </Button>
           <Button
             asChild
             variant="ghost"
@@ -86,6 +92,14 @@ export function SiteHeader() {
                     </Link>
                   </SheetClose>
                 ))}
+                <SheetClose asChild>
+                  <Link
+                    href="/new"
+                    className="text-primary hover:bg-accent rounded-md px-3 py-2 text-sm font-medium"
+                  >
+                    {c.header.tryIt} →
+                  </Link>
+                </SheetClose>
                 <SheetClose asChild>
                   <Link
                     href="/docs"

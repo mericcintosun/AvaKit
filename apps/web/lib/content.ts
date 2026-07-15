@@ -92,7 +92,7 @@ type Strings = {
   tagline: string;
   description: string;
   nav: string[];
-  header: { search: string; getStarted: string };
+  header: { search: string; getStarted: string; tryIt: string };
   hero: {
     badge: string;
     titleBefore: string;
@@ -161,7 +161,7 @@ const EN: Strings = {
   description:
     "Scaffold a deploy-ready, social-login dapp with agent context baked in. One core, four surfaces. No seed phrases, no boilerplate.",
   nav: ["Docs", "Templates", "MCP", "AvaKit Studio"],
-  header: { search: "Search", getStarted: "Get started" },
+  header: { search: "Search", getStarted: "Get started", tryIt: "Try it now" },
   hero: {
     badge: "Open source · AI-native · MIT",
     titleBefore: "The developer toolkit for building on",
@@ -506,7 +506,7 @@ const TR: Strings = {
   description:
     "Sosyal-girişli, deploy'a hazır bir dapp'i tek komutla kur; AI ajan bağlamı gömülü gelir. Tek çekirdek, dört yüzey. Seed phrase yok, boilerplate yok.",
   nav: ["Dokümanlar", "Şablonlar", "MCP", "AvaKit Studio"],
-  header: { search: "Ara", getStarted: "Başla" },
+  header: { search: "Ara", getStarted: "Başla", tryIt: "Hemen dene" },
   hero: {
     badge: "Açık kaynak · AI-native · MIT",
     titleBefore: "Şunun üzerine inşa etmek için geliştirici araç seti:",
