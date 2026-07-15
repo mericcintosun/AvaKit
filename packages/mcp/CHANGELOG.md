@@ -1,5 +1,16 @@
 # @avakit/mcp
 
+## 0.1.24
+
+### Patch Changes
+
+- 6476590: Claim the server's identity in the MCP Registry.
+
+  Adds `mcpName: dev.avakit/avafox`, which the registry matches against the published package to verify we own it. No runtime change. The listing itself lives in `packages/mcp/server.json`; ownership of the `dev.avakit` namespace is proven by `/.well-known/mcp-registry-auth` on avakit.dev.
+
+- Updated dependencies [fb9f7ca]
+  - create-avalanche-app@0.3.1
+
 ## 0.1.23
 
 ### Patch Changes
