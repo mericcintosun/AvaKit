@@ -1,6 +1,6 @@
 "use client";
 
-import { burnerAdapter } from "@avakit/core";
+import { burnerAdapter, getPublicClient } from "@avakit/core";
 import { fuji } from "@avakit/core/chains";
 import {
   AvaKitProvider,
@@ -128,19 +128,24 @@ function Flow() {
   const [mintHash, setMintHash] = useState<Hex | null>(null);
   const [nft, setNft] = useState<{ name: string; image: string } | null>(null);
   const [minting, setMinting] = useState(false);
+  const [started, setStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const connectTried = useRef(false);
 
   const contract = useContract({ address: contractAddress ?? ZERO, abi });
 
-  // Always hand the visitor a throwaway wallet. We deliberately do NOT use their
-  // injected wallet here — a demo should never touch a real account.
+  // Nothing happens until the visitor asks for it. Auto-starting on page load
+  // would spend real faucet funds on every crawler, link preview and idle tab —
+  // and it's rude to make a wallet for someone who was only looking.
+  //
+  // Always a throwaway wallet: we deliberately do NOT touch their injected one.
   useEffect(() => {
-    if (status === "disconnected" && !connectTried.current) {
-      connectTried.current = true;
-      void connect("burner");
+    if (!started || status !== "disconnected" || connectTried.current) {
+      return;
     }
-  }, [status, connect]);
+    connectTried.current = true;
+    void connect("burner");
+  }, [started, status, connect]);
 
   // While waiting for the faucet drip to land, poll the balance.
   const funded = (balance ?? 0n) > 0n;
@@ -170,6 +175,13 @@ function Flow() {
       // Show them the thing they just made. The art is fully on-chain, so this
       // reads straight from the contract — no IPFS, no indexer, no server.
       try {
+        // `write` resolves as soon as the tx is broadcast, so the mint has NOT
+        // landed yet. Reading totalSupply here without waiting races the pending
+        // tx and yields the pre-mint value (token 0, which doesn't exist).
+        const receipt = await getPublicClient(fuji).waitForTransactionReceipt({ hash });
+        if (receipt.status === "reverted") {
+          throw new Error("Mint reverted.");
+        }
         const tokenId = (await contract.read("totalSupply")) as bigint;
         const uri = (await contract.read("tokenURI", [tokenId])) as string;
         const json = JSON.parse(decodeURIComponent(uri.slice(uri.indexOf(",") + 1))) as {
@@ -185,6 +197,26 @@ function Flow() {
     } finally {
       setMinting(false);
     }
+  }
+
+  if (!started) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="mt-10 flex flex-col items-start gap-4"
+      >
+        <Button size="lg" onClick={() => setStarted(true)}>
+          <Sparkles className="size-4" />
+          Let&apos;s go
+        </Button>
+        <p className="text-muted-foreground text-sm">
+          Four steps, about a minute. We&apos;ll make you a temporary wallet and cover the gas —
+          nothing to install, nothing to sign up for.
+        </p>
+      </motion.div>
+    );
   }
 
   const walletState: StepState = address ? "done" : "active";

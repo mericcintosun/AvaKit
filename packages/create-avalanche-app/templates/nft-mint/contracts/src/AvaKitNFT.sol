@@ -72,7 +72,11 @@ contract AvaKitNFT {
             "<path d='M300 168 L412 404 L188 404 Z' fill='",
             glow,
             "'/><path d='M300 168 L356 286 L244 286 Z' fill='rgb(250,250,250)' opacity='0.92'/>",
-            "<text x='300' y='486' text-anchor='middle' font-family='monospace' font-size='40' fill='rgb(250,250,250)'>AvaKit %23",
+            // %2523, not %23: this SVG is a data URI *nested inside* the JSON data
+            // URI, so it gets percent-decoded twice — once when the tokenURI is
+            // read, once when the browser loads the image. Single-encoding here
+            // would surface a raw `#` in the image src and truncate the SVG.
+            "<text x='300' y='486' text-anchor='middle' font-family='monospace' font-size='40' fill='rgb(250,250,250)'>AvaKit %2523",
             id,
             "</text><text x='300' y='524' text-anchor='middle' font-family='monospace' font-size='17' fill='rgb(161,161,170)'>built on Avalanche in 60 seconds</text></svg>"
         );
