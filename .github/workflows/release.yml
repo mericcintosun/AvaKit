@@ -32,11 +32,21 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
+      # OIDC trusted publishing needs npm >= 11.5.1; pin to latest so the runner's
+      # bundled npm can never be too old to exchange the id-token.
+      - name: Use an npm that supports OIDC
+        run: npm install -g npm@latest
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
       # When changesets exist on main, opens/updates a "Version Packages" PR.
       # When that PR is merged (versions bumped, changesets consumed), publishes.
+      #
+      # Publishing uses npm **trusted publishing (OIDC)** — no long-lived NPM_TOKEN.
+      # Each package must have a Trusted Publisher configured on npmjs.com pointing
+      # at this repo + `release.yml`. The exchanged id-token also produces a
+      # provenance attestation, so npm can prove the tarball was built here.
       - name: Create Release PR or Publish
         uses: changesets/action@v1
         with:
@@ -46,5 +56,4 @@ jobs:
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
