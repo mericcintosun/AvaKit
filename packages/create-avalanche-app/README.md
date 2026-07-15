@@ -48,7 +48,32 @@ The `icm-messenger`, `l1-launch`, and `token-bridge` templates run a local devne
     --pm <manager>      pnpm | npm | yarn | bun
 -y, --yes               skip prompts (non-interactive)
     --no-install        do not install dependencies
+    --no-telemetry      opt out of anonymous usage counting (persisted)
+    --telemetry         opt back in (persisted)
 ```
+
+## Telemetry
+
+This CLI counts scaffolds anonymously so we can show the Avalanche ecosystem that
+it gets used. It's on by default, it tells you on the first run, and it's one env
+var to turn off:
+
+```bash
+export AVAKIT_TELEMETRY_DISABLED=1   # or DO_NOT_TRACK=1, or --no-telemetry
+```
+
+**Sent:** which template, wallet, chain, and package manager you picked, the CLI
+version, your OS and Node major, whether the scaffold succeeded, and a random id
+generated on your machine (so we can tell ten people apart from ten runs).
+
+**Never sent:** your project name, any file path, any code, any environment
+variable, or the text of an error. No IP is stored by the collector.
+
+It's off automatically in CI, and it can never fail or slow down a scaffold —
+worst case it gives up after 1.5s. The collector is
+[open source](https://github.com/mericcintosun/AvaKit/tree/main/services/telemetry)
+and what it counts is public at [avakit.dev/stats](https://avakit.dev/stats).
+Full details: [avakit.dev/docs/telemetry](https://avakit.dev/docs/telemetry).
 
 ## Notes
 

@@ -10,6 +10,7 @@ import {
   type WalletId,
 } from "./api.js";
 import { banner, bannerColor } from "./banner.js";
+import { TELEMETRY_DOCS_URL, Telemetry } from "./telemetry.js";
 import type { StartCommand } from "./ui/wizard.js";
 
 // The CLI's own version — read from package.json at runtime (single source of
@@ -34,6 +35,8 @@ interface Options {
   yes: boolean;
   local: boolean;
   install: boolean;
+  /** Undefined unless --telemetry / --no-telemetry was passed; both persist. */
+  telemetry?: boolean;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -52,6 +55,12 @@ function parseArgs(argv: string[]): Options {
         break;
       case "--no-install":
         opts.install = false;
+        break;
+      case "--no-telemetry":
+        opts.telemetry = false;
+        break;
+      case "--telemetry":
+        opts.telemetry = true;
         break;
       case "--template":
       case "-t":
@@ -102,9 +111,16 @@ function printHelp(): void {
       "      --pm <manager>      pnpm | npm | yarn | bun",
       "  -y, --yes               skip prompts (non-interactive)",
       "      --no-install        do not install dependencies",
+      "      --no-telemetry      opt out of anonymous usage counting (persisted)",
+      "      --telemetry         opt back in (persisted)",
       "      --local             link @avakit/* via workspace (repo dev only)",
       "  -v, --version           print version",
       "  -h, --help              print this help",
+      "",
+      "Telemetry:",
+      "  Anonymous, opt-out, never sends project names, paths, or code.",
+      `  Off via --no-telemetry, AVAKIT_TELEMETRY_DISABLED=1, or DO_NOT_TRACK=1.`,
+      `  ${TELEMETRY_DOCS_URL}`,
       "",
     ].join("\n"),
   );
@@ -128,7 +144,7 @@ const TEMPLATE_ORDER = [
 function resolveDefaults(
   opts: Options,
   templateIds: string[],
-): Required<Omit<Options, "yes" | "local" | "install">> {
+): Required<Omit<Options, "yes" | "local" | "install" | "telemetry">> {
   return {
     projectName: opts.projectName ?? "my-avax-app",
     template: opts.template && templateIds.includes(opts.template) ? opts.template : "minimal",
@@ -148,6 +164,12 @@ function nextSteps(install: boolean, pm: string, projectName: string, template: 
   ];
 }
 
+/** Show the one-time telemetry disclosure, if this user hasn't seen it yet. */
+function printFirstRunNotice(telemetry: Telemetry): void {
+  const notice = telemetry.firstRunNotice();
+  if (notice) process.stdout.write(`${pc.dim(notice.join("\n"))}\n\n`);
+}
+
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv);
   const cwd = process.cwd();
@@ -156,34 +178,53 @@ async function main(): Promise<void> {
   );
   const templateIds = templates.map((t) => t.id);
 
+  const telemetry = new Telemetry({
+    cliVersion: VERSION,
+    ...(opts.telemetry != null ? { flag: opts.telemetry } : {}),
+  });
+
   // The rich Ink UI needs a real terminal; anything else (CI, pipes, --yes) gets
   // a plain, scriptable run.
   const interactive = !opts.yes && Boolean(process.stdin.isTTY);
 
   if (!interactive) {
     process.stdout.write(banner(bannerColor(process.stdout)));
+    printFirstRunNotice(telemetry);
     const r = resolveDefaults(opts, templateIds);
     const targetDir = path.resolve(cwd, r.projectName);
+    const choices = { template: r.template, wallet: r.wallet, chain: r.chain, pm: r.pm };
     if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
+      telemetry.record({ ...choices, ok: false, errorKind: "dir-exists" });
+      await telemetry.flush();
       process.stderr.write(
         pc.red(`\nDirectory "${r.projectName}" already exists and is not empty.\n`),
       );
       process.exit(1);
     }
-    await scaffoldApp({
-      projectName: r.projectName,
-      targetDir,
-      template: r.template,
-      wallet: r.wallet,
-      chain: r.chain,
-      local: opts.local,
-      avakitVersion: AVAKIT_DEP_VERSION,
-    });
+    try {
+      await scaffoldApp({
+        projectName: r.projectName,
+        targetDir,
+        template: r.template,
+        wallet: r.wallet,
+        chain: r.chain,
+        local: opts.local,
+        avakitVersion: AVAKIT_DEP_VERSION,
+      });
+    } catch (error) {
+      telemetry.record({ ...choices, ok: false, errorKind: "scaffold-failed" });
+      await telemetry.flush();
+      throw error;
+    }
+    telemetry.record({ ...choices, ok: true });
     if (opts.install) spawnSync(r.pm, ["install"], { cwd: targetDir, stdio: "inherit" });
     const steps = nextSteps(opts.install, r.pm, r.projectName, r.template);
     process.stdout.write(`\nDone. Next steps:\n  ${steps.join("\n  ")}\n`);
+    await telemetry.flush();
     return;
   }
+
+  printFirstRunNotice(telemetry);
 
   const { runWizard } = await import("./ui/wizard.js");
   const chosen: { start: StartCommand | null } = { start: null };
@@ -198,20 +239,28 @@ async function main(): Promise<void> {
       ...(opts.pm ? { pm: opts.pm } : {}),
     },
     scaffold: async (a) => {
+      const choices = { template: a.template, wallet: a.wallet, chain: a.chain, pm: a.pm };
       const targetDir = path.resolve(cwd, a.projectName);
       if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
+        telemetry.record({ ...choices, ok: false, errorKind: "dir-exists" });
         throw new Error(`Directory "${a.projectName}" already exists and is not empty.`);
       }
-      const { files } = await scaffoldApp({
-        projectName: a.projectName,
-        targetDir,
-        template: a.template,
-        wallet: a.wallet as WalletId,
-        chain: a.chain as ChainId,
-        local: opts.local,
-        avakitVersion: AVAKIT_DEP_VERSION,
-      });
-      return { created: files.length };
+      try {
+        const { files } = await scaffoldApp({
+          projectName: a.projectName,
+          targetDir,
+          template: a.template,
+          wallet: a.wallet as WalletId,
+          chain: a.chain as ChainId,
+          local: opts.local,
+          avakitVersion: AVAKIT_DEP_VERSION,
+        });
+        telemetry.record({ ...choices, ok: true });
+        return { created: files.length };
+      } catch (error) {
+        telemetry.record({ ...choices, ok: false, errorKind: "scaffold-failed" });
+        throw error;
+      }
     },
     install: opts.install
       ? (a) =>
@@ -234,6 +283,10 @@ async function main(): Promise<void> {
       chosen.start = start;
     },
   });
+
+  // Before the dev server, not after: `spawnSync` below hands the terminal over
+  // and only returns when the user kills it, which could be hours.
+  await telemetry.flush();
 
   // The user opted in — run it for them (inherits the terminal; Ctrl+C stops it).
   const startAfter = chosen.start;
