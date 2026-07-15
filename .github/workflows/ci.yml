@@ -48,7 +48,12 @@ jobs:
   # flow. One broken template fails only its own matrix leg (fail-fast: false).
   # Templates that need avalanche-cli at runtime (icm-messenger, l1-launch,
   # token-bridge) are scaffold+typecheck+build tested only; their devnet/L1 scripts
-  # are not exercised here (no avalanche-cli in CI). @avakit/* resolves from npm.
+  # are not exercised here (no avalanche-cli in CI).
+  #
+  # @avakit/* is packed from THIS repo and injected as pnpm overrides, so a template
+  # that needs an unpublished core feature is verified before release. Run
+  # `SMOKE_USE_NPM=1 scripts/smoke-template.sh <id>` after a release to verify the
+  # published AVAKIT_DEP_VERSION pin.
   smoke-templates:
     name: Smoke · ${{ matrix.template }}
     runs-on: ubuntu-latest
@@ -80,8 +85,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build the scaffolder
-        run: pnpm --filter create-avalanche-app build
+      - name: Build @avakit/* and the scaffolder
+        run: pnpm --filter "@avakit/core" --filter "@avakit/react" --filter create-avalanche-app build
 
       - name: Scaffold + typecheck + build "${{ matrix.template }}"
         run: bash scripts/smoke-template.sh "${{ matrix.template }}" "$RUNNER_TEMP/smoke"
