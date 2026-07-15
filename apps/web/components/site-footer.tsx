@@ -11,6 +11,7 @@ const columns = [
       { label: "Docs", href: "/docs" },
       { label: "Templates", href: "/templates" },
       { label: "MCP server", href: "/docs/mcp" },
+      { label: "Mascots", href: "/avatar" },
     ],
   },
   {
