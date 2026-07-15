@@ -144,14 +144,19 @@ This is the full buildable surface — sequence in §6.
   → "docs + actions" in one server.
 
 ### W6 — Website "try it now" + proof *(Pillar 5, D8)*
-- [ ] `[P0/L]` **`avakit.dev/new` live in-browser demo** — real Fuji deploy→mint
+- [x] `[P0/L]` **`avakit.dev/new` live in-browser demo** — real Fuji deploy→mint
   running on the landing page (burner + public RPC + AvaKit faucet + demo
   contract). This is the "try it now" moment. New route under `apps/web/app/[locale]/`.
-- [ ] `[P0/M]` **Opt-out anonymous CLI telemetry** — `packages/create-avalanche-app`:
+- [x] `[P0/M]` **Opt-out anonymous CLI telemetry** — `packages/create-avalanche-app`:
   count scaffolds, template, chain, success/fail (Next.js model, documented,
-  privacy-safe).
-- [ ] `[P1/M]` **`avakit.dev/stats`** — downloads + scaffolds + apps shipped + MCP
-  calls. Public metric = distribution asset + grant artifact.
+  privacy-safe). Client in `src/telemetry.ts`; collector in `services/telemetry/`
+  (a SQLite Durable Object — KV's 1 write/sec/key ceiling and read-modify-write
+  races made it the wrong store for a number we publish). Off in CI, so our own
+  smoke tests can't inflate it.
+- [x] `[P1/M]` **`avakit.dev/stats`** — downloads + scaffolds + apps shipped + MCP
+  calls. Public metric = distribution asset + grant artifact. *(Shipped with npm
+  downloads + GitHub stars + scaffolds/installs; MCP calls still pending a
+  server-side counter.)*
 - [ ] `[P1/S]` **Site + README copy → new vision** (§4). Fix "four vs five surfaces"
   (KNOWN-GAPS G4).
 - [ ] `[P2/S]` **Resolve next-intl vestigial layer (G1)** — either populate

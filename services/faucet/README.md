@@ -45,7 +45,7 @@ page stays honest and links to the official Fuji faucet instead.
 | Where | Name | Default | What |
 | --- | --- | --- | --- |
 | secret | `AVAKIT_FAUCET_KEY` | — (required) | 0x private key holding Fuji test AVAX |
-| var | `FAUCET_DRIP_AVAX` | `0.05` | Amount per drip |
+| var | `FAUCET_DRIP_AVAX` | `0.02` (set in `wrangler.toml`) | Amount per drip |
 | var | `FAUCET_CORS_ORIGIN` | `*` | Set to `https://avakit.dev` once live |
 | var | `FAUCET_FUJI_RPC` | public Fuji RPC | Override the RPC |
 | kv | `FAUCET_KV` | — (required) | Rate-limit store |
@@ -57,7 +57,9 @@ page stays honest and links to the official Fuji faucet instead.
 
 ## Limits
 
-- One drip per **address** / 24h · max **5** per **IP** / hour (KV-backed).
+- One drip per **address** / 24h · max **20** per **IP** / hour (KV-backed). The
+  per-IP cap is deliberately generous because a whole hackathon room shares one
+  NAT'd IP, and that room is the audience this exists for.
 - KV is eventually consistent, so these are a floor, not a hard guarantee — the
   small drip amount is the other half of that trade-off.
 - **Add [Turnstile](https://developers.cloudflare.com/turnstile/) in front before
