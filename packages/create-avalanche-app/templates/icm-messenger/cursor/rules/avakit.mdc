@@ -1,32 +1,46 @@
 ---
-description: AvaKit + Avalanche NFT conventions for this project
-globs: ["**/*.ts", "**/*.tsx", "**/*.sol", "**/*.css"]
+description: AvaKit + Avalanche ICM (Teleporter) conventions for this project
+globs: ["**/*.ts", "**/*.tsx", "**/*.sol", "**/*.sh", "**/*.css"]
 alwaysApply: true
 ---
 
-# AvaKit NFT project rules
+# AvaKit ICM messenger project rules
 
-This is an Avalanche NFT dapp built with AvaKit. It deploys an ERC-721 from the browser, then mints.
+Send a message from one Avalanche L1 to another with Interchain Messaging (ICM /
+Teleporter), against a local 2-L1 devnet.
 
 ## Flow
 
-- Deploy: `useAvaDeploy().deploy({ abi, bytecode })` (artifact in `lib/nft-artifact.ts`).
-- Mint: `useContract({ address, abi }).write("mint", [])`.
-- Read: `.read("totalSupply")`, `.read("balanceOf", [address])`.
+- `pnpm devnet` (scripts/devnet.sh) creates + deploys two local L1s with the
+  TeleporterMessenger and a relayer, and writes `icm.config.json`.
+- Deploy the same contract on both chains: `useAvaDeploy().deploy({ abi, bytecode })`
+  (artifact in `lib/messenger-artifact.ts`).
+- Send: `sendMessage(destinationBlockchainID, destinationAddress, text)` on the source chain.
+- Receive: the relayer delivers; the destination contract's `receiveTeleporterMessage`
+  stores it. The UI polls `lastMessage()`.
+
+## The one detail that trips everyone up
+
+`destinationBlockchainID` is the **bytes32 Avalanche blockchain ID in hex** — NOT the
+EVM `chainId` (1001/1002). Get it via `blockchainIdOf(chain)` in `lib/devnet.ts`.
 
 ## Contract
 
-- Source: `contracts/src/AvaKitNFT.sol` (minimal, self-contained ERC-721 — no external deps).
-- After editing, recompile: `cd contracts && forge build`, then update `lib/nft-artifact.ts` with the new abi + bytecode.object.
+- Source: `contracts/src/AvaKitMessenger.sol` — one contract that both sends (via
+  `TeleporterMessenger.sendCrossChainMessage`) and receives (implements
+  `ITeleporterReceiver`).
+- After editing, recompile: `cd contracts && forge build`, then copy the new abi +
+  bytecode.object into `lib/messenger-artifact.ts`.
 
 ## UI
 
 - shadcn/ui only; `@avakit/react` components are shadcn-styled.
-- Black & white only for now; dark/light via next-themes; both must work.
+- Black & white for now; dark/light via next-themes; both must work.
 - Animations: Framer Motion or GSAP only.
 
 ## Safety
 
-- Deploying and minting cost gas — fund the wallet on Fuji first.
-- Default chain is Fuji testnet; mainnet requires explicit opt-in.
-- Never hardcode secrets; keys stay in the wallet provider.
+- The receiver **must** check `require(msg.sender == TeleporterMessenger)` — otherwise
+  anyone can spoof a delivery. `AvaKitMessenger` does this.
+- The EWOQ key (`0x56289e…8027`) is a PUBLIC dev key — local devnet only, never a real
+  network. Never hardcode a real private key.
