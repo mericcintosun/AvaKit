@@ -11,7 +11,16 @@ import {
   useFaucet,
 } from "@avakit/react";
 import { motion } from "framer-motion";
-import { Check, Coins, ExternalLink, Loader2, Rocket, Sparkles, Wallet } from "lucide-react";
+import {
+  Check,
+  Coins,
+  ExternalLink,
+  Loader2,
+  Rocket,
+  Share2,
+  Sparkles,
+  Wallet,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Address, formatEther, type Hex } from "viem";
 
@@ -35,6 +44,18 @@ type StepState = "todo" | "active" | "done";
 
 function short(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+/** Pre-filled post. Same voice as the launch calendar: lowercase, human, one 🔺. */
+function shareUrl(txHash: string) {
+  const text = `just deployed an nft contract and minted from it on Avalanche.
+
+no install, no signup, no seed phrase, no gas. about a minute, in the browser.
+
+my mint: ${fuji.explorerUrl}/tx/${txHash}
+
+try it yourself 🔺`;
+  return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent("https://avakit.dev/new")}`;
 }
 
 function Step({
@@ -105,6 +126,7 @@ function Flow() {
 
   const [contractAddress, setContractAddress] = useState<Address | null>(null);
   const [mintHash, setMintHash] = useState<Hex | null>(null);
+  const [nft, setNft] = useState<{ name: string; image: string } | null>(null);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const connectTried = useRef(false);
@@ -145,6 +167,19 @@ function Flow() {
       const hash = await contract.write("mint", []);
       setMintHash(hash);
       void refetchBalance();
+      // Show them the thing they just made. The art is fully on-chain, so this
+      // reads straight from the contract — no IPFS, no indexer, no server.
+      try {
+        const tokenId = (await contract.read("totalSupply")) as bigint;
+        const uri = (await contract.read("tokenURI", [tokenId])) as string;
+        const json = JSON.parse(decodeURIComponent(uri.slice(uri.indexOf(",") + 1))) as {
+          name: string;
+          image: string;
+        };
+        setNft({ name: json.name, image: json.image });
+      } catch {
+        // Metadata is a bonus — never let it break the mint that already landed.
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -229,6 +264,24 @@ function Flow() {
               href={`${fuji.explorerUrl}/tx/${mintHash}`}
               label="See your mint on Fuji"
             />
+
+            {nft ? (
+              <div className="flex items-center gap-4">
+                {/* biome-ignore lint/performance/noImgElement: an on-chain SVG data URI, not a remote asset */}
+                <img
+                  src={nft.image}
+                  alt={nft.name}
+                  className="border-border size-28 rounded-xl border"
+                />
+                <div>
+                  <p className="font-mono text-sm font-medium">{nft.name}</p>
+                  <p className="text-muted-foreground text-xs">
+                    yours · the art lives on-chain, inside the contract you just deployed
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             <div className="border-primary/30 bg-primary/5 rounded-lg border p-4">
               <p className="text-sm font-medium">That was a real transaction on Avalanche. 🔺</p>
               <p className="text-muted-foreground mt-1 text-sm">
@@ -237,6 +290,12 @@ function Flow() {
               <pre className="bg-background/70 mt-3 overflow-x-auto rounded-md border p-3 font-mono text-xs">
                 npm create avalanche-app@latest
               </pre>
+              <Button asChild size="sm" variant="outline" className="mt-3">
+                <a href={shareUrl(mintHash)} target="_blank" rel="noreferrer">
+                  <Share2 className="size-4" />
+                  Share it
+                </a>
+              </Button>
             </div>
           </div>
         ) : (
