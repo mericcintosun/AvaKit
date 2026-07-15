@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "dev.avakit/avafox",
+  "name": "dev.avakit/avalanche",
   "description": "Act on Avalanche from your agent: scaffold a dapp, deploy a contract, mint, and read chain state.",
   "repository": {
     "url": "https://github.com/mericcintosun/AvaKit",
