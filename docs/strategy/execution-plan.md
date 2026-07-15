@@ -68,28 +68,35 @@ Nine workstreams. Each task tagged `[P· / effort]` with the file(s) it touches.
 This is the full buildable surface — sequence in §6.
 
 ### W1 — Zero-config wallet + funding *(D1, D2, D3)* — the highest-ROI workstream
-- [ ] `[P0/M]` **Burner adapter** — `packages/core/src/adapters/burner.ts`: viem
+- [x] `[P0/M]` **Burner adapter** — `packages/core/src/adapters/burner.ts`: viem
   `generatePrivateKey`/`privateKeyToAccount`, persisted to `localStorage`,
-  implements `WalletAdapter`. Export from `adapters/index.ts` + core barrel.
-- [ ] `[P0/S]` **Fund the burner on connect** — `@avakit/react` `useFaucet` hook +
-  provider option `faucetUrl`; auto-drip on first connect if balance 0.
-- [ ] `[P0/L]` **AvaKit faucet service** — new `services/faucet/` (or separate
-  repo): wrap `ava-labs/avalanche-faucet`, funded from an AvaKit Fuji key,
-  `POST /fund {address}` + captcha + per-IP/per-address caps + small drips.
-  Deploy on our infra. **Key stays server-side** (guardrail).
-- [ ] `[P1/M]` **Coinbase Smart Wallet adapter** —
-  `packages/core/src/adapters/coinbase.ts` (passkey ERC-4337, no dashboard,
-  Avalanche C-Chain). Optional peer dep, isolated like web3auth.
+  implements `WalletAdapter`. Exported from `adapters/index.ts` + the core barrel,
+  with `burner.test.ts`. Shipped in 0.2.0.
+- [x] `[P0/S]` **Fund the burner on connect** — `@avakit/react` `useFaucet` hook +
+  provider option `faucetUrl`. *Deviation:* `provider.tsx` drips on every burner
+  connect rather than only when the balance is 0 — the faucet's 24h per-address cap
+  absorbs it, but the balance check is still worth adding.
+- [x] `[P0/L]` **AvaKit faucet service** — `services/faucet/`, live at
+  `avakit-faucet.avakit.workers.dev`. *Differs from plan:* it's an original
+  Cloudflare Worker, not a wrap of `ava-labs/avalanche-faucet`. Key server-side,
+  Fuji-only allowlist, per-address 24h + per-IP 20/hr caps. **Captcha still missing**
+  (see W8).
+- [x] `[P1/M]` **Coinbase Smart Wallet adapter** — shipped at
+  `packages/core/src/coinbase.ts` (not `adapters/`), behind the `@avakit/core/coinbase`
+  subpath, `@coinbase/wallet-sdk` an optional peer, with `coinbase.test.ts`.
 - [ ] `[P1/L]` **Paymaster / gasless path** — Tier-2 opt-in; `@avakit/react`
   provider `sponsorGas?: boolean` + `paymasterUrl`; wire Pimlico/Biconomy on
   Fuji/C-Chain; sponsor the first UserOp. Touches `hooks.ts`
   (`useContract.write`, `useAvaDeploy`, `useSendTransaction`).
-- [ ] `[P0/M]` **Wallet-chooser UX (D1)** — on load, a simple screen: "Connect your
-  wallet" (Core / MetaMask / passkey, via injected + Coinbase adapters) **or**
-  "Continue without one — we'll create a temporary wallet" → **auto-burner if the
-  user has no wallet.** One plain-language line explains what a burner is. Web3Auth
-  stays available but needs no key to *try*. Touches `templates/*/app/providers.tsx`
-  + a new chooser component.
+- [x] `[P0/M]` **Wallet-chooser UX (D1)** — `packages/react/src/connect-avalanche.tsx`
+  splits the burner out ("Start instantly with a temporary wallet") from the
+  bring-your-own wallets; all 8 templates wire burner + injected + web3auth in
+  `app/providers.tsx`.
+- [ ] `[P1/S]` **`--wallet` is now vestigial** — templates register all three adapters
+  regardless of the flag, so `--wallet` no longer selects a wallet. Either make it
+  prune adapters from `providers.tsx`, or drop it. (Its one real effect — gating the
+  `@web3auth/modal` install — shipped a Social-login button that threw on click; that
+  is fixed by always installing the SDK, which leaves the flag doing nothing.)
 - [ ] `[P2/S]` **AvaCloud WaaS adapter** — `packages/core/src/waas.ts` subpath
   (closes KNOWN-GAPS E6); seedless/HSM, opt-in.
 
@@ -100,11 +107,11 @@ This is the full buildable surface — sequence in §6.
   document "no Foundry needed"). Foundry = opt-in "customize" path in CLAUDE.md.
 - [ ] `[P1/S]` **OZ-Wizard → Remix hand-off** — a "customize this contract" link in
   contract templates instead of implying a local Foundry edit loop.
-- [ ] `[P1/M]` **Fix eERC (U5/F2)** — `templates/eerc-token`: scaffold a
+- [ ] `[P1/M]` **Fix eERC (U5/F2)** — `packages/create-avalanche-app/templates/eerc-token`: scaffold a
   *user-owned* eERC instance (mint works out of the box) or an open-mint demo
   instance; vendor circuits locally or first-party CDN.
-- [ ] `[P1/S]` **l1-launch stale ref (F1)** — remove `components/explorer.tsx`
-  references in `templates/l1-launch/lib/l1.ts` + `CLAUDE.md` (explorer is inline).
+- [x] `[P1/S]` **l1-launch stale ref (F1)** — fixed in `lib/l1.ts`. (The `CLAUDE.md`
+  half of this item was never real: it already named `components/demo.tsx` correctly.)
 - [ ] `[P2/S]` **De-duplicate contracts (F4)** — shared source for `AvaKitNFT.sol` /
   `AvaKitToken.sol` (or accept + document the intentional copies).
 
@@ -135,9 +142,13 @@ This is the full buildable surface — sequence in §6.
 ### W5 — Action-MCP + registries *(D6)*
 - [ ] `[P0/S]` **Publish `@avakit/mcp`** to the official MCP Registry, Smithery,
   mcp.so, Glama, `awesome-mcp-servers`. (~1 day; our unfair advantage.)
-- [ ] `[P1/S]` **Fix MCP scaffold pin (KNOWN-GAPS A1)** — `packages/mcp/src/index.ts`
-  pass `avakitVersion` to `scaffoldApp`; derive `AVAKIT_DEP_VERSION` from published
-  core version (A2).
+- [ ] `[P1/S]` **Derive `AVAKIT_DEP_VERSION` (KNOWN-GAPS A2)** — it's hand-maintained
+  in `packages/create-avalanche-app/src/api.ts` and must stay **at or below the lowest**
+  of the published `@avakit/core` / `@avakit/react` versions, or every scaffold fails
+  at `pnpm install`. Derive it at build time (tsup `define`) from those package.jsons,
+  or give core and react their own placeholders so neither has to be held back.
+  *(A1 — "pass `avakitVersion` from the MCP" — is closed: `scaffoldApp` already
+  defaults to the shared constant, so passing it would be a no-op.)*
 - [ ] `[P1/M]` **New MCP tools** — `faucet` (drip to address), `launch_l1`,
   `send_icm`; tool descriptions self-recommend `create-avalanche-app`.
 - [ ] `[P2/M]` **Optionally proxy the official docs MCP** (`build.avax.network/api/mcp`)
@@ -163,10 +174,11 @@ This is the full buildable surface — sequence in §6.
   `messages/*.json` or remove the unused next-intl wiring.
 
 ### W7 — Brand *(D9)*
-- [ ] `[P1/M]` **Finish + commit the mascots** — `apps/web/app/[locale]/avatar/` +
-  `public/3d/` (AvaFox, Obsidian Core) are untracked; wire into nav, use as brand
-  characters on `/new`, docs, social. Remove the CDN `<model-viewer>` runtime
-  dependency risk (self-host or SRI).
+- [ ] `[P1/M]` **Put the mascots to work** — the "untracked" and "CDN `<model-viewer>`"
+  premises are both stale: `apps/web/app/[locale]/avatar/` and `public/3d/` are tracked,
+  and `@google/model-viewer` is an npm dep, dynamically imported. What's actually left:
+  they appear nowhere except a footer link — no nav entry, and **no mascot on `/new`**,
+  the one page strangers land on.
 - [ ] `[P2/S]` **Brand kit** — 🔺 crimson tokens (already in `globals.css`),
   mascot art, social templates, consistent OG images.
 

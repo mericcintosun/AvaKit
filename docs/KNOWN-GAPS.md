@@ -6,6 +6,13 @@
 >
 > **2026-07-04 follow-up pass:** items 1–5 and 8 are now fixed (see below). The
 > changes ship in `@avakit/core`, `@avakit/react`, and `create-avalanche-app`.
+>
+> **2026-07-15 re-verification:** every item below was re-checked against the code.
+> Items **2, 4, 5, 12** were still described as open/partial but are done — their
+> bodies are corrected in place. **A1** is closed as moot (not implemented — the
+> fallback it warned about no longer exists). **F1** is fixed. **F4 has graduated
+> from a smell to a real defect** and is rewritten. Item 5's "29 tests" is now 45.
+> Beware: this file has been wrong in both directions — verify before trusting it.
 
 ## Critical / user-visible
 
@@ -111,11 +118,13 @@
 
 ## A. Scaffolding correctness
 
-A1. **MCP-scaffolded apps get the wrong `@avakit/*` version floor.** The CLI
-   passes `avakitVersion: AVAKIT_DEP_VERSION` (`^0.1.6`) into `scaffoldApp`
-   (`packages/create-avalanche-app/src/index.ts:178,210`), but the MCP
-   `scaffold_app` tool calls `scaffoldApp` **without** `avakitVersion`
-   (`packages/mcp/src/index.ts:103`), so `api.ts:82` falls back to `^0.1.0`.
+A1. ~~**MCP-scaffolded apps get the wrong `@avakit/*` version floor.**~~ **CLOSED —
+   moot, no code change needed.** This was real when `scaffoldApp`'s fallback was an
+   orphan `"0.1.0"` literal. `AVAKIT_DEP_VERSION` now lives in `api.ts` as the single
+   source of truth and *is* the fallback (`opts.avakitVersion ?? AVAKIT_DEP_VERSION`),
+   so the MCP omitting the argument yields the identical pin the CLI passes
+   explicitly. Passing it from the MCP would be a no-op that re-introduces a second
+   call site able to drift. The live risk moved entirely to **A2**.
    Low impact today (`^0.1.0` still resolves to the latest published 0.1.x =
    0.1.6), but it diverges from the CLI and defeats the point of the pin. Fix:
    pass `avakitVersion` from MCP, or export the constant from `./api` and use it
@@ -240,10 +249,20 @@ F3. **Cross-chain "in flight" UX is timing-heuristic.** `token-bridge` uses a
    `icm-messenger` clears the banner when the destination inbox string matches, so
    sending identical text twice can clear it prematurely.
 
-F4. **Source/artifact duplication (maintenance smell).** `AvaKitNFT.sol` +
-   `lib/nft-artifact.ts` are byte-identical between `nft-mint` and
-   `token-gated-app`; `AvaKitToken.sol` + `lib/token-artifact.ts` are duplicated
-   between `erc20-token` and `l1-launch`. No shared source of truth.
+F4. **Source/artifact duplication — the drift it warned about already happened.**
+   `AvaKitToken.sol` is still byte-identical between `erc20-token` and `l1-launch`
+   (a clean copy, low risk). The NFT half went wrong: `nft-mint`'s contract was
+   rewritten (on-chain SVG art) and its artifact regenerated, and **that artifact was
+   copied into `token-gated-app` while its `.sol` was left behind** — so
+   `token-gated-app` shipped a source file that did not correspond to the bytecode
+   its own app deploys (source had `supportsInterface` + `pure tokenURI`; the shipped
+   ABI had neither). No runtime break, because the app only calls `mint`/`balanceOf`
+   — but its `CLAUDE.md` tells the agent to edit that source and recompile, which
+   would have silently replaced the deployed contract.
+   **2026-07-15: realigned** `token-gated-app`'s source to the artifact it ships.
+   The underlying gap stands: two copies with no shared source of truth, and nothing
+   that fails when a `.sol` and its `lib/*-artifact.ts` disagree. A check that
+   recompiles and diffs the artifact would catch the next one.
 
 F5. **Setup templates need external tooling and only run locally.** `icm-messenger`,
    `l1-launch`, `token-bridge` require `avalanche-cli` and ship
