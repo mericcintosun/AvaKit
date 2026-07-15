@@ -9,11 +9,11 @@ FAUCET_DRIP_AVAX = "0.05"
 # Lock this down to the site origin once the Worker is live, e.g. "https://avakit.dev".
 FAUCET_CORS_ORIGIN = "*"
 
-# Rate-limit store. Create it once, then paste the id here:
+# Rate-limit store. Created once with:
 #   npx wrangler kv namespace create FAUCET_KV
 [[kv_namespaces]]
 binding = "FAUCET_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "3676e259b19345acb584603edb86e3f6"
 
 # AVAKIT_FAUCET_KEY is a secret, never a var:
 #   npx wrangler secret put AVAKIT_FAUCET_KEY
