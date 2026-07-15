@@ -50,5 +50,6 @@ pnpm-debug.log*
 # Local launch screenshots (heavy PNGs, uploaded to Typefully, not committed)
 docs/launch/screenshots/
 
-# Wrangler local state (services/faucet)
+# Wrangler local state + local secrets (services/*)
 .wrangler/
+.dev.vars

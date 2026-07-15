@@ -1,0 +1,19 @@
+{
+  "name": "@avakit/telemetry-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AvaKit Cloud telemetry — a Cloudflare Worker that counts anonymous create-avalanche-app scaffolds and serves avakit.dev/stats.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "4.110.0"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

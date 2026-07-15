@@ -1,0 +1,23 @@
+name = "avakit-telemetry"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+# Counting lives in a SQLite-backed Durable Object, not KV: KV needs a
+# read-modify-write per counter (which races and loses counts under concurrency)
+# and caps at one write/second per key. The DO serialises writes, is
+# transactional, and its free tier is 100k rows/day vs KV's 1k writes/day.
+[[durable_objects.bindings]]
+name = "COUNTERS"
+class_name = "Counters"
+
+# `new_sqlite_classes` (not `new_classes`) is required: only the SQLite storage
+# backend is available on the Workers free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Counters"]
+
+# TELEMETRY_SALT is a secret, never a var — it's what stops a leaked rate-limit
+# row from being walked back to an IP (the v4 space is small enough to brute
+# force unsalted):
+#   npx wrangler secret put TELEMETRY_SALT
+# For `wrangler dev`, put it in .dev.vars instead (gitignored).
