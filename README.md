@@ -35,7 +35,7 @@ That's it. Connect with a social login, read your balance, and send your first t
 
 Avalanche's C-Chain is EVM-compatible and end-user onboarding is already solved (Core wallet's seedless social login). The remaining friction is on the **developer** side: spinning up a modern dapp with onboarding wired up still takes hours. AvaKit removes that.
 
-- **Social-login onboarding**: users sign in with Google; no seed phrases. Keys stay in the provider's HSM; AvaKit never touches them.
+- **Zero-setup onboarding**: a temporary in-browser wallet appears so a newcomer can try a real Fuji transaction with nothing installed, and social login (Google, no seed phrase) or Core/MetaMask is the upgrade — for those, keys stay in the provider's HSM and AvaKit never touches them. (The burner is the exception, and holds its key in `localStorage` — see [SECURITY.md](SECURITY.md).)
 - **AI-native by default**: every generated app ships `CLAUDE.md`, `llms.txt`, and `.cursor/rules`, and `@avakit/mcp` lets Claude Code / Cursor scaffold, deploy, and read chain state for you.
 - **shadcn/ui, themed**: a clean design system with dark/light from day one. Copy-in components, no vendor lock-in.
 - **Deploy-ready**: contracts compile to bundled bytecode, so you can deploy straight from the browser. Fuji testnet by default.

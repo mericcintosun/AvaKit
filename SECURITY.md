@@ -4,14 +4,33 @@ AvaKit deals with wallets and on-chain deployments, so we take security seriousl
 
 ## Core guarantees
 
-- **The end-user's private keys stay with the wallet provider.** For app users, key
-  generation, storage, and signing live inside the wallet provider (e.g. Web3Auth /
-  AvaCloud WaaS, backed by HSMs/enclaves). AvaKit's browser code only uses a signing
-  interface — it never sees a seed phrase or private key.
+- **With a real wallet, the end-user's private keys stay with the wallet provider.**
+  For the social-login (Web3Auth) and injected (Core/MetaMask) adapters, key
+  generation, storage, and signing live inside the wallet provider — AvaKit's browser
+  code only uses a signing interface and never sees a seed phrase or private key.
+  **The burner adapter is the deliberate exception — see below.**
 - **No secrets in code or logs.** Client IDs, RPC keys, and similar values are read
   from environment variables and are never written to logs or tool output.
 - **Mainnet is opt-in.** Deploys default to the Fuji testnet. Mainnet deploys require
   explicit confirmation and a balance check.
+
+## The burner wallet holds a key in the browser
+
+`burnerAdapter()` (`@avakit/core`) is the zero-setup path that lets a stranger try a
+real Fuji transaction without installing a wallet, and every scaffolded template wires
+it up. It is the one place AvaKit itself handles a key, so be precise about what it
+does:
+
+- It calls viem's `generatePrivateKey()` **in the browser** and, by default, persists
+  that key to **`localStorage` in the clear** (`avakit.burner.pk`). Any script running
+  on the page can read it. There is no HSM and no enclave.
+- That is the intended trade-off for a **throwaway testnet identity holding a faucet
+  drip**, and nothing else. It is not a wallet; treat it as a session.
+- Never send real funds to a burner address, and never present a burner as a way to
+  hold value. `clearBurner()` deletes the key. Pass `persist: false` to keep it in
+  memory only.
+- The other adapters are the upgrade path: a user with Core/MetaMask or social login
+  gets provider-held keys, and the guarantee above applies to them.
 
 ## Local developer tooling
 

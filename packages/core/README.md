@@ -29,7 +29,7 @@ Chains live at `@avakit/core/chains`; the optional Web3Auth social-login adapter
 
 - **Chains** — `fuji`, `cChain`, `defineChain` for custom L1s
 - **Clients** — `getPublicClient`, `getWalletClient`, `toViemChain`
-- **Adapters** — `injectedAdapter()` (Core / MetaMask); `web3authAdapter({ clientId })` (social login, from `@avakit/core/web3auth`)
+- **Adapters** — `burnerAdapter({ chain })` (a throwaway in-browser wallet, zero setup — see the warning below) + `clearBurner()`; `injectedAdapter()` (Core / MetaMask); `web3authAdapter({ clientId })` (social login, from `@avakit/core/web3auth`); `coinbaseAdapter()` (passkey smart wallet, from `@avakit/core/coinbase`)
 - **Network** — `ensureChain(provider, chain)` (add + switch)
 - **Deploy** — `deployContract`, `getBytecode`
 - **RPC data** — `getBalance`, `getTransactionReceipt`, `readContract` (take an `AvaChain`)
