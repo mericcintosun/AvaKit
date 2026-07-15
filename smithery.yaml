@@ -1,0 +1,24 @@
+# Smithery listing for @avakit/mcp. Must live at the repo root.
+# The server itself is packages/mcp; it's published to npm, so Smithery just runs it.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: []
+    properties:
+      avakitDeployerKey:
+        type: string
+        title: Deploy key (optional)
+        description: >-
+          A funded Fuji private key. Only deploy_contract needs it — scaffolding,
+          reading chain state, and gas estimates all work without one. Use a
+          throwaway testnet key, never a key holding real funds.
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', '@avakit/mcp'],
+      env: config.avakitDeployerKey
+        ? { AVAKIT_DEPLOYER_KEY: config.avakitDeployerKey }
+        : {},
+    })
+  exampleConfig: {}

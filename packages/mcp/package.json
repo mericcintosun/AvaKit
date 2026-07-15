@@ -1,6 +1,7 @@
 {
   "name": "@avakit/mcp",
   "version": "0.1.23",
+  "mcpName": "dev.avakit/avafox",
   "description": "AvaKit MCP server — scaffold, deploy, and read Avalanche from Claude Code / Cursor.",
   "license": "MIT",
   "type": "module",
