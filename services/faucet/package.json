@@ -3,17 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "AvaKit Cloud faucet — a tiny self-hostable testnet AVAX drip service.",
+  "description": "AvaKit Cloud faucet — a Cloudflare Worker that drips testnet AVAX so a new user's first transaction needs no setup.",
   "license": "MIT",
-  "bin": {
-    "avakit-faucet": "./src/index.js"
-  },
   "scripts": {
-    "start": "node src/index.js",
-    "check": "node --check src/index.js"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
   },
   "dependencies": {
     "viem": "2.54.1"
+  },
+  "devDependencies": {
+    "wrangler": "4.110.0"
   },
   "engines": {
     "node": ">=20.11"
