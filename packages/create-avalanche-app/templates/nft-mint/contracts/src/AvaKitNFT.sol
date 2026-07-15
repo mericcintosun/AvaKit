@@ -26,20 +26,6 @@ contract AvaKitNFT {
         emit Transfer(address(0), msg.sender, tokenId);
     }
 
-    /// @dev Eight points on a circle (centre 300,300 · r 220) — a lookup, so we
-    ///      never do trigonometry on-chain. (Solidity has no array constants, so
-    ///      this is a function rather than a `constant`.)
-    function _orbitPoint(uint256 p) private pure returns (uint256 x, uint256 y) {
-        if (p == 0) return (520, 300);
-        if (p == 1) return (455, 455);
-        if (p == 2) return (300, 520);
-        if (p == 3) return (145, 455);
-        if (p == 4) return (80, 300);
-        if (p == 5) return (145, 145);
-        if (p == 6) return (300, 80);
-        return (455, 145);
-    }
-
     /// @notice Each token's art is derived from the token itself — no oracle, no
     ///         server, no IPFS, no automation. `tokenURI` is a `view`, so the
     ///         image is reproducible from chain state forever.
@@ -60,87 +46,131 @@ contract AvaKitNFT {
         uint256 seed = uint256(
             keccak256(abi.encodePacked(tokenId, ownerOf[tokenId], block.chainid))
         );
-        string memory id = _toString(tokenId);
-        (string memory glow, string memory paletteName) = _palette(seed);
-        uint256 dots = 3 + (seed >> 8) % 6; // 3..8
+        (string memory accent, string memory paletteName, string memory muzzle) = _palette(seed);
 
         string memory art = string.concat(
             "<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600' viewBox='0 0 600 600'>",
             "<rect width='600' height='600' fill='rgb(9,9,11)'/>",
-            _orbit(seed, dots, glow),
-            // The brand anchor never varies: the AvaKit triangle, always.
-            "<path d='M300 168 L412 404 L188 404 Z' fill='",
-            glow,
-            "'/><path d='M300 168 L356 286 L244 286 Z' fill='rgb(250,250,250)' opacity='0.92'/>",
-            // %2523, not %23: this SVG is a data URI *nested inside* the JSON data
-            // URI, so it gets percent-decoded twice — once when the tokenURI is
-            // read, once when the browser loads the image. Single-encoding here
-            // would surface a raw `#` in the image src and truncate the SVG.
-            "<text x='300' y='486' text-anchor='middle' font-family='monospace' font-size='40' fill='rgb(250,250,250)'>AvaKit %2523",
-            id,
-            "</text><text x='300' y='524' text-anchor='middle' font-family='monospace' font-size='17' fill='rgb(161,161,170)'>built on Avalanche in 60 seconds</text></svg>"
+            // A real radial falloff. A flat circle at low opacity reads as a disc
+            // with a visible edge, not a glow. `url(%2523g)` is double-encoded for
+            // the same nested-data-URI reason as the `#` in the type.
+            "<defs><radialGradient id='g' cx='0.5' cy='0.46' r='0.6'><stop offset='0' stop-color='",
+            accent,
+            "' stop-opacity='0.20'/><stop offset='1' stop-color='",
+            accent,
+            "' stop-opacity='0'/></radialGradient></defs>",
+            "<rect width='600' height='600' fill='url(%2523g)'/>",
+            "<rect x='32' y='32' width='536' height='536' fill='none' stroke='rgb(39,39,42)'/>",
+            _fox(accent, muzzle),
+            _type(tokenId, accent, paletteName)
         );
 
         return string.concat(
             'data:application/json;utf8,{"name":"AvaKit %23',
-            id,
+            _pad3(tokenId),
             '","description":"Minted in about a minute at avakit.dev/new - no install, ',
-            'no signup, no seed phrase, no gas. Art generated on-chain from this token.",',
+            'no signup, no seed phrase, no gas. The art is generated on-chain from this ',
+            'token, by the contract you deployed.",',
             '"attributes":[{"trait_type":"Palette","value":"',
             paletteName,
-            '"},{"trait_type":"Orbit","value":',
-            _toString(dots),
-            '}],"image":"data:image/svg+xml;utf8,',
+            '"}],"image":"data:image/svg+xml;utf8,',
             art,
             '"}'
         );
     }
 
-    /// @dev Variation stays inside the Ember Crimson family so every token still
-    ///      reads as AvaKit — random must not mean off-brand.
-    function _palette(uint256 seed) private pure returns (string memory, string memory) {
-        uint256 i = seed % 6;
-        if (i == 0) return ("rgb(225,29,72)", "Ember");
-        if (i == 1) return ("rgb(244,63,94)", "Rose");
-        if (i == 2) return ("rgb(251,113,133)", "Blush");
-        if (i == 3) return ("rgb(190,18,60)", "Deep");
-        if (i == 4) return ("rgb(239,68,68)", "Signal");
-        return ("rgb(249,115,22)", "Magma");
+    /// @dev AvaFox, drawn as flat geometry — the same faceted, angular character
+    ///      as the mascot, but a few hundred bytes of path data instead of a
+    ///      raster. The silhouette never varies; only the palette does.
+    function _fox(string memory accent, string memory muzzle) private pure returns (string memory) {
+        return string.concat(
+            // ears
+            "<path d='M200 240 L226 108 L298 192 Z' fill='",
+            accent,
+            "'/><path d='M400 240 L374 108 L302 192 Z' fill='",
+            accent,
+            "'/><path d='M218 222 L234 148 L274 190 Z' fill='rgb(9,9,11)'/>",
+            "<path d='M382 222 L366 148 L326 190 Z' fill='rgb(9,9,11)'/>",
+            // head
+            "<path d='M200 240 L300 196 L400 240 L300 404 Z' fill='",
+            accent,
+            // cheek facets — the low-poly shading, done with opacity so one accent
+            // colour yields both a lit and a shaded plane
+            "'/><path d='M200 240 L300 196 L300 300 Z' fill='rgb(255,255,255)' opacity='0.10'/>",
+            "<path d='M400 240 L300 196 L300 300 Z' fill='rgb(0,0,0)' opacity='0.14'/>",
+            // muzzle + nose
+            "<path d='M300 404 L256 322 L300 302 L344 322 Z' fill='",
+            muzzle,
+            "'/><path d='M300 372 L288 352 L312 352 Z' fill='rgb(9,9,11)'/>",
+            // eyes
+            "<path d='M246 254 L284 264 L282 276 L248 268 Z' fill='rgb(9,9,11)'/>",
+            "<path d='M354 254 L316 264 L318 276 L352 268 Z' fill='rgb(9,9,11)'/>"
+        );
     }
 
-    /// @dev Scatter `dots` seeded points from the ORBIT table, plus a soft glow.
-    function _orbit(uint256 seed, uint256 dots, string memory glow)
+    /// @dev Spec-card typography. A real font stack, not bare `monospace` — the
+    ///      default fallback renders soft and rounded and cheapens the whole card.
+    ///      %2523, not %23: this SVG is a data URI nested inside the JSON data URI,
+    ///      so it is percent-decoded twice (once reading tokenURI, once when the
+    ///      browser loads the image). Single-encoding would leak a raw `#` into the
+    ///      image src and truncate the SVG.
+    function _type(uint256 tokenId, string memory accent, string memory paletteName)
         private
         pure
-        returns (string memory out)
+        returns (string memory)
     {
-        out = string.concat(
-            "<circle cx='300' cy='300' r='250' fill='",
-            glow,
-            "' opacity='0.06'/>"
+        string memory f =
+            " font-family='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'";
+        return string.concat(
+            "<text x='64' y='78'",
+            f,
+            " font-size='13' letter-spacing='3' fill='rgb(113,113,122)'>AVALANCHE FUJI</text>",
+            "<text x='536' y='78' text-anchor='end'",
+            f,
+            " font-size='13' letter-spacing='3' fill='",
+            accent,
+            "'>",
+            paletteName,
+            "</text>",
+            "<line x1='64' y1='498' x2='536' y2='498' stroke='rgb(39,39,42)'/>",
+            "<text x='64' y='534'",
+            f,
+            " font-size='20' letter-spacing='6' fill='rgb(250,250,250)'>AVAKIT</text>",
+            "<text x='536' y='534' text-anchor='end'",
+            f,
+            " font-size='20' fill='",
+            accent,
+            "'>%2523",
+            _pad3(tokenId),
+            "</text></svg>"
         );
-        uint256 offset = (seed >> 16) % 8;
-        for (uint256 k = 0; k < dots; k++) {
-            (uint256 x, uint256 y) = _orbitPoint((offset + k) % 8);
-            uint256 r = 4 + ((seed >> (24 + k * 3)) % 9); // 4..12
-            out = string.concat(
-                out,
-                "<circle cx='",
-                _toString(x),
-                "' cy='",
-                _toString(y),
-                "' r='",
-                _toString(r),
-                "' fill='",
-                glow,
-                "' opacity='0.55'/>"
-            );
-        }
     }
 
-    /// @notice ERC-165: advertises ERC-721 + ERC-165 interface ids.
-    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == 0x80ac58cd || interfaceId == 0x01ffc9a7;
+    /// @dev Zero-padded to three digits, so the card reads `#007`, not `#7`.
+    function _pad3(uint256 v) private pure returns (string memory) {
+        if (v < 10) return string.concat("00", _toString(v));
+        if (v < 100) return string.concat("0", _toString(v));
+        return _toString(v);
+    }
+
+    /// @dev Variation stays inside the Ember Crimson family so every token still
+    ///      reads as AvaKit — random must not mean off-brand.
+    /// @dev accent, name, muzzle. Variation stays inside the Ember Crimson family
+    ///      so every token still reads as AvaKit — random must not mean off-brand.
+    function _palette(uint256 seed)
+        private
+        pure
+        returns (string memory, string memory, string memory)
+    {
+        string memory white = "rgb(250,250,250)";
+        uint256 i = seed % 6;
+        if (i == 0) return ("rgb(225,29,72)", "EMBER", white);
+        if (i == 1) return ("rgb(244,63,94)", "ROSE", white);
+        if (i == 2) return ("rgb(159,18,57)", "DEEP", white);
+        if (i == 3) return ("rgb(220,38,38)", "SIGNAL", white);
+        if (i == 4) return ("rgb(234,88,12)", "MAGMA", white);
+        // the monochrome cut: an arctic AvaFox, a nod to the 3D one
+        return ("rgb(244,244,245)", "ASH", "rgb(113,113,122)");
     }
 
     function _toString(uint256 value) internal pure returns (string memory) {
