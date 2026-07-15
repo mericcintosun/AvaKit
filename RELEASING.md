@@ -1,57 +1,107 @@
 # Releasing AvaKit to npm
 
-Published packages: `@avakit/core`, `@avakit/react`, `@avakit/mcp`, `@avakit/studio`, `create-avalanche-app`.
-(`@avakit/web` and the examples are private and never published.)
+Published packages: `@avakit/core`, `@avakit/react`, `@avakit/mcp`, `@avakit/studio`,
+`create-avalanche-app`. (`@avakit/web`, `services/*`, and the examples are private and
+never published.)
 
-Currently published: `@avakit/core@0.1.3` · `@avakit/react@0.1.3` · `create-avalanche-app@0.1.10` ·
-`@avakit/mcp@0.1.10` · `@avakit/studio@0.1.6`. (Run `npm view <pkg> version` for the live value.)
+For the live versions, run `npm view <pkg> version` — this file deliberately doesn't
+list them, because a hardcoded list here is always wrong within a week.
 
-## One-time prerequisites (account side)
+## You cannot publish from your laptop, by design
 
-1. **npm account + `avakit` org** — the `@avakit/*` scope publishes under the `avakit` org;
-   `create-avalanche-app` is unscoped. Both are already live.
-2. **Log in from the CLI:** `npm login` (verify with `npm whoami`).
+All five packages use npm **Trusted Publishing (OIDC)** with **"disallow tokens"**
+enabled, and the `NPM_TOKEN` secret has been deleted. There is no token to publish
+with, and `npm publish` from a terminal will be refused by the registry. **Do not add
+a token back.**
 
-## Ongoing releases
+The only path is `.github/workflows/release.yml`, which runs on every push to `main`
+and exchanges a GitHub OIDC id-token for a short-lived publish credential. That
+exchange is also what produces the **provenance attestation** on each tarball
+(`NPM_CONFIG_PROVENANCE: true`), so npm can prove the tarball was built from this repo.
 
-Bump the changed packages, rebuild, and publish. Two paths:
+## The release flow
 
-**A. Changesets (preferred for changelogs):**
+1. **Describe the change** on your branch:
+   ```bash
+   pnpm changeset      # pick the packages + bump, write the changelog line
+   ```
+   Commit the generated `.changeset/*.md` and merge to `main`.
 
-```bash
-pnpm changeset            # describe your change + choose bump (patch/minor/major)
-pnpm version-packages     # apply version bumps + update changelogs
-pnpm release              # build, then changeset publish
-```
+2. **The bot opens a PR.** The workflow sees a pending changeset and opens/updates a
+   **"chore: version packages"** PR (branch `changeset-release/main`) that applies the
+   bumps and rewrites the changelogs. Nothing is published yet.
 
-**B. Manual (what recent releases used):** bump `version` in each changed package's
-`package.json`, then:
+3. **Check the PR, then merge it.** Merging it is the publish trigger: the workflow
+   runs again, finds no changesets, and publishes whatever is newer than npm.
 
-```bash
-pnpm build                                                  # rebuild (core injects its version at build)
-pnpm -r publish --dry-run --no-git-checks --access public   # verify tarball contents first
-# publish in dependency order so consumers resolve: core → create-avalanche-app → mcp
-pnpm --filter @avakit/core publish --no-git-checks --access public
-```
+4. **Verify.** `npm view <pkg> version`, and smoke-test the real thing in a clean dir:
+   ```bash
+   npm create avalanche-app@latest my-app
+   cd my-app && pnpm install && pnpm build
+   ```
 
-`pnpm` automatically rewrites `workspace:*` dependencies to the real versions
-(e.g. `@avakit/mcp` → `@avakit/core@0.1.3`) in the published tarballs.
+## Before merging the version PR — check these two
 
-> Note: `create-avalanche-app`'s `AVAKIT_DEP_VERSION` (the `^` pin stamped into scaffolded apps)
-> is separate from package versions — keep it at the **lowest** published `@avakit/*` version so
-> `^x` resolves every `@avakit/*` package. Templates ship a `pnpm-workspace.yaml` with
-> `minimumReleaseAgeExclude: ['@avakit/*']` so a freshly published `@avakit/*` isn't blocked by
-> pnpm's supply-chain age gate for its first ~2 days.
+**1. Changesets on a 0.x package does not do what you expect.** A `minor` changeset on
+`0.1.x` produces **`0.2.0`**, not `0.1.7`. Read the version in the PR diff rather than
+predicting it.
+
+**2. `AVAKIT_DEP_VERSION` must be a version that will actually exist.** It lives in
+`packages/create-avalanche-app/src/api.ts` and is stamped as `^<value>` into every
+scaffolded app's `package.json` for **both** `@avakit/core` and `@avakit/react`. So it
+must be **at or below the lowest** of the two versions the PR is about to publish —
+otherwise `^` resolves to a version that was never released and **every scaffold fails
+at `pnpm install`.**
+
+> This is hand-maintained today and is the single sharpest edge in the repo
+> (KNOWN-GAPS A2). If you bump `@avakit/core` or `@avakit/react`, look at this
+> constant in the same PR.
+
+Templates ship a `pnpm-workspace.yaml` with `minimumReleaseAgeExclude: ['@avakit/*']`
+so a freshly published `@avakit/*` isn't blocked by pnpm's supply-chain age gate for
+its first ~2 days.
+
+## The npm version is pinned, and must stay pinned
+
+`release.yml` runs `npm install -g npm@11` — **never `npm@latest`.**
+
+npm 12 changed `npm info <pkg> --json` to return an array where 11 returned the
+packument object. Changesets reads `pkgInfo.versions` off that result, gets `undefined`
+on an array, concludes **every** package is unpublished, tries to republish all five,
+and npm refuses with *"You cannot publish over the previously published versions"* —
+turning the release red while the genuinely-new packages actually published fine. npm
+11.18 satisfies OIDC's `>= 11.5.1` requirement. Revisit only once changesets handles
+npm 12's output.
+
+## Reading a red release
+
+The workflow publishing *nothing* is the normal steady state — a push with no pending
+changesets should log `No unpublished projects to publish` and go green. If it's red:
+
+- `You cannot publish over the previously published versions` → the npm-12 bug above.
+- `is being published because our local version has not been published on npm` for a
+  package that *is* published → same bug.
+- A partial failure still publishes the healthy packages. Read
+  `packages published successfully:` before assuming nothing shipped.
 
 ## What ships in each package
 
-- `@avakit/core` — `dist/` (ESM + types), `README.md`, `LICENSE`. `@web3auth/modal` is an **optional** peer dependency.
+- `@avakit/core` — `dist/` (ESM + types), `README.md`, `LICENSE`. `@web3auth/modal` and
+  the Coinbase SDK are **optional** peer dependencies.
 - `@avakit/react` — `dist/`, `README.md`, `LICENSE`. Peer deps: `react`, `react-dom`.
 - `@avakit/mcp` — `dist/`, `README.md`, `LICENSE`. Bin: `avakit-mcp`.
-- `create-avalanche-app` — `dist/` + `templates/`, `README.md`, `LICENSE`. Bin: `create-avalanche-app`.
+- `@avakit/studio` — `dist/` only (the UI is bundled into it; npm adds `README.md` +
+  `LICENSE` regardless of `files[]`). Bin: `avakit-studio`.
+- `create-avalanche-app` — `dist/` + `templates/`, `README.md`, `LICENSE`. Bin:
+  `create-avalanche-app`.
+
+`pnpm` rewrites `workspace:*` dependencies to the real published versions in the
+tarballs, so `@avakit/react`'s dependency on `@avakit/core` resolves for consumers.
 
 ## Notes
 
 - Node `>=20.11` is declared via `engines`.
-- npm **provenance** (`--provenance`) requires publishing from CI with OIDC; skip it for local publishes.
-- After every publish, smoke-test the real flow: `npm create avalanche-app@latest my-app` in a clean directory, then `pnpm install && pnpm build`.
+- `files[]` in `package.json` **overrides `.gitignore`** — if a package needs to exclude
+  something from its tarball, use `.npmignore`. (This once shipped a stray tarball.)
+- `@avakit/core` injects its own version at build time, so `VERSION` is only correct in
+  built artifacts, not when running from source.
