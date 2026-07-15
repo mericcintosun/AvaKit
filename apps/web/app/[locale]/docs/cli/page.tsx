@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { CodeBlock } from "@/components/code-block";
-import { C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
+import { A, C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
 import { Badge } from "@/components/ui/badge";
 import { getContent } from "@/lib/content";
 
@@ -84,8 +84,18 @@ export default function CliDocs() {
 -c, --chain <id>        fuji | c-chain           (default: fuji)
     --pm <manager>      pnpm | npm | yarn | bun
 -y, --yes               skip prompts (non-interactive)
-    --no-install        do not install dependencies`}
+    --no-install        do not install dependencies
+    --no-telemetry      opt out of anonymous usage counting (persisted)
+    --telemetry         opt back in (persisted)`}
       />
+
+      <H2>Telemetry</H2>
+      <P>
+        The CLI counts scaffolds anonymously — which template you picked and whether it worked,
+        never your project name, paths, or code. It says so on the first run, and{" "}
+        <C>AVAKIT_TELEMETRY_DISABLED=1</C> turns it off. See <A href="/docs/telemetry">Telemetry</A>{" "}
+        for the exact payload and the reasoning.
+      </P>
 
       <NextLinks
         items={[

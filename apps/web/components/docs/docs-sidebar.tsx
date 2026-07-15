@@ -18,6 +18,10 @@ const groups = [
       { label: "@avakit/studio", href: "/docs/studio" },
     ],
   },
+  {
+    title: "Project",
+    items: [{ label: "Telemetry", href: "/docs/telemetry" }],
+  },
 ];
 
 export function DocsSidebar() {

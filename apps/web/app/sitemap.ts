@@ -4,7 +4,16 @@ import { SITE_URL } from "@/lib/content";
 // Landing + templates are translated (EN at /, TR at /tr). Docs are English-only
 // and canonicalize to their EN path, so they're listed once.
 const TRANSLATED = ["", "/templates"];
-const EN_ONLY = ["/docs", "/docs/core", "/docs/react", "/docs/cli", "/docs/mcp", "/docs/studio"];
+const EN_ONLY = [
+  "/docs",
+  "/docs/core",
+  "/docs/react",
+  "/docs/cli",
+  "/docs/mcp",
+  "/docs/studio",
+  "/docs/telemetry",
+  "/stats",
+];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();

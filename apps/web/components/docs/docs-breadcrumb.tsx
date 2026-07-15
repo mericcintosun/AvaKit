@@ -1,7 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,6 +8,10 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+// The locale-aware pathname, not next/navigation's: that one keeps the `/tr`
+// prefix, so every lookup below missed and the Turkish docs showed a bare
+// "Docs" crumb.
+import { usePathname } from "@/i18n/navigation";
 
 const labels: Record<string, string> = {
   "/docs": "Introduction",
@@ -17,6 +19,8 @@ const labels: Record<string, string> = {
   "/docs/react": "@avakit/react",
   "/docs/cli": "create-avalanche-app",
   "/docs/mcp": "@avakit/mcp",
+  "/docs/studio": "@avakit/studio",
+  "/docs/telemetry": "Telemetry",
 };
 
 export function DocsBreadcrumb() {
