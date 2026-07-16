@@ -53,7 +53,7 @@ jobs:
   # @avakit/* is packed from THIS repo and injected as pnpm overrides, so a template
   # that needs an unpublished core feature is verified before release. Run
   # `SMOKE_USE_NPM=1 scripts/smoke-template.sh <id>` after a release to verify the
-  # published AVAKIT_DEP_VERSION pin.
+  # per-package pins the scaffolder stamps really resolve from npm.
   smoke-templates:
     name: Smoke · ${{ matrix.template }}
     runs-on: ubuntu-latest

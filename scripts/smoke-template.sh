@@ -14,10 +14,10 @@
 #                      tests the real published *artifact shape* while still
 #                      covering unpublished changes, so a template that needs a new
 #                      core feature is verified BEFORE release (no chicken-and-egg
-#                      with AVAKIT_DEP_VERSION pointing at an unpublished version).
+#                      with the scaffolder pinning a version that isn't published yet).
 #   • SMOKE_USE_NPM=1 — resolve @avakit/* from the npm registry instead, i.e. verify
-#                      that the published pin in AVAKIT_DEP_VERSION really works.
-#                      Run this AFTER a release.
+#                      that the pins the scaffolder stamps (derived per package at
+#                      build time) really resolve. Run this AFTER a release.
 #
 # Templates that need avalanche-cli at runtime (icm-messenger, l1-launch,
 # token-bridge) are only scaffold+typecheck+build tested here; their devnet/L1
