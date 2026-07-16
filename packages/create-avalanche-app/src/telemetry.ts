@@ -10,7 +10,7 @@
  * run, trivial to turn off, and nothing that could identify a person or a project
  * ever leaves the machine.
  *
- * Sent:      template, wallet, chain, package manager, CLI version, OS platform,
+ * Sent:      template, chain, package manager, CLI version, OS platform,
  *            Node major, whether the scaffold succeeded, and a random id created
  *            on this machine — the id only separates "ten people ran it once"
  *            from "one person ran it ten times".
@@ -44,7 +44,6 @@ export type ErrorKind = "dir-exists" | "scaffold-failed";
 
 export interface ScaffoldEvent {
   template: string;
-  wallet: string;
   chain: string;
   pm: string;
   ok: boolean;
@@ -206,7 +205,6 @@ export class Telemetry {
       event: "scaffold",
       anonymousId: config.anonymousId,
       template: event.template,
-      wallet: event.wallet,
       chain: event.chain,
       pm: event.pm,
       ok: event.ok,

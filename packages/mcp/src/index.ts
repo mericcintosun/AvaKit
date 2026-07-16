@@ -88,13 +88,12 @@ server.registerTool(
           ])
           .default("minimal"),
         chain: z.enum(["fuji", "c-chain"]).default("fuji"),
-        wallet: z.enum(["web3auth", "injected"]).default("web3auth"),
         directory: z.string().optional().describe("Parent directory (default: cwd)"),
         local: z.boolean().optional().describe("Link @avakit/* via workspace (repo dev only)"),
       })
       .strict(),
   },
-  async ({ name, template, chain, wallet, directory, local }) => {
+  async ({ name, template, chain, directory, local }) => {
     const parent = directory ? path.resolve(directory) : process.cwd();
     const targetDir = path.resolve(parent, name);
     if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
@@ -105,14 +104,15 @@ server.registerTool(
       targetDir,
       template,
       chain,
-      wallet,
       local,
     });
     const setup = listTemplates().find((t) => t.id === template)?.setup;
     const nextSteps = [
       `cd ${name}`,
       "pnpm install",
-      ...(wallet === "web3auth" ? ["cp .env.example .env.local  # add Web3Auth client ID"] : []),
+      // Every scaffold ships burner + injected + social login. Social login
+      // works out of the box on localhost via a bundled demo key; only your own
+      // deployment needs a client id (cp .env.example .env.local).
       ...(setup ? [`pnpm run ${setup}  # start the local Avalanche network (run once)`] : []),
       "pnpm dev",
     ];
@@ -276,7 +276,7 @@ AvaKit is an open-source, AI-native Avalanche developer toolkit.
 ## Scaffolding
 - \`scaffold_app\` (this MCP) or \`npm create avalanche-app@latest\`
 - Templates: minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge
-- Each app ships shadcn/ui (black & white + dark/light), social-login wallet, and CLAUDE.md/llms.txt/.cursor rules.
+- Each app ships shadcn/ui (black & white + dark/light), a wallet chooser (zero-setup burner + social login + injected), and CLAUDE.md/llms.txt/.cursor rules.
 
 ## @avakit/react
 - \`<AvaKitProvider chains={[...]} adapters={[...]}>\`, \`<ConnectAvalanche />\`

@@ -24,7 +24,6 @@ const WORDMARK = [
 export type Answers = {
   projectName: string;
   template: string;
-  wallet: string;
   chain: string;
   pm: string;
 };
@@ -47,11 +46,10 @@ export type WizardProps = {
 };
 
 type StepKey = keyof Answers;
-const STEP_ORDER: StepKey[] = ["projectName", "template", "wallet", "chain", "pm"];
+const STEP_ORDER: StepKey[] = ["projectName", "template", "chain", "pm"];
 const LABELS: Record<StepKey, string> = {
   projectName: "Project name",
   template: "Template",
-  wallet: "Wallet",
   chain: "Network",
   pm: "Package manager",
 };
@@ -98,10 +96,6 @@ function Panel({ children }: { children: React.ReactNode }) {
 
 function displayValue(templates: TemplateInfo[], key: StepKey, value: string): string {
   if (key === "template") return templates.find((t) => t.id === value)?.title ?? value;
-  if (key === "wallet")
-    return value === "web3auth"
-      ? "Social login (Google, Apple, email)"
-      : "Browser wallet (Core / MetaMask)";
   if (key === "chain") return value === "c-chain" ? "C-Chain (mainnet)" : "Fuji testnet";
   return value;
 }
@@ -110,11 +104,6 @@ function optionsFor(key: StepKey, templates: TemplateInfo[]): { label: string; v
   switch (key) {
     case "template":
       return templates.map((t) => ({ label: t.title, value: t.id }));
-    case "wallet":
-      return [
-        { label: "Social login (Google, Apple, email)", value: "web3auth" },
-        { label: "Browser wallet (Core / MetaMask)", value: "injected" },
-      ];
     case "chain":
       return [
         { label: "Fuji testnet  ·  recommended", value: "fuji" },

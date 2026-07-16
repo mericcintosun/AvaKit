@@ -10,12 +10,14 @@ npm create avalanche-app@latest
 npm create avalanche-app@latest my-app -- --template nft-mint --yes
 ```
 
-The CLI prints the exact next steps for your choices (they vary by template and wallet). Typically:
+The CLI prints the exact next steps for your choices (they vary by template). Typically:
 
 ```bash
 cd my-app
 pnpm install
-cp .env.example .env.local   # ONLY for social login (Web3Auth); injected scaffolds omit this file
+# Optional: social login works on localhost via a bundled demo key. Only your own
+# deployment needs a client id — then copy .env.example and add it:
+cp .env.example .env.local
 # devnet templates only — start the local Avalanche network first:
 pnpm run devnet              # icm-messenger   (or: pnpm run l1 / pnpm run bridge)
 pnpm dev                     # http://localhost:3000
@@ -25,7 +27,7 @@ pnpm dev                     # http://localhost:3000
 
 | Template | What you get |
 | --- | --- |
-| `minimal` | Social-login wallet, balance, and a first transaction |
+| `minimal` | A wallet (burner + social login + injected), balance, and a first transaction |
 | `nft-mint` | Deploy an ERC-721 from the browser, then mint |
 | `token-gated-app` | Unlock content for holders of an access-pass NFT |
 | `erc20-token` | Deploy an ERC-20, mint supply, and transfer |
@@ -34,7 +36,7 @@ pnpm dev                     # http://localhost:3000
 | `l1-launch` | Launch your own Avalanche L1 with one command, then explore it in a built-in dashboard |
 | `token-bridge` | Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer (ICTT) |
 
-Every generated app ships **shadcn/ui** (neutral/grayscale with dark/light from day one), a social-login wallet via `@avakit/react`, and AI context files (`CLAUDE.md`, `llms.txt`, `.cursor/rules`) so Claude Code / Cursor understand the project out of the box.
+Every generated app ships **shadcn/ui** (neutral/grayscale with dark/light from day one), a wallet chooser via `@avakit/react` (a zero-setup burner up front, plus social login and Core/MetaMask), and AI context files (`CLAUDE.md`, `llms.txt`, `.cursor/rules`) so Claude Code / Cursor understand the project out of the box.
 
 The `icm-messenger`, `l1-launch`, and `token-bridge` templates run a local devnet via `avalanche-cli`, so they need a Unix-like shell (macOS, Linux, or **WSL2** on Windows). The other five are pure Fuji and work on native Windows too.
 
@@ -43,7 +45,6 @@ The `icm-messenger`, `l1-launch`, and `token-bridge` templates run a local devne
 ```
 -t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |
                         icm-messenger | eerc-token | l1-launch | token-bridge
--w, --wallet <id>       web3auth | injected      (default: web3auth)
 -c, --chain <id>        fuji | c-chain           (default: fuji)
     --pm <manager>      pnpm | npm | yarn | bun
 -y, --yes               skip prompts (non-interactive)
@@ -62,7 +63,7 @@ var to turn off:
 export AVAKIT_TELEMETRY_DISABLED=1   # or DO_NOT_TRACK=1, or --no-telemetry
 ```
 
-**Sent:** which template, wallet, chain, and package manager you picked, the CLI
+**Sent:** which template, chain, and package manager you picked, the CLI
 version, your OS and Node major, whether the scaffold succeeded, and a random id
 generated on your machine (so we can tell ten people apart from ten runs).
 

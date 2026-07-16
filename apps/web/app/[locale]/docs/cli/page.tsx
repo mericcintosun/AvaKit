@@ -59,8 +59,9 @@ export default function CliDocs() {
       <P>The CLI prints the exact next steps for your choices. Two things vary:</P>
       <UL>
         <li>
-          <C>.env.example</C> is only for social login (Web3Auth). With <C>--wallet injected</C> the
-          scaffolder omits it, so there is nothing to copy.
+          Social login works on localhost via a bundled demo key, so there is nothing to set up to
+          try it. Only your own deployment needs a client id — then copy <C>.env.example</C> to{" "}
+          <C>.env.local</C> and add it.
         </li>
         <li>
           The <C>icm-messenger</C>, <C>l1-launch</C>, and <C>token-bridge</C> templates run a local
@@ -80,7 +81,6 @@ export default function CliDocs() {
       <CodeBlock
         code={`-t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |
                         icm-messenger | eerc-token | l1-launch | token-bridge
--w, --wallet <id>       web3auth | injected      (default: web3auth)
 -c, --chain <id>        fuji | c-chain           (default: fuji)
     --pm <manager>      pnpm | npm | yarn | bun
 -y, --yes               skip prompts (non-interactive)

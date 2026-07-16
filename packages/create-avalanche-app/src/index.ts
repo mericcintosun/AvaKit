@@ -2,13 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
-import {
-  AVAKIT_DEP_VERSION,
-  type ChainId,
-  listTemplates,
-  scaffoldApp,
-  type WalletId,
-} from "./api.js";
+import { type ChainId, listTemplates, scaffoldApp } from "./api.js";
 import { banner, bannerColor } from "./banner.js";
 import { TELEMETRY_DOCS_URL, Telemetry } from "./telemetry.js";
 import type { StartCommand } from "./ui/wizard.js";
@@ -21,15 +15,11 @@ const VERSION = (
   }
 ).version;
 
-// AVAKIT_DEP_VERSION (the @avakit/* range stamped into scaffolded apps) now lives
-// in ./api.ts so the CLI and @avakit/mcp share one source of truth.
-
 type PackageManager = "pnpm" | "npm" | "yarn" | "bun";
 
 interface Options {
   projectName?: string;
   template?: string;
-  wallet?: WalletId;
   chain?: ChainId;
   pm?: PackageManager;
   yes: boolean;
@@ -66,9 +56,13 @@ function parseArgs(argv: string[]): Options {
       case "-t":
         opts.template = next();
         break;
+      // `--wallet` was removed: every scaffold now ships all three wallets
+      // (burner, injected, web3auth), so the flag chose nothing. Still consume
+      // its argument if an old invocation passes it, so `-w injected` can't be
+      // mistaken for the project name.
       case "--wallet":
       case "-w":
-        opts.wallet = next() as WalletId;
+        next();
         break;
       case "--chain":
       case "-c":
@@ -106,7 +100,6 @@ function printHelp(): void {
       "Options:",
       "  -t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |",
       "                          icm-messenger | eerc-token | l1-launch | token-bridge",
-      "  -w, --wallet <id>       web3auth | injected   (default: web3auth)",
       "  -c, --chain <id>        fuji | c-chain        (default: fuji)",
       "      --pm <manager>      pnpm | npm | yarn | bun",
       "  -y, --yes               skip prompts (non-interactive)",
@@ -148,7 +141,6 @@ function resolveDefaults(
   return {
     projectName: opts.projectName ?? "my-avax-app",
     template: opts.template && templateIds.includes(opts.template) ? opts.template : "minimal",
-    wallet: opts.wallet ?? "web3auth",
     chain: opts.chain ?? "fuji",
     pm: opts.pm ?? "pnpm",
   };
@@ -192,7 +184,7 @@ async function main(): Promise<void> {
     printFirstRunNotice(telemetry);
     const r = resolveDefaults(opts, templateIds);
     const targetDir = path.resolve(cwd, r.projectName);
-    const choices = { template: r.template, wallet: r.wallet, chain: r.chain, pm: r.pm };
+    const choices = { template: r.template, chain: r.chain, pm: r.pm };
     if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
       telemetry.record({ ...choices, ok: false, errorKind: "dir-exists" });
       await telemetry.flush();
@@ -206,10 +198,8 @@ async function main(): Promise<void> {
         projectName: r.projectName,
         targetDir,
         template: r.template,
-        wallet: r.wallet,
         chain: r.chain,
         local: opts.local,
-        avakitVersion: AVAKIT_DEP_VERSION,
       });
     } catch (error) {
       telemetry.record({ ...choices, ok: false, errorKind: "scaffold-failed" });
@@ -234,12 +224,11 @@ async function main(): Promise<void> {
     presets: {
       ...(opts.projectName ? { projectName: opts.projectName } : {}),
       ...(opts.template && templateIds.includes(opts.template) ? { template: opts.template } : {}),
-      ...(opts.wallet ? { wallet: opts.wallet } : {}),
       ...(opts.chain ? { chain: opts.chain } : {}),
       ...(opts.pm ? { pm: opts.pm } : {}),
     },
     scaffold: async (a) => {
-      const choices = { template: a.template, wallet: a.wallet, chain: a.chain, pm: a.pm };
+      const choices = { template: a.template, chain: a.chain, pm: a.pm };
       const targetDir = path.resolve(cwd, a.projectName);
       if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
         telemetry.record({ ...choices, ok: false, errorKind: "dir-exists" });
@@ -250,10 +239,8 @@ async function main(): Promise<void> {
           projectName: a.projectName,
           targetDir,
           template: a.template,
-          wallet: a.wallet as WalletId,
           chain: a.chain as ChainId,
           local: opts.local,
-          avakitVersion: AVAKIT_DEP_VERSION,
         });
         telemetry.record({ ...choices, ok: true });
         return { created: files.length };
