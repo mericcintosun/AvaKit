@@ -9,21 +9,43 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scaffold } from "./scaffold.js";
 
-/** Web3Auth Modal SDK version added to apps that use the social-login wallet. */
+/** Web3Auth Modal SDK version. Added to every app — templates always wire the
+ * social-login adapter (see the addDependency call below). */
 const WEB3AUTH_MODAL_VERSION = "11.2.0";
 
 /**
- * The `@avakit/*` version range stamped into a scaffolded app's package.json (as
- * `^AVAKIT_DEP_VERSION`) when not linking locally. Single source of truth shared
- * by the CLI and `@avakit/mcp`, so both scaffolding paths pin the same version.
+ * The `@avakit/core` and `@avakit/react` versions stamped into a scaffolded app's
+ * package.json (as `^x.y.z`) when not linking locally.
  *
- * Bump on every `@avakit/core`/`react` release whose features the templates rely
- * on — 0.2.0 added the burner wallet the default templates wire up. Keep this in
- * step with what Changesets actually publishes: a `minor` changeset on a 0.x
- * package goes 0.1.x → **0.2.0**, not 0.1.7, and pinning a version that never
- * ships makes every scaffold fail to install.
+ * Derived per package, never hand-written. Changesets does not link core and
+ * react, so they version independently — and one shared number cannot pin two
+ * independent packages: pin `@avakit/react@^0.3.0` while react is still 0.2.0 and
+ * every scaffold fails at `pnpm install`. The build (tsup) reads each package's
+ * real version and substitutes the `__AVAKIT_*_VERSION__` literals below, so the
+ * pin is always exactly what shipped.
+ *
+ * Running from source (tests, `--local`) the literals are undefined, and we read
+ * the sibling package.json instead — which only exists inside this monorepo,
+ * which is the only place that fallback ever runs.
  */
-export const AVAKIT_DEP_VERSION = "0.2.0";
+declare const __AVAKIT_CORE_VERSION__: string;
+declare const __AVAKIT_REACT_VERSION__: string;
+
+function siblingVersion(pkg: "core" | "react"): string {
+  const p = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    pkg,
+    "package.json",
+  );
+  return (JSON.parse(readFileSync(p, "utf8")) as { version: string }).version;
+}
+
+export const AVAKIT_CORE_VERSION =
+  typeof __AVAKIT_CORE_VERSION__ === "string" ? __AVAKIT_CORE_VERSION__ : siblingVersion("core");
+export const AVAKIT_REACT_VERSION =
+  typeof __AVAKIT_REACT_VERSION__ === "string" ? __AVAKIT_REACT_VERSION__ : siblingVersion("react");
 
 export const templatesDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -58,7 +80,6 @@ export function listTemplates(): TemplateInfo[] {
     });
 }
 
-export type WalletId = "web3auth" | "injected";
 export type ChainId = "fuji" | "c-chain";
 
 export interface ScaffoldAppOptions {
@@ -66,12 +87,9 @@ export interface ScaffoldAppOptions {
   /** Absolute target directory. */
   targetDir: string;
   template: string;
-  wallet?: WalletId;
   chain?: ChainId;
   /** Link @avakit/* via workspace instead of npm versions (repo dev only). */
   local?: boolean;
-  /** @avakit version range used when not linking locally. */
-  avakitVersion?: string;
 }
 
 export interface ScaffoldAppResult {
@@ -89,24 +107,22 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
     );
   }
 
+  const local = opts.local ?? false;
   const replacements: Record<string, string> = {
     __PROJECT_NAME__: opts.projectName,
     __CHAIN_CONST__: opts.chain === "c-chain" ? "cChain" : "fuji",
-    __AVAKIT_DEP__: opts.local ? "workspace:*" : `^${opts.avakitVersion ?? AVAKIT_DEP_VERSION}`,
+    __AVAKIT_CORE_DEP__: local ? "workspace:*" : `^${AVAKIT_CORE_VERSION}`,
+    __AVAKIT_REACT_DEP__: local ? "workspace:*" : `^${AVAKIT_REACT_VERSION}`,
   };
 
   const files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
 
   // Every template's `providers.tsx` registers all three adapters — burner,
-  // injected, and web3auth — regardless of `wallet`, so @web3auth/modal (an
-  // optional peer of @avakit/core) is always needed at runtime.
-  //
-  // This used to be added only for `wallet === "web3auth"`, which shipped a
-  // broken app: `web3authAdapter.isAvailable()` is `Boolean(clientId)` and the
-  // templates inline a demo client id, so the Social login button rendered
-  // enabled in an `--wallet injected` scaffold and then threw
-  // WalletNotAvailableError on click, because the SDK it dynamic-imports was
-  // never installed. Install what the code imports.
+  // injected, and web3auth — so @web3auth/modal (an optional peer of
+  // @avakit/core) is always needed at runtime. `web3authAdapter.isAvailable()`
+  // is `Boolean(clientId)` against the templates' inlined demo id, so the Social
+  // login button always renders enabled; not installing the SDK it dynamic-imports
+  // meant it threw on click. Install what the code imports.
   addDependency(
     path.join(opts.targetDir, "package.json"),
     "@web3auth/modal",

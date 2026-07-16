@@ -138,14 +138,18 @@ A2. **`AVAKIT_DEP_VERSION` is a hand-maintained magic constant** decoupled from
    hand on every core/react release; nothing enforces they stay in sync with the
    published versions. Consider deriving the pin from the published core version
    at build time.
-   **FIXED (2026-07-15):** `AVAKIT_DEP_VERSION` now lives in
-   `create-avalanche-app/src/api.ts` as the default `scaffoldApp` uses and the
-   CLI imports — one source of truth for both scaffolding paths. Set to **0.2.0**
-   for the burner-wallet release. **Watch out:** a `minor` changeset on a 0.x
-   package publishes 0.1.x → **0.2.0**, not 0.1.7 — pinning a version Changesets
-   never publishes makes every scaffold fail to install, so always confirm the
-   bump on `changeset-release/main` before release. (Auto-deriving the pin from the
-   published version would remove this footgun for good.)
+   **FIXED (2026-07-16) — for good, auto-derived.** The hand-maintained
+   `AVAKIT_DEP_VERSION` is gone. `api.ts` now exports `AVAKIT_CORE_VERSION` and
+   `AVAKIT_REACT_VERSION`, each substituted at build time (tsup `define`) from that
+   package's real `package.json`, with a sibling-read fallback for source/test runs.
+   Templates carry **two** placeholders (`__AVAKIT_CORE_DEP__` /
+   `__AVAKIT_REACT_DEP__`) instead of one shared `__AVAKIT_DEP__`, so core and react
+   can version independently and each scaffold pins exactly what shipped — the "0.x
+   minor → 0.2.0" footgun and the "forgot to bump the constant" footgun are both
+   removed. Proven live (react temporarily set to 0.9.9 → scaffold pinned react
+   `^0.9.9` and core `^0.2.0` independently) and guarded by
+   `create-avalanche-app/src/api.test.ts`. **A1 is also moot** (`scaffoldApp` no
+   longer takes an `avakitVersion` override at all).
 
 ## B. Testing (whole packages untested)
 

@@ -92,11 +92,12 @@ This is the full buildable surface — sequence in §6.
   splits the burner out ("Start instantly with a temporary wallet") from the
   bring-your-own wallets; all 8 templates wire burner + injected + web3auth in
   `app/providers.tsx`.
-- [ ] `[P1/S]` **`--wallet` is now vestigial** — templates register all three adapters
-  regardless of the flag, so `--wallet` no longer selects a wallet. Either make it
-  prune adapters from `providers.tsx`, or drop it. (Its one real effect — gating the
-  `@web3auth/modal` install — shipped a Social-login button that threw on click; that
-  is fixed by always installing the SDK, which leaves the flag doing nothing.)
+- [x] `[P1/S]` **Removed the vestigial `--wallet` flag** — templates register all three
+  adapters regardless, so it selected nothing. Dropped from the CLI, the wizard, the
+  `scaffoldApp` API, the MCP tool, and telemetry. `-w <x>` is still consumed-and-ignored
+  so an old invocation can't mistake the value for the project name. (Its one real
+  effect — gating the `@web3auth/modal` install — had shipped a Social-login button that
+  threw on click; fixed by always installing the SDK.)
 - [ ] `[P2/S]` **AvaCloud WaaS adapter** — `packages/core/src/waas.ts` subpath
   (closes KNOWN-GAPS E6); seedless/HSM, opt-in.
 
@@ -145,13 +146,11 @@ This is the full buildable surface — sequence in §6.
   `search=avalanche`. `awesome-mcp-servers` PR open (#10168). Smithery/mcp.so/Glama
   need an account — `smithery.yaml` is committed and ready; see
   `packages/mcp/REGISTRIES.md` for the process, the gotchas, and where the key lives.
-- [ ] `[P1/S]` **Derive `AVAKIT_DEP_VERSION` (KNOWN-GAPS A2)** — it's hand-maintained
-  in `packages/create-avalanche-app/src/api.ts` and must stay **at or below the lowest**
-  of the published `@avakit/core` / `@avakit/react` versions, or every scaffold fails
-  at `pnpm install`. Derive it at build time (tsup `define`) from those package.jsons,
-  or give core and react their own placeholders so neither has to be held back.
-  *(A1 — "pass `avakitVersion` from the MCP" — is closed: `scaffoldApp` already
-  defaults to the shared constant, so passing it would be a no-op.)*
+- [x] `[P1/S]` **Derived `AVAKIT_DEP_VERSION` per package (KNOWN-GAPS A2)** — the
+  hand-maintained constant is gone. tsup bakes each of `@avakit/core` / `@avakit/react`'s
+  real version into the bundle, templates carry separate placeholders, and each scaffold
+  pins exactly what shipped even when the two diverge (proven live + `api.test.ts`).
+  A1 closed with it — `scaffoldApp` no longer takes a version override at all.
 - [ ] `[P1/M]` **New MCP tools** — `faucet` (drip to address), `launch_l1`,
   `send_icm`; tool descriptions self-recommend `create-avalanche-app`.
 - [ ] `[P2/M]` **Optionally proxy the official docs MCP** (`build.avax.network/api/mcp`)

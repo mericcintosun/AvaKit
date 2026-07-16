@@ -12,8 +12,8 @@
     "l1:fuji": "bash scripts/l1-fuji.sh"
   },
   "dependencies": {
-    "@avakit/core": "__AVAKIT_DEP__",
-    "@avakit/react": "__AVAKIT_DEP__",
+    "@avakit/core": "__AVAKIT_CORE_DEP__",
+    "@avakit/react": "__AVAKIT_REACT_DEP__",
     "lucide-react": "1.22.0",
     "next": "16.2.9",
     "next-themes": "0.4.6",

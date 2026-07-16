@@ -40,22 +40,21 @@ exchange is also what produces the **provenance attestation** on each tarball
    cd my-app && pnpm install && pnpm build
    ```
 
-## Before merging the version PR — check these two
+## Before merging the version PR — check this
 
-**1. Changesets on a 0.x package does not do what you expect.** A `minor` changeset on
+**Changesets on a 0.x package does not do what you expect.** A `minor` changeset on
 `0.1.x` produces **`0.2.0`**, not `0.1.7`. Read the version in the PR diff rather than
 predicting it.
 
-**2. `AVAKIT_DEP_VERSION` must be a version that will actually exist.** It lives in
-`packages/create-avalanche-app/src/api.ts` and is stamped as `^<value>` into every
-scaffolded app's `package.json` for **both** `@avakit/core` and `@avakit/react`. So it
-must be **at or below the lowest** of the two versions the PR is about to publish —
-otherwise `^` resolves to a version that was never released and **every scaffold fails
-at `pnpm install`.**
-
-> This is hand-maintained today and is the single sharpest edge in the repo
-> (KNOWN-GAPS A2). If you bump `@avakit/core` or `@avakit/react`, look at this
-> constant in the same PR.
+> **The scaffolder's `@avakit/*` pins now take care of themselves.** The `^` version
+> stamped into every scaffolded app for `@avakit/core` and `@avakit/react` is **derived
+> per package at build time** (tsup reads each one's `package.json`; see the `define` in
+> `packages/create-avalanche-app/tsup.config.ts` and `AVAKIT_CORE_VERSION` /
+> `AVAKIT_REACT_VERSION` in `api.ts`). This used to be a hand-maintained constant
+> (`AVAKIT_DEP_VERSION`) that had to stay at or below the lowest published version, or
+> every scaffold failed at `pnpm install` — the sharpest edge in the repo. It is gone:
+> core and react can diverge freely and each app pins exactly what shipped. Nothing to
+> remember here anymore. (Guarded by `src/api.test.ts`.)
 
 Templates ship a `pnpm-workspace.yaml` with `minimumReleaseAgeExclude: ['@avakit/*']`
 so a freshly published `@avakit/*` isn't blocked by pnpm's supply-chain age gate for

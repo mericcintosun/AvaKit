@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@avakit/core": "__AVAKIT_DEP__",
-    "@avakit/react": "__AVAKIT_DEP__",
+    "@avakit/core": "__AVAKIT_CORE_DEP__",
+    "@avakit/react": "__AVAKIT_REACT_DEP__",
     "@avalabs/eerc-sdk": "1.0.2",
     "@tanstack/react-query": "5.101.2",
     "lucide-react": "1.22.0",
