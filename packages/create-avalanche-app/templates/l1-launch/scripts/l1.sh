@@ -103,7 +103,7 @@ cat > "$CONFIG" <<EOF
   "evmChainId": $CHAIN_ID,
   "rpcUrl": "$RPC",
   "blockchainIdHex": "${BID:-}",
-  "faucetAccount": { "note": "EWOQ: avalanche-cli's PUBLIC local dev key, pre-funded on every local network. Local-only — never use on Fuji or mainnet.", "address": "$EWOQ_ADDR", "privateKey": "$EWOQ_PK" }
+  "faucetAccount": { "note": "EWOQ: avalanche-cli's PUBLIC local dev key, pre-funded on every local network. The key itself is printed by pnpm l1 (never written to this file - secret scanners flag committed keys, even public dev ones).", "address": "$EWOQ_ADDR" }
 }
 EOF
 

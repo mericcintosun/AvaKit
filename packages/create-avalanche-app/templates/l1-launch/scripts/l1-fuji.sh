@@ -81,7 +81,7 @@ cat > "$CONFIG" <<EOF
   "evmChainId": $CID,
   "rpcUrl": "$RPC",
   "blockchainIdHex": "${BID:-}",
-  "faucetAccount": { "address": "", "privateKey": "" }
+  "faucetAccount": { "address": "" }
 }
 EOF
 

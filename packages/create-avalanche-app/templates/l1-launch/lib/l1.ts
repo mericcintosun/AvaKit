@@ -20,8 +20,10 @@ export interface L1Config {
   rpcUrl: string;
   /** The bytes32 (Avalanche) blockchain ID in hex. */
   blockchainIdHex: string;
-  /** EWOQ dev key on local networks (empty on Fuji — bring your own wallet). */
-  faucetAccount: { address: string; privateKey: string };
+  /** EWOQ dev account on local networks (empty on Fuji — bring your own
+   * wallet). Address only: the key itself is printed to the terminal by
+   * `pnpm l1` and never written to disk. */
+  faucetAccount: { address: string };
 }
 
 export const l1 = config as L1Config;

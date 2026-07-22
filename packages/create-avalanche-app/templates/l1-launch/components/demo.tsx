@@ -201,7 +201,7 @@ function Dashboard() {
               <ConnectAvalanche />
             </div>
           )}
-          {l1.network === "local" && l1.faucetAccount.privateKey ? (
+          {l1.network === "local" ? (
             <p className="text-muted-foreground text-xs">
               Local dev: import the pre-funded EWOQ key (from{" "}
               <span className="font-mono">pnpm l1</span>) to get {l1.token}.
