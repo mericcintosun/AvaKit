@@ -39,8 +39,13 @@ no browser-deploy step, unlike AvaKit's other templates.
 
 - `lib/eerc-config.ts` — the deployed `EncryptedERC` contract address (standalone, name "Test",
   symbol "TEST", 2 decimals) and the circuit URLs.
+- `scripts/deploy-eerc.mjs` (`pnpm deploy:eerc`) — deploys YOUR OWN standalone instance to Fuji
+  (clones the official repo pinned to the circuits' commit, never vendors it) and rewrites
+  `EERC_CONTRACT_ADDRESS` to point at it.
 - `app/providers.tsx` — `<AvaKitProvider>` (wallet) + `<WagmiProvider>` (eERC SDK internals) + `ThemeProvider`.
-- `components/demo.tsx` — register → unlock → mint → confidential transfer → burn.
+- `components/demo.tsx` — register → unlock → (owner: set auditor) → mint → confidential
+  transfer → burn. Mint is disabled unless the connected wallet owns the instance and its
+  auditor key is set; the owner sees a one-click "Set auditor" step until it is.
 
 ## The flow
 
@@ -58,8 +63,9 @@ no browser-deploy step, unlike AvaKit's other templates.
    `decryptedBalance`, `parsedDecryptedBalance`, `refetchBalance`.
 7. **Mint** — `balance.privateMint(recipient, amountInBaseUnits)`. **Owner-only on-chain**
    (`EncryptedERC.privateMint` is `onlyOwner` by design, for compliance) — only the wallet that
-   deployed the contract can mint. Works out of the box only if you deploy your own instance and
-   connect with the deployer wallet.
+   deployed the contract can mint. Run `pnpm deploy:eerc` to get your own instance, connect the
+   deployer wallet, and the UI walks you through the auditor step; the demo reads
+   `eerc.owner` / `eerc.isAuditorKeySet` and gates the Mint button accordingly.
 8. **Transfer** — `balance.privateTransfer(to, amountInBaseUnits)`. Permissionless for any two
    *registered* accounts; amounts and balances stay encrypted on-chain.
 9. **Burn** — `balance.privateBurn(amountInBaseUnits)`. Permissionless, standalone-mode only.
@@ -70,19 +76,24 @@ exists in encrypted form).
 
 ## Deploying your own instance
 
-The shared demo contract has no auditor key requirements you control and mint is owner-gated. To
-mint from your own wallet:
+The shared demo contract has no auditor key requirements you control and mint is owner-gated.
+One command replaces the old five manual steps:
 
-1. Clone `ava-labs/EncryptedERC`, `npm install --ignore-scripts` (circuits are already committed
-   under `circom/build/`, no need to run `hardhat zkit make`), `npx hardhat compile`.
-2. Add a `fuji` network to `hardhat.config.ts` (RPC `https://api.avax-test.network/ext/bc/C/rpc`,
-   chainId `43113`) with your deployer's private key.
-3. `npx hardhat run scripts/deploy-standalone.ts --network fuji` — deploys verifiers + Registrar +
-   `EncryptedERC` (standalone) and prints the addresses.
-4. Register your deployer address via the SDK (or this app), then call
-   `setAuditorPublicKey(yourAddress)` on the `EncryptedERC` contract as the owner — an auditor must
-   be registered *and* set before any mint/transfer/burn will succeed.
-5. Update `EERC_CONTRACT_ADDRESS` in `lib/eerc-config.ts`.
+```bash
+DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc
+```
+
+Use a throwaway key funded with Fuji test AVAX. The script clones the official
+`ava-labs/EncryptedERC` repo into `~/.avakit/` — **pinned to the same commit the circuit CDN URLs
+use**, so contracts and circuits can never drift apart — compiles it, deploys verifiers +
+Registrar + standalone `EncryptedERC` to Fuji, and rewrites `EERC_CONTRACT_ADDRESS` in
+`lib/eerc-config.ts` to your new instance. The key is read from the environment at hardhat
+runtime; it is never written to disk or passed on a command line. (The contracts are not vendored
+in this repo on purpose: they are under Ava Labs' Ecosystem License, not MIT.)
+
+Then in the app, connect the **deployer** wallet: Register → **Set auditor** (the UI shows this
+one-click owner step until the key is set — an auditor must be registered *and* set before any
+mint/transfer/burn succeeds) → Mint.
 
 ## Rules
 

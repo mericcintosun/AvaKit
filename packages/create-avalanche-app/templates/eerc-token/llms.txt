@@ -5,6 +5,7 @@
 ## Project map
 
 - [lib/eerc-config.ts](lib/eerc-config.ts): deployed eERC contract address + CDN circuit URLs.
+- [scripts/deploy-eerc.mjs](scripts/deploy-eerc.mjs): `pnpm deploy:eerc` — deploy your own standalone instance to Fuji (mint is owner-only, so this is how mint becomes usable) and point the app at it.
 - [app/providers.tsx](app/providers.tsx): `<AvaKitProvider>` (wallet) + `<WagmiProvider>` (required by the eERC SDK's internal reads).
 - [components/demo.tsx](components/demo.tsx): register → unlock → mint → confidential transfer → burn.
 - [CLAUDE.md](CLAUDE.md): agent guide — flow, why this template deviates from AvaKit's usual pattern, how to deploy your own instance.
@@ -15,6 +16,7 @@
 - Register: `eerc.register()` (one-time, on-chain, idempotent).
 - Unlock: `eerc.generateDecryptionKey()` (per session, off-chain, no gas).
 - Balance + actions: `eerc.useEncryptedBalance()` → `privateMint(to, amount)` (owner-only), `privateTransfer(to, amount)`, `privateBurn(amount)`, `decryptedBalance`, `parsedDecryptedBalance`.
+- Owner gating: `eerc.owner`, `eerc.isAuditorKeySet`, `eerc.setContractAuditorPublicKey(address)` — the demo disables Mint unless the connected wallet is the owner AND the auditor key is set (one-click owner step in the UI).
 - Amounts are base units (token has 2 decimals) — convert with `parseUnits`/`formatUnits`.
 
 ## External docs

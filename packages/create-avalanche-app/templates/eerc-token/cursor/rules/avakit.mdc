@@ -28,9 +28,12 @@ Register, mint, and privately transfer tokens with hidden balances using Avalanc
 
 ## Contract
 
-- No bundled `contracts/` — this template points at a shared, pre-deployed standalone eERC
-  instance on Fuji. To mint from your own wallet you must deploy your own instance (see
-  `CLAUDE.md`) since `privateMint` is `onlyOwner`.
+- No bundled `contracts/` — the eERC contracts are under Ava Labs' Ecosystem License (not MIT),
+  so they are never vendored here. The template points at a shared, pre-deployed standalone
+  instance on Fuji; `privateMint` is `onlyOwner`, so to mint run
+  `DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc` (clones the official repo pinned to the
+  circuits' commit, deploys YOUR instance, rewrites `lib/eerc-config.ts`), then connect the
+  deployer wallet and complete the one-click "Set auditor" step the UI shows.
 
 ## UI & safety
 

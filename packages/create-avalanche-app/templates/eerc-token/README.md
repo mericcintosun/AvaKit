@@ -23,9 +23,10 @@ wallet on Fuji first (in-app faucet link).
   contract deployment needed to try the demo.
 - Proofs (Groth16, via snarkjs) are generated entirely in the browser. Circuit `.wasm`/`.zkey`
   files load from a CDN (pinned to a commit of `ava-labs/EncryptedERC`), not bundled in this repo.
-- Minting is **owner-only** on the shared instance (eERC design, for compliance) — deploy your own
-  instance to mint from your own wallet. See `CLAUDE.md` for the deploy steps. Confidential
-  transfer and burn work for any registered wallet.
+- Minting is **owner-only** (eERC design, for compliance), so it stays disabled against the shared
+  demo instance. Deploy your own with one command — `DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc` —
+  then connect the deployer wallet: the app walks you through the one-click auditor step and mint
+  unlocks. Confidential transfer and burn work for any registered wallet.
 
 ## Stack
 

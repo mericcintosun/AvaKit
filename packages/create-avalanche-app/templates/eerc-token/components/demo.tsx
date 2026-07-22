@@ -85,7 +85,9 @@ function EercPanel({
   const [transferTo, setTransferTo] = useState("");
   const [transferAmount, setTransferAmount] = useState("5");
   const [burnAmount, setBurnAmount] = useState("1");
-  const [busy, setBusy] = useState<null | "register" | "unlock" | "mint" | "transfer" | "burn">(null);
+  const [busy, setBusy] = useState<
+    null | "register" | "unlock" | "auditor" | "mint" | "transfer" | "burn"
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [lastTx, setLastTx] = useState<string | null>(null);
 
@@ -147,22 +149,51 @@ function EercPanel({
   const decimals = Number(balance.decimals ?? 2n);
   const fmt = (v: bigint) => `${formatUnits(v, decimals)} ${eerc.symbol || "TEST"}`;
 
+  // Minting is owner-only on-chain (compliance by design), and every mint /
+  // transfer / burn requires the instance's auditor key to be set — the owner
+  // does both against their own instance (`pnpm deploy:eerc`).
+  const isOwner = Boolean(eerc.owner && eerc.owner.toLowerCase() === address.toLowerCase());
+
   return (
     <div className="flex flex-col gap-4 rounded-xl border p-6">
       <Row label="Token" value={`${eerc.name || "eERC"} (${eerc.symbol || "TEST"})`} mono />
       <Row label="Your private balance" value={fmt(balance.decryptedBalance)} mono />
       <Row label="Your account" value={shortenAddress(address, 6)} mono />
 
+      {isOwner && !eerc.isAuditorKeySet ? (
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <p className="text-sm">Set the auditor (owner step, one-time)</p>
+          <p className="text-muted-foreground text-xs">
+            You own this instance, but its auditor key is not set yet — every mint, transfer, and
+            burn reverts until it is. This registers your own account as the auditor.
+          </p>
+          <Button
+            disabled={busy !== null}
+            onClick={() =>
+              run("auditor", async () => {
+                await eerc.setContractAuditorPublicKey(address);
+                eerc.refetchAuditor();
+              })
+            }
+          >
+            {busy === "auditor" ? "Setting auditor…" : "Set auditor"}
+          </Button>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-2 border-t pt-4">
         <p className="text-sm">Mint privately to yourself</p>
-        <p className="text-muted-foreground text-xs">
-          Minting is owner-only on this shared instance — deploy your own eERC contract to mint
-          from your own wallet (see CLAUDE.md).
-        </p>
+        {isOwner ? null : (
+          <p className="text-muted-foreground text-xs">
+            Minting is owner-only, and this app is pointed at the shared demo instance — run{" "}
+            <span className="font-mono">pnpm deploy:eerc</span> to deploy your own instance, then
+            connect the deployer wallet to mint.
+          </p>
+        )}
         <div className="flex gap-2">
           <AmountInput value={mintAmount} onChange={setMintAmount} />
           <Button
-            disabled={busy !== null}
+            disabled={busy !== null || !isOwner || !eerc.isAuditorKeySet}
             onClick={() =>
               run("mint", () => balance.privateMint(address, parseUnits(mintAmount || "0", decimals)))
             }

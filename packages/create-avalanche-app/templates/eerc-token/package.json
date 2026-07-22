@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy:eerc": "node scripts/deploy-eerc.mjs"
   },
   "dependencies": {
     "@avakit/core": "__AVAKIT_CORE_DEP__",
