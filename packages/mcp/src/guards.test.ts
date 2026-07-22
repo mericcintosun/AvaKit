@@ -1,6 +1,6 @@
 import { cChain, fuji } from "@avakit/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { assertMainnetAllowed } from "./guards.js";
+import { assertMainnetAllowed, BYTECODE_RE } from "./guards.js";
 
 describe("assertMainnetAllowed", () => {
   const original = process.env.AVAKIT_ALLOW_MAINNET;
@@ -29,5 +29,18 @@ describe("assertMainnetAllowed", () => {
   it("allows mainnet only with BOTH confirm and the env opt-in", () => {
     process.env.AVAKIT_ALLOW_MAINNET = "1";
     expect(() => assertMainnetAllowed(cChain, true)).not.toThrow();
+  });
+});
+
+describe("BYTECODE_RE", () => {
+  it("accepts 0x-prefixed and bare hex", () => {
+    expect(BYTECODE_RE.test("0x60806040")).toBe(true);
+    expect(BYTECODE_RE.test("60806040")).toBe(true);
+  });
+
+  it("rejects empty, non-hex, and whitespace", () => {
+    for (const bad of ["", "0x", "0xzz", "hello", "0x60 60", "0x60\n"]) {
+      expect(BYTECODE_RE.test(bad), bad).toBe(false);
+    }
   });
 });

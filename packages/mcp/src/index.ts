@@ -32,7 +32,13 @@ import { type Abi, type Address, createWalletClient, type Hex, http } from "viem
 import { privateKeyToAccount } from "viem/accounts";
 import { z } from "zod";
 import { banner, bannerColor } from "./banner.js";
-import { assertMainnetAllowed } from "./guards.js";
+import {
+  assertMainnetAllowed,
+  BYTECODE_RE,
+  MAX_ABI_ITEMS,
+  MAX_ARGS,
+  MAX_BYTECODE_LEN,
+} from "./guards.js";
 
 function chainFrom(id: string | undefined): AvaChain {
   return id === "c-chain" ? cChain : fuji;
@@ -141,9 +147,13 @@ server.registerTool(
         chain: z.enum(["fuji", "c-chain"]).default("fuji"),
         address: z.string().optional().describe("Address for balance / contractRead"),
         hash: z.string().optional().describe("Tx hash for txReceipt"),
-        abi: z.array(z.any()).optional().describe("Contract ABI for contractRead"),
+        abi: z
+          .array(z.any())
+          .max(MAX_ABI_ITEMS)
+          .optional()
+          .describe("Contract ABI for contractRead"),
         functionName: z.string().optional().describe("View function for contractRead"),
-        args: z.array(z.any()).optional(),
+        args: z.array(z.any()).max(MAX_ARGS).optional(),
       })
       .strict(),
   },
@@ -228,9 +238,13 @@ server.registerTool(
       "Deploy compiled bytecode to Avalanche using a deployer key from the AVAKIT_DEPLOYER_KEY env var. Fuji testnet by default; mainnet (c-chain) requires confirm:true.",
     inputSchema: z
       .object({
-        abi: z.array(z.any()),
-        bytecode: z.string().describe("Creation bytecode (0x-prefixed)"),
-        args: z.array(z.any()).optional(),
+        abi: z.array(z.any()).max(MAX_ABI_ITEMS),
+        bytecode: z
+          .string()
+          .regex(BYTECODE_RE, "bytecode must be 0x-prefixed hex")
+          .max(MAX_BYTECODE_LEN)
+          .describe("Creation bytecode (0x-prefixed)"),
+        args: z.array(z.any()).max(MAX_ARGS).optional(),
         chain: z.enum(["fuji", "c-chain"]).default("fuji"),
         confirm: z.boolean().optional().describe("Required to deploy to mainnet"),
       })
