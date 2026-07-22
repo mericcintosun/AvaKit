@@ -13,10 +13,14 @@ import { promisify } from "node:util";
 import { cb58ToHex } from "./cb58.js";
 import { getDevnetStatus } from "./devnet.js";
 import {
+  CONSTRUCTOR_SIG,
   LAST_MESSAGE_SIG,
   MESSAGES_RECEIVED_SIG,
   MESSENGER_BYTECODE,
   SEND_MESSAGE_SIG,
+  SET_TRUSTED_REMOTE_SIG,
+  TELEPORTER_PREDEPLOY,
+  TRUSTED_REMOTE_SIG,
 } from "./messenger-artifact.js";
 
 const exec = promisify(execFile);
@@ -58,8 +62,13 @@ export interface IcmState {
   chains: IcmChain[];
 }
 
-async function castCall(rpcUrl: string, address: string, sig: string): Promise<string> {
-  const { stdout } = await exec("cast", ["call", address, sig, "--rpc-url", rpcUrl], {
+async function castCall(
+  rpcUrl: string,
+  address: string,
+  sig: string,
+  args: string[] = [],
+): Promise<string> {
+  const { stdout } = await exec("cast", ["call", address, sig, ...args, "--rpc-url", rpcUrl], {
     timeout: 15000,
   });
   return stdout.trim().replace(/^"|"$/g, "");
@@ -99,14 +108,18 @@ export async function getIcmState(): Promise<IcmState> {
   return { ready: status.running && chains.length >= 2, chains };
 }
 
-/** Deploy the messenger on every running L1 that doesn't have one yet. */
+/** Deploy the messenger on every running L1 that doesn't have one yet, then
+ * link them: each messenger only accepts messages from its registered trusted
+ * remote, so without the link the relayer's delivery reverts. */
 export async function deployMessengers(): Promise<IcmState> {
   const status = await getDevnetStatus();
   const state = readState();
   for (const l1 of status.l1s) {
     if (!l1.running || !l1.rpcUrl || state[l1.name]) continue;
     // Flags before positionals: cast treats anything after `--create <code>` as
-    // the constructor SIG/ARGS, so the RPC flags must come first.
+    // the constructor SIG/ARGS, so the RPC flags must come first. The trailing
+    // SIG/ARGS pass the chain's Teleporter to the messenger's constructor — on
+    // avalanche-cli local devnets that is always the canonical predeploy.
     const { stdout } = await exec(
       "cast",
       [
@@ -118,6 +131,8 @@ export async function deployMessengers(): Promise<IcmState> {
         "--json",
         "--create",
         MESSENGER_BYTECODE,
+        CONSTRUCTOR_SIG,
+        TELEPORTER_PREDEPLOY,
       ],
       { timeout: 90000, maxBuffer: 8 * 1024 * 1024 },
     );
@@ -125,7 +140,55 @@ export async function deployMessengers(): Promise<IcmState> {
     if (receipt.contractAddress) state[l1.name] = receipt.contractAddress;
   }
   writeState(state);
+  await linkMessengers(status, state);
   return getIcmState();
+}
+
+/** Register each messenger as every other messenger's trusted remote.
+ * Idempotent: reads `trustedRemote` first and only sends the transaction when
+ * the link is missing. Pre-allowlist messengers (an old icm-state.json) don't
+ * have `trustedRemote` — the read reverts and the pair is skipped; those old
+ * contracts accept every source anyway. */
+async function linkMessengers(
+  status: Awaited<ReturnType<typeof getDevnetStatus>>,
+  state: State,
+): Promise<void> {
+  const peers = status.l1s
+    .filter((l) => l.running && l.rpcUrl && l.blockchainId && state[l.name])
+    .map((l) => ({
+      rpcUrl: l.rpcUrl as string,
+      blockchainIdHex: cb58ToHex(l.blockchainId as string),
+      messenger: state[l.name] as string,
+    }));
+  for (const self of peers) {
+    for (const other of peers) {
+      if (other.messenger === self.messenger) continue;
+      try {
+        const current = await castCall(self.rpcUrl, self.messenger, TRUSTED_REMOTE_SIG, [
+          other.blockchainIdHex,
+        ]);
+        if (current.toLowerCase() === other.messenger.toLowerCase()) continue;
+        await exec(
+          "cast",
+          [
+            "send",
+            "--rpc-url",
+            self.rpcUrl,
+            "--private-key",
+            DEV_KEY,
+            "--json",
+            self.messenger,
+            SET_TRUSTED_REMOTE_SIG,
+            other.blockchainIdHex,
+            other.messenger,
+          ],
+          { timeout: 90000, maxBuffer: 8 * 1024 * 1024 },
+        );
+      } catch {
+        // Old messenger without trustedRemote — skip (it accepts every source).
+      }
+    }
+  }
 }
 
 /** Send a cross-chain message from one L1's messenger to the other's. */

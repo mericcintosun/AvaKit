@@ -13,11 +13,13 @@ Teleporter), against a local 2-L1 devnet.
 
 - `pnpm devnet` (scripts/devnet.sh) creates + deploys two local L1s with the
   TeleporterMessenger and a relayer, and writes `icm.config.json`.
-- Deploy the same contract on both chains: `useAvaDeploy().deploy({ abi, bytecode })`
-  (artifact in `lib/messenger-artifact.ts`).
+- Deploy the same contract on both chains (constructor takes the chain's
+  TeleporterMessenger address — the UI passes it from `icm.config.json`).
+- Link: `setTrustedRemote(otherBlockchainID, otherMessenger)` on BOTH sides (owner-only) —
+  receiving rejects unregistered sources.
 - Send: `sendMessage(destinationBlockchainID, destinationAddress, text)` on the source chain.
 - Receive: the relayer delivers; the destination contract's `receiveTeleporterMessage`
-  stores it. The UI polls `lastMessage()`.
+  verifies the source and stores it. The UI polls `lastMessage()`.
 
 ## The one detail that trips everyone up
 
@@ -40,7 +42,8 @@ EVM `chainId` (1001/1002). Get it via `blockchainIdOf(chain)` in `lib/devnet.ts`
 
 ## Safety
 
-- The receiver **must** check `require(msg.sender == TeleporterMessenger)` — otherwise
-  anyone can spoof a delivery. `AvaKitMessenger` does this.
+- The receiver **must** check BOTH `msg.sender == TELEPORTER` (anyone can call the
+  function directly) AND the `trustedRemote` allowlist (the Teleporter delivers from any
+  contract on any ICM chain). `AvaKitMessenger` does both.
 - The EWOQ key (`0x56289e…8027`) is a PUBLIC dev key — local devnet only, never a real
   network. Never hardcode a real private key.

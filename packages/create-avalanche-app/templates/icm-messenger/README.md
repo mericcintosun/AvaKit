@@ -29,12 +29,13 @@ Then in your wallet (Core / MetaMask), **import the EWOQ dev key** (pre-funded o
 ## The flow
 
 1. **Deploy the messenger** on both chains — `icm1` and `icm2` (one click each — deploys from your browser).
-2. **Send** a message from one chain to the other.
-3. The relayer delivers it; the destination contract stores it. The app polls and shows it **arrive** on the other L1.
+2. **Link them** — each side registers the other as its **trusted remote** (one click, two transactions, one per chain). Receiving rejects unregistered sources, so this unlocks sending.
+3. **Send** a message from one chain to the other.
+4. The relayer delivers it; the destination contract checks the source is trusted and stores it. The app polls and shows it **arrive** on the other L1.
 
 ## How it works
 
-- `contracts/src/AvaKitMessenger.sol` — one self-contained contract that both **sends** (`TeleporterMessenger.sendCrossChainMessage`) and **receives** (`ITeleporterReceiver.receiveTeleporterMessage`). Deployed on both chains.
+- `contracts/src/AvaKitMessenger.sol` — one self-contained contract that both **sends** (`TeleporterMessenger.sendCrossChainMessage`) and **receives** (`ITeleporterReceiver.receiveTeleporterMessage`). Deployed on both chains and linked: each side only accepts messages from its registered **trusted remote** (owner-set), and the Teleporter address is an immutable constructor parameter.
 - `scripts/devnet.sh` — creates two subnet-EVM L1s, deploys them locally, and lets avalanche-cli wire the TeleporterMessenger + relayer automatically. It then writes each chain's RPC URL and **hex blockchain ID** into `icm.config.json`.
 - `lib/devnet.ts` — turns that config into AvaKit chains and exposes `blockchainIdOf(chain)`.
 

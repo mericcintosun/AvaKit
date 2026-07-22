@@ -4,7 +4,7 @@
 
 ## Project map
 
-- [contracts/src/AvaKitMessenger.sol](contracts/src/AvaKitMessenger.sol): one contract that both sends and receives ICM messages (implements ITeleporterReceiver).
+- [contracts/src/AvaKitMessenger.sol](contracts/src/AvaKitMessenger.sol): one contract that both sends and receives ICM messages (implements ITeleporterReceiver). Deployed per chain, then linked: each side registers the other as its trusted remote.
 - [lib/messenger-artifact.ts](lib/messenger-artifact.ts): compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - [scripts/devnet.sh](scripts/devnet.sh): one command — two local L1s with ICM + relayer.
 - [icm.config.json](icm.config.json): the two chains (RPC URL + hex blockchain ID); written by `pnpm devnet`.
@@ -15,13 +15,14 @@
 ## Key facts
 
 - `destinationBlockchainID` is a **bytes32 hex blockchain ID**, NOT the EVM chainId. Use `blockchainIdOf(chain)`.
-- TeleporterMessenger predeploy: `0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf` (same on every ICM chain).
-- The receiver must `require(msg.sender == TeleporterMessenger)`.
+- TeleporterMessenger canonical predeploy: `0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf` — passed to the messenger's constructor (immutable), the UI reads it from `icm.config.json`.
+- The receiver requires BOTH `msg.sender == TELEPORTER` AND `trustedRemote[sourceBlockchainID] == originSenderAddress` — deploy, then link both sides (`setTrustedRemote`, owner-only) before sending.
 
 ## Key APIs
 
 - Send: `AvaKitMessenger.sendMessage(destinationBlockchainID, destinationAddress, text)`
-- Receive: `receiveTeleporterMessage(sourceBlockchainID, originSender, message)` (stores `lastMessage`)
+- Link: `AvaKitMessenger.setTrustedRemote(sourceBlockchainID, remoteMessenger)` (owner-only, once per side)
+- Receive: `receiveTeleporterMessage(sourceBlockchainID, originSender, message)` (verifies the source, stores `lastMessage`)
 - Deploy/read/write: `deployContract`, `getWalletClient`, `readContract`, `ensureChain` from `@avakit/core`
 - Wallet: `<ConnectAvalanche />`, `useAvaChain().setChain` to switch between the two L1s
 

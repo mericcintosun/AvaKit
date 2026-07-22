@@ -18,7 +18,9 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 - `contracts/src/AvaKitMessenger.sol` — one contract that both **sends** (via
   `TeleporterMessenger.sendCrossChainMessage`) and **receives** (implements
   `ITeleporterReceiver.receiveTeleporterMessage`). Deploy the same contract on
-  both chains.
+  both chains, then **link them**: each side registers the other as its
+  `trustedRemote` (owner-only). The Teleporter address is an immutable
+  constructor parameter.
 - `lib/messenger-artifact.ts` — the compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - `icm.config.json` — the two local chains (RPC URL + **hex blockchain ID**). Written by `pnpm devnet`.
 - `lib/devnet.ts` — turns that config into AvaKit chains + helpers.
@@ -30,9 +32,15 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 1. `pnpm devnet` — creates + deploys two L1s locally with ICM + relayer, writes `icm.config.json`.
 2. Import the EWOQ dev key into your wallet (pre-funded on both chains).
-3. `pnpm dev`, then in the app: deploy the messenger on chain1 and chain2.
-4. Send: on the source chain, call `sendMessage(destinationBlockchainID, destinationAddress, text)`.
-5. The relayer delivers it; the destination contract's `receiveTeleporterMessage` stores it. The UI polls `lastMessage()` and shows it arrive.
+3. `pnpm dev`, then in the app: deploy the messenger on chain1 and chain2. The chain's
+   TeleporterMessenger address is a constructor argument — the UI passes it from
+   `icm.config.json`.
+4. Link: "Link the messengers" registers each messenger as the other one's trusted remote
+   (one `setTrustedRemote` transaction per chain, owner-only). Receiving rejects
+   unregistered sources, so sending only works after this.
+5. Send: on the source chain, call `sendMessage(destinationBlockchainID, destinationAddress, text)`.
+6. The relayer delivers it; the destination contract's `receiveTeleporterMessage` verifies the
+   source and stores it. The UI polls `lastMessage()` and shows it arrive.
 
 ## The one detail that trips everyone up
 
@@ -42,8 +50,18 @@ the EVM `chainId` (1001/1002). Get it from `avalanche blockchain describe <name>
 
 ## Security
 
-- The receiver **must** check `require(msg.sender == TeleporterMessenger)` — otherwise anyone can spoof a delivery. `AvaKitMessenger` does this.
-- The TeleporterMessenger predeploy address (`0x253b…5fcf`) is version-pinned; on a real deployment, read it from `avalanche blockchain describe` rather than assuming.
+- The receiver checks two things, and **both are required**:
+  1. `msg.sender == TELEPORTER` — otherwise anyone can call the function directly and fake a
+     delivery.
+  2. `trustedRemote[sourceBlockchainID] == originSenderAddress` — the Teleporter delivers
+     messages from ANY contract on ANY ICM-enabled chain, so without this allowlist any
+     stranger contract could write to this message board through the real Teleporter.
+     Unregistered sources are rejected.
+- Only the deployer (`owner`) can call `setTrustedRemote`.
+- The TeleporterMessenger address is an **immutable constructor parameter**, not a hardcoded
+  constant: the canonical predeploy is `0x253b…5fcf`, but a chain can run a different
+  Teleporter version — read the real address from `avalanche blockchain describe` (the UI
+  passes it from `icm.config.json`).
 
 ## Editing the contract
 

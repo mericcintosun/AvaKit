@@ -47,6 +47,7 @@ export function Demo() {
   const [addrs, setAddrs] = useState<AddrMap>({});
   const [status, setStatus] = useState<Record<number, ChainStatus>>({});
   const [inbox, setInbox] = useState<Record<number, Inbox>>({});
+  const [linked, setLinked] = useState<Record<number, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [text, setText] = useState("gm from the other chain");
   const [source, setSource] = useState<AvaChain>(chain1);
@@ -55,6 +56,7 @@ export function Demo() {
 
   const destination = source.id === chain1.id ? chain2 : chain1;
   const bothDeployed = Boolean(addrs[chain1.id] && addrs[chain2.id]);
+  const bothLinked = Boolean(linked[chain1.id] && linked[chain2.id]);
 
   useEffect(() => {
     setAddrs(loadAddrs());
@@ -69,13 +71,15 @@ export function Demo() {
   }, []);
 
   // Live poll: chain liveness (block height), ICM readiness (Teleporter has
-  // code), and each deployed messenger's inbox. Read-only — no wallet needed.
+  // code), each deployed messenger's inbox, and whether it trusts the other
+  // side's messenger (the link). Read-only — no wallet needed.
   useEffect(() => {
     if (!isConfigured) return;
     let active = true;
     async function poll() {
       const nextStatus: Record<number, ChainStatus> = {};
       const nextInbox: Record<number, Inbox> = {};
+      const nextLinked: Record<number, boolean> = {};
       await Promise.all(
         CHAINS.map(async (chain) => {
           const client = getPublicClient(chain);
@@ -90,12 +94,24 @@ export function Demo() {
           }
           const messenger = loadAddrs()[chain.id];
           if (messenger) {
+            const other = chain.id === chain1.id ? chain2 : chain1;
+            const otherMessenger = loadAddrs()[other.id];
             try {
-              const [message, count] = await Promise.all([
+              const [message, count, peer] = await Promise.all([
                 readContract(chain, { address: messenger, abi, functionName: "lastMessage" }),
                 readContract(chain, { address: messenger, abi, functionName: "messagesReceived" }),
+                readContract(chain, {
+                  address: messenger,
+                  abi,
+                  functionName: "trustedRemote",
+                  args: [blockchainIdOf(other)],
+                }),
               ]);
               nextInbox[chain.id] = { message: message as string, count: count as bigint };
+              nextLinked[chain.id] = Boolean(
+                otherMessenger &&
+                  (peer as string).toLowerCase() === otherMessenger.toLowerCase(),
+              );
             } catch {
               // messenger not ready
             }
@@ -105,6 +121,7 @@ export function Demo() {
       if (active) {
         setStatus(nextStatus);
         setInbox(nextInbox);
+        setLinked(nextLinked);
       }
     }
     void poll();
@@ -130,6 +147,9 @@ export function Demo() {
         setChain(chain);
         const { address: deployed } = await deployContract({
           artifact: { abi, bytecode },
+          // The messenger takes its chain's TeleporterMessenger address as a
+          // constructor argument (it is immutable, not hardcoded).
+          args: [icm.teleporterMessenger as Address],
           chain,
           provider,
           account: address,
@@ -143,6 +163,41 @@ export function Demo() {
     },
     [provider, address, setAddr, setChain],
   );
+
+  // Register each messenger as the other one's trusted remote — one
+  // setTrustedRemote transaction per chain. Receiving rejects any source that
+  // is not registered, so sending only works after this step.
+  const linkChains = useCallback(async () => {
+    if (!provider || !address) return;
+    const addr1 = addrs[chain1.id];
+    const addr2 = addrs[chain2.id];
+    if (!addr1 || !addr2) return;
+    setBusy("link");
+    setError(null);
+    try {
+      const legs = [
+        { chain: chain1, own: addr1, other: chain2, otherAddr: addr2 },
+        { chain: chain2, own: addr2, other: chain1, otherAddr: addr1 },
+      ];
+      for (const leg of legs) {
+        if (linked[leg.chain.id]) continue; // already trusts the other side
+        await ensureChain(provider, leg.chain);
+        setChain(leg.chain);
+        const wallet = getWalletClient(leg.chain, provider);
+        await wallet.writeContract({
+          address: leg.own,
+          abi,
+          functionName: "setTrustedRemote",
+          args: [blockchainIdOf(leg.other), leg.otherAddr],
+          account: address,
+        } as never);
+      }
+    } catch (e) {
+      setError(humanizeError(e));
+    } finally {
+      setBusy(null);
+    }
+  }, [provider, address, addrs, linked, setChain]);
 
   const sendMessage = useCallback(async () => {
     if (!provider || !address) return;
@@ -183,8 +238,8 @@ export function Demo() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Devnet Studio</h1>
         <p className="text-muted-foreground text-sm">
-          Two Avalanche L1s, live. Deploy the messenger on each, then send a message across —
-          Interchain Messaging carries it and you watch it land on the other chain.
+          Two Avalanche L1s, live. Deploy the messenger on each, link them, then send a message
+          across — Interchain Messaging carries it and you watch it land on the other chain.
         </p>
       </div>
 
@@ -196,6 +251,7 @@ export function Demo() {
             status={status[chain.id]}
             messenger={addrs[chain.id]}
             inbox={inbox[chain.id]}
+            linked={linked[chain.id]}
             isDestination={inFlight != null && chain.id === destination.id}
             busy={busy === `deploy:${chain.id}`}
             canDeploy={isConnected && !!address}
@@ -230,7 +286,7 @@ export function Demo() {
           </Button>
           <Button
             onClick={sendMessage}
-            disabled={!bothDeployed || !isConnected || busy === "send" || !text}
+            disabled={!bothDeployed || !bothLinked || !isConnected || busy === "send" || !text}
             className="flex-1"
           >
             {busy === "send" ? "Sending…" : `Send to ${destination.name}`}
@@ -240,6 +296,21 @@ export function Demo() {
           <p className="text-muted-foreground text-xs">
             Deploy the messenger on both chains to enable sending.
           </p>
+        ) : null}
+        {bothDeployed && !bothLinked ? (
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              onClick={linkChains}
+              disabled={!isConnected || busy === "link"}
+            >
+              {busy === "link" ? "Linking…" : "Link the messengers"}
+            </Button>
+            <p className="text-muted-foreground text-xs">
+              Each side registers the other as its trusted remote — two transactions, one per
+              chain. Receiving rejects unregistered sources, so this unlocks sending.
+            </p>
+          </div>
         ) : null}
         {inFlight ? (
           <p className="flex items-center gap-2 text-sm">
@@ -259,6 +330,7 @@ function ChainCard({
   status,
   messenger,
   inbox,
+  linked,
   isDestination,
   busy,
   canDeploy,
@@ -268,6 +340,7 @@ function ChainCard({
   status?: ChainStatus;
   messenger?: Address;
   inbox?: Inbox;
+  linked?: boolean;
   isDestination: boolean;
   busy: boolean;
   canDeploy: boolean;
@@ -299,6 +372,9 @@ function ChainCard({
         />
         {messenger ? (
           <Row label="Messenger" value={shortenAddress(messenger, 6)} mono />
+        ) : null}
+        {messenger ? (
+          <Row label="Peer" value={linked ? "✓ trusted" : "not linked"} mono />
         ) : null}
       </div>
 
