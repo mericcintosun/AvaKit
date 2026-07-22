@@ -90,3 +90,38 @@ jobs:
 
       - name: Scaffold + typecheck + build "${{ matrix.template }}"
         run: bash scripts/smoke-template.sh "${{ matrix.template }}" "$RUNNER_TEMP/smoke"
+
+  # Compile and test the Solidity the templates ship, and verify the shipped
+  # lib/*-artifact.ts files still match the .sol sources (they are hand-copied
+  # from forge output, so nothing else guards against silent drift).
+  # See contracts-ci/README.md. Foundry is pinned to a stable release so local
+  # and CI builds emit identical bytecode (solc itself is pinned in the
+  # foundry.toml files).
+  contracts:
+    name: Contracts · forge test · artifact parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+
+      - name: Sync template contracts (copy-identity check)
+        working-directory: contracts-ci
+        run: node scripts/sync.mjs
+
+      - name: Forge tests
+        working-directory: contracts-ci
+        run: forge test -vvv
+
+      - name: Artifact parity (lib/*-artifact.ts vs source)
+        working-directory: contracts-ci
+        run: node scripts/check-artifacts.mjs
