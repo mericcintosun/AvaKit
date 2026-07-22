@@ -92,7 +92,32 @@ async function main() {
     },
     "registerWithHome",
   );
-  await sleep(8000); // let the relayer deliver the registration
+
+  // registerWithHome only *sends* the ICM message — the bridge is usable once
+  // the relayer has delivered it and the home has recorded the remote. Poll
+  // the home's own registry instead of guessing with a fixed sleep: a slow
+  // relayer would otherwise leave "configured: true" pointing at a bridge
+  // whose first transfer fails.
+  console.log("Waiting for the relayer to deliver the registration…");
+  const deadline = Date.now() + 90000;
+  for (;;) {
+    const settings = await c1.pub.readContract({
+      address: home,
+      abi: A.ERC20TokenHome.abi,
+      functionName: "getRemoteTokenTransferrerSettings",
+      args: [cfg.chain2.blockchainIdHex, remote],
+    });
+    if (settings.registered) break;
+    if (Date.now() > deadline) {
+      throw new Error(
+        "The home chain has not seen the registration after 90s. " +
+          "Check that the relayer is running (pnpm bridge starts it), then " +
+          "re-run: node scripts/deploy-bridge.mjs",
+      );
+    }
+    await sleep(2000);
+  }
+  console.log("  remote registered with home");
 
   cfg.configured = true;
   cfg.bridge = { demoToken, registry1, home, registry2, remote };
