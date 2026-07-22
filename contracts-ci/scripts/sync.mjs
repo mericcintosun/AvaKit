@@ -11,12 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
-const templates = join(
-  repoRoot,
-  "packages",
-  "create-avalanche-app",
-  "templates",
-);
+const templates = join(repoRoot, "packages", "create-avalanche-app", "templates");
 const srcOut = resolve(here, "..", "src");
 
 // canonical: the copy the harness compiles. duplicates: must be byte-identical.

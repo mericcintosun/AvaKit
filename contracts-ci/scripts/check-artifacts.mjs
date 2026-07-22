@@ -16,14 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const templates = resolve(
-  here,
-  "..",
-  "..",
-  "packages",
-  "create-avalanche-app",
-  "templates",
-);
+const templates = resolve(here, "..", "..", "packages", "create-avalanche-app", "templates");
 
 // Out of scope: token-bridge ships official ava-labs/icm-contracts artifacts
 // (ictt-artifacts.json) whose sources are not in this repo; eerc-token ships
@@ -45,10 +38,7 @@ for (const { template, contract, artifact } of CHECKS) {
   });
 
   const built = JSON.parse(
-    readFileSync(
-      join(root, "out", `${contract}.sol`, `${contract}.json`),
-      "utf8",
-    ),
+    readFileSync(join(root, "out", `${contract}.sol`, `${contract}.json`), "utf8"),
   );
   const ts = readFileSync(join(templates, template, "lib", artifact), "utf8");
 
@@ -63,10 +53,8 @@ for (const { template, contract, artifact } of CHECKS) {
     continue;
   }
 
-  const abiOk =
-    JSON.stringify(JSON.parse(abiMatch[1])) === JSON.stringify(built.abi);
-  const bytecodeOk =
-    bytecodeMatch[1].toLowerCase() === built.bytecode.object.toLowerCase();
+  const abiOk = JSON.stringify(JSON.parse(abiMatch[1])) === JSON.stringify(built.abi);
+  const bytecodeOk = bytecodeMatch[1].toLowerCase() === built.bytecode.object.toLowerCase();
 
   if (!abiOk || !bytecodeOk) {
     failed = true;
