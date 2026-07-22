@@ -97,7 +97,28 @@ export interface ScaffoldAppResult {
   files: string[];
 }
 
+/**
+ * A project name becomes a directory name and is interpolated into the target
+ * path, so it must be a single safe path segment. Without this, a value like
+ * `../../evil` or an absolute path lets a caller — e.g. an AI agent driving
+ * @avakit/mcp under a prompt-injected instruction — write files outside the
+ * intended directory. Allow letters, digits, and `. _ -`, start and end
+ * alphanumeric; that rejects `..`, leading dots, path separators, and drive
+ * prefixes while still permitting names like `my-avax-app` or `app.v2`.
+ */
+const SAFE_PROJECT_NAME = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
+
+export function assertSafeProjectName(name: string): void {
+  if (name.length > 64 || !SAFE_PROJECT_NAME.test(name)) {
+    throw new Error(
+      `Invalid project name "${name}". Use 1–64 characters: letters, digits, ` +
+        `and . _ - (must start and end alphanumeric). No path separators or "..".`,
+    );
+  }
+}
+
 export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldAppResult> {
+  assertSafeProjectName(opts.projectName);
   const templateDir = path.join(templatesDir, opts.template);
   if (!existsSync(templateDir)) {
     throw new Error(

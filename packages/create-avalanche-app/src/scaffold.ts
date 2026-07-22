@@ -53,6 +53,14 @@ export async function scaffold({
       .join(path.sep);
     const outPath = path.join(targetDir, outRel);
 
+    // Defense in depth: never let a renamed/joined path escape targetDir, even
+    // if a template ever carried a `..` segment. Mirrors studio's safeFile().
+    const root = path.resolve(targetDir);
+    const resolved = path.resolve(outPath);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+      throw new Error(`Refusing to write outside the project directory: ${outRel}`);
+    }
+
     await mkdir(path.dirname(outPath), { recursive: true });
 
     let content = await readFile(abs, "utf8");

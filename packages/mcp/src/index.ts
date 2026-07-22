@@ -27,7 +27,7 @@ import {
 } from "@avakit/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { listTemplates, scaffoldApp } from "create-avalanche-app/api";
+import { assertSafeProjectName, listTemplates, scaffoldApp } from "create-avalanche-app/api";
 import { type Abi, type Address, createWalletClient, type Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { z } from "zod";
@@ -94,6 +94,14 @@ server.registerTool(
       .strict(),
   },
   async ({ name, template, chain, directory, local }) => {
+    // Validate before deriving any path: `name` becomes a directory and is
+    // resolved into targetDir, so a traversal/absolute value must be rejected
+    // up front (an AI agent may pass whatever a prompt told it to).
+    try {
+      assertSafeProjectName(name);
+    } catch (e) {
+      return text(e instanceof Error ? e.message : String(e), true);
+    }
     const parent = directory ? path.resolve(directory) : process.cwd();
     const targetDir = path.resolve(parent, name);
     if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
