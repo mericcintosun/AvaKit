@@ -32,6 +32,7 @@ import { type Abi, type Address, createWalletClient, type Hex, http } from "viem
 import { privateKeyToAccount } from "viem/accounts";
 import { z } from "zod";
 import { banner, bannerColor } from "./banner.js";
+import { assertMainnetAllowed } from "./guards.js";
 
 function chainFrom(id: string | undefined): AvaChain {
   return id === "c-chain" ? cChain : fuji;
@@ -237,8 +238,10 @@ server.registerTool(
   },
   async ({ abi, bytecode, args, chain, confirm }) => {
     const c = chainFrom(chain);
-    if (!c.testnet && !confirm) {
-      return text(`Refusing to deploy to ${c.name} (mainnet) without confirm:true.`, true);
+    try {
+      assertMainnetAllowed(c, confirm);
+    } catch (e) {
+      return text(e instanceof Error ? e.message : String(e), true);
     }
     const key = process.env.AVAKIT_DEPLOYER_KEY;
     if (!key) {
@@ -252,6 +255,16 @@ server.registerTool(
       const viemChain = toViemChain(c);
       const wallet = createWalletClient({ account, chain: viemChain, transport: http(c.rpcUrl) });
       const publicClient = getPublicClient(c);
+      // Fail early with a clear message if the deployer can't pay for the
+      // deploy, instead of letting the tx fail deep in viem. (audit A10)
+      const balance = await getBalance(account.address, c);
+      if (balance === 0n) {
+        return text(
+          `Deployer ${account.address} has no ${c.nativeCurrency.symbol} on ${c.name}. ` +
+            `Fund it${c.faucetUrl ? ` via ${c.faucetUrl}` : ""} before deploying.`,
+          true,
+        );
+      }
       const bc = bytecode.startsWith("0x") ? (bytecode as Hex) : (`0x${bytecode}` as Hex);
       const txHash = await wallet.deployContract({
         abi: abi as Abi,
