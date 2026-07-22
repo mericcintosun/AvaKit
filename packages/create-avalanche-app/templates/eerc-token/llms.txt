@@ -4,7 +4,7 @@
 
 ## Project map
 
-- [lib/eerc-config.ts](lib/eerc-config.ts): deployed eERC contract address + CDN circuit URLs.
+- [lib/eerc-config.ts](lib/eerc-config.ts): deployed eERC contract address + pinned circuit files with SHA-256 hashes + `loadVerifiedCircuits()` (download → verify → blob URLs; tampered CDN copies fail loudly).
 - [scripts/deploy-eerc.mjs](scripts/deploy-eerc.mjs): `pnpm deploy:eerc` — deploy your own standalone instance to Fuji (mint is owner-only, so this is how mint becomes usable) and point the app at it.
 - [app/providers.tsx](app/providers.tsx): `<AvaKitProvider>` (wallet) + `<WagmiProvider>` (required by the eERC SDK's internal reads).
 - [components/demo.tsx](components/demo.tsx): register → unlock → mint → confidential transfer → burn.
@@ -12,7 +12,7 @@
 
 ## Key APIs
 
-- Init: `useEERC(publicClient, walletClient, EERC_CONTRACT_ADDRESS, circuitURLs)` from `@avalabs/eerc-sdk`.
+- Init: `useEERC(publicClient, walletClient, EERC_CONTRACT_ADDRESS, circuits)` from `@avalabs/eerc-sdk` — `circuits` is `await loadVerifiedCircuits()` (integrity-checked blob URLs, loaded on mount).
 - Register: `eerc.register()` (one-time, on-chain, idempotent).
 - Unlock: `eerc.generateDecryptionKey()` (per session, off-chain, no gas).
 - Balance + actions: `eerc.useEncryptedBalance()` → `privateMint(to, amount)` (owner-only), `privateTransfer(to, amount)`, `privateBurn(amount)`, `decryptedBalance`, `parsedDecryptedBalance`.

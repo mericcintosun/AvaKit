@@ -22,7 +22,9 @@ wallet on Fuji first (in-app faucet link).
 - Points at a shared, pre-deployed standalone eERC instance on Fuji (`lib/eerc-config.ts`) — no
   contract deployment needed to try the demo.
 - Proofs (Groth16, via snarkjs) are generated entirely in the browser. Circuit `.wasm`/`.zkey`
-  files load from a CDN (pinned to a commit of `ava-labs/EncryptedERC`), not bundled in this repo.
+  files load from a CDN (pinned to a commit of `ava-labs/EncryptedERC`), not bundled in this repo —
+  and every file is verified against a pinned SHA-256 before the SDK proves against it, so a
+  tampered CDN copy fails loudly instead of proving quietly.
 - Minting is **owner-only** (eERC design, for compliance), so it stays disabled against the shared
   demo instance. Deploy your own with one command — `DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc` —
   then connect the deployer wallet: the app walks you through the one-click auditor step and mint

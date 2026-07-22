@@ -22,10 +22,15 @@ no browser-deploy step, unlike AvaKit's other templates.
   circuits/contracts would also pull in Ava Labs' Ecosystem License (not MIT) into an MIT repo, so
   this template consumes the official `@avalabs/eerc-sdk` (ISC-licensed) as an npm dependency
   instead of vendoring source.
-- **Circuits load from a CDN, not the bundle.** Proof generation (register/mint/transfer/withdraw/burn)
-  runs client-side via snarkjs against `.wasm`/`.zkey` circuit files (~2–14 MB each). `lib/eerc-config.ts`
-  points at `ava-labs/EncryptedERC`'s committed `circom/build/` directory via jsDelivr's GitHub CDN,
-  pinned to a commit hash, so nothing is vendored in this package and nobody has to compile circuits.
+- **Circuits load from a CDN, not the bundle — and are integrity-checked.** Proof generation
+  (register/mint/transfer/withdraw/burn) runs client-side via snarkjs against `.wasm`/`.zkey`
+  circuit files (~2–14 MB each). `lib/eerc-config.ts` points at `ava-labs/EncryptedERC`'s committed
+  `circom/build/` directory via jsDelivr's GitHub CDN, pinned to a commit hash, so nothing is
+  vendored in this package and nobody has to compile circuits. Before the SDK ever sees them,
+  `loadVerifiedCircuits()` downloads every file, checks it against a pinned SHA-256 (computed from
+  the source repo, not the CDN), and hands the SDK `blob:` URLs of the verified bytes — the whole
+  privacy model rests on proving against the intended circuits, so a tampered CDN copy fails
+  loudly instead of proving quietly.
 - **wagmi is present alongside `@avakit/react`.** `@avalabs/eerc-sdk`'s hooks use `wagmi`'s
   `useReadContract`/`useBlockNumber` internally for balance/state reads. `app/providers.tsx` wraps
   the app in a `WagmiProvider` (config pointed at Fuji) purely to satisfy that — wallet connect and
@@ -38,7 +43,8 @@ no browser-deploy step, unlike AvaKit's other templates.
 ## Architecture
 
 - `lib/eerc-config.ts` — the deployed `EncryptedERC` contract address (standalone, name "Test",
-  symbol "TEST", 2 decimals) and the circuit URLs.
+  symbol "TEST", 2 decimals), the pinned circuit files + SHA-256 hashes, and
+  `loadVerifiedCircuits()` (download → verify → blob URLs).
 - `scripts/deploy-eerc.mjs` (`pnpm deploy:eerc`) — deploys YOUR OWN standalone instance to Fuji
   (clones the official repo pinned to the circuits' commit, never vendors it) and rewrites
   `EERC_CONTRACT_ADDRESS` to point at it.
@@ -54,7 +60,9 @@ no browser-deploy step, unlike AvaKit's other templates.
    account attached** — `createWalletClient({ chain, transport: custom(provider), account: address })`.
    (`@avakit/core`'s `getWalletClient` does *not* attach an account; the eERC SDK requires
    `wallet.account.address` to be set, so build the client directly with viem instead.)
-3. `useEERC(publicClient, walletClient, EERC_CONTRACT_ADDRESS, circuitURLs)` from `@avalabs/eerc-sdk`.
+3. `useEERC(publicClient, walletClient, EERC_CONTRACT_ADDRESS, circuits)` from `@avalabs/eerc-sdk`,
+   where `circuits` comes from `await loadVerifiedCircuits()` (the demo loads it on mount and
+   shows a "verifying circuits" state until it resolves).
 4. **Register** (one-time, on-chain): `eerc.register()`. Generates a BabyJubJub keypair from a wallet
    signature and calls `Registrar.register()` with a ZK proof. Idempotent — safe to call again.
 5. **Unlock** (per session, off-chain): `eerc.generateDecryptionKey()`. Re-derives the same

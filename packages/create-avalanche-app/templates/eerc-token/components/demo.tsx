@@ -5,9 +5,13 @@ import { humanizeError, Button, ConnectAvalanche, shortenAddress, useAvaKit } fr
 import { useEERC } from "@avalabs/eerc-sdk";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type Address, createWalletClient, custom, formatUnits, parseUnits } from "viem";
-import { circuitURLs, EERC_CONTRACT_ADDRESS } from "@/lib/eerc-config";
+import {
+  type CircuitURLs,
+  EERC_CONTRACT_ADDRESS,
+  loadVerifiedCircuits,
+} from "@/lib/eerc-config";
 
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -28,6 +32,17 @@ export function Demo() {
   const { address, provider, chain, status } = useAvaKit();
   const isConnected = status === "connected";
 
+  // Download + SHA-256-verify the proving circuits before the SDK ever sees
+  // them (see lib/eerc-config.ts). Starts on mount, in parallel with the
+  // user connecting a wallet.
+  const [circuits, setCircuits] = useState<CircuitURLs | null>(null);
+  const [circuitError, setCircuitError] = useState<string | null>(null);
+  useEffect(() => {
+    loadVerifiedCircuits()
+      .then(setCircuits)
+      .catch((e) => setCircuitError(e instanceof Error ? e.message : String(e)));
+  }, []);
+
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col gap-8 px-6 py-16">
       <header className="flex items-center justify-between">
@@ -46,12 +61,26 @@ export function Demo() {
         </p>
       </div>
 
-      {!isConnected || !address || !provider ? (
+      {circuitError ? (
+        <p className="border-destructive text-destructive rounded-md border px-3 py-2 text-sm font-medium">
+          {circuitError}
+        </p>
+      ) : !isConnected || !address || !provider ? (
         <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
           Connect a wallet to begin.
         </div>
+      ) : !circuits ? (
+        <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
+          Verifying proving circuits… (~50 MB on first visit, checked against pinned SHA-256
+          hashes, then browser-cached)
+        </div>
       ) : (
-        <EercPanel address={address} provider={provider} explorerUrl={chain.explorerUrl} />
+        <EercPanel
+          address={address}
+          provider={provider}
+          explorerUrl={chain.explorerUrl}
+          circuits={circuits}
+        />
       )}
     </div>
   );
@@ -61,10 +90,12 @@ function EercPanel({
   address,
   provider,
   explorerUrl,
+  circuits,
 }: {
   address: Address;
   provider: NonNullable<ReturnType<typeof useAvaKit>["provider"]>;
   explorerUrl: string;
+  circuits: CircuitURLs;
 }) {
   const { chain } = useAvaKit();
 
@@ -77,7 +108,7 @@ function EercPanel({
     [chain, provider, address],
   );
 
-  const eerc = useEERC(publicClient, walletClient, EERC_CONTRACT_ADDRESS, circuitURLs);
+  const eerc = useEERC(publicClient, walletClient, EERC_CONTRACT_ADDRESS, circuits);
   const balance = eerc.useEncryptedBalance();
 
   const [unlocked, setUnlocked] = useState(false);
