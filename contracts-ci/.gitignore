@@ -1,0 +1,5 @@
+# Synced from the templates by scripts/sync.mjs — never edited here.
+src/
+# Foundry build output
+out/
+cache/
