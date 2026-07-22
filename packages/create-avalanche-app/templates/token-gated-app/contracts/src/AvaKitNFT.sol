@@ -1,29 +1,123 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+/// @dev Minimal receiver interface, inlined so the contract stays
+/// dependency-free. Contracts receiving a token via `safeTransferFrom` must
+/// implement this (EOAs are exempt).
+interface IERC721Receiver {
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
+}
+
 /// @title AvaKitNFT
-/// @notice A minimal, self-contained ERC-721 mint demo (no external deps so it
+/// @notice A minimal, self-contained **full ERC-721** (no external deps so it
 ///         compiles out of the box with `forge build`). Public mint, on-chain
-///         metadata. Not a full ERC-721 (no transfer/approve) — it's a starting
-///         point you can extend.
+///         metadata, and the complete transfer/approval surface — so wallets,
+///         explorers, and marketplaces treat it as a real NFT.
 contract AvaKitNFT {
     string public constant name = "AvaKit NFT";
     string public constant symbol = "AVAKIT";
 
     uint256 public totalSupply;
-    mapping(uint256 => address) public ownerOf;
+    mapping(uint256 => address) private _owners;
     mapping(address => uint256) public balanceOf;
+    mapping(uint256 => address) public getApproved;
+    mapping(address => mapping(address => bool)) public isApprovedForAll;
 
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+
+    /// @notice ERC-165: this contract implements ERC-165, ERC-721, and
+    ///         ERC-721 Metadata. Wallet NFT tabs and marketplaces probe this
+    ///         before trusting the rest of the interface.
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return
+            interfaceId == 0x01ffc9a7 || // ERC-165
+            interfaceId == 0x80ac58cd || // ERC-721
+            interfaceId == 0x5b5e139f; // ERC-721 Metadata
+    }
+
+    /// @notice ERC-721 requires ownerOf to revert for nonexistent tokens
+    ///         (a zero-address "owner" would read as a real answer).
+    function ownerOf(uint256 tokenId) public view returns (address owner) {
+        owner = _owners[tokenId];
+        require(owner != address(0), "AvaKitNFT: nonexistent token");
+    }
 
     /// @notice Mint the next token to the caller.
     function mint() external returns (uint256 tokenId) {
         tokenId = ++totalSupply;
-        ownerOf[tokenId] = msg.sender;
+        _owners[tokenId] = msg.sender;
         unchecked {
             balanceOf[msg.sender] += 1;
         }
         emit Transfer(address(0), msg.sender, tokenId);
+    }
+
+    // ---- approvals ----
+
+    function approve(address approved, uint256 tokenId) external {
+        address owner = ownerOf(tokenId);
+        require(
+            msg.sender == owner || isApprovedForAll[owner][msg.sender],
+            "AvaKitNFT: not authorized to approve"
+        );
+        getApproved[tokenId] = approved;
+        emit Approval(owner, approved, tokenId);
+    }
+
+    function setApprovalForAll(address operator, bool approved) external {
+        isApprovedForAll[msg.sender][operator] = approved;
+        emit ApprovalForAll(msg.sender, operator, approved);
+    }
+
+    // ---- transfers ----
+
+    function transferFrom(address from, address to, uint256 tokenId) public {
+        address owner = ownerOf(tokenId);
+        require(owner == from, "AvaKitNFT: from is not the owner");
+        require(to != address(0), "AvaKitNFT: transfer to the zero address");
+        require(
+            msg.sender == owner ||
+                msg.sender == getApproved[tokenId] ||
+                isApprovedForAll[owner][msg.sender],
+            "AvaKitNFT: not authorized to transfer"
+        );
+
+        // Per-token approval is one-shot: it does not survive a transfer.
+        delete getApproved[tokenId];
+        unchecked {
+            balanceOf[from] -= 1;
+            balanceOf[to] += 1;
+        }
+        _owners[tokenId] = to;
+        emit Transfer(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId) external {
+        safeTransferFrom(from, to, tokenId, "");
+    }
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) public {
+        transferFrom(from, to, tokenId);
+        // Only contracts are probed — sending to an EOA is always safe.
+        if (to.code.length > 0) {
+            require(
+                IERC721Receiver(to).onERC721Received(msg.sender, from, tokenId, data) ==
+                    IERC721Receiver.onERC721Received.selector,
+                "AvaKitNFT: receiver rejected the token"
+            );
+        }
     }
 
     /// @notice Each token's art is derived from the token itself — no oracle, no
@@ -44,7 +138,7 @@ contract AvaKitNFT {
     ///      inside the SVG.
     function tokenURI(uint256 tokenId) external view returns (string memory) {
         uint256 seed = uint256(
-            keccak256(abi.encodePacked(tokenId, ownerOf[tokenId], block.chainid))
+            keccak256(abi.encodePacked(tokenId, ownerOf(tokenId), block.chainid))
         );
         (string memory accent, string memory paletteName, string memory muzzle) = _palette(seed);
 

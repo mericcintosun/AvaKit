@@ -12,7 +12,9 @@ Content is gated behind ownership of an **access-pass NFT**. If `balanceOf(addre
 
 ## Architecture
 
-- `contracts/src/AvaKitNFT.sol` — the access-pass ERC-721 (minimal, self-contained).
+- `contracts/src/AvaKitNFT.sol` — the access-pass **full ERC-721** (minimal, self-contained).
+  The pass is transferable: selling or sending it moves the access with it. If your use case
+  needs a non-transferable (soulbound) pass, remove the transfer functions and say so.
 - `lib/nft-artifact.ts` — compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - `components/demo.tsx` — deploy pass → mint → gate logic.
 - `app/providers.tsx` — `<AvaKitProvider>` + `ThemeProvider`.

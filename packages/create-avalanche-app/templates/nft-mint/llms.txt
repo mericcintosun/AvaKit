@@ -4,7 +4,7 @@
 
 ## Project map
 
-- [contracts/src/AvaKitNFT.sol](contracts/src/AvaKitNFT.sol): minimal self-contained ERC-721 mint contract.
+- [contracts/src/AvaKitNFT.sol](contracts/src/AvaKitNFT.sol): minimal self-contained full ERC-721 (mint + transfers/approvals + ERC-165, on-chain art).
 - [lib/nft-artifact.ts](lib/nft-artifact.ts): compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - [components/demo.tsx](components/demo.tsx): deploy + mint flow.
 - [app/providers.tsx](app/providers.tsx): AvaKitProvider (chains + wallet adapters) + theme.

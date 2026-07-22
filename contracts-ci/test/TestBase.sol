@@ -15,6 +15,9 @@ interface Vm {
     /// Expects the next external call to revert with exact `revertData`.
     function expectRevert(bytes calldata revertData) external;
 
+    /// Expects the next external call to revert with any data.
+    function expectRevert() external;
+
     /// Expects the next emitted event to match (topics checked per flag).
     function expectEmit(bool t1, bool t2, bool t3, bool checkData) external;
 }

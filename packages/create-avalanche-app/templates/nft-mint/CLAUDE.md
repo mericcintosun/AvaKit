@@ -8,7 +8,8 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 ## Architecture
 
-- `contracts/src/AvaKitNFT.sol` — a minimal, self-contained ERC-721 mint contract
+- `contracts/src/AvaKitNFT.sol` — a minimal, self-contained **full ERC-721** (mint + the complete
+  transfer/approval surface + ERC-165, with on-chain generative art)
 - `lib/nft-artifact.ts` — the compiled ABI + bytecode (so the app deploys from the browser with no Foundry at runtime)
 - `app/providers.tsx` — `<AvaKitProvider>` (chains + wallet adapters) + `ThemeProvider`
 - `components/demo.tsx` — deploy the contract, then mint
