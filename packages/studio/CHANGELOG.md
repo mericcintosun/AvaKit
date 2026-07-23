@@ -1,5 +1,14 @@
 # @avakit/studio
 
+## 0.1.13
+
+### Patch Changes
+
+- c61a23d: Compare the Studio session token in constant time, closing a timing
+  side-channel that could reveal it byte by byte.
+- Updated dependencies [c61a23d]
+  - @avakit/core@0.2.1
+
 ## 0.1.12
 
 ### Patch Changes

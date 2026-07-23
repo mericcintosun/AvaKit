@@ -1,5 +1,14 @@
 # @avakit/react
 
+## 0.2.1
+
+### Patch Changes
+
+- c61a23d: `AvaKitProvider` only auto-connects the burner wallet on a testnet, and never
+  auto-funds it on mainnet — matching the burner's testnet-only guarantee.
+- Updated dependencies [c61a23d]
+  - @avakit/core@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
