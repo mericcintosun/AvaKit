@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # JavaScript / pnpm workspace dependencies.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # One grouped PR per week keeps the noise down.
+      dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions — keeps the SHA-pinned actions current (Dependabot bumps the
+  # SHA and the `# vX` comment together).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
