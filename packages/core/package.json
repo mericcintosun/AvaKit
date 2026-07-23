@@ -40,7 +40,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "viem": "2.54.1"
+    "viem": "2.55.7"
   },
   "peerDependencies": {
     "@coinbase/wallet-sdk": ">=4",
@@ -55,7 +55,7 @@
     }
   },
   "devDependencies": {
-    "@web3auth/modal": "11.2.0",
+    "@web3auth/modal": "11.3.0",
     "tsup": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
