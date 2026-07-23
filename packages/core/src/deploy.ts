@@ -8,7 +8,7 @@
  */
 
 import { type Abi, type Address, type EIP1193Provider, getAddress, type Hex } from "viem";
-import type { AvaChain } from "./chains.js";
+import { type AvaChain, isMainnet } from "./chains.js";
 import { getPublicClient, getWalletClient } from "./clients.js";
 import { DeployFailedError, MainnetConfirmationError } from "./errors.js";
 
@@ -51,7 +51,8 @@ export function getBytecode(artifact: DeployParams["artifact"]): Hex {
 export async function deployContract(params: DeployParams): Promise<DeployResult> {
   const { artifact, args, chain, provider, account, confirmMainnet } = params;
   // Testnet-first guardrail: never deploy to a mainnet chain without opt-in.
-  if (chain.testnet === false && !confirmMainnet) {
+  // isMainnet() also catches a known mainnet id mislabelled testnet. (audit A9)
+  if (isMainnet(chain) && !confirmMainnet) {
     throw new MainnetConfirmationError(chain.name);
   }
   const walletClient = getWalletClient(chain, provider);

@@ -33,6 +33,8 @@ export {
   chains,
   defineChain,
   fuji,
+  isMainnet,
+  KNOWN_MAINNET_CHAIN_IDS,
 } from "./chains.js";
 // viem clients
 export { getPublicClient, getWalletClient, toViemChain } from "./clients.js";

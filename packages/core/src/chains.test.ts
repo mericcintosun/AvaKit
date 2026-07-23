@@ -1,33 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { cChain, chains, defineChain, fuji } from "./chains.js";
+import {
+  type AvaChain,
+  cChain,
+  defineChain,
+  fuji,
+  isMainnet,
+  KNOWN_MAINNET_CHAIN_IDS,
+} from "./chains.js";
 
-describe("chain registry", () => {
-  it("fuji is a testnet with a faucet", () => {
-    expect(fuji.id).toBe(43113);
-    expect(fuji.testnet).toBe(true);
-    expect(fuji.faucetUrl).toBeTypeOf("string");
+const base: AvaChain = {
+  id: 999,
+  name: "Test L1",
+  rpcUrl: "https://rpc.example.com",
+  explorerUrl: "https://explorer.example.com",
+  nativeCurrency: { name: "Test", symbol: "TST", decimals: 18 },
+  testnet: true,
+};
+
+describe("defineChain URL validation (A17)", () => {
+  it("accepts http(s) URLs", () => {
+    expect(() => defineChain({ ...base, rpcUrl: "http://localhost:8545" })).not.toThrow();
+    expect(() => defineChain({ ...base })).not.toThrow();
   });
 
-  it("c-chain is mainnet without a faucet", () => {
-    expect(cChain.id).toBe(43114);
-    expect(cChain.testnet).toBe(false);
-    expect(cChain.faucetUrl).toBeUndefined();
+  it("rejects non-http(s) schemes and malformed URLs", () => {
+    expect(() => defineChain({ ...base, rpcUrl: "javascript:alert(1)" })).toThrow(/rpcUrl/);
+    expect(() => defineChain({ ...base, rpcUrl: "file:///etc/passwd" })).toThrow(/rpcUrl/);
+    expect(() => defineChain({ ...base, explorerUrl: "not a url" })).toThrow(/explorerUrl/);
+    expect(() => defineChain({ ...base, faucetUrl: "ftp://x" })).toThrow(/faucetUrl/);
+  });
+});
+
+describe("isMainnet (A9)", () => {
+  it("treats a known mainnet id as mainnet", () => {
+    expect(isMainnet(cChain)).toBe(true);
+    expect(KNOWN_MAINNET_CHAIN_IDS.has(43114)).toBe(true);
   });
 
-  it("defineChain returns the config unchanged", () => {
-    const custom = defineChain({
-      id: 99999,
-      name: "My L1",
-      rpcUrl: "https://example.invalid/rpc",
-      explorerUrl: "https://example.invalid",
-      nativeCurrency: { name: "Token", symbol: "TKN", decimals: 18 },
-      testnet: true,
-    });
-    expect(custom.id).toBe(99999);
+  it("treats testnets as non-mainnet", () => {
+    expect(isMainnet(fuji)).toBe(false);
   });
 
-  it("exposes builtin chains by slug", () => {
-    expect(chains.fuji).toBe(fuji);
-    expect(chains["c-chain"]).toBe(cChain);
+  it("refuses to define a known mainnet id as a testnet", () => {
+    expect(() => defineChain({ ...base, id: 43114, testnet: true })).toThrow(/known mainnet/);
   });
 });

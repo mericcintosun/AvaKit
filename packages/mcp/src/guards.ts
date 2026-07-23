@@ -1,4 +1,4 @@
-import type { AvaChain } from "@avakit/core";
+import { type AvaChain, isMainnet } from "@avakit/core";
 
 /**
  * Upper bounds for MCP tool inputs. The schemas used to accept `z.array(z.any())`
@@ -23,7 +23,7 @@ export const BYTECODE_RE = /^(0x)?[0-9a-fA-F]+$/;
  * funds. Testnet chains are unaffected. (security audit A2)
  */
 export function assertMainnetAllowed(chain: AvaChain, confirm: boolean | undefined): void {
-  if (chain.testnet) return;
+  if (!isMainnet(chain)) return;
   if (!confirm) {
     throw new Error(`Refusing to deploy to ${chain.name} (mainnet) without confirm:true.`);
   }
