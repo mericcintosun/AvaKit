@@ -26,24 +26,24 @@
   "dependencies": {
     "@avakit/core": "workspace:*",
     "@modelcontextprotocol/sdk": "1.29.0",
-    "viem": "2.54.1",
+    "viem": "2.55.7",
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "4.3.2",
+    "@tailwindcss/vite": "4.3.3",
     "@types/node": "catalog:",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^6.0.4",
     "clsx": "2.1.1",
-    "lucide-react": "1.22.0",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "lucide-react": "1.25.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "tailwind-merge": "3.6.0",
-    "tailwindcss": "4.3.2",
+    "tailwindcss": "4.3.3",
     "tsup": "catalog:",
     "typescript": "catalog:",
-    "vite": "^7.0.0",
+    "vite": "^8.1.5",
     "vitest": "catalog:"
   },
   "keywords": [
