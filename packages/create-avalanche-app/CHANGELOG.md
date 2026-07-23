@@ -1,5 +1,12 @@
 # create-avalanche-app
 
+## 0.4.1
+
+### Patch Changes
+
+- c61a23d: Reject unsafe project names (path traversal, absolute paths, separators) before
+  scaffolding, and guard against a template writing outside the project directory.
+
 ## 0.4.0
 
 ### Minor Changes

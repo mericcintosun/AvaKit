@@ -1,6 +1,6 @@
 {
   "name": "@avakit/core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Core SDK for AvaKit — EVM clients, wallet adapters, deploy helpers, and chain data for Avalanche.",
   "license": "MIT",
   "type": "module",

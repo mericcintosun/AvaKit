@@ -1,6 +1,6 @@
 {
   "name": "create-avalanche-app",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Scaffold a batteries-included Avalanche dapp: social-login onboarding, deploy-ready, AI-native.",
   "license": "MIT",
   "type": "module",

@@ -1,5 +1,19 @@
 # @avakit/mcp
 
+## 0.1.27
+
+### Patch Changes
+
+- c61a23d: Harden the MCP tools. `scaffold_app` now validates the project name, so a
+  prompt-injected agent can't write files outside the target directory.
+  `deploy_contract` gates mainnet behind an `AVAKIT_ALLOW_MAINNET` server env
+  opt-in (not just the caller-set `confirm`) and checks the deployer balance up
+  front. `read_chain` and `deploy_contract` now bound their array/bytecode inputs.
+- Updated dependencies [c61a23d]
+- Updated dependencies [c61a23d]
+  - create-avalanche-app@0.4.1
+  - @avakit/core@0.2.1
+
 ## 0.1.26
 
 ### Patch Changes
