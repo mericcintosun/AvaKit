@@ -2,12 +2,23 @@ import type { EIP1193Provider } from "viem";
 import { numberToHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cChain, fuji } from "../chains.js";
+import { cChain, defineChain, fuji } from "../chains.js";
 import { burnerAdapter, clearBurner } from "./burner.js";
 
 // A well-known throwaway test key (Hardhat/anvil account #0). Never real funds.
 const TEST_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as const;
 const TEST_ADDRESS = privateKeyToAccount(TEST_KEY).address;
+
+// A second testnet, so chain-switch tests never touch mainnet (the burner is
+// testnet-only and refuses mainnet — see the enforcement tests below).
+const otherTestnet = defineChain({
+  id: 43113001,
+  name: "Other Testnet",
+  rpcUrl: "https://rpc.other-testnet.example",
+  explorerUrl: "https://explorer.other-testnet.example",
+  nativeCurrency: { name: "Test", symbol: "TST", decimals: 18 },
+  testnet: true,
+});
 
 /** In-memory localStorage mock for the persistence tests. */
 function mockStorage() {
@@ -43,8 +54,8 @@ describe("burnerAdapter", () => {
     const { provider } = await adapter.connect();
     expect(await provider.request({ method: "eth_chainId" })).toBe(numberToHex(fuji.id));
 
-    await adapter.switchChain?.(cChain);
-    expect(await provider.request({ method: "eth_chainId" })).toBe(numberToHex(cChain.id));
+    await adapter.switchChain?.(otherTestnet);
+    expect(await provider.request({ method: "eth_chainId" })).toBe(numberToHex(otherTestnet.id));
   });
 
   it("signs messages locally with the burner key", async () => {
@@ -62,8 +73,19 @@ describe("burnerAdapter", () => {
     const { provider } = await adapter.connect();
     const seen: unknown[] = [];
     (provider as EIP1193Provider).on("chainChanged", (id) => seen.push(id));
-    await adapter.switchChain?.(cChain);
-    expect(seen).toEqual([numberToHex(cChain.id)]);
+    await adapter.switchChain?.(otherTestnet);
+    expect(seen).toEqual([numberToHex(otherTestnet.id)]);
+  });
+
+  it("refuses to connect on mainnet (testnet-only key)", async () => {
+    const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: cChain });
+    await expect(adapter.connect()).rejects.toThrow(/testnet-only/);
+  });
+
+  it("refuses to switch to mainnet", async () => {
+    const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
+    await adapter.connect();
+    await expect(adapter.switchChain?.(cChain)).rejects.toThrow(/testnet-only/);
   });
 
   it("persists the key so reconnecting restores the same address", async () => {

@@ -7,7 +7,7 @@ import {
   numberToHex,
 } from "viem";
 import { generatePrivateKey, type PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
-import { type AvaChain, fuji } from "../chains.js";
+import { type AvaChain, fuji, isMainnet } from "../chains.js";
 import { toViemChain } from "../clients.js";
 import { WalletConnectionError } from "../errors.js";
 import type { WalletAdapter, WalletConnection } from "./types.js";
@@ -186,6 +186,14 @@ export function burnerAdapter(options: BurnerAdapterOptions = {}): WalletAdapter
     },
 
     async connect(): Promise<WalletConnection> {
+      // The burner key lives in localStorage in the clear, so it must never
+      // touch mainnet. Enforce testnet-only in code, not just docs. (audit A8)
+      if (isMainnet(initialChain)) {
+        throw new WalletConnectionError(
+          `The temporary (burner) wallet is testnet-only and cannot connect on ${initialChain.name}. ` +
+            "Connect a real wallet (injected / social) to use mainnet.",
+        );
+      }
       const key = options.privateKey ?? (persist ? readStoredKey(storageKey) : null);
       const pk = key ?? generatePrivateKey();
       if (persist && !options.privateKey && pk !== key) {
@@ -214,6 +222,12 @@ export function burnerAdapter(options: BurnerAdapterOptions = {}): WalletAdapter
     },
 
     async switchChain(chain: AvaChain) {
+      if (isMainnet(chain)) {
+        throw new WalletConnectionError(
+          `The temporary (burner) wallet is testnet-only and cannot switch to ${chain.name}. ` +
+            "Connect a real wallet to use mainnet.",
+        );
+      }
       provider?.setChain(chain);
     },
   };

@@ -3,6 +3,7 @@
 import {
   type AvaChain,
   ensureChain,
+  isMainnet,
   requestFaucet,
   type WalletAdapter,
   type WalletConnection,
@@ -139,22 +140,30 @@ export function AvaKitProvider({
 
   // Auto-connect a temporary (burner) wallet when the app opts in and the visitor
   // has no injected wallet, so a stranger lands already connected. Runs once.
+  // Never on mainnet: the burner is testnet-only, so auto-connecting it there
+  // would just error. (audit A8)
   useEffect(() => {
     if (autoConnect !== "burner" || autoBurnerTried.current || status !== "disconnected") {
       return;
     }
     const hasInjected =
       typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
-    if (!hasInjected && adapters.some((a) => a.id === "burner")) {
+    if (!hasInjected && !isMainnet(chain) && adapters.some((a) => a.id === "burner")) {
       autoBurnerTried.current = true;
       void connect("burner");
     }
-  }, [autoConnect, status, adapters, connect]);
+  }, [autoConnect, status, adapters, connect, chain]);
 
   // Auto-fund a freshly-connected burner from the app's faucet (once per address)
   // so the zero-config wallet can transact with no manual faucet step.
   useEffect(() => {
-    if (!faucetUrl || status !== "connected" || !address || activeAdapterId !== "burner") {
+    if (
+      !faucetUrl ||
+      status !== "connected" ||
+      !address ||
+      activeAdapterId !== "burner" ||
+      isMainnet(chain)
+    ) {
       return;
     }
     if (fundedAddresses.current.has(address)) {
@@ -165,7 +174,7 @@ export function AvaKitProvider({
       // Allow a retry on a transient failure.
       fundedAddresses.current.delete(address);
     });
-  }, [faucetUrl, status, address, activeAdapterId, chain.id]);
+  }, [faucetUrl, status, address, activeAdapterId, chain]);
 
   const value = useMemo<AvaKitContextValue>(
     () => ({
