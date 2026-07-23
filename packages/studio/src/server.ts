@@ -5,7 +5,7 @@
  * themselves; it is never meant to be reachable from the network.
  */
 
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, resolve, sep } from "node:path";
@@ -66,6 +66,17 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+/**
+ * Constant-time comparison of a caller-supplied token against the session
+ * token, so a timing side-channel can't recover it byte by byte. (audit A19)
+ */
+export function safeTokenEqual(provided: string | string[] | undefined, token: string): boolean {
+  if (typeof provided !== "string") return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(token);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 /** Resolve a request path inside webDir, or null if it escapes (traversal). */
 function safeFile(webDir: string, pathname: string): string | null {
   const full = resolve(webDir, `.${pathname}`);
@@ -107,7 +118,7 @@ export async function startServer(opts: { port?: number; cwd: string }): Promise
     // which cannot set headers). Both are same-origin only.
     if (pathname.startsWith("/api/")) {
       const provided = req.headers["x-studio-token"] ?? url.searchParams.get("token") ?? undefined;
-      if (provided !== token) {
+      if (!safeTokenEqual(provided, token)) {
         sendJson(res, 401, { error: "unauthorized" });
         return;
       }
