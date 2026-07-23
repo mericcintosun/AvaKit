@@ -43,7 +43,11 @@ export function isMainnet(chain: AvaChain): boolean {
   return chain.testnet === false || KNOWN_MAINNET_CHAIN_IDS.has(chain.id);
 }
 
-function assertHttpUrl(value: string, field: string): void {
+function assertHttpUrl(value: string | undefined, field: string): void {
+  // Blank/undefined is allowed: a freshly launched L1 has no explorer or faucet
+  // yet, and templates ship those fields empty. The check exists to reject
+  // dangerous schemes (javascript:, file:), not to require every URL be present.
+  if (!value) return;
   let url: URL;
   try {
     url = new URL(value);
@@ -56,16 +60,14 @@ function assertHttpUrl(value: string, field: string): void {
 }
 
 /**
- * Define a custom Avalanche L1 / EVM chain. Validates that URLs are http(s)
- * (no `javascript:`/`file:` reaching a client or fetch — audit A17) and that a
- * known mainnet id is never labelled a testnet (audit A9).
+ * Define a custom Avalanche L1 / EVM chain. Validates that any URL present is
+ * http(s) (no `javascript:`/`file:` reaching a client or fetch — audit A17) and
+ * that a known mainnet id is never labelled a testnet (audit A9).
  */
 export function defineChain(config: AvaChain): AvaChain {
   assertHttpUrl(config.rpcUrl, "rpcUrl");
   assertHttpUrl(config.explorerUrl, "explorerUrl");
-  if (config.faucetUrl) {
-    assertHttpUrl(config.faucetUrl, "faucetUrl");
-  }
+  assertHttpUrl(config.faucetUrl, "faucetUrl");
   if (config.testnet && KNOWN_MAINNET_CHAIN_IDS.has(config.id)) {
     throw new Error(`Chain id ${config.id} is a known mainnet and cannot be marked testnet.`);
   }

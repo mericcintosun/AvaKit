@@ -29,6 +29,12 @@ describe("defineChain URL validation (A17)", () => {
     expect(() => defineChain({ ...base, explorerUrl: "not a url" })).toThrow(/explorerUrl/);
     expect(() => defineChain({ ...base, faucetUrl: "ftp://x" })).toThrow(/faucetUrl/);
   });
+
+  it("allows a blank explorerUrl/faucetUrl (a fresh L1 has neither yet)", () => {
+    expect(() => defineChain({ ...base, explorerUrl: "" })).not.toThrow();
+    expect(() => defineChain({ ...base, faucetUrl: "" })).not.toThrow();
+    expect(() => defineChain({ ...base, faucetUrl: undefined })).not.toThrow();
+  });
 });
 
 describe("isMainnet (A9)", () => {
