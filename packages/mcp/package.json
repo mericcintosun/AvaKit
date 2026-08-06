@@ -24,9 +24,9 @@
   },
   "dependencies": {
     "@avakit/core": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "create-avalanche-app": "workspace:*",
-    "viem": "2.54.1",
+    "viem": "2.55.10",
     "zod": "4.4.3"
   },
   "devDependencies": {
