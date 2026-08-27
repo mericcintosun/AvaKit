@@ -58,7 +58,7 @@ jobs:
       # at this repo + `release.yml`. The exchanged id-token also produces a
       # provenance attestation, so npm can prove the tarball was built here.
       - name: Create Release PR or Publish
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
+        uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v1
         with:
           version: pnpm version-packages
           publish: pnpm release
