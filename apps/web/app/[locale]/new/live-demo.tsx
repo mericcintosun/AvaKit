@@ -138,6 +138,20 @@ function ExplorerLink({ href, label }: { href: string; label: string }) {
   );
 }
 
+/** Holds the exact shape of the NFT card while it isn't there yet, so nothing
+    jumps when the art lands. */
+function ArtPlaceholder({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-4">
+      <div className="border-border bg-muted/40 size-28 animate-pulse rounded-xl border" />
+      <p className="text-muted-foreground flex items-center gap-2 text-sm">
+        <Loader2 className="size-3.5 animate-spin" />
+        {children}
+      </p>
+    </div>
+  );
+}
+
 /** The way forward when our faucet can't fund the wallet, or isn't configured. */
 function FundManually({
   address,
@@ -194,6 +208,8 @@ function Flow() {
   const { deploy, status: deployStatus } = useAvaDeploy();
 
   const [contractAddress, setContractAddress] = useState<Address | null>(null);
+  /** Broadcast and waiting to be mined; `mintHash` is set only once it succeeded. */
+  const [pendingMint, setPendingMint] = useState<Hex | null>(null);
   const [mintHash, setMintHash] = useState<Hex | null>(null);
   const [nft, setNft] = useState<{ name: string; image: string } | null>(null);
   const [nftLoading, setNftLoading] = useState(false);
@@ -282,19 +298,25 @@ function Flow() {
     setMinting(true);
     try {
       const hash = await contract.write("mint", []);
+      // `write` resolves as soon as the tx is broadcast, so the mint has NOT
+      // landed yet, and a mined transaction can still have reverted. Only a
+      // successful receipt counts as a mint: anything else has to reach the
+      // error below, never the "that was a real transaction" card.
+      setPendingMint(hash);
+      const receipt = await getPublicClient(fuji).waitForTransactionReceipt({ hash });
+      if (receipt.status === "reverted") {
+        throw new Error(
+          `The mint transaction (${short(hash)}) reverted on-chain, so nothing was minted. You can try again.`,
+        );
+      }
       setMintHash(hash);
       void refetchBalance();
       // Show them the thing they just made. The art is fully on-chain, so this
       // reads straight from the contract — no IPFS, no indexer, no server.
       setNftLoading(true);
       try {
-        // `write` resolves as soon as the tx is broadcast, so the mint has NOT
-        // landed yet. Reading totalSupply here without waiting races the pending
-        // tx and yields the pre-mint value (token 0, which doesn't exist).
-        const receipt = await getPublicClient(fuji).waitForTransactionReceipt({ hash });
-        if (receipt.status === "reverted") {
-          throw new Error("Mint reverted.");
-        }
+        // Read only now that the mint is mined: before that, totalSupply still
+        // has the pre-mint value (token 0, which doesn't exist).
         const tokenId = (await contract.read("totalSupply")) as bigint;
         const uri = (await contract.read("tokenURI", [tokenId])) as string;
         const json = JSON.parse(decodeURIComponent(uri.slice(uri.indexOf(",") + 1))) as {
@@ -310,6 +332,7 @@ function Flow() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      setPendingMint(null);
       setMinting(false);
     }
   }
@@ -434,21 +457,8 @@ function Flow() {
               label="See your mint on Fuji"
             />
 
-            {/* The mint has to be mined before the art exists, so hold the exact
-                shape of the card while we wait — no layout jump when it lands. */}
             {nftLoading && !nft ? (
-              <div className="flex items-center gap-4">
-                <div className="border-border bg-muted/40 size-28 animate-pulse rounded-xl border" />
-                <div className="flex flex-col gap-2">
-                  <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                    <Loader2 className="size-3.5 animate-spin" />
-                    waiting for the mint to land…
-                  </p>
-                  <p className="text-muted-foreground/70 text-xs">
-                    then we read your art straight off the chain
-                  </p>
-                </div>
-              </div>
+              <ArtPlaceholder>reading your art straight off the chain…</ArtPlaceholder>
             ) : null}
 
             {nft ? (
@@ -488,6 +498,15 @@ function Flow() {
                 </a>
               </Button>
             </div>
+          </div>
+        ) : pendingMint ? (
+          // Broadcast, not mined yet: show where it is, promise nothing.
+          <div className="flex flex-col gap-3">
+            <ExplorerLink
+              href={`${fuji.explorerUrl}/tx/${pendingMint}`}
+              label="Follow the transaction on Fuji"
+            />
+            <ArtPlaceholder>waiting for the mint to land…</ArtPlaceholder>
           </div>
         ) : (
           <Button size="sm" disabled={!contractAddress || minting} onClick={onMint}>
