@@ -10,7 +10,7 @@ import {
   readContract,
   requestFaucet,
 } from "@avakit/core";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Abi, Address, Hex } from "viem";
 import { useAvaKit } from "./provider.js";
 
@@ -31,23 +31,52 @@ export function useAvaChain() {
   return { chain, chains, setChain };
 }
 
-/** Native AVAX balance for an address (defaults to the connected account). */
+/**
+ * Native AVAX balance for an address (defaults to the connected account).
+ *
+ * A failed read is reported through `error` rather than thrown: `refetch()` runs
+ * from effects and polling timers, where a rejection has nowhere to go.
+ */
 export function useBalance(address?: Address) {
   const { chain, address: connected } = useAvaKit();
   const target = address ?? connected;
   const [data, setData] = useState<bigint | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  // Counts requests, so a slower answer for a previous account or chain cannot
+  // overwrite the balance of the current one.
+  const latest = useRef(0);
+  // Which account/chain `data` belongs to.
+  const shownFor = useRef<string | null>(null);
 
   const refetch = useCallback(async () => {
-    if (!target) {
+    latest.current += 1;
+    const current = latest.current;
+    const key = target ? `${chain.id}:${target.toLowerCase()}` : null;
+    if (shownFor.current !== key) {
+      // Another account or chain: its balance is unknown until it has loaded,
+      // so do not keep showing the previous one next to the new address.
+      shownFor.current = key;
       setData(null);
+      setError(null);
+    }
+    if (!target) {
+      setIsLoading(false);
       return;
     }
     setIsLoading(true);
     try {
-      setData(await getBalance(target, chain));
+      const balance = await getBalance(target, chain);
+      if (current !== latest.current) return;
+      setData(balance);
+      setError(null);
+    } catch (e) {
+      if (current !== latest.current) return;
+      setError(e instanceof Error ? e : new Error(String(e)));
     } finally {
-      setIsLoading(false);
+      if (current === latest.current) {
+        setIsLoading(false);
+      }
     }
   }, [target, chain]);
 
@@ -55,7 +84,7 @@ export function useBalance(address?: Address) {
     void refetch();
   }, [refetch]);
 
-  return { data, isLoading, refetch };
+  return { data, isLoading, error, refetch };
 }
 
 /**
@@ -197,7 +226,9 @@ export function useSendTransaction() {
     hash,
     error,
     isPending: status === "pending",
-    explorerUrl: hash ? `${chain.explorerUrl}/tx/${hash}` : null,
+    // Null on a chain without an explorer (a fresh L1), rather than a relative
+    // "/tx/0x…" link that would point back into the app.
+    explorerUrl: hash && chain.explorerUrl ? `${chain.explorerUrl}/tx/${hash}` : null,
   };
 }
 
