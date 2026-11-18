@@ -40,6 +40,22 @@ no browser-deploy step, unlike AvaKit's other templates.
   a newer wagmi major would violate that contract, so this template intentionally does not follow
   AvaKit's usual "latest stable of everything" rule for this one package.
 
+## Pinned upstream version
+
+- **Circuits + contracts:** `ava-labs/EncryptedERC` at commit
+  `c7eb0e09bc9315e68c35d3c09f5dce4b794d0485` — `CIRCUIT_COMMIT` in `lib/eerc-config.ts` (the circuit
+  files the browser proves against, each with a pinned SHA-256) and `COMMIT` in
+  `scripts/deploy-eerc.mjs` (the contracts `pnpm deploy:eerc` builds). Keep the two equal:
+  contracts and circuits have to be the same version.
+- **SDK:** `@avalabs/eerc-sdk` `1.0.2` (exact, in `package.json`), with `wagmi` `2.19.5` because
+  the SDK peer-depends on `wagmi: ^2.0.0`.
+- Upstream merged security fixes with regenerated verifier keys on 2026-08-31 that are not in a tagged release yet; this template has not been moved to them.
+  Moving to them means changing both constants together, recomputing all ten SHA-256 hashes from
+  the source repository, and deploying a new instance with `pnpm deploy:eerc` — never change one
+  of these alone.
+- **Testnet only:** Avalanche Fuji, and nothing else (see "Fuji only" under Rules). Never point this
+  template at a mainnet or put real funds behind it.
+
 ## Architecture
 
 - `lib/eerc-config.ts` — `EERC_CONTRACT_ADDRESS`, the `EncryptedERC` instance the app talks to
@@ -55,6 +71,35 @@ no browser-deploy step, unlike AvaKit's other templates.
 - `components/demo.tsx` — register → unlock → (owner: set auditor) → mint → confidential
   transfer → burn. Mint is disabled unless the connected wallet owns the instance and its
   auditor key is set; the owner sees a one-click "Set auditor" step until it is.
+- `components/funding.tsx` — `useFunding()` + `<FundingNotice />`: polls the balance while the
+  wallet is empty and follows `useFaucet()`. Shows "Getting test AVAX…" while the faucet works,
+  nothing noisy once funded, and on a refusal the faucet's message, a "Try again" button and the
+  official faucet. Buttons that send a transaction are disabled only while `funding.isEmpty` (the
+  balance was read and is zero) — an unknown balance is not an empty one.
+
+## Test AVAX (faucet)
+
+A new wallet holds nothing, so on Fuji `app/providers.tsx` passes a `faucetUrl` to
+`<AvaKitProvider>`: the provider funds the temporary (burner) wallet by itself when it connects with
+an empty balance, and `useFaucet().fund()` funds any other wallet on request. The default is
+AvaKit's shared Fuji faucet (`AVAKIT_FAUCET_URL` from `@avakit/core`) — rate-limited (one small drip
+per address per day, plus an hourly cap per IP address), paid for by the AvaKit maintainer, and
+meant for first runs only, never for a product. Set `NEXT_PUBLIC_AVAKIT_FAUCET_URL` to your own
+faucet's `/fund` URL (the Worker and its guide are in `services/faucet` of the AvaKit repository)
+or to `off` to ask no faucet. The URL is only ever passed on Fuji (chain id 43113) — keep it that
+way: a mainnet app must never ask a faucet for funds. When the faucet refuses, the fallback is the
+official faucet (needs a free Builder Hub sign-in).
+
+Two things to keep when you change this:
+
+- **Do not call `fund()` on mount.** The provider already asks for the temporary wallet, and
+  `useFaucet()` reports that request (`status`: `idle` → `funding` → `success` or `error`). A second
+  request for the same address is refused as "funded recently" and would show an error on a page
+  that is fine. `fund()` is for a button: "Get test AVAX" for another empty wallet, "Try again"
+  after an error.
+- **`status: "success"` means the faucet sent the transaction, not that it has arrived.** Keep
+  reading the balance until it is non-zero before enabling anything that costs gas —
+  `useFunding()` does this.
 
 ## The flow
 
@@ -94,7 +139,9 @@ One command replaces the old five manual steps:
 DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc
 ```
 
-Use a throwaway key funded with Fuji test AVAX. The script clones the official
+Use a throwaway key funded with Fuji test AVAX — the app's faucet only funds the wallet connected in
+the browser, so fund this key from the official faucet (needs a free Builder Hub sign-in:
+https://build.avax.network/console/primary-network/faucet). The script clones the official
 `ava-labs/EncryptedERC` repo into `~/.avakit/` — **pinned to the same commit the circuit CDN URLs
 use**, so contracts and circuits can never drift apart (the cached clone is reused only while
 `git rev-parse HEAD` in it equals that commit; anything else is replaced with a fresh clone, and a

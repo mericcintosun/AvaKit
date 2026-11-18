@@ -14,9 +14,22 @@ pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then: connect a wallet → **Register** (one-time, on-chain) → **Unlock private balance** (free,
-off-chain) → mint / confidential transfer / burn. These cost gas (except unlock), so fund your
-wallet with test AVAX on Fuji first: https://core.app/tools/testnet-faucet (the app itself has no
-faucet link — click the wallet button to see the full address to fund).
+off-chain) → mint / confidential transfer / burn. These cost gas (except unlock); a new wallet gets
+its first test AVAX from a faucet (see [Test AVAX](#test-avax)), and the buttons that send a
+transaction wait until it has arrived.
+
+## Test AVAX
+
+A new wallet is empty, so on Fuji the app asks a faucet for a little test AVAX: by itself for the
+temporary wallet ("Start instantly"), with no account or sign-in anywhere, and with a
+**Get test AVAX** button for any other wallet that holds none. By default that is AvaKit's shared
+Fuji faucet — rate-limited (one small drip per address per day, with an hourly cap per IP address),
+paid for by the AvaKit maintainer, and meant for first runs only: do not build a product on it.
+When it refuses or is empty, the app shows the faucet's message, a **Try again** button and the
+official faucet (needs a free Builder Hub sign-in). To run your own, deploy the Worker in
+[`services/faucet`](https://github.com/mericcintosun/AvaKit/tree/main/services/faucet) and set
+`NEXT_PUBLIC_AVAKIT_FAUCET_URL` to its `/fund` URL in `.env.local`; set it to `off` and the app
+asks no faucet at all.
 
 ## How it works
 
@@ -30,6 +43,18 @@ faucet link — click the wallet button to see the full address to fund).
   demo instance. Deploy your own with one command — `DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc` —
   then connect the deployer wallet: the app walks you through the one-click auditor step and mint
   unlocks. Confidential transfer and burn work for any registered wallet.
+
+## Pinned version and status
+
+- **Circuits and contracts:** [`ava-labs/EncryptedERC`](https://github.com/ava-labs/EncryptedERC)
+  at commit `c7eb0e09bc9315e68c35d3c09f5dce4b794d0485`. The browser loads the proving circuits from
+  that commit (`CIRCUIT_COMMIT` in `lib/eerc-config.ts`, every file checked against a pinned
+  SHA-256), and `pnpm deploy:eerc` builds the contracts from the same commit (`COMMIT` in
+  `scripts/deploy-eerc.mjs`). The two constants must stay equal.
+- **SDK:** `@avalabs/eerc-sdk` 1.0.2, an exact version in `package.json`.
+- Upstream merged security fixes with regenerated verifier keys on 2026-08-31 that are not in a tagged release yet; this template has not been moved to them.
+- **Testnet only.** The shared instance and `pnpm deploy:eerc` both live on Avalanche Fuji, and the
+  scaffolder offers no other chain for this template. Do not put real funds behind it.
 
 ## Stack
 

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AVAKIT_FAUCET_URL,
   type WalletAdapter,
   burnerAdapter,
   injectedAdapter,
@@ -28,6 +29,51 @@ const DEMO_WEB3AUTH_CLIENT_ID =
 // the note above the wagmi config below), so this is false unless you change
 // the chain yourself — the guard is here so that doing so fails safe.
 const ON_MAINNET = isMainnet(__CHAIN_CONST__);
+
+// Test AVAX for a first run. A brand-new wallet holds nothing, so it cannot pay
+// for its first transaction; a faucet sends it a little test AVAX to start with.
+//
+// AVAKIT_FAUCET_URL (from @avakit/core) is AvaKit's shared Fuji faucet: a
+// rate-limited convenience for first runs, paid for by the AvaKit maintainer.
+// It gives one small drip per address per day (and caps how many one IP address
+// can take in an hour), so a freshly scaffolded app works with no account
+// anywhere. It is not something to build a product on: it can be empty, it can
+// refuse, and it can change.
+//
+// Run your own before you ship. The faucet is a small Cloudflare Worker, and
+// its source and guide are in services/faucet of the AvaKit repository
+// (https://github.com/mericcintosun/AvaKit/tree/main/services/faucet). Put its
+// /fund URL in NEXT_PUBLIC_AVAKIT_FAUCET_URL (.env.local), or set that variable
+// to "off" and the app asks no faucet at all.
+
+// Fuji's chain id — the only chain a faucet is ever asked on (see below).
+const FUJI_CHAIN_ID = 43113;
+
+/**
+ * The faucet this app asks for test AVAX, or undefined for none.
+ *
+ * Fuji only: the faucet serves no other chain, and an app on a mainnet must
+ * never ask anyone for funds — there, a wallet is funded by its owner.
+ */
+function resolveFaucetUrl(): string | undefined {
+  if (ON_MAINNET || __CHAIN_CONST__.id !== FUJI_CHAIN_ID) return undefined;
+  const setting = process.env.NEXT_PUBLIC_AVAKIT_FAUCET_URL?.trim();
+  if (!setting) return AVAKIT_FAUCET_URL;
+  if (setting.toLowerCase() === "off") return undefined;
+  try {
+    const { protocol } = new URL(setting);
+    if (protocol === "https:" || protocol === "http:") return setting;
+  } catch {
+    // Not a URL at all: reported below, like any other value that is not one.
+  }
+  console.warn(
+    `NEXT_PUBLIC_AVAKIT_FAUCET_URL must be an http(s) URL or "off", but it is "${setting}". ` +
+      "No faucet is asked until it is fixed.",
+  );
+  return undefined;
+}
+
+const FAUCET_URL = resolveFaucetUrl();
 
 export function Providers({ children }: { children: ReactNode }) {
   const adapters = useMemo(() => {
@@ -93,7 +139,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          <AvaKitProvider chains={[__CHAIN_CONST__]} adapters={adapters}>
+          <AvaKitProvider chains={[__CHAIN_CONST__]} adapters={adapters} faucetUrl={FAUCET_URL}>
             {children}
           </AvaKitProvider>
         </WagmiProvider>

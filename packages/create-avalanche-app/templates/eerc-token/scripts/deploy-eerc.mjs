@@ -30,8 +30,10 @@ const key = process.env.DEPLOYER_PRIVATE_KEY;
 if (!key || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
   console.error(
     "\nDEPLOYER_PRIVATE_KEY is not set (or is not a 0x-prefixed 32-byte hex key).\n\n" +
-      "Use a throwaway key funded with Fuji test AVAX\n" +
-      "(faucet: https://core.app/tools/testnet-faucet), then:\n\n" +
+      "Use a throwaway key funded with Fuji test AVAX. The official faucet needs a free\n" +
+      "Builder Hub sign-in: https://build.avax.network/console/primary-network/faucet\n" +
+      "(The app's temporary wallet is funded without one, but this deployer key is not.)\n\n" +
+      "Then:\n\n" +
       "  DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc\n\n" +
       "The key stays in your shell environment — it is never written to disk.\n",
   );

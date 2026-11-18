@@ -7,6 +7,7 @@ import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { type Address, createWalletClient, custom, formatUnits, parseUnits } from "viem";
+import { FundingNotice, useFunding } from "@/components/funding";
 import {
   type CircuitURLs,
   EERC_CONTRACT_ADDRESS,
@@ -99,6 +100,11 @@ function EercPanel({
   circuits: CircuitURLs;
 }) {
   const { chain } = useAvaKit();
+  // Registering, minting, transferring and burning are transactions and cost
+  // gas. A new wallet has none until the faucet has funded it (see
+  // components/funding.tsx). Unlocking is only a signature, so it is never held
+  // back.
+  const funding = useFunding();
 
   // eERC needs a wallet client with an account already attached (viem's
   // "account hoisting"), unlike @avakit/core's getWalletClient, which passes
@@ -152,11 +158,12 @@ function EercPanel({
       <div className="flex flex-col gap-3 rounded-xl border p-6">
         <p className="text-sm">Step 1 — register a confidential account (signature, no gas cost beyond the tx).</p>
         <Button
-          disabled={busy !== null}
+          disabled={busy !== null || funding.isEmpty}
           onClick={() => run("register", async () => { await eerc.register(); setUnlocked(true); })}
         >
           {busy === "register" ? "Registering…" : "Register"}
         </Button>
+        <FundingNotice funding={funding} />
       </div>
     );
   }
@@ -192,6 +199,9 @@ function EercPanel({
       <Row label="Your private balance" value={fmt(balance.decryptedBalance)} mono />
       <Row label="Your account" value={shortenAddress(address, 6)} mono />
 
+      {/* Every action below is a transaction: none can be sent from an empty wallet. */}
+      <FundingNotice funding={funding} />
+
       {isOwner && !eerc.isAuditorKeySet ? (
         <div className="flex flex-col gap-2 border-t pt-4">
           <p className="text-sm">Set the auditor (owner step, one-time)</p>
@@ -200,7 +210,7 @@ function EercPanel({
             burn reverts until it is. This registers your own account as the auditor.
           </p>
           <Button
-            disabled={busy !== null}
+            disabled={busy !== null || funding.isEmpty}
             onClick={() =>
               run("auditor", async () => {
                 await eerc.setContractAuditorPublicKey(address);
@@ -237,7 +247,7 @@ function EercPanel({
         <div className="flex gap-2">
           <AmountInput value={mintAmount} onChange={setMintAmount} />
           <Button
-            disabled={busy !== null || !isOwner || !eerc.isAuditorKeySet}
+            disabled={busy !== null || funding.isEmpty || !isOwner || !eerc.isAuditorKeySet}
             onClick={() =>
               run("mint", () => balance.privateMint(address, parseUnits(mintAmount || "0", decimals)))
             }
@@ -258,7 +268,7 @@ function EercPanel({
         <div className="flex gap-2">
           <AmountInput value={transferAmount} onChange={setTransferAmount} />
           <Button
-            disabled={busy !== null || !transferTo}
+            disabled={busy !== null || funding.isEmpty || !transferTo}
             onClick={() =>
               run("transfer", () =>
                 balance.privateTransfer(transferTo, parseUnits(transferAmount || "0", decimals)),
@@ -276,7 +286,7 @@ function EercPanel({
           <AmountInput value={burnAmount} onChange={setBurnAmount} />
           <Button
             variant="outline"
-            disabled={busy !== null}
+            disabled={busy !== null || funding.isEmpty}
             onClick={() => run("burn", () => balance.privateBurn(parseUnits(burnAmount || "0", decimals)))}
           >
             {busy === "burn" ? "Burning…" : "Burn"}
