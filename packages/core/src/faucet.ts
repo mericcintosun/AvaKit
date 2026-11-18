@@ -8,6 +8,19 @@ import { FaucetError } from "./errors.js";
  * touches a private key here — it just calls the drip endpoint.
  */
 
+/**
+ * AvaKit's shared, rate-limited Fuji faucet: one small drip per address per
+ * day, there so that a first run works with no faucet of your own. It is a
+ * shared courtesy, not infrastructure: it can be empty or busy, and anything
+ * serious should run its own faucet (see `services/faucet` in the AvaKit
+ * repository) and pass that URL instead.
+ *
+ * Nothing in AvaKit uses this by default. Pass it explicitly, as
+ * `requestFaucet({ url: AVAKIT_FAUCET_URL, … })` or as `faucetUrl` on
+ * `<AvaKitProvider>`.
+ */
+export const AVAKIT_FAUCET_URL = "https://avakit-faucet.avakit.workers.dev/fund";
+
 export interface FaucetRequestOptions {
   /** Faucet endpoint that drips testnet AVAX (POST `{ address, chainId }`). */
   url: string;

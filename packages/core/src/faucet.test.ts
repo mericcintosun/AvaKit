@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FaucetError } from "./errors.js";
-import { requestFaucet } from "./faucet.js";
+import { AVAKIT_FAUCET_URL, requestFaucet } from "./faucet.js";
+import * as entry from "./index.js";
 
 const FAUCET = "https://faucet.example/drip";
 const ADDRESS = "0x000000000000000000000000000000000000dEaD";
@@ -71,5 +72,31 @@ describe("requestFaucet", () => {
 
     await expect(request).rejects.toBeInstanceOf(FaucetError);
     await expect(request).rejects.toThrow("Failed to fetch");
+  });
+});
+
+describe("AVAKIT_FAUCET_URL", () => {
+  it("names the drip endpoint of AvaKit's hosted Fuji faucet", () => {
+    expect(AVAKIT_FAUCET_URL).toBe("https://avakit-faucet.avakit.workers.dev/fund");
+    expect(entry.AVAKIT_FAUCET_URL).toBe(AVAKIT_FAUCET_URL);
+  });
+
+  // The hosted faucet is a shared courtesy. It is never a fallback: a request
+  // goes to the URL the caller passed, and nowhere else.
+  it("is never contacted unless the caller passes it", async () => {
+    const spy = stubFetch(() => json({ txHash: "0xabc" }));
+
+    await requestFaucet({ url: FAUCET, address: ADDRESS, chainId: 43113 });
+
+    expect(spy.mock.calls.map(([url]) => url)).toEqual([FAUCET]);
+  });
+
+  it("is posted to when the caller does pass it", async () => {
+    const spy = stubFetch(() => json({ txHash: "0xabc", amount: "0.02", chainId: 43113 }));
+
+    const result = await requestFaucet({ url: AVAKIT_FAUCET_URL, address: ADDRESS });
+
+    expect(spy.mock.calls.map(([url]) => url)).toEqual([AVAKIT_FAUCET_URL]);
+    expect(result.txHash).toBe("0xabc");
   });
 });

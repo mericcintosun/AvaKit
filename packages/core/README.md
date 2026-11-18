@@ -39,6 +39,7 @@ Chains live at `@avakit/core/chains`. The two adapters that need an extra SDK si
 - **Adapters** — `burnerAdapter({ chain })` (a throwaway in-browser wallet, zero setup — see the warning below) + `clearBurner()`; `injectedAdapter()` (Core / MetaMask); `web3authAdapter({ clientId })` (social login, from `@avakit/core/web3auth`); `coinbaseAdapter()` (passkey smart wallet, from `@avakit/core/coinbase`)
 - **Network** — `ensureChain(provider, chain)` (add + switch; once it resolves the wallet is on the chain, burner wallet included)
 - **Deploy** — `deployContract`, `getBytecode`
+- **Faucet** — `requestFaucet({ url, address, chainId })` asks a faucet API for testnet AVAX; `AVAKIT_FAUCET_URL` is the endpoint of AvaKit's shared Fuji faucet (see [below](#the-hosted-faucet))
 - **RPC data** — `getBalance`, `getTransactionReceipt`, `readContract` (take an `AvaChain`)
 - **Indexed data (AvaCloud)** — `getNativeBalance`, `listErc20Balances`, `listNfts`, `listTransactions` (take an address + a chain, either an `AvaChain` like `fuji` or a raw chain id like `43113`)
 
@@ -58,6 +59,18 @@ Everything defaults to the Fuji testnet. `deployContract` refuses a mainnet chai
 A chain counts as mainnet unless its definition says `testnet: true`, and always when its id is a known mainnet (`43114`). A definition that leaves the flag out is therefore treated as a mainnet, not as a testnet.
 
 `deployContract` resolves only for a contract that really exists: a deployment transaction that reverted is rejected with `DeployFailedError`.
+
+## The hosted faucet
+
+`AVAKIT_FAUCET_URL` (`https://avakit-faucet.avakit.workers.dev/fund`) is AvaKit's shared, rate-limited Fuji faucet: one small drip per address per day, there so that a first run works without a faucet of your own.
+
+```ts
+import { AVAKIT_FAUCET_URL, requestFaucet } from "@avakit/core";
+
+const { txHash } = await requestFaucet({ url: AVAKIT_FAUCET_URL, address: "0x…", chainId: 43113 });
+```
+
+It is a shared courtesy, not infrastructure: it can be empty or busy. For anything serious, deploy your own from [`services/faucet`](https://github.com/mericcintosun/AvaKit/tree/main/services/faucet) and pass that URL instead. Nothing in AvaKit falls back to the hosted faucet — it is used only where you pass it.
 
 For React components and hooks, see [`@avakit/react`](https://www.npmjs.com/package/@avakit/react). To scaffold a full app, use [`create-avalanche-app`](https://www.npmjs.com/package/create-avalanche-app).
 

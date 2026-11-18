@@ -79,6 +79,7 @@ export {
 } from "./errors.js";
 // Faucet (AvaKit-hosted testnet drip)
 export {
+  AVAKIT_FAUCET_URL,
   type FaucetRequestOptions,
   type FaucetResult,
   requestFaucet,
