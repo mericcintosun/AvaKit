@@ -60,7 +60,8 @@ contract AvaKitMessenger is ITeleporterReceiver {
 
     /// The AvaKitMessenger this contract accepts messages from, per source
     /// chain: blockchain ID (bytes32, NOT the EVM chainId) => contract address.
-    /// Unset (address(0)) means messages from that chain are rejected.
+    /// Unset (address(0)) means messages from that chain are rejected — all
+    /// of them, including one whose origin sender is itself address(0).
     mapping(bytes32 => address) public trustedRemote;
 
     string public lastMessage;
@@ -88,7 +89,8 @@ contract AvaKitMessenger is ITeleporterReceiver {
 
     /// @notice Register (or replace) the AvaKitMessenger this contract accepts
     /// messages from on `sourceBlockchainID`. Call it on BOTH sides after
-    /// deploying: each messenger trusts the other one.
+    /// deploying: each messenger trusts the other one. Passing address(0)
+    /// stops accepting messages from that chain.
     function setTrustedRemote(bytes32 sourceBlockchainID, address remote) external {
         require(msg.sender == owner, "AvaKitMessenger: caller is not the owner");
         trustedRemote[sourceBlockchainID] = remote;
@@ -124,8 +126,13 @@ contract AvaKitMessenger is ITeleporterReceiver {
         bytes calldata message
     ) external {
         require(msg.sender == address(TELEPORTER), "AvaKitMessenger: caller is not the Teleporter");
+        // A chain with no registered remote reads as address(0), so the
+        // comparison alone would accept an origin sender of address(0) from
+        // every unregistered chain — and the origin sender is whatever the
+        // source chain's Teleporter reports, which whoever runs that L1 controls.
+        address remote = trustedRemote[sourceBlockchainID];
         require(
-            trustedRemote[sourceBlockchainID] == originSenderAddress,
+            remote != address(0) && remote == originSenderAddress,
             "AvaKitMessenger: untrusted remote"
         );
         string memory decoded = abi.decode(message, (string));

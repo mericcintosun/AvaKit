@@ -166,6 +166,40 @@ contract AvaKitMessengerTest is TestBase {
         );
     }
 
+    function test_ReceiveRevertsForZeroSenderFromUnregisteredChain() public {
+        // An unregistered chain reads as address(0) in the mapping, so an
+        // origin sender of address(0) would "match" it. The origin sender is
+        // whatever the source chain's Teleporter reports, and anyone can run
+        // an L1 — unregistered must mean rejected, with no sender excepted.
+        vm.expectRevert(bytes("AvaKitMessenger: untrusted remote"));
+        vm.prank(TELEPORTER_ADDR);
+        messenger.receiveTeleporterMessage(
+            SRC_CHAIN,
+            address(0),
+            abi.encode("spoof")
+        );
+    }
+
+    function test_ReceiveRevertsAfterRemoteIsCleared() public {
+        messenger.setTrustedRemote(SRC_CHAIN, PEER);
+        // Registering address(0) is how the owner stops trusting a chain.
+        messenger.setTrustedRemote(SRC_CHAIN, address(0));
+
+        vm.expectRevert(bytes("AvaKitMessenger: untrusted remote"));
+        vm.prank(TELEPORTER_ADDR);
+        messenger.receiveTeleporterMessage(SRC_CHAIN, PEER, abi.encode("late"));
+
+        vm.expectRevert(bytes("AvaKitMessenger: untrusted remote"));
+        vm.prank(TELEPORTER_ADDR);
+        messenger.receiveTeleporterMessage(
+            SRC_CHAIN,
+            address(0),
+            abi.encode("spoof")
+        );
+
+        assertEq(messenger.messagesReceived(), 0, "nothing was stored");
+    }
+
     function test_ReceiveStoresMessageFromTrustedRemote() public {
         messenger.setTrustedRemote(SRC_CHAIN, PEER);
 
