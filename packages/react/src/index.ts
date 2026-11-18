@@ -29,6 +29,10 @@ export type {
   DataTransaction,
   Erc20TokenBalance,
   Erc721TokenBalance,
+  // What useFaucet() hands back: `result` is a FaucetResult, and an `error` that
+  // came from the faucet is a FaucetError whose `code` is a FaucetErrorCode.
+  FaucetErrorCode,
+  FaucetResult,
   NativeTokenBalance,
 } from "@avakit/core";
 export { ConnectAvalanche, type ConnectAvalancheProps } from "./connect-avalanche.js";
