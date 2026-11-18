@@ -7,7 +7,6 @@ import {
   Boxes,
   Check,
   Coins,
-  KeyRound,
   LayoutDashboard,
   Rocket,
   ShieldCheck,
@@ -25,7 +24,12 @@ import { Card } from "@/components/ui/card";
 
    The deck is dark whatever the site theme is: its root is forced `dark`, so
    every color below resolves from the dark design tokens in globals.css and
-   none is hardcoded here. */
+   none is hardcoded here.
+
+   Every sentence on it is a claim a grant reviewer can check. The copy was last
+   rewritten on 2026-11-18 to say only what holds for the release prepared that
+   day (the Fuji test wallets, write_contract, the shared faucet) and for the
+   official Avalanche tools as they were then. Re-check both before changing it. */
 
 const fade = {
   hidden: { opacity: 0, y: 24 },
@@ -92,8 +96,34 @@ const SURFACES = [
   { icon: Boxes, name: "@avakit/core", note: "viem kernel: wallets, deploy, data" },
   { icon: Wallet, name: "@avakit/react", note: "<ConnectAvalanche> + hooks" },
   { icon: Terminal, name: "create-avalanche-app", note: "batteries-included scaffolder" },
-  { icon: Bot, name: "@avakit/mcp", note: "scaffold + deploy from AI agents" },
+  { icon: Bot, name: "@avakit/mcp", note: "scaffold, deploy + mint from coding agents" },
   { icon: LayoutDashboard, name: "@avakit/studio", note: "local L1 / ICM dev dashboard" },
+];
+
+// Slide 04's terminal: lines the create-avalanche-app wizard prints for this
+// command, copied from a real run (see src/ui/wizard.tsx in that package). The
+// file count is what the nft-mint template scaffolds today; recount it when the
+// template changes. Nothing the CLI does not print belongs here.
+const WIZARD_OUTPUT = `$ npm create avalanche-app@latest my-app
+
+Project name    my-app
+Template        NFT mint
+Network         Fuji testnet
+Package manager npm
+
+✓ Created 20 files
+✓ Dependencies installed
+
+Your Avalanche dapp is ready.`;
+
+// Slide 05: the tools an agent uses to go from a prompt to a mint.
+const AGENT_TOOLS = [
+  { name: "scaffold_app" },
+  {
+    name: "deploy_contract · write_contract",
+    note: "Fuji test wallet built in; mainnet double-gated",
+  },
+  { name: "read_chain / get_context" },
 ];
 
 const TEMPLATES = [
@@ -109,7 +139,7 @@ const TEMPLATES = [
 
 const METRICS = [
   { icon: Boxes, big: "5", label: "packages published on npm" },
-  { icon: Terminal, big: "8", label: "deploy-ready templates" },
+  { icon: Terminal, big: "8", label: "templates: 5 run on Fuji, 3 on a local devnet" },
   { icon: ShieldCheck, big: "Fuji", label: "proven live, real on-chain tx" },
   { icon: Rocket, big: "1", label: "command to a live dapp" },
 ];
@@ -134,7 +164,7 @@ export default function PitchDeckPage() {
           </R>
           <R i={2}>
             <p className="max-w-2xl text-xl text-balance text-foreground/70 sm:text-2xl">
-              The open-source, <span className="text-primary">AI-native</span> create-next-app for
+              An open-source, <span className="text-primary">AI-native</span> create-next-app for
               Avalanche.
             </p>
           </R>
@@ -151,21 +181,21 @@ export default function PitchDeckPage() {
         <div className="flex flex-col gap-8">
           <R>
             <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
-              Building on Avalanche still takes hours, not minutes.
+              Starting from an empty folder still takes hours, not minutes.
             </h2>
           </R>
           <R i={1}>
             <p className="max-w-3xl text-lg text-foreground/60 sm:text-xl">
-              The C-Chain is EVM-compatible and end-user onboarding is solved (Core's seedless
-              wallet). The friction that's left is on the{" "}
+              The C-Chain is EVM-compatible, and seedless wallets such as Core give end users a way
+              in without a seed phrase. The friction that's left is on the{" "}
               <span className="text-foreground">developer</span> side.
             </p>
           </R>
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              "Wiring wallets, deploy, and onboarding from scratch takes hours.",
-              "No batteries-included scaffolder — everyone rebuilds the same setup.",
-              "Agents write most boilerplate now, but no Avalanche-native AI tooling.",
+              "Wiring wallets, deploy and onboarding from scratch still takes hours.",
+              "The official prompt-to-contract flow is hosted and needs an account; there is no official one-command create-app on npm.",
+              "Coding agents now write much of the boilerplate, but the official MCP server is read-only: an agent cannot deploy or mint through it.",
             ].map((t, i) => (
               <R key={t} i={i + 2}>
                 <Card className="h-full bg-foreground/[0.03] p-6 text-foreground/70">{t}</Card>
@@ -180,7 +210,7 @@ export default function PitchDeckPage() {
         <div className="flex flex-col gap-8">
           <R>
             <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
-              One core, five surfaces. <span className="text-primary">One command</span> to a live
+              One core, five packages. <span className="text-primary">One command</span> to a live
               dapp.
             </h2>
           </R>
@@ -217,11 +247,15 @@ export default function PitchDeckPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             {[
               { icon: Terminal, t: "Scaffold", d: "npm create avalanche-app@latest" },
-              { icon: KeyRound, t: "Sign in", d: "Google login, no seed phrases (Web3Auth)" },
+              {
+                icon: Wallet,
+                t: "Start instantly",
+                d: "A temporary wallet, funded on Fuji automatically. No seed phrase, no signup.",
+              },
               {
                 icon: Rocket,
-                t: "Deploy",
-                d: "Bundled bytecode → deploy from the browser on Fuji",
+                t: "Deploy and mint",
+                d: "Bundled bytecode, from the browser or from your coding agent.",
               },
             ].map((s, i) => (
               <R key={s.t} i={i}>
@@ -238,9 +272,7 @@ export default function PitchDeckPage() {
           </div>
           <R i={3}>
             <pre className="overflow-x-auto rounded-xl border bg-background p-5 font-mono text-sm text-foreground/80">
-              {`$ npm create avalanche-app@latest my-app
-✓ template · nft-mint   ✓ network · Fuji testnet
-✓ created 19 files      ✓ deployed on Fuji  (tx 0x9a1f…8e090)`}
+              {WIZARD_OUTPUT}
             </pre>
           </R>
         </div>
@@ -264,20 +296,20 @@ export default function PitchDeckPage() {
               Every scaffolded app ships <span className="text-foreground">CLAUDE.md</span>,{" "}
               <span className="text-foreground">llms.txt</span>, and{" "}
               <span className="text-foreground">.cursor rules</span>. And{" "}
-              <span className="text-primary">@avakit/mcp</span> exposes actions — not just docs — so
-              Claude Code and Cursor can scaffold, deploy, and read chain state for you.
+              <span className="text-primary">@avakit/mcp</span> gives Claude Code and Cursor tools
+              that act: scaffold an app, deploy its contract and mint on Fuji, then read the result
+              back from the chain.
             </p>
           </R>
           <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              "scaffold_app",
-              "deploy_contract (mainnet guardrails)",
-              "read_chain / get_context",
-            ].map((t, i) => (
-              <R key={t} i={i + 3}>
-                <Card className="flex items-center gap-2 bg-foreground/[0.03] p-4 font-mono text-sm text-foreground/70">
+            {AGENT_TOOLS.map((t, i) => (
+              <R key={t.name} i={i + 3}>
+                <Card className="flex h-full items-center gap-2 bg-foreground/[0.03] p-4 text-center font-mono text-sm text-foreground/70">
                   <Sparkles className="text-primary size-4 shrink-0" />
-                  {t}
+                  {t.name}
+                  {t.note ? (
+                    <span className="font-sans text-xs text-foreground/50">{t.note}</span>
+                  ) : null}
                 </Card>
               </R>
             ))}
@@ -338,7 +370,7 @@ export default function PitchDeckPage() {
               {[
                 "create-avalanche-app + @avakit/core · react · mcp · studio on npm",
                 "live at avakit.dev (EN + TR)",
-                "real Fuji deploy + mint (Snowtrace-verifiable)",
+                "a real Fuji deploy + mint in your browser at avakit.dev/new",
               ].map((t) => (
                 <span
                   key={t}
@@ -349,6 +381,11 @@ export default function PitchDeckPage() {
               ))}
             </div>
           </R>
+          <R i={5}>
+            <p className="text-sm text-foreground/50">
+              Usage is early and small. The live numbers are public at avakit.dev/stats.
+            </p>
+          </R>
         </div>
       </Slide>
 
@@ -357,7 +394,7 @@ export default function PitchDeckPage() {
         <div className="flex flex-col gap-8">
           <R>
             <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
-              A grant turns a working toolkit into the default way to build on Avalanche.
+              A grant puts a working toolkit in more builders' hands.
             </h2>
           </R>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -368,9 +405,10 @@ export default function PitchDeckPage() {
                 </div>
                 <ul className="flex flex-col gap-2 text-foreground/70">
                   {[
-                    "Newcomer DX: no-funds/faucet & error states, wallet-install flow",
-                    "Deeper docs, examples, and video walkthroughs",
-                    "Community support, hackathon starter, more Avalanche flows",
+                    "A pilot with real builders: external developers complete install, scaffold, deploy and mint on their own machines, with public results.",
+                    "Clean-machine reliability: a nightly end-to-end run of the published packages on fresh machines, and fixes for whatever the pilot surfaces.",
+                    "Off a tool in maintenance mode: move the L1, ICM and bridge templates from Avalanche CLI to the supported tools.",
+                    "A faucet that survives a workshop: abuse controls and funding for the pilot.",
                   ].map((t) => (
                     <li key={t} className="flex gap-2">
                       <ArrowLeftRight className="text-primary mt-1 size-3.5 shrink-0" />
@@ -387,9 +425,9 @@ export default function PitchDeckPage() {
                 </div>
                 <ul className="flex flex-col gap-2 text-foreground/70">
                   {[
-                    "Own-your-UI component library on shadcn primitives",
-                    "More one-command L1 / ICM / ICTT flows",
-                    "The road to a stable 1.0",
+                    "A stable 1.0",
+                    "More one-command Avalanche flows",
+                    "Mainnet stays a separate, reviewed step.",
                   ].map((t) => (
                     <li key={t} className="flex gap-2">
                       <Coins className="text-primary mt-1 size-3.5 shrink-0" />
