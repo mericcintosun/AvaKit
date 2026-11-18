@@ -160,9 +160,6 @@ jobs:
         service:
           - faucet
           - telemetry
-    defaults:
-      run:
-        working-directory: services/${{ matrix.service }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -175,7 +172,9 @@ jobs:
           cache-dependency-path: services/${{ matrix.service }}/package-lock.json
 
       - name: Install dependencies
+        working-directory: services/${{ matrix.service }}
         run: npm ci
 
       - name: Test
+        working-directory: services/${{ matrix.service }}
         run: npm test
