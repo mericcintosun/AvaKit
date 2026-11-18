@@ -46,15 +46,40 @@ export const FEEDBACK_FORM_URL =
 const SURFACE_ICONS = [Boxes, Wallet, Terminal, Bot, LayoutDashboard];
 const FEATURE_ICONS = [Sparkles, Bot, Palette, Rocket, ShieldCheck, Boxes];
 const GOAL_ICONS = [Wallet, Frame, Coins, Lock, EyeOff, Send, Rocket, ArrowLeftRight];
-const TEMPLATE_META = [
-  { id: "minimal", contracts: false, art: "/minimal.jpg" },
-  { id: "nft-mint", contracts: true, art: "/nft-mint.jpg" },
-  { id: "token-gated-app", contracts: true, art: "/token-gated.jpg" },
-  { id: "erc20-token", contracts: true, art: "/erc-20.jpg" },
-  { id: "icm-messenger", contracts: true, art: "/island.jpg" },
-  { id: "eerc-token", contracts: false, art: "/eERC.jpg" },
-  { id: "l1-launch", contracts: true, art: "/l1.jpg" },
-  { id: "token-bridge", contracts: false, art: "/ictt.jpg" },
+
+/**
+ * Where a template runs. "fuji": on the Fuji testnet, with nothing else to
+ * install. "devnet": on a local devnet that the template's setup script starts
+ * with Avalanche CLI.
+ */
+export type TemplateRunsOn = "fuji" | "devnet";
+
+// Facts about each template that do not change by language. `contracts`,
+// `runsOn` and `mainnet` mirror the template's manifest.json in
+// packages/create-avalanche-app/templates (`contracts`, `setup`, and whether
+// `chains` lists "c-chain"); keep them in step with it.
+const TEMPLATE_META: {
+  id: string;
+  contracts: boolean;
+  art: string;
+  runsOn: TemplateRunsOn;
+  /** Whether `--chain c-chain` (mainnet) is accepted for this template. */
+  mainnet: boolean;
+}[] = [
+  { id: "minimal", contracts: false, art: "/minimal.jpg", runsOn: "fuji", mainnet: true },
+  { id: "nft-mint", contracts: true, art: "/nft-mint.jpg", runsOn: "fuji", mainnet: false },
+  {
+    id: "token-gated-app",
+    contracts: true,
+    art: "/token-gated.jpg",
+    runsOn: "fuji",
+    mainnet: false,
+  },
+  { id: "erc20-token", contracts: true, art: "/erc-20.jpg", runsOn: "fuji", mainnet: false },
+  { id: "icm-messenger", contracts: true, art: "/island.jpg", runsOn: "devnet", mainnet: false },
+  { id: "eerc-token", contracts: false, art: "/eERC.jpg", runsOn: "fuji", mainnet: false },
+  { id: "l1-launch", contracts: true, art: "/l1.jpg", runsOn: "devnet", mainnet: false },
+  { id: "token-bridge", contracts: false, art: "/ictt.jpg", runsOn: "devnet", mainnet: false },
 ];
 // The recommender goal at index i maps to TEMPLATE_META[i]'s id.
 const GOAL_TEMPLATE_IDS = [
@@ -67,17 +92,17 @@ const GOAL_TEMPLATE_IDS = [
   "l1-launch",
   "token-bridge",
 ];
-// AvaKit column is highlighted; cells are invariant (the facts don't change by
-// language). Columns: AvaKit · thirdweb · Official starter-kit · BuilderKit ·
-// Embedded-wallet SaaS. thirdweb (multichain, AI + MCP too) is included so the
-// table is honest — AvaKit is still the only all-✓ column.
-const COMPARISON_CELLS = [
-  [true, true, true, true, false], // open-source & free (WaaS is hosted, not FOSS)
-  [true, true, false, false, false], // batteries-included scaffolder
-  [true, true, false, false, true], // social-login by default
-  [true, true, false, false, false], // AI-native (agent context + MCP)
-  [true, false, false, false, false], // one core (SDK + widget + CLI + MCP + Studio)
-  [true, false, false, false, false], // own your UI (copy-in shadcn, no lock-in)
+// The tools @avakit/mcp registers, in the order the docs list them. The
+// descriptions in `mcp.tools` below are matched to these by position.
+const MCP_TOOL_NAMES = [
+  "scaffold_app",
+  "list_templates",
+  "read_chain",
+  "estimate_gas",
+  "deploy_contract",
+  "write_contract",
+  "wallet_status",
+  "get_context",
 ];
 const MCP_CONFIG = `{
   "mcpServers": {
@@ -111,21 +136,36 @@ type Strings = {
   surfaces: { name: string; tagline: string; points: string[] }[];
   featuresSection: { eyebrow: string; title: string; lead: string };
   features: { title: string; body: string }[];
+  // How AvaKit relates to the official Avalanche tools. Every cell is a
+  // statement about a product, so each one has to be checked when it changes;
+  // `note` carries the date they were last checked.
   differentiation: {
     eyebrow: string;
     title: string;
     lead: string;
     note: string;
+    /** Header of the first column, which names what each row is about. */
+    topic: string;
     columns: string[];
+    /** One cell per column, in the same order as `columns`. */
+    rows: { label: string; cells: string[] }[];
   };
-  comparisonRows: string[];
   whoFor: { eyebrow: string; title: string; lead: string };
   audiences: { title: string; body: string }[];
   stepsSection: { eyebrow: string; title: string; lead: string };
   steps: { title: string; body: string; code: string }[];
   howTo: { eyebrow: string; title: string; lead: string; watchOnYoutube: string };
   templatesSection: { eyebrow: string; title: string; lead: string; all: string };
-  templatesPage: { eyebrow: string; title: string; lead: string; more: string };
+  templatesPage: {
+    eyebrow: string;
+    title: string;
+    lead: string;
+    more: string;
+    /** Badge text for where a template runs. */
+    runsOn: { fuji: string; fujiAndMainnet: string; devnet: string };
+    /** Shown on every template that needs Avalanche CLI. */
+    devnetNote: string;
+  };
   templates: { title: string; description: string; highlights: string[] }[];
   recommender: {
     eyebrow: string;
@@ -147,7 +187,6 @@ type Strings = {
     advanced: string;
     beginner: string;
   };
-  mcpToolNames: string[];
   faq: { eyebrow: string; title: string; items: { q: string; a: string }[] };
   cta: { eyebrow: string; title: string; body: string; primary: string; secondary: string };
   footer: { tagline: string };
@@ -157,26 +196,29 @@ type Strings = {
 };
 
 const EN: Strings = {
-  tagline: "The open-source, AI-native devtools for Avalanche.",
+  tagline: "Open-source, AI-native developer tools for Avalanche.",
   description:
-    "Scaffold a deploy-ready, social-login dapp with agent context baked in. One core, four surfaces. No seed phrases, no boilerplate.",
+    "Scaffold a working Avalanche dapp with one command: a temporary test wallet funded on Fuji, social login and browser wallets when you want them, and agent context baked in. One core, four surfaces.",
   nav: ["Docs", "Templates", "MCP", "AvaKit Studio"],
   header: { search: "Search", getStarted: "Get started", tryIt: "Try it now" },
   hero: {
     badge: "Open source · AI-native · MIT",
-    titleBefore: "The developer toolkit for building on",
+    titleBefore: "A developer toolkit for building on",
     titleHighlight: "Avalanche",
     ctaPrimary: "Get started",
     ctaSecondary: "Browse templates",
     // Mirrors what the CLI prints for nft-mint (see create-avalanche-app's
-    // wizard): its three choices, its two checkmarks, then the next steps.
+    // wizard): its three choices, its two checkmarks, then the next steps. The
+    // package manager is npm because the command above them is `npm create`,
+    // and the file count is what the template scaffolds today: every file under
+    // templates/nft-mint except manifest.json. Recount when that template changes.
     terminal: [
       "Template · NFT mint",
       "Network · Fuji testnet",
-      "Package manager · pnpm",
-      "Created 19 files",
+      "Package manager · npm",
+      "Created 20 files",
       "Dependencies installed",
-      "cd my-app && pnpm run dev",
+      "cd my-app && npm run dev",
       "Local: http://localhost:3000",
     ],
   },
@@ -193,7 +235,7 @@ const EN: Strings = {
       tagline: "Framework-agnostic kernel",
       points: [
         "viem clients for Fuji, C-Chain, and custom L1s",
-        "Wallet adapters (social login + injected)",
+        "Wallet adapters: temporary wallet, social login, browser wallet",
         "Deploy helpers and read-only chain data",
       ],
     },
@@ -201,27 +243,27 @@ const EN: Strings = {
       name: "@avakit/react",
       tagline: "Drop-in wallet UI + hooks",
       points: [
-        "<ConnectAvalanche /> social-login button",
+        "<ConnectAvalanche /> wallet button and chooser",
         "Hooks: useAvaAccount, useBalance, useContract…",
-        "Built on shadcn/ui, auto chain-switching",
+        "shadcn/ui styling, auto chain-switching",
       ],
     },
     {
       name: "create-avalanche-app",
-      tagline: "Batteries-included scaffolder",
+      tagline: "One-command scaffolder",
       points: [
-        "One command → a working, deploy-ready dapp",
-        "Templates for wallets, NFTs, token-gating",
+        "One command → a working dapp on the Fuji testnet",
+        "Eight templates, from a first transaction to your own L1",
         "Ships CLAUDE.md / llms.txt / .cursor rules",
       ],
     },
     {
       name: "@avakit/mcp",
-      tagline: "AI agent interface",
+      tagline: "MCP server for coding agents",
       points: [
-        "Scaffold + deploy from Claude Code / Cursor",
+        "Scaffold, deploy and mint from Claude Code / Cursor",
         "Read chain state over natural language",
-        "Testnet-first with mainnet guardrails",
+        "Fuji test wallet built in; mainnet double-gated",
       ],
     },
     {
@@ -236,108 +278,145 @@ const EN: Strings = {
   ],
   featuresSection: {
     eyebrow: "Why AvaKit",
-    title: "Everything you need, nothing you don't",
-    lead: "The boring parts (onboarding, wallets, chain switching, deploy) handled with safe defaults.",
+    title: "The setup work, already done",
+    lead: "The repetitive parts (wallets, test funds, chain switching, deploy) are handled with testnet-first defaults.",
   },
   features: [
     {
-      title: "Social-login onboarding",
-      body: "Users sign in with Google. No seed phrases. Web3Auth keeps the HSM-backed keys; AvaKit never touches them. Or skip sign-in entirely — a temporary in-browser wallet gets you a real transaction with nothing installed.",
+      title: "Start instantly",
+      body: "In the Fuji templates the first choice is Start instantly: a temporary wallet that is created in the browser and funded from AvaKit's shared faucet, so a first transaction needs no extension, seed phrase or account. Social login (Web3Auth) and browser wallets (Core, MetaMask) are one click away, and their keys stay with the wallet provider.",
     },
     {
       title: "AI-native by default",
-      body: "Every generated app ships with agent context, and the MCP server lets Claude / Cursor scaffold and deploy for you.",
+      body: "Every generated app ships agent context (CLAUDE.md, llms.txt, Cursor rules), and the MCP server lets Claude Code or Cursor scaffold, deploy and mint on Fuji for you.",
     },
     {
       title: "shadcn/ui, themed",
-      body: "A clean, accessible design system with dark/light wired from day one. Own your components; no vendor lock-in.",
+      body: "shadcn/ui styling with dark and light themes wired from day one. The app's own UI is plain code in your repo, in neutral grayscale and ready for your brand; the wallet button from @avakit/react follows the same theme tokens.",
     },
     {
-      title: "Deploy-ready",
-      body: "Contracts compile to bundled bytecode so you can deploy straight from the browser. Fuji by default.",
+      title: "Deploy from the browser",
+      body: "Templates with a contract ship its compiled bytecode, so the app deploys from the browser with no Foundry install. Fuji by default.",
     },
     {
       title: "Safe defaults",
-      body: "Testnet-first, mainnet is explicit opt-in, secrets stay in env, and a real wallet's keys never leave its wallet provider.",
+      body: "Testnet first. Mainnet is an explicit, guarded step, secrets stay in env, and a real wallet's keys never leave its wallet provider.",
     },
     {
       title: "Wrap, don't rewrite",
-      body: "AvaKit builds on viem, wagmi patterns, Web3Auth, and Foundry: mature pieces, packaged for a great DX.",
+      body: "AvaKit builds on viem, Web3Auth and Foundry: mature pieces, wired together so they work out of the box.",
     },
   ],
   differentiation: {
-    eyebrow: "Why AvaKit",
-    title: "The only one that combines it all",
-    lead: "Every piece exists somewhere: a starter kit here, a wallet SDK there, an AI tool elsewhere. AvaKit is the open-source toolkit that brings them together — Avalanche-native, with code you own and no vendor lock-in.",
-    note: "thirdweb = multichain SDK/CLI (great, but not Avalanche-specific; prebuilt clientId-gated UI) · Official starter-kit = ava-labs/avalanche-starter-kit · BuilderKit = ava-labs/builderkit · Embedded-wallet SaaS = AvaCloud WaaS / hosted providers.",
-    columns: ["AvaKit", "thirdweb", "Official starter-kit", "BuilderKit", "Embedded-wallet SaaS"],
+    eyebrow: "In context",
+    title: "Next to the official tools",
+    lead: "Ava Labs' Builder Hub covers a lot: Studio, a hosted prompt-to-contract flow in the Console; a read-only MCP server; and the Fuji faucet. AvaKit is the local, open-source counterpart: it lives in your own folder and your own coding agent, and needs no account for a first Fuji transaction.",
+    note: "Checked on 2026-11-18. The official tools change quickly; build.avax.network has their current state.",
+    topic: "Topic",
+    columns: ["AvaKit", "Official Avalanche tools (Builder Hub)"],
+    rows: [
+      {
+        label: "Starting a new dapp",
+        cells: [
+          "npm create avalanche-app: an npm CLI that writes the project into your own folder.",
+          "Studio in the Builder Hub Console: a hosted flow from a prompt to contracts, tests and a Fuji deployment. There is no official one-command create-app CLI on npm.",
+        ],
+      },
+      {
+        label: "Account for a first Fuji transaction",
+        cells: [
+          "None. A temporary test wallet is funded from AvaKit's shared, rate-limited faucet.",
+          "A free Builder Hub sign-in, for Studio and for the official faucet.",
+        ],
+      },
+      {
+        label: "MCP server for coding agents",
+        cells: [
+          "Reads, and on the Fuji testnet also writes: it deploys a contract and sends a contract call, behind explicit gates.",
+          "Read-only: it looks up documentation and on-chain data and never signs.",
+        ],
+      },
+      {
+        label: "Mainnet",
+        cells: [
+          "A separate, guarded step. Only the minimal template scaffolds for C-Chain, and the MCP server needs your own key and two opt-ins.",
+          "A gated promotion step inside Studio.",
+        ],
+      },
+      {
+        label: "Who is behind it",
+        cells: [
+          "An independent open-source project (MIT) with one maintainer, pre-1.0.",
+          "Ava Labs.",
+        ],
+      },
+    ],
   },
-  comparisonRows: [
-    "Open-source & free",
-    "Batteries-included scaffolder",
-    "Social-login onboarding by default",
-    "AI-native: agent context + MCP actions",
-    "One core: SDK + widget + CLI + MCP + Studio",
-    "Own your UI: copy-in shadcn, no lock-in",
-  ],
   whoFor: {
     eyebrow: "Who it's for",
     title: "Built for how people ship today",
-    lead: "Seedless wallets already solved end-user onboarding: Core and WaaS handle keys with HSMs. Developer onboarding never got the same treatment, and now agents write most of the boilerplate. AvaKit is the open-source, AI-native layer that closes the gap: one command, or one prompt, to a real Avalanche dapp.",
+    lead: "Seedless wallets such as Core gave end users a way in without a seed phrase, and coding agents now write much of the boilerplate. AvaKit works on the developer's side of that: one command, or one prompt to your own coding agent, to a working Avalanche dapp on your machine.",
   },
   audiences: [
     {
       title: "AI-first & vibe coders",
-      body: "Describe what you want and let Claude Code or Cursor scaffold, wire, and deploy it through the MCP. Actions, not just docs.",
+      body: "Describe what you want and let Claude Code or Cursor scaffold the app, deploy its contract and mint on Fuji through the MCP server, with no key to set up.",
     },
     {
       title: "Hackathon & weekend builders",
-      body: "From one npm command to a deployed, social-login dapp on Fuji in minutes. No seed phrases, no boilerplate, no chain-config spelunking.",
+      body: "From one npm command to an app that deploys and mints on Fuji in minutes. The first transaction needs no seed phrase, no account and no chain configuration.",
     },
     {
       title: "Teams onboarding to Avalanche",
-      body: "A production-shaped starting point (wallets, chain-switching, deploy, plus L1 and Interchain tooling) with safe, testnet-first defaults.",
+      body: "A structured starting point: wallets, chain switching and deploy, plus local L1 and Interchain templates, with testnet-first defaults. It is pre-1.0, and mainnet is a separate, explicit step.",
     },
   ],
   stepsSection: {
     eyebrow: "How it works",
     title: "From zero to first transaction",
-    lead: "Three steps. No seed phrases, no boilerplate, no chain-config spelunking.",
+    lead: "Three steps. No seed phrase, no account and no chain configuration for the first transaction.",
   },
   steps: [
     {
       title: "Scaffold",
-      body: "Run one command, or ask an AI agent. Pick from eight templates: a wallet, an NFT mint, a confidential token, your own L1, a cross-chain bridge, and more.",
+      body: "Run one command, or ask your coding agent. Pick from eight templates: a wallet, an NFT mint, a confidential token, your own L1, a cross-chain bridge, and more.",
       code: "npm create avalanche-app@latest my-app",
     },
     {
-      title: "Connect",
-      body: "Drop in <ConnectAvalanche />. Users sign in with social login or a browser wallet; AvaKit switches them to the right chain.",
-      code: "<ConnectAvalanche />",
+      title: "Start instantly",
+      body: "Run the app and choose Start instantly. It creates a temporary wallet in your browser and, on Fuji, funds it from AvaKit's shared faucet. Social login and browser wallets are in the same dialog.",
+      code: "cd my-app && npm run dev",
     },
     {
-      title: "Ship",
-      body: "Deploy contracts from the browser, read balances with hooks, and go from idea to first transaction in minutes.",
-      code: "pnpm dev  →  http://localhost:3000",
+      title: "Deploy and mint",
+      body: "Press Deploy, then Mint. The contract's bytecode ships with the app, so the browser sends both transactions and links the contract and the mint on the explorer. Your coding agent can do the same through the MCP server.",
+      code: 'await deploy({ abi, bytecode });\nawait nft.write("mint", []);',
     },
   ],
   howTo: {
     eyebrow: "Watch first",
     title: "See it, start to finish",
-    lead: "New to this? A short, zero-to-dapp walkthrough: run one command, sign in with Google, deploy and mint on Fuji. No prior web3 experience needed.",
+    lead: "A short zero-to-dapp walkthrough, recorded in July 2026 on an earlier release: run one command, sign in with Google, deploy and mint on Fuji. Today the CLI no longer asks for a wallet, and the app offers a temporary wallet first, so you can skip the sign-in.",
     watchOnYoutube: "Watch the full walkthrough with sound on YouTube",
   },
   templatesSection: {
     eyebrow: "Templates",
     title: "Start from a working example",
-    lead: "Real, deploy-ready dapps with a social-login wallet and AI context baked in.",
+    lead: "Working example apps with a wallet chooser and AI context files included.",
     all: "All templates",
   },
   templatesPage: {
     eyebrow: "Templates",
     title: "Start from a working example",
-    lead: "Every template is a real, deploy-ready dapp: shadcn/ui, a social-login wallet, dark/light from day one, and AI context files so Claude and Cursor understand it out of the box.",
-    more: "More templates are on the way. Want one? Contributions welcome: every template is just a folder under templates/ with a manifest.",
+    lead: "Every template is a working app: shadcn/ui, a wallet chooser, dark and light themes, and AI context files for Claude Code and Cursor. Five run on the Fuji testnet; three run on a local devnet and need Avalanche CLI.",
+    more: "Want another template? Contributions are welcome: each one is a folder with a manifest.json under packages/create-avalanche-app/templates.",
+    runsOn: {
+      fuji: "Fuji testnet",
+      fujiAndMainnet: "Fuji testnet · C-Chain opt-in",
+      devnet: "Local devnet · needs Avalanche CLI",
+    },
+    devnetNote:
+      "Runs on a local devnet started by Avalanche CLI, which has been in maintenance mode since December 2025. Needs a Unix-like shell (macOS, Linux or WSL2). Last proven end to end in July 2026.",
   },
   templates: [
     {
@@ -345,9 +424,9 @@ const EN: Strings = {
       description:
         "The smallest real dapp: connect a wallet, read your balance, send a transaction.",
       highlights: [
-        "Social-login + injected wallet",
+        "Temporary wallet, social login, browser wallet",
         "Balance + first transaction",
-        "Perfect starting point",
+        "The one template that also scaffolds for C-Chain mainnet",
       ],
     },
     {
@@ -355,7 +434,7 @@ const EN: Strings = {
       description:
         "Deploy an ERC-721 straight from the browser, then mint. No Foundry required to run it.",
       highlights: [
-        "Self-contained ERC-721",
+        "Self-contained ERC-721 with on-chain art",
         "Bundled bytecode → browser deploy",
         "Mint + on-chain reads",
       ],
@@ -363,16 +442,17 @@ const EN: Strings = {
     {
       title: "Token-gated app",
       description:
-        "Unlock content for holders of an access-pass NFT. Deploy, mint, and the gate opens.",
+        "Show content only to holders of an access-pass NFT. Deploy the pass, mint one, and the gate opens.",
       highlights: [
-        "Ownership-based content lock",
-        "Reusable access-pass NFT",
-        "Security notes included",
+        "Client-side ownership check (balanceOf)",
+        "Access-pass ERC-721, deployed from the browser",
+        "Notes on checking ownership server-side",
       ],
     },
     {
       title: "ERC-20 token",
-      description: "Deploy your own ERC-20 from the browser, mint supply, and transfer.",
+      description:
+        "Deploy a demo ERC-20 from the browser, mint from its open faucet function, and transfer.",
       highlights: [
         "Self-contained ERC-20 (18 decimals)",
         "Deploy + mint + transfer",
@@ -382,7 +462,7 @@ const EN: Strings = {
     {
       title: "ICM cross-chain messenger",
       description:
-        "Send a message between two Avalanche L1s with Interchain Messaging, over a one-command local devnet.",
+        "Send a message between two Avalanche L1s with Interchain Messaging, on a local devnet that one command starts. Needs Avalanche CLI.",
       highlights: [
         "One command: 2 local L1s + ICM + relayer",
         "Teleporter send + receive contract",
@@ -392,7 +472,7 @@ const EN: Strings = {
     {
       title: "Confidential token (eERC)",
       description:
-        "Register, mint, and privately transfer tokens with hidden balances using Avalanche's Encrypted ERC standard.",
+        "Register and unlock a private balance on a shared Fuji instance of Avalanche's Encrypted ERC. To mint, transfer and burn with hidden amounts, deploy your own instance with one script.",
       highlights: [
         "Zero-knowledge proofs, generated in the browser",
         "Hidden balances and transfer amounts",
@@ -402,21 +482,21 @@ const EN: Strings = {
     {
       title: "Launch your own L1",
       description:
-        "Spin up your own Avalanche L1 with one command, then explore blocks, send transactions, and deploy a contract in a built-in dashboard.",
+        "Start your own Avalanche L1 on a local network with one command, then explore blocks, send transactions, and deploy a contract in a built-in dashboard. Needs Avalanche CLI.",
       highlights: [
-        "One command → your own Subnet-EVM chain",
+        "One command → your own Subnet-EVM chain, locally",
         "Built-in block explorer (no Docker, no indexer)",
-        "Graduate to Fuji when you're ready",
+        "Advanced: a script to launch it on Fuji",
       ],
     },
     {
       title: "Cross-chain token bridge (ICTT)",
       description:
-        "Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer, over a one-command local devnet.",
+        "Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer, on a local devnet that one command starts. Needs Avalanche CLI.",
       highlights: [
         "One command: 2 L1s + relayer + a full ICTT bridge",
         "Lock on one chain, mint on the other, then back",
-        "Real Home/Remote contracts from ava-labs/icm-contracts",
+        "Home/Remote contracts compiled from ava-labs/icm-contracts",
       ],
     },
   ],
@@ -427,11 +507,11 @@ const EN: Strings = {
     recommended: "Recommended",
     seeAll: "See all templates",
     goals: [
-      "Add social login, no seed phrases",
+      "Connect a wallet, send a first transaction",
       "Mint NFTs from the browser",
-      "Launch my own token",
+      "Deploy a demo token",
       "Gate content to holders",
-      "Issue a confidential token",
+      "Try a confidential token",
       "Send cross-chain messages",
       "Launch my own L1",
       "Bridge tokens across L1s",
@@ -440,16 +520,18 @@ const EN: Strings = {
   mcp: {
     eyebrow: "AI-native",
     title: "Let your agent build on Avalanche",
-    lead: "@avakit/mcp exposes actions, not just docs, to Claude Code and Cursor. Ask in natural language.",
+    lead: "@avakit/mcp gives Claude Code and Cursor tools that act: scaffold an app, deploy its contract and mint on the Fuji testnet, with a test wallet built in. Ask in natural language.",
     add: "Add it to your MCP client:",
     headTool: "Tool",
     headDoes: "Does",
     tools: [
       "Create an Avalanche dapp from a template.",
-      "List available templates.",
+      "List the templates and the chains each one supports.",
       "Read a balance, a tx receipt, or a contract view function.",
-      "Deploy compiled bytecode. Fuji by default; mainnet needs two explicit opt-ins.",
       "Estimate gas for a call before you send it.",
+      "Deploy a compiled contract, from an artifact file or from bytecode. On Fuji it signs with a built-in test wallet; mainnet needs your own key and two explicit opt-ins.",
+      "Send a contract call such as mint. It is simulated first, and the same Fuji test wallet and mainnet gates apply.",
+      "Show which wallet the server would sign with on a chain, and its balance.",
       "AvaKit + Avalanche coding context and doc links.",
     ],
     cta: "Set up the MCP server",
@@ -457,37 +539,29 @@ const EN: Strings = {
     beginner:
       "New here? You don't need this. Start with the one-command scaffold above (or watch the walkthrough). MCP is an optional power-up once you already build with Claude Code or Cursor — it needs a config file, not a chat message.",
   },
-  mcpToolNames: [
-    "scaffold_app",
-    "list_templates",
-    "read_chain",
-    "deploy_contract",
-    "estimate_gas",
-    "get_context",
-  ],
   faq: {
     eyebrow: "FAQ",
     title: "Questions, answered",
     items: [
       {
         q: "Do my users need a seed phrase?",
-        a: "No. AvaKit offers social login (Google/Apple/email) via Web3Auth, where keys are HSM-backed and never pass through AvaKit, plus browser wallets like Core and MetaMask. It also ships a temporary burner wallet for zero-setup demos — that one does hold a throwaway testnet key in the browser, by design.",
+        a: "No. The Fuji templates offer social login (Google, Apple or email through Web3Auth), and every template works with browser wallets such as Core and MetaMask; those keys stay with the wallet provider and never pass through AvaKit. For trying things out there is also a temporary wallet with no seed phrase, extension or account. It is testnet-only and, by design, keeps a throwaway key in the browser's storage.",
       },
       {
         q: "Is it locked to a specific wallet or provider?",
-        a: "No. Wallet providers sit behind an adapter interface, so you can swap Web3Auth for a browser wallet, a burner, Coinbase Smart Wallet, or your own. Components are copy-in shadcn, so there's no vendor lock-in.",
+        a: "No. Wallets sit behind an adapter interface, so you can use a browser wallet, Web3Auth social login, a Coinbase passkey wallet, the temporary wallet, or an adapter of your own. The app's own UI is plain code in your repo; the wallet button comes from @avakit/react and follows your theme tokens.",
       },
       {
         q: "What chains are supported?",
-        a: "Avalanche Fuji (testnet, default), C-Chain (mainnet, opt-in), and any custom EVM L1 via defineChain.",
+        a: "Avalanche Fuji (testnet, the default), C-Chain (mainnet, opt-in), and any custom EVM L1 through defineChain. The scaffolder wires Fuji by default; only the minimal template can be scaffolded for C-Chain, and three templates run on a local devnet.",
       },
       {
         q: "How is it 'AI-native'?",
-        a: "Every scaffolded app ships CLAUDE.md, llms.txt and .cursor rules, and @avakit/mcp lets Claude Code / Cursor scaffold, deploy, and read chain state directly.",
+        a: "Every scaffolded app ships CLAUDE.md, llms.txt and .cursor rules, and @avakit/mcp lets Claude Code or Cursor scaffold an app, deploy its contract, send a contract call such as mint, and read chain state. On Fuji the server signs with a temporary test wallet; mainnet needs your own key and two explicit opt-ins.",
       },
       {
         q: "Is it production-ready?",
-        a: "AvaKit is pre-1.0. The core, React layer, scaffolder, MCP, and Studio are built, published, and verified live on Fuji; APIs may still change before 1.0.",
+        a: "Not yet. AvaKit is pre-1.0: all five packages are published on npm and the scaffold, deploy and mint path runs on Fuji, but APIs may still change. It has one maintainer, and three templates and the local dashboard depend on Avalanche CLI, which is in maintenance mode. Mainnet is a separate, explicit step.",
       },
     ],
   },
@@ -498,9 +572,9 @@ const EN: Strings = {
     primary: "Get started",
     secondary: "Browse templates",
   },
-  footer: { tagline: "The open-source, AI‑native developer toolkit for Avalanche." },
+  footer: { tagline: "An open-source, AI‑native developer toolkit for Avalanche." },
   cinematic: {
-    line1: "Next.js, but for Avalanche.",
+    line1: "create-next-app, but for Avalanche.",
     line2: "One command. A live dapp.",
     introducing: "Introducing",
   },
@@ -514,7 +588,7 @@ const EN: Strings = {
 const TR: Strings = {
   tagline: "Avalanche için açık kaynak, AI-native geliştirici araçları.",
   description:
-    "Sosyal-girişli, deploy'a hazır bir dapp'i tek komutla kur; AI ajan bağlamı gömülü gelir. Tek çekirdek, dört yüzey. Seed phrase yok, boilerplate yok.",
+    "Tek komutla çalışan bir Avalanche dapp'i kur: Fuji'de fonlanan geçici bir test cüzdanı, istediğinde sosyal giriş ve tarayıcı cüzdanları, üstüne gömülü AI ajan bağlamı. Tek çekirdek, dört yüzey.",
   nav: ["Dokümanlar", "Şablonlar", "MCP", "AvaKit Studio"],
   header: { search: "Ara", getStarted: "Başla", tryIt: "Hemen dene" },
   hero: {
@@ -526,10 +600,10 @@ const TR: Strings = {
     terminal: [
       "Şablon · NFT mint",
       "Ağ · Fuji testnet",
-      "Paket yöneticisi · pnpm",
-      "19 dosya oluşturuldu",
+      "Paket yöneticisi · npm",
+      "20 dosya oluşturuldu",
       "Bağımlılıklar kuruldu",
-      "cd my-app && pnpm run dev",
+      "cd my-app && npm run dev",
       "Yerel: http://localhost:3000",
     ],
   },
@@ -546,7 +620,7 @@ const TR: Strings = {
       tagline: "Framework-bağımsız çekirdek",
       points: [
         "Fuji, C-Chain ve özel L1'ler için viem client'ları",
-        "Cüzdan adaptörleri (sosyal giriş + injected)",
+        "Cüzdan adaptörleri: geçici cüzdan, sosyal giriş, tarayıcı cüzdanı",
         "Deploy yardımcıları ve salt-okunur zincir verisi",
       ],
     },
@@ -554,27 +628,27 @@ const TR: Strings = {
       name: "@avakit/react",
       tagline: "Hazır cüzdan arayüzü + hook'lar",
       points: [
-        "<ConnectAvalanche /> sosyal-giriş butonu",
+        "<ConnectAvalanche /> cüzdan butonu ve seçici",
         "Hook'lar: useAvaAccount, useBalance, useContract…",
-        "shadcn/ui üzerine, otomatik zincir değişimi",
+        "shadcn/ui stili, otomatik zincir değişimi",
       ],
     },
     {
       name: "create-avalanche-app",
-      tagline: "Her şey dahil scaffolder",
+      tagline: "Tek komutluk scaffolder",
       points: [
-        "Tek komut → çalışan, deploy'a hazır dapp",
-        "Cüzdan, NFT, token-gating şablonları",
+        "Tek komut → Fuji testnet'te çalışan bir dapp",
+        "Sekiz şablon: ilk işlemden kendi L1'ine",
         "CLAUDE.md / llms.txt / .cursor kuralları ile gelir",
       ],
     },
     {
       name: "@avakit/mcp",
-      tagline: "AI ajan arayüzü",
+      tagline: "Kodlama ajanları için MCP sunucusu",
       points: [
-        "Claude Code / Cursor'dan scaffold + deploy",
+        "Claude Code / Cursor'dan scaffold, deploy ve mint",
         "Zincir durumunu doğal dille oku",
-        "Testnet-öncelikli, mainnet için koruma",
+        "Fuji test cüzdanı gömülü; mainnet çift onaylı",
       ],
     },
     {
@@ -589,117 +663,154 @@ const TR: Strings = {
   ],
   featuresSection: {
     eyebrow: "Neden AvaKit",
-    title: "İhtiyacın olan her şey, fazlası değil",
-    lead: "Sıkıcı kısımlar (onboarding, cüzdanlar, zincir değişimi, deploy) güvenli varsayılanlarla halledilir.",
+    title: "Kurulum işi, hazır yapılmış",
+    lead: "Tekrarlayan kısımlar (cüzdanlar, test fonu, zincir değişimi, deploy) testnet-öncelikli varsayılanlarla halledilir.",
   },
   features: [
     {
-      title: "Sosyal-girişli onboarding",
-      body: "Kullanıcılar Google ile giriş yapar; seed phrase yok. Anahtarlar Web3Auth'un HSM-destekli sisteminde durur; AvaKit onlara asla dokunmaz. Ya da girişi tümden atla — tarayıcıda beliren geçici bir cüzdanla, hiçbir şey kurmadan gerçek bir işlem gönder.",
+      title: "Hemen başla",
+      body: "Fuji şablonlarında ilk seçenek Start instantly'dir: tarayıcıda oluşturulan ve AvaKit'in paylaşımlı faucet'inden fonlanan geçici bir cüzdan. İlk işlem için eklenti, seed phrase ya da hesap gerekmez. Sosyal giriş (Web3Auth) ve tarayıcı cüzdanları (Core, MetaMask) bir tık uzakta; onların anahtarları cüzdan sağlayıcısında kalır.",
     },
     {
       title: "Varsayılan olarak AI-native",
-      body: "Üretilen her uygulama ajan bağlamıyla gelir; MCP sunucusu Claude / Cursor'ın senin yerine scaffold ve deploy yapmasını sağlar.",
+      body: "Üretilen her uygulama ajan bağlamıyla gelir (CLAUDE.md, llms.txt, Cursor kuralları); MCP sunucusu Claude Code veya Cursor'ın senin yerine Fuji'de scaffold, deploy ve mint yapmasını sağlar.",
     },
     {
       title: "shadcn/ui, temalı",
-      body: "İlk günden dark/light bağlı, temiz ve erişilebilir bir tasarım sistemi. Bileşenler senindir; sağlayıcıya bağımlılık yok.",
+      body: "İlk günden dark/light bağlı shadcn/ui stili. Uygulamanın kendi arayüzü reponda duran düz koddur; nötr gri tonlarda gelir, kendi markanı uygularsın. @avakit/react'ten gelen cüzdan butonu da aynı tema token'larını izler.",
     },
     {
-      title: "Deploy'a hazır",
-      body: "Kontratlar gömülü bytecode'a derlenir; doğrudan tarayıcıdan deploy edersin. Varsayılan Fuji.",
+      title: "Tarayıcıdan deploy",
+      body: "Kontratlı şablonlar derlenmiş bytecode ile gelir; uygulama Foundry kurmadan tarayıcıdan deploy eder. Varsayılan Fuji.",
     },
     {
       title: "Güvenli varsayılanlar",
-      body: "Testnet-öncelikli, mainnet açık onayla, sırlar env'de kalır, gerçek bir cüzdanın anahtarları cüzdan sağlayıcısından hiç çıkmaz.",
+      body: "Testnet-öncelikli. Mainnet açık ve korumalı, ayrı bir adımdır; sırlar env'de kalır, gerçek bir cüzdanın anahtarları cüzdan sağlayıcısından hiç çıkmaz.",
     },
     {
       title: "Sar, yeniden yazma",
-      body: "AvaKit viem, wagmi kalıpları, Web3Auth ve Foundry üzerine kurulur: olgun parçalar, harika bir geliştirici deneyimi için paketlenmiş.",
+      body: "AvaKit viem, Web3Auth ve Foundry üzerine kurulur: olgun parçalar, kutudan çıktığı gibi birlikte çalışacak şekilde bağlanmış.",
     },
   ],
   differentiation: {
-    eyebrow: "Neden AvaKit",
-    title: "Hepsini birleştiren tek araç",
-    lead: "Her parça bir yerlerde var: burada bir starter kit, orada bir cüzdan SDK'sı, başka yerde bir AI aracı. AvaKit bunları bir araya getirir — Avalanche'e özgü, kodunu sen sahiplenirsin, sağlayıcı kilidi yok.",
-    note: "thirdweb = çok-zincirli SDK/CLI (harika ama Avalanche'e özgü değil; hazır, clientId'e bağlı UI) · Resmi starter-kit = ava-labs/avalanche-starter-kit · BuilderKit = ava-labs/builderkit · Gömülü-cüzdan SaaS = AvaCloud WaaS / barındırılan sağlayıcılar.",
-    columns: ["AvaKit", "thirdweb", "Resmi starter-kit", "BuilderKit", "Gömülü-cüzdan SaaS"],
+    eyebrow: "Bağlam",
+    title: "Resmi araçların yanında",
+    lead: "Ava Labs'in Builder Hub'ı çok şeyi kapsıyor: Console içindeki Studio (barındırılan bir prompt'tan-kontrata akışı), salt-okunur bir MCP sunucusu ve Fuji faucet'i. AvaKit bunların yerel, açık kaynak karşılığıdır: kendi klasöründe ve kendi kodlama ajanında yaşar, ilk Fuji işlemi için hesap istemez.",
+    note: "2026-11-18'de kontrol edildi. Resmi araçlar hızlı değişiyor; güncel durumları build.avax.network'te.",
+    topic: "Konu",
+    // No "(Builder Hub)" here, unlike the English header: the table header is
+    // upper-cased by CSS, and under lang="tr" that turns the i in an English
+    // name into a dotted capital (BUİLDER). The lead above names Builder Hub.
+    columns: ["AvaKit", "Resmi Avalanche araçları"],
+    rows: [
+      {
+        label: "Yeni bir dapp başlatmak",
+        cells: [
+          "npm create avalanche-app: projeyi kendi klasörüne yazan bir npm CLI'ı.",
+          "Builder Hub Console'da Studio: bir prompt'tan kontratlara, testlere ve bir Fuji deploy'una giden, barındırılan bir akış. npm'de resmi, tek komutluk bir create-app CLI'ı yok.",
+        ],
+      },
+      {
+        label: "İlk Fuji işlemi için hesap",
+        cells: [
+          "Gerekmez. Geçici bir test cüzdanı, AvaKit'in paylaşımlı ve limitli faucet'inden fonlanır.",
+          "Studio ve resmi faucet için ücretsiz bir Builder Hub girişi.",
+        ],
+      },
+      {
+        label: "Kodlama ajanları için MCP sunucusu",
+        cells: [
+          "Okur; Fuji testnet'te yazar da: açık onay kapılarının arkasında kontrat deploy eder ve kontrat çağrısı gönderir.",
+          "Salt-okunur: dokümanlara ve zincir verisine bakar, asla imzalamaz.",
+        ],
+      },
+      {
+        label: "Mainnet",
+        cells: [
+          "Ayrı, korumalı bir adım. Yalnızca minimal şablonu C-Chain için scaffold edilir; MCP sunucusu kendi anahtarını ve iki ayrı onayı ister.",
+          "Studio içinde, onaya bağlı bir mainnet'e taşıma adımı.",
+        ],
+      },
+      {
+        label: "Arkasında kim var",
+        cells: ["Tek bakımcılı, bağımsız ve açık kaynak (MIT) bir proje; 1.0 öncesi.", "Ava Labs."],
+      },
+    ],
   },
-  comparisonRows: [
-    "Açık kaynak & ücretsiz",
-    "Her şey dahil scaffolder",
-    "Varsayılan sosyal-girişli onboarding",
-    "AI-native: ajan bağlamı + MCP eylemleri",
-    "Tek çekirdek: SDK + widget + CLI + MCP + Studio",
-    "Arayüz senin: kopyala-gel shadcn, bağımlılık yok",
-  ],
   whoFor: {
     eyebrow: "Kimin için",
     title: "İnsanların bugün geliştirdiği şekle göre tasarlandı",
-    lead: "Seedless cüzdanlar son-kullanıcı onboarding'ini çoktan çözdü: Core ve WaaS anahtarları HSM'lerle yönetiyor. Geliştirici onboarding'i aynı ilgiyi hiç görmedi ve artık boilerplate'in çoğunu ajanlar yazıyor. AvaKit bu boşluğu kapatan açık kaynak, AI-native katmandır: tek komut ya da tek prompt ile gerçek bir Avalanche dapp'i.",
+    lead: "Core gibi seedless cüzdanlar son kullanıcıya seed phrase'siz bir giriş yolu açtı; boilerplate'in büyük kısmını da artık kodlama ajanları yazıyor. AvaKit işin geliştirici tarafıyla ilgilenir: tek komut ya da kendi kodlama ajanına tek bir prompt ile, makinende çalışan bir Avalanche dapp'i.",
   },
   audiences: [
     {
       title: "AI-öncelikli & vibe coder'lar",
-      body: "Ne istediğini anlat; Claude Code veya Cursor MCP üzerinden scaffold etsin, bağlasın ve deploy etsin. Sadece doküman değil, eylem.",
+      body: "Ne istediğini anlat; Claude Code veya Cursor, MCP sunucusu üzerinden uygulamayı scaffold etsin, kontratını deploy etsin ve Fuji'de mint etsin. Kurman gereken bir anahtar yok.",
     },
     {
       title: "Hackathon & hafta sonu geliştiricileri",
-      body: "Tek npm komutundan dakikalar içinde Fuji'de yayında, sosyal-girişli bir dapp'e. Seed phrase yok, boilerplate yok, zincir-config uğraşı yok.",
+      body: "Tek npm komutundan, dakikalar içinde Fuji'de deploy ve mint yapan bir uygulamaya. İlk işlem için seed phrase, hesap ya da zincir ayarı gerekmez.",
     },
     {
       title: "Avalanche'e geçen ekipler",
-      body: "Üretime yakın bir başlangıç noktası (cüzdanlar, zincir değişimi, deploy, üstüne L1 ve Interchain araçları), güvenli ve testnet-öncelikli varsayılanlarla.",
+      body: "Düzenli bir başlangıç noktası: cüzdanlar, zincir değişimi ve deploy, üstüne yerel L1 ve Interchain şablonları; testnet-öncelikli varsayılanlarla. 1.0 öncesidir ve mainnet ayrı, açık bir adımdır.",
     },
   ],
   stepsSection: {
     eyebrow: "Nasıl çalışır",
     title: "Sıfırdan ilk işleme",
-    lead: "Üç adım. Seed phrase yok, boilerplate yok, zincir-config uğraşı yok.",
+    lead: "Üç adım. İlk işlem için seed phrase, hesap ya da zincir ayarı yok.",
   },
   steps: [
     {
       title: "Kur",
-      body: "Tek komut çalıştır (veya bir AI ajanına sor). Sekiz şablondan seç: bir cüzdan, bir NFT mint, gizli bir token, kendi L1'in, zincirler-arası bir köprü ve dahası.",
+      body: "Tek komut çalıştır ya da kodlama ajanına söyle. Sekiz şablondan seç: bir cüzdan, bir NFT mint, gizli bir token, kendi L1'in, zincirler-arası bir köprü ve dahası.",
       code: "npm create avalanche-app@latest my-app",
     },
     {
-      title: "Bağlan",
-      body: "<ConnectAvalanche /> ekle. Kullanıcılar sosyal giriş veya tarayıcı cüzdanıyla girer; AvaKit onları doğru zincire geçirir.",
-      code: "<ConnectAvalanche />",
+      title: "Hemen başla",
+      body: "Uygulamayı çalıştır ve Start instantly'yi seç. Tarayıcında geçici bir cüzdan oluşturur ve Fuji'de onu AvaKit'in paylaşımlı faucet'inden fonlar. Sosyal giriş ve tarayıcı cüzdanları aynı pencerededir.",
+      code: "cd my-app && npm run dev",
     },
     {
-      title: "Yayınla",
-      body: "Kontratları tarayıcıdan deploy et, bakiyeleri hook'larla oku ve fikirden ilk işleme dakikalar içinde ulaş.",
-      code: "pnpm dev  →  http://localhost:3000",
+      title: "Deploy et ve mint et",
+      body: "Önce Deploy'a, sonra Mint'e bas. Kontratın bytecode'u uygulamayla birlikte gelir; iki işlemi de tarayıcı gönderir, kontratın ve mint'in explorer bağlantısını gösterir. Kodlama ajanın aynısını MCP sunucusu üzerinden yapabilir.",
+      code: 'await deploy({ abi, bytecode });\nawait nft.write("mint", []);',
     },
   ],
   howTo: {
     eyebrow: "Önce izle",
     title: "Baştan sona, gözünle gör",
-    lead: "Yeni misin? Sıfırdan dapp'e kısa bir anlatım: tek komut çalıştır, Google ile giriş yap, Fuji'de deploy edip mint et. Önceden web3 deneyimi gerekmez.",
+    lead: "Sıfırdan dapp'e kısa bir anlatım; Temmuz 2026'da, daha eski bir sürümle kaydedildi: tek komut çalıştır, Google ile giriş yap, Fuji'de deploy edip mint et. Bugün CLI artık cüzdan sormuyor ve uygulama önce geçici bir cüzdan sunuyor; yani girişi atlayabilirsin.",
     watchOnYoutube: "Sesli tam anlatımı YouTube'da izle",
   },
   templatesSection: {
     eyebrow: "Şablonlar",
     title: "Çalışan bir örnekten başla",
-    lead: "Sosyal-girişli cüzdan ve AI bağlamı gömülü, gerçek ve deploy'a hazır dapp'ler.",
+    lead: "Cüzdan seçicisi ve AI bağlam dosyalarıyla gelen, çalışan örnek uygulamalar.",
     all: "Tüm şablonlar",
   },
   templatesPage: {
     eyebrow: "Şablonlar",
     title: "Çalışan bir örnekten başla",
-    lead: "Her şablon gerçek, deploy'a hazır bir dapp'tir: shadcn/ui, sosyal-girişli cüzdan, ilk günden dark/light ve Claude ile Cursor'ın kutudan anlaması için AI bağlam dosyaları.",
-    more: "Daha fazla şablon yolda. Bir tane mi istiyorsun? Katkılar açık: her şablon templates/ altında bir manifest içeren bir klasörden ibaret.",
+    lead: "Her şablon çalışan bir uygulamadır: shadcn/ui, cüzdan seçici, dark/light tema ve Claude Code ile Cursor için AI bağlam dosyaları. Beşi Fuji testnet'te çalışır; üçü yerel bir devnet'te çalışır ve Avalanche CLI ister.",
+    more: "Başka bir şablon mu istiyorsun? Katkılar açık: her şablon, packages/create-avalanche-app/templates altında manifest.json içeren bir klasördür.",
+    runsOn: {
+      fuji: "Fuji testnet",
+      fujiAndMainnet: "Fuji testnet · C-Chain isteğe bağlı",
+      devnet: "Yerel devnet · Avalanche CLI gerekir",
+    },
+    devnetNote:
+      "Avalanche CLI'ın başlattığı yerel bir devnet'te çalışır; bu araç Aralık 2025'ten beri bakım modunda. Unix benzeri bir kabuk gerekir (macOS, Linux veya WSL2). Uçtan uca en son Temmuz 2026'da doğrulandı.",
   },
   templates: [
     {
       title: "Minimal",
       description: "En küçük gerçek dapp: cüzdan bağla, bakiyeni oku, bir işlem gönder.",
       highlights: [
-        "Sosyal-giriş + injected cüzdan",
+        "Geçici cüzdan, sosyal giriş, tarayıcı cüzdanı",
         "Bakiye + ilk işlem",
-        "Mükemmel başlangıç noktası",
+        "C-Chain mainnet için de scaffold edilebilen tek şablon",
       ],
     },
     {
@@ -707,7 +818,7 @@ const TR: Strings = {
       description:
         "Doğrudan tarayıcıdan bir ERC-721 deploy et, sonra mint et. Çalıştırmak için Foundry gerekmez.",
       highlights: [
-        "Bağımsız ERC-721",
+        "On-chain görselli, bağımsız ERC-721",
         "Gömülü bytecode → tarayıcıdan deploy",
         "Mint + zincir okuması",
       ],
@@ -715,16 +826,17 @@ const TR: Strings = {
     {
       title: "Token-gated uygulama",
       description:
-        "Bir erişim-geçişi NFT'sine sahip olanlara içerik aç. Deploy et, mint et, kapı açılsın.",
+        "İçeriği yalnızca bir erişim-geçişi NFT'sine sahip olanlara göster. Geçişi deploy et, bir tane mint et, kapı açılsın.",
       highlights: [
-        "Sahiplik-tabanlı içerik kilidi",
-        "Yeniden kullanılabilir erişim-geçişi NFT'si",
-        "Güvenlik notları dahil",
+        "İstemci tarafında sahiplik kontrolü (balanceOf)",
+        "Tarayıcıdan deploy edilen erişim-geçişi ERC-721'i",
+        "Sahipliği sunucu tarafında doğrulama notları",
       ],
     },
     {
       title: "ERC-20 token",
-      description: "Kendi ERC-20'ni tarayıcıdan deploy et, arz bas ve transfer et.",
+      description:
+        "Tarayıcıdan demo bir ERC-20 deploy et, herkese açık faucet fonksiyonundan mint et ve transfer et.",
       highlights: [
         "Bağımsız ERC-20 (18 ondalık)",
         "Deploy + mint + transfer",
@@ -734,7 +846,7 @@ const TR: Strings = {
     {
       title: "ICM zincirler-arası mesajlaşma",
       description:
-        "Interchain Messaging ile iki Avalanche L1'i arasında mesaj gönder; tek komutluk yerel devnet üzerinde.",
+        "Interchain Messaging ile iki Avalanche L1'i arasında mesaj gönder; tek komutla başlayan yerel bir devnet üzerinde. Avalanche CLI gerekir.",
       highlights: [
         "Tek komut: 2 yerel L1 + ICM + relayer",
         "Teleporter gönder + al kontratı",
@@ -744,7 +856,7 @@ const TR: Strings = {
     {
       title: "Gizli token (eERC)",
       description:
-        "Avalanche'in Encrypted ERC standardıyla gizli bakiyeler kullanarak token kaydet, bas ve özel olarak transfer et.",
+        "Avalanche'in Encrypted ERC standardının Fuji'deki paylaşımlı bir örneğinde kaydol ve gizli bakiyeni aç. Gizli tutarlarla mint, transfer ve burn için tek script ile kendi örneğini deploy et.",
       highlights: [
         "Tarayıcıda üretilen sıfır-bilgi kanıtları",
         "Gizli bakiyeler ve transfer tutarları",
@@ -754,21 +866,21 @@ const TR: Strings = {
     {
       title: "Kendi L1'ini başlat",
       description:
-        "Tek komutla kendi Avalanche L1'ini başlat; sonra blokları keşfet, işlem gönder ve gömülü bir panelde kontrat deploy et.",
+        "Tek komutla yerel bir ağda kendi Avalanche L1'ini başlat; sonra gömülü bir panelde blokları keşfet, işlem gönder ve kontrat deploy et. Avalanche CLI gerekir.",
       highlights: [
-        "Tek komut → kendi Subnet-EVM zincirin",
+        "Tek komut → yerelde kendi Subnet-EVM zincirin",
         "Gömülü blok gezgini (Docker yok, indexer yok)",
-        "Hazır olunca Fuji'ye geç",
+        "İleri seviye: Fuji'de başlatmak için bir script",
       ],
     },
     {
       title: "Zincirler-arası token köprüsü (ICTT)",
       description:
-        "Interchain Token Transfer ile iki Avalanche L1'i arasında bir ERC-20 köprüle; tek komutluk yerel devnet üzerinde.",
+        "Interchain Token Transfer ile iki Avalanche L1'i arasında bir ERC-20 köprüle; tek komutla başlayan yerel bir devnet üzerinde. Avalanche CLI gerekir.",
       highlights: [
         "Tek komut: 2 L1 + relayer + tam ICTT köprüsü",
         "Bir zincirde kilitle, diğerinde bas, sonra geri getir",
-        "ava-labs/icm-contracts'tan gerçek Home/Remote kontratları",
+        "ava-labs/icm-contracts'tan derlenen Home/Remote kontratları",
       ],
     },
   ],
@@ -779,11 +891,11 @@ const TR: Strings = {
     recommended: "Önerilen",
     seeAll: "Tüm şablonları gör",
     goals: [
-      "Sosyal giriş ekle, seed phrase yok",
+      "Cüzdan bağla, ilk işlemi gönder",
       "Tarayıcıdan NFT mint et",
-      "Kendi token'ımı çıkar",
+      "Demo bir token deploy et",
       "İçeriği sahiplere kilitle",
-      "Gizli bir token çıkar",
+      "Gizli bir token dene",
       "Zincirler-arası mesaj gönder",
       "Kendi L1'imi başlat",
       "L1'ler arası token köprüle",
@@ -792,16 +904,18 @@ const TR: Strings = {
   mcp: {
     eyebrow: "AI-native",
     title: "Ajanın Avalanche üzerinde inşa etsin",
-    lead: "@avakit/mcp, Claude Code ve Cursor'a sadece doküman değil eylemler sunar. Doğal dille iste.",
+    lead: "@avakit/mcp, Claude Code ve Cursor'a iş yapan araçlar verir: bir uygulama scaffold et, kontratını deploy et ve Fuji testnet'te mint et; test cüzdanı içinde gelir. Doğal dille iste.",
     add: "MCP istemcine ekle:",
     headTool: "Araç",
     headDoes: "Ne yapar",
     tools: [
       "Bir şablondan Avalanche dapp'i oluşturur.",
-      "Mevcut şablonları listeler.",
+      "Şablonları ve her birinin desteklediği zincirleri listeler.",
       "Bir bakiye, işlem makbuzu veya kontrat view fonksiyonu okur.",
-      "Derlenmiş bytecode deploy eder. Varsayılan Fuji; mainnet iki ayrı açık onay ister.",
-      "Göndermeden önce bir çağrının gazını tahmin et.",
+      "Göndermeden önce bir çağrının gazını tahmin eder.",
+      "Derlenmiş bir kontratı, bir artifact dosyasından veya bytecode'dan deploy eder. Fuji'de gömülü test cüzdanıyla imzalar; mainnet kendi anahtarını ve iki ayrı açık onayı ister.",
+      "Mint gibi bir kontrat çağrısı gönderir. Önce simüle edilir; aynı Fuji test cüzdanı ve aynı mainnet kapıları geçerlidir.",
+      "Sunucunun bir zincirde hangi cüzdanla imzalayacağını ve o cüzdanın bakiyesini gösterir.",
       "AvaKit + Avalanche kodlama bağlamı ve doküman linkleri.",
     ],
     cta: "MCP sunucusunu kur",
@@ -809,37 +923,29 @@ const TR: Strings = {
     beginner:
       "Yeni misin? Buna ihtiyacın yok. Yukarıdaki tek-komut scaffold ile başla (ya da anlatım videosunu izle). MCP, zaten Claude Code veya Cursor ile geliştirdiğinde işine yarayan opsiyonel bir güçlendirme — ve bir chat mesajına değil, bir config dosyasına eklenir.",
   },
-  mcpToolNames: [
-    "scaffold_app",
-    "list_templates",
-    "read_chain",
-    "deploy_contract",
-    "estimate_gas",
-    "get_context",
-  ],
   faq: {
     eyebrow: "SSS",
     title: "Sorular, yanıtlandı",
     items: [
       {
         q: "Kullanıcılarımın seed phrase'e ihtiyacı var mı?",
-        a: "Hayır. AvaKit, Web3Auth ile sosyal giriş (Google/Apple/e-posta) sunar; bu anahtarlar HSM-desteklidir ve AvaKit'ten asla geçmez. Core ve MetaMask gibi tarayıcı cüzdanları da çalışır. Kurulumsuz demolar için geçici bir burner cüzdan da gelir; o cüzdan, bilerek, tarayıcıda tek kullanımlık bir testnet anahtarı tutar.",
+        a: "Hayır. Fuji şablonları sosyal giriş (Web3Auth üzerinden Google, Apple veya e-posta) sunar; her şablon Core, MetaMask gibi tarayıcı cüzdanlarıyla da çalışır. Bu anahtarlar cüzdan sağlayıcısında kalır ve AvaKit'ten asla geçmez. Denemek için bir de geçici cüzdan var: seed phrase, eklenti ya da hesap istemez. Yalnızca testnet içindir ve, bilerek, tarayıcının depolamasında tek kullanımlık bir anahtar tutar.",
       },
       {
         q: "Belirli bir cüzdana veya sağlayıcıya kilitli mi?",
-        a: "Hayır. Cüzdan sağlayıcıları bir adaptör arayüzünün arkasında; Web3Auth'u tarayıcı cüzdanı, burner, Coinbase Smart Wallet veya kendinkiyle değiştirebilirsin. Bileşenler kopyala-gel shadcn; sağlayıcıya bağımlılık yok.",
+        a: "Hayır. Cüzdanlar bir adaptör arayüzünün arkasında durur; tarayıcı cüzdanı, Web3Auth sosyal girişi, Coinbase passkey cüzdanı, geçici cüzdan ya da kendi adaptörünü kullanabilirsin. Uygulamanın kendi arayüzü reponda duran düz koddur; cüzdan butonu @avakit/react'ten gelir ve tema token'larını izler.",
       },
       {
         q: "Hangi zincirler destekleniyor?",
-        a: "Avalanche Fuji (testnet, varsayılan), C-Chain (mainnet, opsiyonel) ve defineChain ile herhangi bir özel EVM L1.",
+        a: "Avalanche Fuji (testnet, varsayılan), C-Chain (mainnet, isteğe bağlı) ve defineChain ile herhangi bir özel EVM L1. Scaffolder varsayılan olarak Fuji'yi bağlar; yalnızca minimal şablonu C-Chain için scaffold edilebilir, üç şablon ise yerel bir devnet'te çalışır.",
       },
       {
         q: "Nasıl 'AI-native'?",
-        a: "Scaffold edilen her uygulama CLAUDE.md, llms.txt ve .cursor kurallarıyla gelir; @avakit/mcp, Claude Code / Cursor'ın doğrudan scaffold, deploy ve zincir durumu okumasını sağlar.",
+        a: "Scaffold edilen her uygulama CLAUDE.md, llms.txt ve .cursor kurallarıyla gelir; @avakit/mcp, Claude Code veya Cursor'ın bir uygulama scaffold etmesini, kontratını deploy etmesini, mint gibi bir kontrat çağrısı göndermesini ve zincir durumunu okumasını sağlar. Sunucu Fuji'de geçici bir test cüzdanıyla imzalar; mainnet kendi anahtarını ve iki ayrı açık onayı ister.",
       },
       {
         q: "Üretime hazır mı?",
-        a: "AvaKit 1.0 öncesi. Çekirdek, React katmanı, scaffolder, MCP ve Studio inşa edildi, yayınlandı ve Fuji'de canlı doğrulandı; API'ler 1.0'dan önce değişebilir.",
+        a: "Henüz değil. AvaKit 1.0 öncesi: beş paketin tümü npm'de yayında ve scaffold, deploy, mint akışı Fuji'de çalışıyor; ama API'ler hâlâ değişebilir. Tek bir bakımcısı var; üç şablon ve yerel panel de bakım modundaki Avalanche CLI'a bağlı. Mainnet ayrı, açık bir adımdır.",
       },
     ],
   },
@@ -852,7 +958,7 @@ const TR: Strings = {
   },
   footer: { tagline: "Avalanche için açık kaynak, AI‑native geliştirici araç seti." },
   cinematic: {
-    line1: "Next.js, ama Avalanche için.",
+    line1: "create-next-app, ama Avalanche için.",
     line2: "Tek komut. Canlı bir dapp.",
     introducing: "Karşınızda",
   },
@@ -876,6 +982,8 @@ export type Template = {
   id: string;
   contracts: boolean;
   art: string;
+  runsOn: TemplateRunsOn;
+  mainnet: boolean;
   title: string;
   description: string;
   highlights: string[];
@@ -902,10 +1010,7 @@ export function getContent(locale: Locale) {
     })) as Surface[],
     featuresSection: s.featuresSection,
     features: s.features.map((x, i) => ({ icon: FEATURE_ICONS[i], ...x })),
-    differentiation: {
-      ...s.differentiation,
-      rows: s.comparisonRows.map((label, i) => ({ label, cells: COMPARISON_CELLS[i] })),
-    },
+    differentiation: s.differentiation,
     whoFor: s.whoFor,
     audiences: s.audiences,
     stepsSection: s.stepsSection,
@@ -925,7 +1030,7 @@ export function getContent(locale: Locale) {
     mcp: {
       ...s.mcp,
       config: MCP_CONFIG,
-      tools: s.mcpToolNames.map((name, i) => ({ name, description: s.mcp.tools[i] })),
+      tools: MCP_TOOL_NAMES.map((name, i) => ({ name, description: s.mcp.tools[i] })),
     },
     faq: s.faq,
     cta: s.cta,

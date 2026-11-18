@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "AvaKit — AI-native Avalanche devtools",
     short_name: "AvaKit",
     description:
-      "Avalanche's open-source, AI-native create-next-app: scaffold a social-login dapp, deploy-ready, with agent context baked in.",
+      "An open-source, AI-native create-next-app for Avalanche: scaffold a working dapp with a temporary test wallet, social login and browser wallets, and agent context baked in.",
     start_url: "/",
     display: "standalone",
     background_color: "#0b0b0c",

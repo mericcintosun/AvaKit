@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Minus } from "lucide-react";
 import { useLocale } from "next-intl";
 
 import { fadeUp, Reveal, RevealGroup } from "@/components/motion";
@@ -19,7 +18,10 @@ import { cn } from "@/lib/utils";
 
 const pad = (n: number) => String(n + 1).padStart(2, "0");
 
-/* ── Differentiation: honest comparison ───────────────────────────────── */
+/* ── AvaKit next to the official Avalanche tools ──────────────────────────
+   Sentences, not checkmarks: a tick or a dash cannot say "hosted, behind a
+   sign-in" or "read-only", and those differences are the whole point of the
+   section. The copy lives in lib/content.ts, with the date it was checked. */
 export function DifferentiationSection() {
   const { differentiation: d } = getContent(useLocale() as Locale);
   return (
@@ -31,15 +33,17 @@ export function DifferentiationSection() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead scope="col" className="min-w-[220px]">
-                    Capability
+                  {/* Narrower on a phone, so the edge of the last column shows
+                      and the table reads as something to scroll sideways. */}
+                  <TableHead scope="col" className="min-w-[110px] sm:min-w-[160px]">
+                    {d.topic}
                   </TableHead>
                   {d.columns.map((col, i) => (
                     <TableHead
                       key={col}
                       scope="col"
                       className={cn(
-                        "min-w-[110px] text-center",
+                        "min-w-[200px] sm:min-w-[240px]",
                         i === 0 && "text-foreground font-semibold",
                       )}
                     >
@@ -51,32 +55,23 @@ export function DifferentiationSection() {
               <TableBody>
                 {d.rows.map((row) => (
                   <TableRow key={row.label}>
-                    {/* A row header, so a screen reader announces the capability
-                        with each answer ("thirdweb, Open-source & free: Yes"). */}
+                    {/* A row header, so a screen reader announces the topic with
+                        each answer ("AvaKit, Mainnet: A separate, guarded step…"). */}
                     <th
                       scope="row"
-                      className="text-muted-foreground p-4 text-left align-middle font-normal"
+                      className="text-foreground p-4 text-left align-top text-sm font-medium"
                     >
                       {row.label}
                     </th>
                     {d.columns.map((col, i) => (
                       <TableCell
                         key={`${row.label}-${col}`}
-                        className={cn("text-center", i === 0 && "bg-primary/5")}
-                      >
-                        {/* The icons are aria-hidden (lucide's default), so the
-                            answer itself is spelled out for assistive tech. */}
-                        {row.cells[i] ? (
-                          <>
-                            <Check className="text-primary mx-auto size-4" />
-                            <span className="sr-only">Yes</span>
-                          </>
-                        ) : (
-                          <>
-                            <Minus className="text-muted-foreground/40 mx-auto size-4" />
-                            <span className="sr-only">No</span>
-                          </>
+                        className={cn(
+                          "text-muted-foreground align-top text-sm leading-relaxed text-pretty",
+                          i === 0 && "bg-primary/5",
                         )}
+                      >
+                        {row.cells[i]}
                       </TableCell>
                     ))}
                   </TableRow>

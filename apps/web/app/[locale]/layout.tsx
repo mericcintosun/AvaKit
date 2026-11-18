@@ -17,7 +17,7 @@ import { homeTitle, OG_IMAGE, withSiteName } from "@/lib/metadata";
 import "../globals.css";
 
 const DESCRIPTION =
-  "Avalanche's open-source, AI-native create-next-app: scaffold a social-login dapp, deploy-ready, with agent context baked in.";
+  "An open-source, AI-native create-next-app for Avalanche: scaffold a working dapp with a temporary test wallet, social login and browser wallets, and agent context baked in.";
 
 const jsonLd = {
   "@context": "https://schema.org",
