@@ -15,7 +15,7 @@ own if you'd rather not use ours.
 
 ```bash
 cd services/faucet
-npm install
+npm ci
 
 npx wrangler login
 
@@ -37,11 +37,64 @@ NEXT_PUBLIC_AVAKIT_FAUCET_URL = https://<worker>.workers.dev/fund
 `avakit.dev/new` then funds each visitor's burner automatically. Without it the
 page stays honest and links to the official Fuji faucet instead.
 
-**Upgrading a faucet deployed before the Durable Object.** Earlier versions kept
-their rate limits in a KV namespace (`FAUCET_KV`). Nothing needs migrating:
-`npx wrangler deploy` creates the Durable Object and the limits start empty.
-The old namespace is no longer bound and can be deleted with
-`npx wrangler kv namespace delete --namespace-id <id>`.
+## First deploy of this version
+
+For a faucet that is already running the earlier Worker, which kept its rate
+limits in a KV namespace (`FAUCET_KV`) — the hosted `avakit-faucet` is one. From
+`services/faucet`, in this order:
+
+```bash
+npm ci                      # the locked wrangler and viem
+npx wrangler login
+npx wrangler secret list    # AVAKIT_FAUCET_KEY must be in the list
+npx wrangler deploy
+curl https://<worker>.workers.dev/health
+# one test drip, to an address of your own that was not funded today
+curl -X POST https://<worker>.workers.dev/fund \
+  -H 'content-type: application/json' \
+  -d '{"address":"0x<your address>","chainId":43113}'
+```
+
+`/health` should answer `"ok": true` with the faucet's address, its balance,
+`"amount": "0.02"` and `"turnstile": false`; the drip should answer
+`{ txHash, amount, chainId }`, and the same request again `429 address_limited`.
+If `secret list` shows `TURNSTILE_SECRET` on the faucet behind `avakit.dev/new`,
+read [Turnstile](#turnstile-optional) before deploying.
+
+What that deploy does:
+
+- It applies Durable Object migration `v1` (`new_sqlite_classes = ["Faucet"]`
+  in `wrangler.toml`), which creates the `Faucet` class. That happens once.
+- It drops the `FAUCET_KV` binding, because `wrangler.toml` no longer names it.
+  The namespace itself stays in the account until you delete it:
+  `npx wrangler kv namespace delete --namespace-id <id>`.
+- The rate limits start empty, once. The counters in KV are not carried over,
+  so every address and every client has its full allowance right after the
+  deploy.
+- Secrets set with `npx wrangler secret put` survive it: `AVAKIT_FAUCET_KEY`
+  and, if you set them, `TURNSTILE_SECRET` and `FAUCET_FUJI_RPC`.
+- The clients do not change: the request and the success answer are the same
+  as before, so it does not matter whether the Worker, the site or the npm
+  packages go out first.
+
+Two more things, **not verified against a live account** — they could not be
+tried without deploying:
+
+- A plain-text variable that exists only in the Cloudflare dashboard is
+  overwritten by the values in `wrangler.toml`: after the deploy it is gone
+  (wrangler's configuration reference says so, under `keep_vars`). If the
+  running faucet has `FAUCET_FUJI_RPC` set that way, set it as a secret first
+  (`npx wrangler secret put FAUCET_FUJI_RPC`), which survives.
+- Rolling back to the KV version after the migration probably takes more than
+  redeploying the old code. That Worker has no `Faucet` class, so its
+  `wrangler.toml` would most likely need the KV binding back and a further
+  migration that removes the class, which also deletes the limits it stored:
+
+  ```toml
+  [[migrations]]
+  tag = "v2"
+  deleted_classes = ["Faucet"]
+  ```
 
 ## Config
 
