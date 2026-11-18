@@ -48,7 +48,7 @@ Chains live at `@avakit/core/chains`. The two adapters that need an extra SDK si
 
 - It calls viem's `generatePrivateKey()` **in the browser** and, by default, stores that key in **`localStorage` in the clear** (`avakit.burner.pk`). Any script running on the page can read it. There is no HSM and no enclave.
 - It is **testnet-only, enforced in code**: it refuses to connect on, or switch to, a mainnet chain, and `<AvaKitProvider>` (`@avakit/react`) disconnects it if the app moves to one.
-- Treat it as a throwaway session holding a faucet drip, not as a wallet. Never send real funds to a burner address. `clearBurner()` deletes the stored key; `persist: false` keeps the key out of `localStorage`.
+- Treat it as a throwaway session holding a faucet drip, not as a wallet. Never send real funds to a burner address. `clearBurner()` deletes the stored key; `persist: false` keeps the key out of `localStorage` and in memory only, so the adapter keeps its wallet across reconnects and a reload starts a fresh one.
 - `injectedAdapter()`, `web3authAdapter()` and `coinbaseAdapter()` are the upgrade path. With those, keys stay with the wallet provider.
 
 ## Mainnet is opt-in

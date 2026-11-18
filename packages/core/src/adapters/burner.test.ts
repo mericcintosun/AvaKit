@@ -255,4 +255,36 @@ describe("burnerAdapter", () => {
     await burnerAdapter({ persist: false }).connect();
     expect(ls._store.size).toBe(0);
   });
+
+  // "In memory only" still has to mean one wallet per adapter. Each connect()
+  // used to generate a new key, so a reconnect (the React provider drops the
+  // burner on a mainnet, for one) stranded the faucet drip on the old address.
+  it("keeps one wallet across reconnects when persist is false, in memory only", async () => {
+    const ls = mockStorage();
+    vi.stubGlobal("localStorage", ls);
+    const adapter = burnerAdapter({ persist: false });
+
+    const first = await adapter.connect();
+    await adapter.disconnect();
+    const second = await adapter.connect();
+
+    expect(second.address).toBe(first.address);
+    expect(ls._store.size).toBe(0);
+
+    // Another adapter, as after a reload, starts a fresh wallet.
+    const other = await burnerAdapter({ persist: false }).connect();
+    expect(other.address).not.toBe(first.address);
+  });
+
+  it("generates a fresh wallet on the next connect after clearBurner", async () => {
+    vi.stubGlobal("localStorage", mockStorage());
+    const adapter = burnerAdapter({});
+
+    const first = await adapter.connect();
+    await adapter.disconnect();
+    clearBurner();
+    const second = await adapter.connect();
+
+    expect(second.address).not.toBe(first.address);
+  });
 });

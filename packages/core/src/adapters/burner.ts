@@ -36,7 +36,11 @@ export interface BurnerAdapterOptions {
   chain?: AvaChain;
   /** Supply an existing key (e.g. to restore a specific wallet). Default: load persisted or generate. */
   privateKey?: Hex;
-  /** Persist the key to localStorage so the same burner survives reloads. Default: true. */
+  /**
+   * Persist the key to localStorage so the same burner survives reloads.
+   * Default: true. With `false` the key is kept in memory only: this adapter
+   * keeps its wallet across reconnects, and a reload starts a fresh one.
+   */
   persist?: boolean;
   /** localStorage key used when persisting. Default: "avakit.burner.pk". */
   storageKey?: string;
@@ -205,6 +209,10 @@ export function burnerAdapter(options: BurnerAdapterOptions = {}): WalletAdapter
   const storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
   let provider: BurnerProvider | null = null;
   let address: Address | null = null;
+  // With `persist: false` the generated key lives here and nowhere else, so
+  // reconnecting through this adapter restores the same wallet instead of
+  // stranding whatever the first one was funded with.
+  let memoryKey: Hex | null = null;
 
   return {
     id: "burner",
@@ -217,10 +225,14 @@ export function burnerAdapter(options: BurnerAdapterOptions = {}): WalletAdapter
 
     async connect(): Promise<WalletConnection> {
       assertTestnet(initialChain, "connect on");
-      const key = options.privateKey ?? (persist ? readStoredKey(storageKey) : null);
+      const key = options.privateKey ?? (persist ? readStoredKey(storageKey) : memoryKey);
       const pk = key ?? generatePrivateKey();
-      if (persist && !options.privateKey && pk !== key) {
-        getStorage()?.setItem(storageKey, pk);
+      if (!options.privateKey && pk !== key) {
+        if (persist) {
+          getStorage()?.setItem(storageKey, pk);
+        } else {
+          memoryKey = pk;
+        }
       }
       let account: PrivateKeyAccount;
       try {
@@ -234,8 +246,10 @@ export function burnerAdapter(options: BurnerAdapterOptions = {}): WalletAdapter
     },
 
     async disconnect() {
-      // Keep the persisted key so reconnecting restores the same burner address.
-      // Call clearBurner(storageKey) to forget it and generate a fresh wallet.
+      // Keep the key (persisted, or in memory with `persist: false`) so
+      // reconnecting restores the same burner address. Call
+      // clearBurner(storageKey) to forget a persisted key and generate a fresh
+      // wallet; a key held in memory goes away with the adapter.
       provider = null;
       address = null;
     },
