@@ -220,6 +220,66 @@ describe("useTokenBalances", () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  // With the provider following account switches, the address under a list can
+  // change at any time; the old account's holdings must not stay under it.
+  it("clears one address's items as soon as another address is asked for", async () => {
+    let releaseOther: (value: Erc20BalancesResponse) => void = () => {};
+    vi.mocked(listErc20Balances).mockImplementation((address) =>
+      address === HOLDER
+        ? Promise.resolve({ nativeTokenBalance: native, erc20TokenBalances: [token("OLD")] })
+        : new Promise<Erc20BalancesResponse>((resolve) => {
+            releaseOther = resolve;
+          }),
+    );
+    const { result, rerender } = renderHook(({ holder }) => useTokenBalances(holder), {
+      wrapper,
+      initialProps: { holder: HOLDER },
+    });
+    await waitFor(() => {
+      expect(symbols(result.current.tokens)).toEqual(["OLD"]);
+    });
+    expect(result.current.native).toEqual(native);
+
+    rerender({ holder: OTHER_HOLDER });
+
+    expect(result.current.tokens).toEqual([]);
+    expect(result.current.native).toBeNull();
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      releaseOther({ nativeTokenBalance: native, erc20TokenBalances: [token("NEW")] });
+    });
+    expect(symbols(result.current.tokens)).toEqual(["NEW"]);
+  });
+
+  it("keeps the items on screen while the same list is refetched", async () => {
+    serveTokensInTwoPages();
+    const { result } = renderHook(() => useTokenBalances(HOLDER), { wrapper });
+    await waitFor(() => {
+      expect(symbols(result.current.tokens)).toEqual(["A", "B"]);
+    });
+
+    let release: (value: Erc20BalancesResponse) => void = () => {};
+    vi.mocked(listErc20Balances).mockImplementation(
+      () =>
+        new Promise<Erc20BalancesResponse>((resolve) => {
+          release = resolve;
+        }),
+    );
+    let pending: Promise<void> = Promise.resolve();
+    act(() => {
+      pending = result.current.refetch();
+    });
+    expect(symbols(result.current.tokens)).toEqual(["A", "B"]);
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      release({ nativeTokenBalance: native, erc20TokenBalances: [token("Z")] });
+      await pending;
+    });
+    expect(symbols(result.current.tokens)).toEqual(["Z"]);
+  });
+
   it("stays empty, and asks for nothing, without an address", async () => {
     const { result } = renderHook(() => useTokenBalances(), { wrapper });
 

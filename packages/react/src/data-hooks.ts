@@ -79,15 +79,25 @@ function usePagedList<TResponse extends PagedResponse, TItem>(
   // The generation a "load more" request is running for, so a double click does
   // not append the same page twice.
   const loadingMoreFor = useRef<number | null>(null);
+  // Which address and chain the items on screen belong to.
+  const shownFor = useRef<string | null>(null);
 
   const refetch = useCallback(async () => {
     generation.current += 1;
     const current = generation.current;
     setNextPageToken(null);
     setIsFetchingMore(false);
-    if (!target) {
+    const key = target ? `${chainId}:${target.toLowerCase()}` : null;
+    if (shownFor.current !== key) {
+      // Another address or chain: do not leave the previous one's items on
+      // screen while (or if) the new list loads. A refetch of the same list
+      // keeps what it shows until the fresh page arrives.
+      shownFor.current = key;
       setItems([]);
       setFirstPage(null);
+      setError(null);
+    }
+    if (!target) {
       // A request for the previous target may still be in flight; its result is
       // dropped, so nothing else would clear the flag.
       setIsLoading(false);
