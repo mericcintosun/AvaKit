@@ -9,11 +9,13 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import { getContent, type Locale, site } from "@/lib/content";
 
 export function SiteHeader() {
   const c = getContent(useLocale() as Locale);
+  // Locale-less path ("/docs/mcp" under /tr too), so it compares with nav hrefs.
+  const pathname = usePathname();
   return (
     <header className="sticky top-0 z-40 border-b backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
@@ -34,7 +36,8 @@ export function SiteHeader() {
             <Link
               key={item.href}
               href={item.href}
-              className="text-muted-foreground hover:text-foreground text-sm whitespace-nowrap transition-colors"
+              aria-current={pathname === item.href ? "page" : undefined}
+              className="text-muted-foreground hover:text-foreground aria-[current=page]:text-foreground text-sm whitespace-nowrap transition-colors"
             >
               {item.label}
             </Link>
@@ -87,7 +90,11 @@ export function SiteHeader() {
               <nav className="mt-2 flex flex-col gap-1">
                 {c.nav.map((item) => (
                   <SheetClose asChild key={item.href}>
-                    <Link href={item.href} className="hover:bg-accent rounded-md px-3 py-2 text-sm">
+                    <Link
+                      href={item.href}
+                      aria-current={pathname === item.href ? "page" : undefined}
+                      className="hover:bg-accent aria-[current=page]:bg-muted rounded-md px-3 py-2 text-sm aria-[current=page]:font-medium"
+                    >
                       {item.label}
                     </Link>
                   </SheetClose>
