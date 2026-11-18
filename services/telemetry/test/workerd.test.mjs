@@ -68,6 +68,16 @@ describe("the collector in workerd", () => {
     assert.ok(Math.abs(Date.now() - Date.parse(updatedAt)) < 60_000);
   });
 
+  it("serves that aggregate for five minutes instead of recomputing it", async () => {
+    assert.equal(await scaffold({ template: "token-bridge" }), 202);
+
+    const again = await stats();
+
+    assert.deepEqual(again.body, first.body);
+    const maxAge = Number(/^public, max-age=(\d+)$/.exec(again.cacheControl)?.[1]);
+    assert.ok(maxAge > 240 && maxAge <= 300, `cache-control was ${again.cacheControl}`);
+  });
+
   it("answers /health", async () => {
     const response = await worker.fetch("/health");
     assert.deepEqual([response.status, await response.json()], [200, { ok: true }]);

@@ -34,6 +34,12 @@ import { TEMPLATES } from "./templates.js";
 const IP_DAILY_MAX = 60;
 
 /**
+ * How long one computed aggregate is served for. The page is a slow-moving
+ * vanity number, and this keeps a hug-of-death off the Durable Object.
+ */
+const STATS_TTL_MS = 5 * 60 * 1000;
+
+/**
  * Bounds on what a client may report. Anything failing these becomes "other"
  * rather than being rejected — a new template shipping shouldn't stop counting,
  * but an attacker shouldn't be able to invent rows, or labels, either. The
@@ -76,6 +82,8 @@ export class Counters extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
+    /** The last aggregate and when it stops being served — see stats(). */
+    this.cached = null;
 
     // Aggregate rows, not an event log: one row per distinct combination per
     // day, incremented in place. Bounded, and there's nothing per-person in it.
@@ -160,7 +168,27 @@ export class Counters extends DurableObject {
     return true;
   }
 
+  /**
+   * The public aggregate, computed at most once per STATS_TTL_MS.
+   *
+   * `/stats` is unauthenticated and a `cache-control` header does not make
+   * Cloudflare cache a response a Worker generated, so without this every
+   * request would run the queries below in the one object that also has to
+   * count scaffolds. `updatedAt` is when the numbers were read, and callers use
+   * it to know how long their copy is good for.
+   */
   stats() {
+    const now = Date.now();
+    if (!this.cached || now >= this.cached.until) {
+      this.cached = {
+        until: now + STATS_TTL_MS,
+        value: { ...this.#aggregate(), updatedAt: new Date(now).toISOString() },
+      };
+    }
+    return this.cached.value;
+  }
+
+  #aggregate() {
     const totals = this.sql
       .exec(
         `SELECT COALESCE(SUM(n), 0) AS all_n,
@@ -236,8 +264,9 @@ const CORS = {
   "access-control-max-age": "86400",
 };
 
-function json(body, status, cache) {
-  return new Response(JSON.stringify(body), {
+/** A JSON response from text that is already serialised. */
+function jsonText(text, status, cache) {
+  return new Response(text, {
     status,
     headers: {
       "content-type": "application/json",
@@ -245,6 +274,10 @@ function json(body, status, cache) {
       ...(cache ? { "cache-control": cache } : {}),
     },
   });
+}
+
+function json(body, status, cache) {
+  return jsonText(JSON.stringify(body), status, cache);
 }
 
 /**
@@ -260,6 +293,27 @@ function counters(env) {
   return env.COUNTERS.get(env.COUNTERS.idFromName("global"));
 }
 
+/**
+ * This isolate's copy of the aggregate. The Durable Object already memoises
+ * it, so asking again costs no SQL — but it is still a round trip to a single
+ * object somewhere else in the world, and a loop against `/stats` should not
+ * be able to buy one per request. The copy is public data, never per-request
+ * state; it is kept as text, so it holds on to nothing from the request that
+ * fetched it, and is dropped at the moment the object's own copy expires.
+ */
+let statsCopy = null;
+
+async function publicStats(env, now) {
+  if (!statsCopy || now >= statsCopy.until) {
+    const stats = await counters(env).stats();
+    statsCopy = {
+      text: JSON.stringify(stats),
+      until: Date.parse(stats.updatedAt) + STATS_TTL_MS,
+    };
+  }
+  return statsCopy;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -271,10 +325,11 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/stats") {
-      const stats = await counters(env).stats();
-      // Five minutes at the edge: the page is a slow-moving vanity number, and
-      // this keeps a hug-of-death off the Durable Object.
-      return json({ ...stats, updatedAt: new Date().toISOString() }, 200, "public, max-age=300");
+      const now = Date.now();
+      const { text, until } = await publicStats(env, now);
+      // Browsers and other caches may keep it exactly as long as we will.
+      const maxAge = Math.max(0, Math.ceil((until - now) / 1000));
+      return jsonText(text, 200, `public, max-age=${maxAge}`);
     }
 
     if (request.method === "POST" && url.pathname === "/e") {

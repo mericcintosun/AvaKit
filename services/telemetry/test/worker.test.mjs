@@ -5,7 +5,9 @@ import { TEMPLATES } from "../src/templates.js";
 import { loadWorker } from "./helpers/runtime.mjs";
 
 const T0 = Date.UTC(2026, 10, 18, 9, 0, 0);
-const MINUTE = 60 * 1000;
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const STATS_TTL = 5 * MINUTE;
 
 /** Freeze the clock at T0; `tick(ms)` moves it. */
 function clock(t) {
@@ -157,6 +159,89 @@ describe("GET /stats", () => {
     assert.equal(scaffolds.succeeded, 47);
     assert.equal(scaffolds.total, 52);
     assert.equal(sum(scaffolds.byTemplate), scaffolds.succeeded);
+  });
+
+  it("is computed once per five minutes, however often it is asked for", async (t) => {
+    // A cache-control header alone does not make Cloudflare cache a response a
+    // Worker generated: every request used to run the aggregate queries.
+    const tick = clock(t);
+    const collector = await loadWorker();
+    await scaffold(collector);
+
+    const first = await stats(collector);
+    const { executed } = collector.counters.sql;
+
+    // An isolate somewhere else: nothing of its own to serve, but the same
+    // Durable Object, which answers from memory.
+    tick(2 * MINUTE);
+    const elsewhere = await loadWorker({ env: collector.env });
+    const second = await stats(elsewhere);
+
+    assert.equal(collector.counters.sql.executed, executed, "no SQL ran for the second isolate");
+    assert.deepEqual({ ...second, cacheControl: null }, { ...first, cacheControl: null });
+    assert.equal(second.cacheControl, "public, max-age=180");
+  });
+
+  it("costs one call to the Durable Object per isolate per window", async (t) => {
+    const tick = clock(t);
+    const collector = await loadWorker();
+
+    for (let i = 0; i < 25; i += 1) await stats(collector);
+    assert.equal(collector.counters.calls.stats, 1);
+
+    tick(STATS_TTL - 1);
+    await stats(collector);
+    assert.equal(collector.counters.calls.stats, 1);
+
+    tick(1);
+    await stats(collector);
+    assert.equal(collector.counters.calls.stats, 2);
+  });
+
+  it("shows a new scaffold once the window has passed, and says when it was read", async (t) => {
+    const tick = clock(t);
+    const collector = await loadWorker();
+    await scaffold(collector);
+    const before = await stats(collector);
+
+    tick(MINUTE);
+    await scaffold(collector);
+    const during = await stats(collector);
+    assert.equal(during.scaffolds.succeeded, 1);
+    assert.equal(during.updatedAt, before.updatedAt);
+
+    tick(STATS_TTL - MINUTE);
+    const after = await stats(collector);
+    assert.equal(after.scaffolds.succeeded, 2);
+    assert.equal(after.updatedAt, new Date(T0 + STATS_TTL).toISOString());
+  });
+
+  it("tells caches to keep it only for as long as it will itself", async (t) => {
+    const tick = clock(t);
+    const collector = await loadWorker();
+
+    assert.equal((await stats(collector)).cacheControl, "public, max-age=300");
+    tick(100 * SECOND);
+    assert.equal((await stats(collector)).cacheControl, "public, max-age=200");
+    tick(199 * SECOND + 500);
+    assert.equal((await stats(collector)).cacheControl, "public, max-age=1");
+    tick(500);
+    assert.equal((await stats(collector)).cacheControl, "public, max-age=300");
+  });
+
+  it("recomputes after the Durable Object has been evicted", async (t) => {
+    // The memo lives in memory only; losing it costs one recompute, nothing else.
+    const tick = clock(t);
+    const collector = await loadWorker();
+    await scaffold(collector);
+    await stats(collector);
+
+    await scaffold(collector);
+    collector.counters.evict();
+    tick(MINUTE);
+    const elsewhere = await loadWorker({ env: collector.env });
+
+    assert.equal((await stats(elsewhere)).scaffolds.succeeded, 2);
   });
 });
 

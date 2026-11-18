@@ -100,8 +100,15 @@ seconds after a delete the old Durable Object is still being torn down and
 - `POST /e` — one scaffold event. `202` if counted, `429` if the caller is over
   its daily cap, `400` if the body isn't a recognised event. The CLI ignores the
   response either way.
-- `GET /stats` — the public aggregate (cached 5 minutes at the edge).
+- `GET /stats` — the public aggregate, computed at most once every 5 minutes.
 - `GET /health` — `{ ok: true }`.
+
+A `cache-control` header does not make Cloudflare cache a response a Worker
+generated, so the collector does the caching itself: the Durable Object keeps
+the aggregate it last computed for five minutes, and each Worker isolate keeps
+its copy until the same deadline. However often `/stats` is requested, the
+aggregate queries run once per window. `cache-control: public, max-age=…` on the
+response counts down to that deadline, for browsers and other caches downstream.
 
 `/stats` returns:
 
@@ -117,7 +124,7 @@ seconds after a delete the old Durable Object is still being torn down and
   "failures": {},      // errorKind → count; tells our bug apart from user error
   "installs": 0,       // distinct anonymous ids
   "firstDay": null,    // null until the first event lands
-  "updatedAt": "…"
+  "updatedAt": "…"     // when these numbers were read from storage
 }
 ```
 
