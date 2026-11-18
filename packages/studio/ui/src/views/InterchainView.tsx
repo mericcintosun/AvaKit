@@ -8,9 +8,11 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { NativeSelect } from "../components/ui/native-select";
 import {
+  DELIVERY_TIMEOUT_MS,
   hasArrived,
   messageBytes,
   messageProblem,
+  overdueIn,
   type Pair,
   resolvePair,
   withFrom,
@@ -18,7 +20,8 @@ import {
 } from "../lib/interchain";
 import { shortHex } from "../lib/utils";
 
-type InFlight = { message: string; to: string; receivedBefore: number | null };
+/** A message that was sent on the source chain and is awaited on the destination. */
+type InFlight = { message: string; to: string; receivedBefore: number | null; sentAt: number };
 
 function MessengerCard({ chain, incoming }: { chain: IcmChain; incoming: boolean }) {
   return (
@@ -51,6 +54,7 @@ export function InterchainView() {
   const [picked, setPicked] = useState<Partial<Pair>>({});
   const [msg, setMsg] = useState("gm from the other chain");
   const [inFlight, setInFlight] = useState<InFlight | null>(null);
+  const [overdue, setOverdue] = useState(false);
 
   // The server lists only running, Teleporter-ready local L1s. Any two of them
   // that have a messenger can exchange a message; the rest still need a deploy.
@@ -94,6 +98,16 @@ export function InterchainView() {
     }
   }, [icm, inFlight, toast]);
 
+  // A successful send only puts the message on the source chain. If it has not
+  // arrived after a while, stop saying "delivering" and say so instead — a late
+  // arrival is still picked up by the effect above.
+  useEffect(() => {
+    setOverdue(false);
+    if (!inFlight) return;
+    const timer = setTimeout(() => setOverdue(true), overdueIn(inFlight.sentAt, Date.now()));
+    return () => clearTimeout(timer);
+  }, [inFlight]);
+
   const deploy = useCallback(async () => {
     setBusy("deploy");
     try {
@@ -119,7 +133,12 @@ export function InterchainView() {
     setBusy("send");
     try {
       const sent = await apiPost<IcmSendResult>("/api/icm/send", { from, to, message: msg });
-      setInFlight({ message: msg, to, receivedBefore: sent.receivedBefore });
+      setInFlight({
+        message: msg,
+        to,
+        receivedBefore: sent.receivedBefore,
+        sentAt: Date.now(),
+      });
       toast({
         title: "Message sent",
         description: `Relayer is delivering to ${to}…`,
@@ -249,11 +268,26 @@ export function InterchainView() {
               ? problem
               : `${messageBytes(msg)} / ${icm.maxMessageBytes} bytes`}
           </p>
-          {inFlight && (
+          {inFlight && !overdue && (
             <p className="flex items-center gap-2 text-sm">
               <span className="bg-foreground size-2 animate-ping rounded-full" />
               Relayer delivering “{inFlight.message}” to {inFlight.to}…
             </p>
+          )}
+          {inFlight && overdue && (
+            <div className="flex flex-col items-start gap-2 rounded-lg border border-dashed p-3">
+              <p className="text-sm font-medium">Not delivered to {inFlight.to} yet</p>
+              <p className="text-muted-foreground text-xs break-words">
+                “{inFlight.message}” was sent, but {inFlight.to} has not received it after{" "}
+                {DELIVERY_TIMEOUT_MS / 1000} seconds. The relayer may not be running — it starts
+                with the ICM devnet (check{" "}
+                <span className="font-mono">avalanche network status</span>). If it still arrives,
+                it will show up on {inFlight.to}'s card above.
+              </p>
+              <Button size="sm" variant="ghost" onClick={() => setInFlight(null)}>
+                Dismiss
+              </Button>
+            </div>
           )}
         </Card>
       )}

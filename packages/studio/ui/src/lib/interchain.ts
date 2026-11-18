@@ -55,6 +55,19 @@ export function messageProblem(message: string, maxBytes: number): string | null
 }
 
 /**
+ * A delivery on a local devnet takes a few seconds. A message that is still not
+ * there after this long is no longer called "in flight": the send only put it
+ * on the source chain, and whether it arrives is up to the relayer and the
+ * destination messenger.
+ */
+export const DELIVERY_TIMEOUT_MS = 30_000;
+
+/** Milliseconds until a message sent at `sentAt` is overdue — 0 once it is. */
+export function overdueIn(sentAt: number, now: number, timeoutMs = DELIVERY_TIMEOUT_MS): number {
+  return Math.max(0, sentAt + timeoutMs - now);
+}
+
+/**
  * Whether the message this view sent has arrived. The destination's delivery
  * count going past what it was just before the send is the proof; comparing the
  * text alone would call a message "delivered" the moment it is sent whenever

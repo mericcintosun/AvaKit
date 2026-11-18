@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  DELIVERY_TIMEOUT_MS,
   hasArrived,
   messageBytes,
   messageProblem,
+  overdueIn,
   resolvePair,
   withFrom,
   withTo,
@@ -80,6 +82,18 @@ describe("messageProblem", () => {
   it("refuses an empty message and a leading dash", () => {
     expect(messageProblem("", 256)).toMatch(/Type a message/);
     expect(messageProblem("--help", 256)).toMatch(/can't start with/);
+  });
+});
+
+describe("overdueIn", () => {
+  it("counts down from the delivery timeout and stops at zero", () => {
+    const sentAt = 1_700_000_000_000;
+    expect(overdueIn(sentAt, sentAt)).toBe(DELIVERY_TIMEOUT_MS);
+    expect(overdueIn(sentAt, sentAt + 12_000)).toBe(DELIVERY_TIMEOUT_MS - 12_000);
+    expect(overdueIn(sentAt, sentAt + DELIVERY_TIMEOUT_MS)).toBe(0);
+    // Long overdue (a tab that slept), or a clock that went backwards: never negative.
+    expect(overdueIn(sentAt, sentAt + 10 * DELIVERY_TIMEOUT_MS)).toBe(0);
+    expect(overdueIn(sentAt, sentAt - 5_000)).toBe(DELIVERY_TIMEOUT_MS + 5_000);
   });
 });
 
