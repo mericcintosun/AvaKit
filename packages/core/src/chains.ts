@@ -35,12 +35,19 @@ export interface AvaChain {
 export const KNOWN_MAINNET_CHAIN_IDS: ReadonlySet<number> = new Set([43114]);
 
 /**
- * True if deploying here spends real funds. A chain counts as mainnet when it
- * says so (`testnet: false`) OR its id is a known mainnet — the id wins, so a
- * mislabelled definition cannot bypass the mainnet guard.
+ * True if deploying here spends real funds. Only a chain that explicitly says
+ * `testnet: true` counts as a testnet, and not even then if its id is a known
+ * mainnet — the id wins, so a mislabelled definition cannot bypass the mainnet
+ * guard.
+ *
+ * Everything else is a mainnet. That includes `testnet: false`, and also a
+ * definition from plain JavaScript or JSON that left the flag out or set it to
+ * something that is not a boolean: the type requires the flag, but nothing
+ * enforces a type at runtime, and a missing flag must fail closed rather than
+ * skip the mainnet confirmation and let a burner wallet in.
  */
 export function isMainnet(chain: AvaChain): boolean {
-  return chain.testnet === false || KNOWN_MAINNET_CHAIN_IDS.has(chain.id);
+  return chain.testnet !== true || KNOWN_MAINNET_CHAIN_IDS.has(chain.id);
 }
 
 function assertHttpUrl(value: string | undefined, field: string): void {

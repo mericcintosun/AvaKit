@@ -45,6 +45,24 @@ describe("isMainnet (A9)", () => {
 
   it("treats testnets as non-mainnet", () => {
     expect(isMainnet(fuji)).toBe(false);
+    expect(isMainnet({ ...base, testnet: true })).toBe(false);
+  });
+
+  it("treats a chain that says testnet: false as mainnet", () => {
+    expect(isMainnet({ ...base, testnet: false })).toBe(true);
+  });
+
+  // The type requires the flag, but plain JavaScript or a JSON config can leave
+  // it out. That used to read as "testnet", skipping the deploy confirmation and
+  // letting the burner wallet in; it has to fail closed instead.
+  it("treats a chain that never says testnet: true as mainnet", () => {
+    const noFlag = { ...base, testnet: undefined } as unknown as AvaChain;
+    const { testnet: _omitted, ...withoutFlag } = base;
+    const stringFlag = { ...base, testnet: "true" } as unknown as AvaChain;
+
+    expect(isMainnet(noFlag)).toBe(true);
+    expect(isMainnet(withoutFlag as AvaChain)).toBe(true);
+    expect(isMainnet(stringFlag)).toBe(true);
   });
 
   it("refuses to define a known mainnet id as a testnet", () => {

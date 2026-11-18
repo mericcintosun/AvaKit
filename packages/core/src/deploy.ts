@@ -7,10 +7,24 @@
  * browser-safe.
  */
 
-import { type Abi, type Address, type EIP1193Provider, getAddress, type Hex } from "viem";
+import {
+  type Abi,
+  type Address,
+  type EIP1193Provider,
+  encodeDeployData,
+  formatUnits,
+  getAddress,
+  type Hex,
+  type PublicClient,
+} from "viem";
 import { type AvaChain, isMainnet } from "./chains.js";
 import { getPublicClient, getWalletClient } from "./clients.js";
-import { DeployFailedError, MainnetConfirmationError } from "./errors.js";
+import {
+  DeployFailedError,
+  InsufficientFundsError,
+  MainnetConfirmationError,
+  missingTestnetFlagHint,
+} from "./errors.js";
 
 /** Shape of a parsed Foundry artifact (`out/Contract.sol/Contract.json`). */
 export interface FoundryArtifact {
@@ -25,9 +39,15 @@ export interface DeployParams {
   provider: EIP1193Provider;
   account: Address;
   /**
-   * Required to deploy to a non-testnet (mainnet) chain. AvaKit is testnet-first:
-   * deploying to a chain with `testnet: false` costs real funds, so it refuses
-   * unless you opt in explicitly. No effect on testnet chains (e.g. Fuji).
+   * Required to deploy to a mainnet chain. AvaKit is testnet-first: deploying to
+   * a mainnet costs real funds, so it refuses unless you opt in explicitly. A
+   * mainnet is any chain that `isMainnet()` does not recognise as a testnet,
+   * i.e. one that does not say `testnet: true`, or whose id is a known mainnet.
+   *
+   * With the flag set, the account's balance is still checked against the
+   * estimated cost before anything is sent; a deployment the account cannot pay
+   * for is refused with `InsufficientFundsError`. No effect on testnet chains
+   * (e.g. Fuji).
    */
   confirmMainnet?: boolean;
 }
@@ -49,20 +69,90 @@ export function getBytecode(artifact: DeployParams["artifact"]): Hex {
   return object as Hex;
 }
 
+function reason(cause: unknown): string {
+  if (typeof cause === "object" && cause !== null) {
+    const { shortMessage, message } = cause as { shortMessage?: unknown; message?: unknown };
+    if (typeof shortMessage === "string") return shortMessage;
+    if (typeof message === "string") return message;
+  }
+  return String(cause);
+}
+
+/**
+ * The balance check of the mainnet guardrail: refuse a deployment the account
+ * cannot pay for, before the wallet is asked to sign anything. The cost is the
+ * node's gas estimate at its current gas price, which is about the least the
+ * deployment can cost (wallets reserve somewhat more), so an account that can
+ * afford the deployment is not held back. If the cost cannot be worked out (the
+ * constructor would revert, the RPC is unreachable) the deployment is refused
+ * as well: on a mainnet, no check means no deploy.
+ */
+async function assertCanPayForDeploy(
+  publicClient: PublicClient,
+  chain: AvaChain,
+  account: Address,
+  data: Hex,
+): Promise<void> {
+  let balance: bigint;
+  let cost: bigint;
+  try {
+    const [held, gas, gasPrice] = await Promise.all([
+      publicClient.getBalance({ address: account }),
+      publicClient.estimateGas({ account, data }),
+      publicClient.getGasPrice(),
+    ]);
+    balance = held;
+    cost = gas * gasPrice;
+  } catch (cause) {
+    throw new DeployFailedError(
+      `Could not work out what this deployment costs on ${chain.name}, so nothing was sent: ` +
+        reason(cause),
+      { cause },
+    );
+  }
+  if (balance < cost) {
+    const { symbol, decimals } = chain.nativeCurrency;
+    throw new InsufficientFundsError(
+      undefined,
+      `${account} holds ${formatUnits(balance, decimals)} ${symbol} on ${chain.name}, but this ` +
+        `deployment is estimated to cost ${formatUnits(cost, decimals)} ${symbol}. ` +
+        "Fund the account and try again; nothing was sent.",
+    );
+  }
+}
+
 export async function deployContract(params: DeployParams): Promise<DeployResult> {
   const { artifact, args, chain, provider, account, confirmMainnet } = params;
   // Testnet-first guardrail: never deploy to a mainnet chain without opt-in.
-  // isMainnet() also catches a known mainnet id mislabelled testnet. (audit A9)
-  if (isMainnet(chain) && !confirmMainnet) {
-    throw new MainnetConfirmationError(chain.name);
+  // isMainnet() also catches a known mainnet id mislabelled testnet (audit A9)
+  // and a definition that never said `testnet: true` at all.
+  const mainnet = isMainnet(chain);
+  if (mainnet && !confirmMainnet) {
+    throw new MainnetConfirmationError(chain.name, missingTestnetFlagHint(chain));
   }
   const walletClient = getWalletClient(chain, provider);
   const publicClient = getPublicClient(chain);
+  const bytecode = getBytecode(artifact);
+
+  // The confirmation is half of the mainnet guardrail; the balance check is the
+  // other half.
+  if (mainnet) {
+    await assertCanPayForDeploy(
+      publicClient,
+      chain,
+      account,
+      encodeDeployData({
+        abi: artifact.abi,
+        bytecode,
+        args: args as readonly unknown[] | undefined,
+      } as Parameters<typeof encodeDeployData>[0]),
+    );
+  }
 
   // The wallet client already carries the chain; account is a JSON-RPC address.
   const txHash = await walletClient.deployContract({
     abi: artifact.abi,
-    bytecode: getBytecode(artifact),
+    bytecode,
     args: args as readonly unknown[] | undefined,
     account,
   } as Parameters<typeof walletClient.deployContract>[0]);

@@ -9,7 +9,7 @@ import {
 import { generatePrivateKey, type PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import { type AvaChain, fuji, isMainnet } from "../chains.js";
 import { toViemChain } from "../clients.js";
-import { WalletConnectionError } from "../errors.js";
+import { missingTestnetFlagHint, WalletConnectionError } from "../errors.js";
 import type { AvaChainSwitcher } from "../network.js";
 import type { WalletAdapter, WalletConnection } from "./types.js";
 
@@ -68,7 +68,7 @@ function assertTestnet(chain: AvaChain, action: "connect on" | "switch to"): voi
   if (isMainnet(chain)) {
     throw new WalletConnectionError(
       `The temporary (burner) wallet is testnet-only and cannot ${action} ${chain.name}. ` +
-        "Connect a real wallet (injected / social) to use mainnet.",
+        `Connect a real wallet (injected / social) to use mainnet.${missingTestnetFlagHint(chain)}`,
     );
   }
 }

@@ -5,6 +5,7 @@ import {
   DeployFailedError,
   InsufficientFundsError,
   MainnetConfirmationError,
+  missingTestnetFlagHint,
   WalletConnectionError,
   WalletNotAvailableError,
 } from "./errors.js";
@@ -29,6 +30,27 @@ describe("errors", () => {
       "https://faucet.example",
     );
     expect(new InsufficientFundsError().message).not.toContain("http");
+  });
+
+  it("InsufficientFundsError describes a specific shortfall when given one", () => {
+    expect(new InsufficientFundsError().message).toBe("Insufficient AVAX for this transaction.");
+    expect(new InsufficientFundsError(undefined, "0x1 holds 0 TKN.").message).toBe(
+      "0x1 holds 0 TKN.",
+    );
+    expect(new InsufficientFundsError("https://faucet.example", "0x1 holds 0 TKN.").message).toBe(
+      "0x1 holds 0 TKN. Get testnet funds: https://faucet.example",
+    );
+  });
+
+  it("explains the mainnet verdict only for a chain that carries no testnet flag", () => {
+    expect(missingTestnetFlagHint({ testnet: true })).toBe("");
+    expect(missingTestnetFlagHint({ testnet: false })).toBe("");
+    expect(missingTestnetFlagHint({})).toContain("testnet: true");
+    expect(missingTestnetFlagHint({ testnet: "true" })).toContain("testnet: true");
+
+    const refused = new MainnetConfirmationError("My L1", missingTestnetFlagHint({}));
+    expect(refused.message).toContain("confirmMainnet");
+    expect(refused.message).toContain("no boolean `testnet` flag");
   });
 
   it("ChainMismatchError names both the expected and actual chains", () => {

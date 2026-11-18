@@ -2,7 +2,7 @@ import type { EIP1193Provider, Hex } from "viem";
 import { numberToHex, parseTransaction, recoverTransactionAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cChain, defineChain, fuji } from "../chains.js";
+import { type AvaChain, cChain, defineChain, fuji } from "../chains.js";
 import { getWalletClient } from "../clients.js";
 import { ensureChain } from "../network.js";
 import { endpoint, stubRpc } from "../testing/rpc.js";
@@ -89,6 +89,23 @@ describe("burnerAdapter", () => {
     const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
     await adapter.connect();
     await expect(adapter.switchChain?.(cChain)).rejects.toThrow(/testnet-only/);
+  });
+
+  // A definition from plain JavaScript or JSON can leave `testnet` out. The
+  // burner must read that as a mainnet, not as permission.
+  it("refuses a chain whose definition never says testnet: true", async () => {
+    const { testnet: _omitted, ...withoutFlag } = otherTestnet;
+    const unflagged = withoutFlag as AvaChain;
+
+    const created = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: unflagged });
+    await expect(created.connect()).rejects.toThrow(/testnet-only/);
+    await expect(created.connect()).rejects.toThrow(/no boolean `testnet` flag/);
+
+    const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
+    const { provider } = await adapter.connect();
+    await expect(adapter.switchChain?.(unflagged)).rejects.toThrow(/testnet-only/);
+    await expect(ensureChain(provider, unflagged)).rejects.toThrow(/testnet-only/);
+    expect(await provider.request({ method: "eth_chainId" })).toBe(numberToHex(fuji.id));
   });
 
   it("stays quiet when asked to switch to the chain it is already on", async () => {

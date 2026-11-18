@@ -42,24 +42,43 @@ export class DeployFailedError extends AvaKitError {
   override name = "DeployFailedError";
 }
 
+/**
+ * A sentence to append to "this is a mainnet" errors when the chain never said
+ * so itself: `isMainnet` treats a definition without a boolean `testnet` flag as
+ * a mainnet, and the developer of a mis-defined testnet needs to know what to
+ * fix. Empty for a chain that carries the flag. (Internal: not part of the
+ * package's public exports.)
+ */
+export function missingTestnetFlagHint(chain: { testnet?: unknown }): string {
+  return typeof chain.testnet === "boolean"
+    ? ""
+    : " Its definition has no boolean `testnet` flag, so it is treated as a mainnet; set testnet: true if it is a testnet.";
+}
+
 export class MainnetConfirmationError extends AvaKitError {
   override name = "MainnetConfirmationError";
-  constructor(chainName: string) {
+  /**
+   * @param chainName Name of the chain the deployment was refused on.
+   * @param hint Optional extra sentence, e.g. why the chain counts as a mainnet.
+   */
+  constructor(chainName: string, hint = "") {
     super(
       `Refusing to deploy to ${chainName} (mainnet) without explicit confirmation. ` +
-        "Check the balance, then pass confirmMainnet: true — deploying here spends real funds.",
+        `Check the balance, then pass confirmMainnet: true — deploying here spends real funds.${hint}`,
     );
   }
 }
 
 export class InsufficientFundsError extends AvaKitError {
   override name = "InsufficientFundsError";
-  constructor(faucetUrl?: string) {
-    super(
-      faucetUrl
-        ? `Insufficient AVAX for this transaction. Get testnet funds: ${faucetUrl}`
-        : "Insufficient AVAX for this transaction.",
-    );
+  /**
+   * @param faucetUrl Where to get testnet funds, when the chain has a faucet.
+   * @param detail A specific description of the shortfall. Replaces the generic
+   *   "Insufficient AVAX for this transaction." sentence.
+   */
+  constructor(faucetUrl?: string, detail?: string) {
+    const what = detail ?? "Insufficient AVAX for this transaction.";
+    super(faucetUrl ? `${what} Get testnet funds: ${faucetUrl}` : what);
   }
 }
 
