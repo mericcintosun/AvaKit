@@ -13,11 +13,16 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 - `lib/nft-artifact.ts` — the compiled ABI + bytecode (so the app deploys from the browser with no Foundry at runtime)
 - `app/providers.tsx` — `<AvaKitProvider>` (chains + wallet adapters) + `ThemeProvider`
 - `components/demo.tsx` — deploy the contract, then mint
+- `lib/deployed-contract.ts` — `useDeployedContract(name, chain)`: remembers the contract this
+  browser deployed (in `localStorage`, per chain) so a reload does not ask for a second deploy, and
+  only hands the address to the UI after `eth_getCode` confirms bytecode. `remember(address)` after
+  a deploy; `forget()` returns to the deploy step.
 
 ## The flow
 
 1. Connect a wallet (`<ConnectAvalanche />`).
-2. Deploy: `useAvaDeploy().deploy({ abi, bytecode })` → returns the contract address.
+2. Deploy: `useAvaDeploy().deploy({ abi, bytecode })` → returns the contract address, which the demo
+   keeps with `useDeployedContract(...).remember(address)`.
 3. Mint: `useContract({ address, abi }).write("mint", [])`.
 4. Read state: `useContract(...).read("totalSupply")`, `.read("balanceOf", [address])`.
 

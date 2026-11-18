@@ -1,9 +1,10 @@
 "use client";
 
 import { getPublicClient } from "@avakit/core";
-import { humanizeError,
+import {
   Button,
   ConnectAvalanche,
+  humanizeError,
   shortenAddress,
   useAvaAccount,
   useAvaChain,
@@ -13,10 +14,12 @@ import { humanizeError,
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
-import type { Address } from "viem";
+import { useDeployedContract } from "@/lib/deployed-contract";
 import { abi, bytecode } from "@/lib/nft-artifact";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as const;
+// Where the address of the collection you deploy is remembered in localStorage.
+const CONTRACT_STORAGE_KEY = "__PROJECT_NAME__:nft-contract";
 
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -38,8 +41,12 @@ export function Demo() {
   const { chain } = useAvaChain();
   const { deploy, status: deployStatus } = useAvaDeploy();
 
-  const [contractAddress, setContractAddress] = useState<Address | null>(null);
-  const contract = useContract({ address: contractAddress ?? ZERO, abi });
+  // The contract you deploy is remembered per chain, so a reload does not ask
+  // for a second deploy — and it is only used again once the chain confirms
+  // there is code at that address (see lib/deployed-contract.ts).
+  const deployed = useDeployedContract(CONTRACT_STORAGE_KEY, chain);
+  const contractAddress = deployed.address;
+  const { read, write } = useContract({ address: contractAddress ?? ZERO, abi });
 
   const [minting, setMinting] = useState(false);
   const [mintHash, setMintHash] = useState<string | null>(null);
@@ -51,15 +58,15 @@ export function Demo() {
     if (!contractAddress || !address) return;
     try {
       const [total, balance] = await Promise.all([
-        contract.read("totalSupply"),
-        contract.read("balanceOf", [address]),
+        read("totalSupply"),
+        read("balanceOf", [address]),
       ]);
       setSupply(total as bigint);
       setOwned(balance as bigint);
     } catch {
       // contract not ready yet
     }
-  }, [contract, contractAddress, address]);
+  }, [read, contractAddress, address]);
 
   useEffect(() => {
     void refreshCounts();
@@ -69,7 +76,7 @@ export function Demo() {
     setError(null);
     try {
       const result = await deploy({ abi, bytecode });
-      setContractAddress(result.address);
+      deployed.remember(result.address);
     } catch (e) {
       setError(humanizeError(e));
     }
@@ -81,7 +88,7 @@ export function Demo() {
     setError(null);
     setMintHash(null);
     try {
-      const hash = await contract.write("mint", []);
+      const hash = await write("mint", []);
       setMintHash(hash);
       // Wait for the mint to be mined before reading counts — otherwise the
       // reads race the pending tx and the UI looks like nothing happened.
@@ -95,6 +102,16 @@ export function Demo() {
     } finally {
       setMinting(false);
     }
+  }
+
+  // Forget the remembered contract (it stays on-chain) and go back to step 1,
+  // e.g. to deploy the new bytecode after editing the contract.
+  function startOver() {
+    deployed.forget();
+    setMintHash(null);
+    setSupply(null);
+    setOwned(null);
+    setError(null);
   }
 
   return (
@@ -118,6 +135,19 @@ export function Demo() {
       {!isConnected || !address ? (
         <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
           Connect a wallet to begin.
+        </div>
+      ) : deployed.status === "checking" ? (
+        <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
+          Looking for the contract you deployed on {chain.name}…
+        </div>
+      ) : deployed.status === "unreachable" ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-dashed p-6">
+          <p className="text-muted-foreground text-sm">
+            Could not reach {chain.name} to check the contract you deployed earlier.
+          </p>
+          <Button variant="outline" onClick={deployed.recheck}>
+            Try again
+          </Button>
         </div>
       ) : !contractAddress ? (
         <div className="flex flex-col gap-3 rounded-xl border p-6">
@@ -165,6 +195,16 @@ export function Demo() {
               ✓ Minted: {mintHash}
             </a>
           ) : null}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={startOver}
+            disabled={minting}
+          >
+            Deploy a new contract
+          </Button>
         </div>
       )}
 

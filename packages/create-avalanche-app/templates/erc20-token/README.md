@@ -15,6 +15,8 @@ pnpm dev    # http://localhost:3000 (or the port Next prints)
 
 Then: connect a wallet → **Deploy token contract** → **Mint 100 AKT** → **Burn 10 AKT**. These cost gas, so fund your wallet on Fuji first (in-app faucet link).
 
+The app remembers the token you deployed (in your browser, per chain), so a reload picks up where you left off. **Deploy a new token** starts over — use it after you change the contract.
+
 ## How the token works
 
 - `contracts/src/AvaKitToken.sol` — a minimal, self-contained ERC-20 (AKT, 18 decimals) with a public `mint()` demo faucet.

@@ -15,6 +15,8 @@ pnpm dev    # http://localhost:3000 (or the port Next prints)
 
 Then: connect a wallet → **Deploy NFT contract** → **Mint NFT**. Deploying and minting cost gas, so fund your wallet on Fuji first (in-app faucet link).
 
+The app remembers the contract you deployed (in your browser, per chain), so a reload picks up where you left off. **Deploy a new contract** starts over — use it after you change the contract.
+
 ## How the contract works
 
 - `contracts/src/AvaKitNFT.sol` — a minimal, self-contained ERC-721 (no external deps; compiles with `forge build` out of the box).

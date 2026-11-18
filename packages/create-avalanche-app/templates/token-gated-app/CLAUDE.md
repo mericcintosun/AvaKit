@@ -17,6 +17,10 @@ Content is gated behind ownership of an **access-pass NFT**. If `balanceOf(addre
   needs a non-transferable (soulbound) pass, remove the transfer functions and say so.
 - `lib/nft-artifact.ts` — compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - `components/demo.tsx` — deploy pass → mint → gate logic.
+- `lib/deployed-contract.ts` — `useDeployedContract(name, chain)`: remembers the pass contract this
+  browser deployed (in `localStorage`, per chain) so a reload keeps the gate pointed at it, and only
+  hands the address to the UI after `eth_getCode` confirms bytecode. `remember(address)` after a
+  deploy; `forget()` returns to the deploy step.
 - `app/providers.tsx` — `<AvaKitProvider>` + `ThemeProvider`.
 
 ## The gate
@@ -29,6 +33,11 @@ const hasAccess = balance > 0n; // render gated content only when true
 
 - Deploy: `useAvaDeploy().deploy({ abi, bytecode })`
 - Mint a pass: `contract.write("mint", [])`
+
+In this demo the pass contract is whichever one **this browser** deployed (`useDeployedContract`), so
+every visitor starts by deploying their own. For a real app, deploy the pass once and use that fixed
+address for everyone: replace `useDeployedContract(...)` in `components/demo.tsx` with a constant
+(or an env var) and drop the deploy step.
 
 To gate on a different token (e.g. an existing ERC-20 or NFT), point `useContract` at that address/ABI and adjust the `hasAccess` check (e.g. balance ≥ threshold).
 

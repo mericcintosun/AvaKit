@@ -1,9 +1,10 @@
 "use client";
 
 import { getPublicClient } from "@avakit/core";
-import { humanizeError,
+import {
   Button,
   ConnectAvalanche,
+  humanizeError,
   shortenAddress,
   useAvaAccount,
   useAvaChain,
@@ -13,10 +14,12 @@ import { humanizeError,
 import { Lock, Moon, Sun, Unlock } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
-import type { Address } from "viem";
+import { useDeployedContract } from "@/lib/deployed-contract";
 import { abi, bytecode } from "@/lib/nft-artifact";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as const;
+// Where the address of the pass contract you deploy is remembered in localStorage.
+const CONTRACT_STORAGE_KEY = "__PROJECT_NAME__:pass-contract";
 
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -38,8 +41,12 @@ export function Demo() {
   const { chain } = useAvaChain();
   const { deploy, status: deployStatus } = useAvaDeploy();
 
-  const [contractAddress, setContractAddress] = useState<Address | null>(null);
-  const contract = useContract({ address: contractAddress ?? ZERO, abi });
+  // The pass contract you deploy is remembered per chain, so a reload does not
+  // ask for a second deploy — and it is only used again once the chain confirms
+  // there is code at that address (see lib/deployed-contract.ts).
+  const deployed = useDeployedContract(CONTRACT_STORAGE_KEY, chain);
+  const contractAddress = deployed.address;
+  const { read, write } = useContract({ address: contractAddress ?? ZERO, abi });
 
   const [owned, setOwned] = useState<bigint | null>(null);
   const [minting, setMinting] = useState(false);
@@ -48,12 +55,12 @@ export function Demo() {
   const refreshOwned = useCallback(async () => {
     if (!contractAddress || !address) return;
     try {
-      const balance = await contract.read("balanceOf", [address]);
+      const balance = await read("balanceOf", [address]);
       setOwned(balance as bigint);
     } catch {
       // contract not ready
     }
-  }, [contract, contractAddress, address]);
+  }, [read, contractAddress, address]);
 
   useEffect(() => {
     void refreshOwned();
@@ -63,7 +70,7 @@ export function Demo() {
     setError(null);
     try {
       const result = await deploy({ abi, bytecode });
-      setContractAddress(result.address);
+      deployed.remember(result.address);
     } catch (e) {
       setError(humanizeError(e));
     }
@@ -74,7 +81,7 @@ export function Demo() {
     setMinting(true);
     setError(null);
     try {
-      const hash = await contract.write("mint", []);
+      const hash = await write("mint", []);
       // Wait for the mint to be mined before re-reading the gate — otherwise the
       // balance read races the pending tx and the content stays locked.
       const receipt = await getPublicClient(chain).waitForTransactionReceipt({ hash });
@@ -87,6 +94,14 @@ export function Demo() {
     } finally {
       setMinting(false);
     }
+  }
+
+  // Forget the remembered pass contract (it stays on-chain) and go back to
+  // step 1, e.g. to deploy the new bytecode after editing the contract.
+  function startOver() {
+    deployed.forget();
+    setOwned(null);
+    setError(null);
   }
 
   const hasAccess = owned !== null && owned > 0n;
@@ -112,6 +127,19 @@ export function Demo() {
       {!isConnected || !address ? (
         <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
           Connect a wallet to begin.
+        </div>
+      ) : deployed.status === "checking" ? (
+        <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
+          Looking for the pass contract you deployed on {chain.name}…
+        </div>
+      ) : deployed.status === "unreachable" ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-dashed p-6">
+          <p className="text-muted-foreground text-sm">
+            Could not reach {chain.name} to check the pass contract you deployed earlier.
+          </p>
+          <Button variant="outline" onClick={deployed.recheck}>
+            Try again
+          </Button>
         </div>
       ) : !contractAddress ? (
         <div className="flex flex-col gap-3 rounded-xl border p-6">
@@ -141,14 +169,12 @@ export function Demo() {
             content: this section only renders for holders. Put your premium UI, downloads, or
             members area here.
           </p>
-          <a
+          <PassContract
             href={`${chain.explorerUrl}/address/${contractAddress}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-muted-foreground text-xs underline underline-offset-4"
-          >
-            Pass contract: {shortenAddress(contractAddress, 6)}
-          </a>
+            label={shortenAddress(contractAddress, 6)}
+            onStartOver={startOver}
+            disabled={minting}
+          />
         </div>
       ) : (
         <div className="flex flex-col gap-3 rounded-xl border border-dashed p-6">
@@ -159,10 +185,51 @@ export function Demo() {
           <Button onClick={handleMint} disabled={minting}>
             {minting ? "Minting…" : "Mint access pass"}
           </Button>
+          <PassContract
+            href={`${chain.explorerUrl}/address/${contractAddress}`}
+            label={shortenAddress(contractAddress, 6)}
+            onStartOver={startOver}
+            disabled={minting}
+          />
         </div>
       )}
 
       {error ? <p className="text-muted-foreground text-sm">{error}</p> : null}
+    </div>
+  );
+}
+
+/** The pass contract in use, with a way to forget it and deploy another one. */
+function PassContract({
+  href,
+  label,
+  onStartOver,
+  disabled,
+}: {
+  href: string;
+  label: string;
+  onStartOver: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="text-muted-foreground text-xs underline underline-offset-4"
+      >
+        Pass contract: {label}
+      </a>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-muted-foreground"
+        onClick={onStartOver}
+        disabled={disabled}
+      >
+        Deploy a new one
+      </Button>
     </div>
   );
 }

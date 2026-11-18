@@ -11,12 +11,17 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 - `contracts/src/AvaKitToken.sol` — a minimal, self-contained ERC-20 (name AKT, 18 decimals) with a public `mint()` demo faucet.
 - `lib/token-artifact.ts` — the compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - `components/demo.tsx` — deploy → mint → transfer.
+- `lib/deployed-contract.ts` — `useDeployedContract(name, chain)`: remembers the token this browser
+  deployed (in `localStorage`, per chain) so a reload does not ask for a second deploy, and only
+  hands the address to the UI after `eth_getCode` confirms bytecode. `remember(address)` after a
+  deploy; `forget()` returns to the deploy step.
 - `app/providers.tsx` — `<AvaKitProvider>` + `ThemeProvider`.
 
 ## The flow
 
 1. Connect a wallet (`<ConnectAvalanche />`).
-2. Deploy: `useAvaDeploy().deploy({ abi, bytecode })`.
+2. Deploy: `useAvaDeploy().deploy({ abi, bytecode })`, then keep the address with
+   `useDeployedContract(...).remember(address)`.
 3. Mint: `useContract({ address, abi }).write("mint", [])` (mints 100 AKT).
 4. Transfer: `.write("transfer", [to, parseUnits("10", 18)])`.
 5. Read: `.read("balanceOf", [address])`, `.read("totalSupply")` — format with `formatUnits(v, 18)`.

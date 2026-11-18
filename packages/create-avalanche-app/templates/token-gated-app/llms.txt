@@ -7,6 +7,7 @@
 - [contracts/src/AvaKitNFT.sol](contracts/src/AvaKitNFT.sol): the access-pass ERC-721.
 - [lib/nft-artifact.ts](lib/nft-artifact.ts): compiled ABI + bytecode (browser deploy).
 - [components/demo.tsx](components/demo.tsx): deploy → mint → gate logic.
+- [lib/deployed-contract.ts](lib/deployed-contract.ts): `useDeployedContract(name, chain)` — remembers the deployed pass contract per chain in localStorage and only uses it once `eth_getCode` confirms bytecode.
 - [app/providers.tsx](app/providers.tsx): AvaKitProvider + theme.
 - [CLAUDE.md](CLAUDE.md): agent guide (gate pattern, security caveats, rules).
 

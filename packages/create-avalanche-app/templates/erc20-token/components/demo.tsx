@@ -1,9 +1,10 @@
 "use client";
 
 import { getPublicClient } from "@avakit/core";
-import { humanizeError,
+import {
   Button,
   ConnectAvalanche,
+  humanizeError,
   shortenAddress,
   useAvaAccount,
   useAvaChain,
@@ -13,11 +14,14 @@ import { humanizeError,
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
-import { type Address, formatUnits, parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
+import { useDeployedContract } from "@/lib/deployed-contract";
 import { abi, bytecode } from "@/lib/token-artifact";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as const;
 const BURN = "0x000000000000000000000000000000000000dEaD" as const;
+// Where the address of the token you deploy is remembered in localStorage.
+const CONTRACT_STORAGE_KEY = "__PROJECT_NAME__:token-contract";
 
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -39,8 +43,12 @@ export function Demo() {
   const { chain } = useAvaChain();
   const { deploy, status: deployStatus } = useAvaDeploy();
 
-  const [contractAddress, setContractAddress] = useState<Address | null>(null);
-  const token = useContract({ address: contractAddress ?? ZERO, abi });
+  // The token you deploy is remembered per chain, so a reload does not ask for
+  // a second deploy — and it is only used again once the chain confirms there
+  // is code at that address (see lib/deployed-contract.ts).
+  const deployed = useDeployedContract(CONTRACT_STORAGE_KEY, chain);
+  const contractAddress = deployed.address;
+  const { read, write } = useContract({ address: contractAddress ?? ZERO, abi });
 
   const [balance, setBalance] = useState<bigint | null>(null);
   const [supply, setSupply] = useState<bigint | null>(null);
@@ -50,16 +58,13 @@ export function Demo() {
   const refresh = useCallback(async () => {
     if (!contractAddress || !address) return;
     try {
-      const [bal, total] = await Promise.all([
-        token.read("balanceOf", [address]),
-        token.read("totalSupply"),
-      ]);
+      const [bal, total] = await Promise.all([read("balanceOf", [address]), read("totalSupply")]);
       setBalance(bal as bigint);
       setSupply(total as bigint);
     } catch {
       // not ready
     }
-  }, [token, contractAddress, address]);
+  }, [read, contractAddress, address]);
 
   useEffect(() => {
     void refresh();
@@ -69,7 +74,7 @@ export function Demo() {
     setError(null);
     try {
       const result = await deploy({ abi, bytecode });
-      setContractAddress(result.address);
+      deployed.remember(result.address);
     } catch (e) {
       setError(humanizeError(e));
     }
@@ -92,6 +97,15 @@ export function Demo() {
     } finally {
       setBusy(null);
     }
+  }
+
+  // Forget the remembered token (it stays on-chain) and go back to step 1,
+  // e.g. to deploy the new bytecode after editing the contract.
+  function startOver() {
+    deployed.forget();
+    setBalance(null);
+    setSupply(null);
+    setError(null);
   }
 
   const fmt = (v: bigint | null) => (v === null ? "…" : `${formatUnits(v, 18)} AKT`);
@@ -117,6 +131,19 @@ export function Demo() {
       {!isConnected || !address ? (
         <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
           Connect a wallet to begin.
+        </div>
+      ) : deployed.status === "checking" ? (
+        <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
+          Looking for the token you deployed on {chain.name}…
+        </div>
+      ) : deployed.status === "unreachable" ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-dashed p-6">
+          <p className="text-muted-foreground text-sm">
+            Could not reach {chain.name} to check the token you deployed earlier.
+          </p>
+          <Button variant="outline" onClick={deployed.recheck}>
+            Try again
+          </Button>
         </div>
       ) : !contractAddress ? (
         <div className="flex flex-col gap-3 rounded-xl border p-6">
@@ -145,7 +172,7 @@ export function Demo() {
             <Button
               className="flex-1"
               disabled={busy !== null}
-              onClick={() => run("mint", () => token.write("mint", []))}
+              onClick={() => run("mint", () => write("mint", []))}
             >
               {busy === "mint" ? "Minting…" : "Mint 100 AKT"}
             </Button>
@@ -153,7 +180,7 @@ export function Demo() {
               className="flex-1"
               variant="outline"
               disabled={busy !== null || (balance ?? 0n) < parseUnits("10", 18)}
-              onClick={() => run("transfer", () => token.write("transfer", [BURN, parseUnits("10", 18)]))}
+              onClick={() => run("transfer", () => write("transfer", [BURN, parseUnits("10", 18)]))}
             >
               {busy === "transfer" ? "Sending…" : "Burn 10 AKT"}
             </Button>
@@ -167,6 +194,16 @@ export function Demo() {
           >
             View token on explorer
           </a>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={startOver}
+            disabled={busy !== null}
+          >
+            Deploy a new token
+          </Button>
         </div>
       )}
 

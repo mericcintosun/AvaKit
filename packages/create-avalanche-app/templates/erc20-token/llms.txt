@@ -7,6 +7,7 @@
 - [contracts/src/AvaKitToken.sol](contracts/src/AvaKitToken.sol): minimal self-contained ERC-20 (AKT, 18 decimals) with a `mint()` faucet.
 - [lib/token-artifact.ts](lib/token-artifact.ts): compiled ABI + bytecode (browser deploy).
 - [components/demo.tsx](components/demo.tsx): deploy → mint → transfer.
+- [lib/deployed-contract.ts](lib/deployed-contract.ts): `useDeployedContract(name, chain)` — remembers the deployed token per chain in localStorage and only uses it once `eth_getCode` confirms bytecode.
 - [CLAUDE.md](CLAUDE.md): agent guide (API, decimals, contract workflow).
 
 ## Key APIs

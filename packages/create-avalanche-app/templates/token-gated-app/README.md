@@ -15,6 +15,8 @@ pnpm dev    # http://localhost:3000 (or the port Next prints)
 
 Then: connect a wallet → **Deploy access-pass contract** → **Mint access pass** → the gated content unlocks. Deploying and minting cost gas, so fund your wallet on Fuji first (in-app faucet link).
 
+The app remembers the pass contract you deployed (in your browser, per chain), so after a reload the gate still checks the same contract. **Deploy a new one** starts over. For a real app, deploy the pass once and point the gate at that fixed address for every visitor (see `CLAUDE.md`).
+
 ## How the gate works
 
 The gated section renders only when `balanceOf(address) > 0`:

@@ -7,6 +7,7 @@
 - [contracts/src/AvaKitNFT.sol](contracts/src/AvaKitNFT.sol): minimal self-contained full ERC-721 (mint + transfers/approvals + ERC-165, on-chain art).
 - [lib/nft-artifact.ts](lib/nft-artifact.ts): compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - [components/demo.tsx](components/demo.tsx): deploy + mint flow.
+- [lib/deployed-contract.ts](lib/deployed-contract.ts): `useDeployedContract(name, chain)` — remembers the deployed contract per chain in localStorage and only uses it once `eth_getCode` confirms bytecode.
 - [app/providers.tsx](app/providers.tsx): AvaKitProvider (chains + wallet adapters) + theme.
 - [CLAUDE.md](CLAUDE.md): agent guide (AvaKit API, contract workflow, rules).
 
