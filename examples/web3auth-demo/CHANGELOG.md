@@ -1,4 +1,4 @@
-# examples/web3auth-demo
+# @avakit/example-web3auth-demo
 
 ## 0.1.5
 

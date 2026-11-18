@@ -1,5 +1,5 @@
 {
-  "name": "examples/web3auth-demo",
+  "name": "@avakit/example-web3auth-demo",
   "version": "0.1.5",
   "private": true,
   "type": "module",
