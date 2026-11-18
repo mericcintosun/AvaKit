@@ -112,7 +112,7 @@ describe("parseArtifact", () => {
       const source = readFileSync(file, "utf8");
       const { abi, bytecode } = parseArtifact(source, file);
       expect(abi.length, file).toBeGreaterThan(5);
-      // The very string in the file, whole: 15,422 hex characters for the NFT.
+      // The very string in the file, whole: about fifteen thousand hex characters for the NFT.
       expect(bytecode, file).toMatch(/^0x[0-9a-f]{1000,}$/);
       expect(source).toContain(`"${bytecode}"`);
     }

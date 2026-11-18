@@ -1,7 +1,7 @@
 /**
  * Contract artifacts by reference.
  *
- * The nft-mint template's creation bytecode is 15,422 hex characters and its
+ * The nft-mint template's creation bytecode is about fifteen thousand hex characters and its
  * ABI is 360 lines of JSON. An agent asked to copy that into a tool argument
  * will spend minutes generating it and can corrupt it on the way, so
  * `deploy_contract` and `write_contract` take a path to the file instead, and

@@ -289,7 +289,7 @@ describe("scaffold_app", () => {
   });
 
   it("returns the project's contract artifacts and the calls that deploy and mint them", async () => {
-    // Without this an agent has to find the artifact file and copy 15,422 hex
+    // Without this an agent has to find the artifact file and copy about fifteen thousand hex
     // characters of bytecode into a tool call. Now it is told the path.
     const result = await mcp.call("scaffold_app", { name: "my-first-dapp", template: "nft-mint" });
     expect(result.isError).toBe(false);

@@ -95,7 +95,7 @@ Every tool takes a strict set of arguments: one it does not declare is rejected,
 
 ### Contracts by file: `artifactPath`
 
-The nft-mint template's bytecode is 15,422 hex characters. Rather than have an agent copy that into a tool call, `deploy_contract` and `write_contract` take the path of the artifact file. Two shapes are read:
+The nft-mint template's bytecode is about fifteen thousand hex characters. Rather than have an agent copy that into a tool call, `deploy_contract` and `write_contract` take the path of the artifact file. Two shapes are read:
 
 1. a JSON file with `abi` and `bytecode`, where `bytecode` is a `0x` hex string (Hardhat) or `{ "object": "0x…" }` (Foundry) — for example `contracts/out/Counter.sol/Counter.json` after `forge build`;
 2. an AvaKit template artifact module such as `lib/nft-artifact.ts`, with `export const abi = [ … ]` in the compiler's JSON form and `export const bytecode = "0x…"`.
