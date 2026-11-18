@@ -215,6 +215,7 @@ describe("requestFaucet failures are typed", () => {
     [403, "turnstile_required", "invalid", false],
     [403, "turnstile_failed", "invalid", false],
     [404, "not_found", "invalid", false],
+    [400, "contract_recipient", "invalid", false],
     [429, "address_limited", "rate_limited", false],
     [429, "ip_limited", "rate_limited", false],
     [503, "faucet_empty", "empty", false],

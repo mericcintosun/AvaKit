@@ -100,6 +100,7 @@ const FAUCET_CODES: ReadonlyMap<string, FaucetErrorCode> = new Map<string, Fauce
   ["turnstile_required", "invalid"],
   ["turnstile_failed", "invalid"],
   ["not_found", "invalid"],
+  ["contract_recipient", "invalid"],
   ["address_limited", "rate_limited"],
   ["ip_limited", "rate_limited"],
   ["faucet_empty", "empty"],
