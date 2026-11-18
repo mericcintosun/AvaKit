@@ -1,12 +1,47 @@
 "use client";
 
-import { type MotionValue, motion, useScroll, useTransform } from "framer-motion";
-import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
+import { type MotionValue, motion, useInView, useScroll, useTransform } from "framer-motion";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
+import { useDataSaver } from "@/components/use-data-saver";
 import { useIsDesktop, usePrefersReducedMotion } from "@/components/use-media-query";
 import { cn } from "@/lib/utils";
 
 const captionClass = "absolute flex max-w-3xl flex-col items-center gap-4 px-6 text-center";
+
+/**
+ * Latches true on the visitor's first deliberate input: a real pointer move, a
+ * press, a key, a wheel tick, a touch, or a scroll (which also covers a scroll
+ * position the browser restored).
+ */
+function useHasInteracted(): boolean {
+  const [interacted, setInteracted] = useState(false);
+  useEffect(() => {
+    if (window.scrollY > 0) {
+      setInteracted(true);
+      return;
+    }
+    const controller = new AbortController();
+    const done = () => {
+      setInteracted(true);
+      controller.abort();
+    };
+    // A browser can re-send a move for a cursor that is only resting on the
+    // page, so a move counts once the position actually changes.
+    let at: { x: number; y: number } | null = null;
+    const onMove = (event: PointerEvent) => {
+      if (at && (at.x !== event.clientX || at.y !== event.clientY)) done();
+      at = { x: event.clientX, y: event.clientY };
+    };
+    const options = { passive: true, signal: controller.signal };
+    window.addEventListener("pointermove", onMove, options);
+    for (const type of ["pointerdown", "keydown", "wheel", "touchstart", "scroll"]) {
+      window.addEventListener(type, done, options);
+    }
+    return () => controller.abort();
+  }, []);
+  return interacted;
+}
 
 function TimedCaption({
   progress,
@@ -53,6 +88,11 @@ export interface ScrollVideoProps {
  * With "reduce motion" on there is no scrub: the section collapses from its
  * scroll runway to one screen showing the poster and the final caption, and the
  * clip is never requested.
+ *
+ * The clip is large (every frame is a keyframe so it can be scrubbed), so it is
+ * requested as late as it can be: only once the section is on screen and the
+ * visitor has touched the page, and never while they are saving data. Until
+ * then, and for anyone who never qualifies, the poster stands in.
  */
 export function ScrollVideo({
   src,
@@ -65,12 +105,22 @@ export function ScrollVideo({
 }: ScrollVideoProps) {
   const isDesktop = useIsDesktop();
   const reducedMotion = usePrefersReducedMotion();
+  const dataSaver = useDataSaver();
+  const interacted = useHasInteracted();
   const sectionRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const nearView = useInView(sectionRef, { margin: "200px" });
 
   // The scrub only runs at breakpoints that show the section, and only when
   // motion is welcome.
   const scrub = (!desktopOnly || isDesktop) && !reducedMotion;
+
+  // Latched: once the clip has been requested it stays attached.
+  const [load, setLoad] = useState(false);
+  useEffect(() => {
+    if (scrub && !dataSaver && nearView && interacted) setLoad(true);
+  }, [scrub, dataSaver, nearView, interacted]);
+  const active = scrub && load;
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -79,7 +129,8 @@ export function ScrollVideo({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !scrub) return;
+    // No frame loop while the section is off screen or has no clip to drive.
+    if (!video || !active || !nearView) return;
     let raf = 0;
     let cancelled = false;
     const tick = () => {
@@ -104,7 +155,7 @@ export function ScrollVideo({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [scrub, scrollYProgress]);
+  }, [active, nearView, scrollYProgress]);
 
   const count = captions.length;
   const spanStart = 0.03;
@@ -129,10 +180,12 @@ export function ScrollVideo({
       <div className="sticky top-14 h-[calc(100dvh-3.5rem)] w-full overflow-hidden bg-black">
         <video
           ref={videoRef}
-          src={scrub ? src : undefined}
+          src={active ? src : undefined}
           poster={poster}
           muted
           playsInline
+          // Scrubbing seeks all over the clip, so once it is wanted it has to
+          // be buffered whole; `active` is what holds the request back.
           preload="auto"
           // Nudge to the first frame on load so the poster doesn't visibly swap
           // to a different frame on the first scroll.

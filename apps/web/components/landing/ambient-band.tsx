@@ -1,11 +1,12 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import { Pause, Play } from "lucide-react";
 import { useLocale } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useDataSaver } from "@/components/use-data-saver";
 import { useIsDesktop, usePrefersReducedMotion } from "@/components/use-media-query";
 import { getContent, type Locale } from "@/lib/content";
 
@@ -16,18 +17,25 @@ export function AmbientBand() {
   const c = getContent(useLocale() as Locale);
   const isDesktop = useIsDesktop();
   const reducedMotion = usePrefersReducedMotion();
+  const dataSaver = useDataSaver();
+  const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  // The loop is decoration that moves for as long as the page is open, so it
-  // needs a way to stop it (WCAG 2.2.2). Until the visitor uses the control it
-  // plays, unless they asked for reduced motion; after that their choice wins.
-  const [choice, setChoice] = useState<"play" | "pause" | null>(null);
-  const wantsPlayback = choice ? choice === "play" : !reducedMotion;
-  const shouldPlay = isDesktop && wantsPlayback;
+  // The band sits far down the page: nothing is fetched or played until it is
+  // about to scroll into view, and the loop rests again once it has left.
+  const nearView = useInView(sectionRef, { margin: "200px" });
 
   // Request the clip the first time it is about to play, then keep it. A
   // visitor who never plays it only ever gets the poster.
   const [load, setLoad] = useState(false);
+
+  // The loop is decoration that moves for as long as the page is open, so it
+  // needs a way to stop it (WCAG 2.2.2). Until the visitor uses the control it
+  // plays, unless they asked for reduced motion or are saving data (which only
+  // matters before the clip has been fetched); after that their choice wins.
+  const [choice, setChoice] = useState<"play" | "pause" | null>(null);
+  const wantsPlayback = choice ? choice === "play" : !reducedMotion && (load || !dataSaver);
+  const shouldPlay = isDesktop && nearView && wantsPlayback;
+
   useEffect(() => {
     if (shouldPlay) setLoad(true);
   }, [shouldPlay]);
@@ -81,7 +89,10 @@ export function AmbientBand() {
   }, [playing, wantsPlayback]);
 
   return (
-    <section className="relative hidden h-[85vh] overflow-hidden bg-black md:block">
+    <section
+      ref={sectionRef}
+      className="relative hidden h-[85vh] overflow-hidden bg-black md:block"
+    >
       {/* The picture is decoration; the statement and the control are not. */}
       <div aria-hidden="true" className="absolute inset-0">
         <video
@@ -91,7 +102,8 @@ export function AmbientBand() {
           muted
           loop
           playsInline
-          preload="auto"
+          // Nothing is buffered ahead of time: `play()` is what starts the fetch.
+          preload="none"
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           style={{ opacity: 0 }}
