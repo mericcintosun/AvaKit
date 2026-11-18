@@ -451,15 +451,16 @@ function SetupPanel() {
         Configure it: <span className="font-mono">L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 pnpm l1</span>.
         Needs{" "}
         <a
-          href="https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli"
+          href="https://github.com/ava-labs/avalanche-cli"
           target="_blank"
           rel="noreferrer"
           className="underline underline-offset-4"
         >
           avalanche-cli
-        </a>
-        . When it finishes it writes <span className="font-mono">l1.config.json</span> and this page
-        becomes your chain dashboard automatically.
+        </a>{" "}
+        (see “Tooling status” in the README). When it finishes it writes{" "}
+        <span className="font-mono">l1.config.json</span> and this page becomes your chain dashboard
+        automatically.
       </p>
     </div>
   );

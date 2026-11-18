@@ -20,6 +20,20 @@ pnpm dev    # http://localhost:3000 (or the port Next prints)
 Then: import the printed EWOQ dev key into your wallet (pre-funded on your chain, local-only) →
 **Deploy demo token** → **Mint** → watch the transactions land in the built-in explorer.
 
+## Tooling status
+
+`pnpm l1` and `pnpm l1:fuji` (`scripts/l1.sh`, `scripts/l1-fuji.sh`) drive **Avalanche CLI** (the
+`avalanche` command, from [ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli)). What to know
+before you rely on it:
+
+- Ava Labs put Avalanche CLI in maintenance mode in December 2025, and on 2026-10-06 removed its
+  pages from the Avalanche documentation in favour of Platform CLI.
+- This template was last proven end to end in July 2026, with Avalanche CLI 1.9.6 (check yours
+  with `avalanche --version`). Both scripts have been changed since then, and the changed versions
+  have not been through a full run on a live network yet. They read what
+  `avalanche blockchain describe` prints, so another CLI version may need adjustments.
+- Moving this template to the supported toolchain is planned work and is not done yet.
+
 ## Reset the network
 
 ```bash

@@ -13,6 +13,19 @@ wired automatically).
 
 Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem · shadcn/ui · Foundry (contract) · avalanche-cli (local devnet)
 
+## Tooling status
+
+- The local network is driven by **Avalanche CLI** (`avalanche`, ava-labs/avalanche-cli). Ava Labs
+  put it in maintenance mode in December 2025 and removed its pages from the Avalanche
+  documentation on 2026-10-06 in favour of Platform CLI.
+- Last proven end to end: July 2026, with Avalanche CLI 1.9.6. `scripts/devnet.sh` has been changed
+  since then, and the changed version has not been through a full run on a live network yet.
+- Migration to the supported toolchain is planned work, not done. Until then do not replace the
+  `avalanche …` commands with another tool's: `scripts/devnet.sh` parses what
+  `avalanche blockchain describe` prints (the RPC URL, the hex blockchain ID, the
+  TeleporterMessenger address and the EWOQ row). If a step fails, compare
+  `avalanche --version` with 1.9.6 first and show the user what the CLI printed.
+
 ## Architecture
 
 - `contracts/src/AvaKitMessenger.sol` — one contract that both **sends** (via
@@ -82,6 +95,12 @@ the EVM `chainId` (1001/1002). Get it from `avalanche blockchain describe <name>
      origin sender is `address(0)`.
 - Only the deployer (`owner`) can call `setTrustedRemote`. Passing `address(0)` as the remote
   stops trusting that chain again.
+- **To stop trusting a chain:** from the owner wallet, on the messenger that should stop
+  receiving, send `setTrustedRemote(blockchainIdOf(otherChain), zeroAddress)` — the call
+  `linkChains` in `components/demo.tsx` makes, with the zero address (see "Stop trusting a chain"
+  in README.md). Deliveries from that chain then revert with `AvaKitMessenger: untrusted remote`;
+  the UI shows that side as "not linked", disables sending, and offers "Link the messengers"
+  again.
 - The TeleporterMessenger address is an **immutable constructor parameter**, not a hardcoded
   constant: the canonical predeploy is `0x253b…5fcf`, but a chain can run a different
   Teleporter version. `pnpm devnet` reads the real address from `avalanche blockchain describe`

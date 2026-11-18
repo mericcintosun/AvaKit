@@ -12,7 +12,7 @@ pnpm devnet
 pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
-`pnpm devnet` needs [avalanche-cli](https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli) and a Unix-like shell (macOS, Linux, or **WSL2** on Windows — the script is bash):
+`pnpm devnet` needs [avalanche-cli](https://github.com/ava-labs/avalanche-cli) (see [Tooling status](#tooling-status)) and a Unix-like shell (macOS, Linux, or **WSL2** on Windows — the script is bash):
 
 ```bash
 curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts/install.sh | sh -s -- -b /usr/local/bin
@@ -21,6 +21,19 @@ curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts
 The two local chains are named `icm1`/`icm2` (EVM chainIds 1001/1002), so this can run alongside the token-bridge devnet without colliding.
 
 Then in your wallet (Core / MetaMask), **import the EWOQ dev key** — avalanche-cli's public local dev key, pre-funded on both local chains. `pnpm devnet` prints it when it finishes; it is also on the `ewoq` row of `avalanche blockchain describe icm1`. It is deliberately not written in this repo (secret scanners flag committed keys, even public dev ones). Never use it on a real network.
+
+## Tooling status
+
+`pnpm devnet` (`scripts/devnet.sh`) drives **Avalanche CLI** (the `avalanche` command, from
+[ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli)). What to know before you rely on it:
+
+- Ava Labs put Avalanche CLI in maintenance mode in December 2025, and on 2026-10-06 removed its
+  pages from the Avalanche documentation in favour of Platform CLI.
+- This template was last proven end to end in July 2026, with Avalanche CLI 1.9.6 (check yours
+  with `avalanche --version`). The script has been changed since then, and the changed version has
+  not been through a full run on a live network yet. It reads what `avalanche blockchain describe`
+  prints, so another CLI version may need adjustments.
+- Moving this template to the supported toolchain is planned work and is not done yet.
 
 ## The flow
 
@@ -46,6 +59,28 @@ To change the contract:
 cd contracts && forge build
 # copy out/AvaKitMessenger.sol/AvaKitMessenger.json (abi + bytecode.object) into lib/messenger-artifact.ts
 ```
+
+## Stop trusting a chain
+
+Each messenger only accepts messages from the remote its owner registered. To make one side stop
+accepting them, the wallet that deployed that messenger calls
+`setTrustedRemote(<the other chain's hex blockchain ID>, address(0))` on it — the same call the
+**Link the messengers** button makes, with the zero address instead of the other messenger:
+
+```ts
+await ensureChain(provider, chain); // the chain of the messenger that should stop receiving
+await getWalletClient(chain, provider).writeContract({
+  address: messenger,
+  abi,
+  functionName: "setTrustedRemote",
+  args: [blockchainIdOf(otherChain), zeroAddress],
+  account: address, // must be that messenger's owner
+} as never);
+```
+
+From then on a delivery from that chain is rejected (`AvaKitMessenger: untrusted remote`), the app
+shows that side as **not linked** and holds sending back, and **Link the messengers** registers the
+remote again.
 
 ## Reset the devnet
 

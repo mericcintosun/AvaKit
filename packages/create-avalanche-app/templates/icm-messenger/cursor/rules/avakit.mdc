@@ -19,7 +19,9 @@ Teleporter), against a local 2-L1 devnet.
   TeleporterMessenger address — the UI passes it from `icm.config.json`).
 - Link: `setTrustedRemote(otherBlockchainID, otherMessenger)` on BOTH sides (owner-only) —
   receiving rejects unregistered sources. A registered remote must be non-zero;
-  `setTrustedRemote(blockchainID, address(0))` stops trusting that chain.
+  `setTrustedRemote(blockchainID, address(0))` (owner-only, on the messenger that should stop
+  receiving) stops trusting that chain: its deliveries revert with
+  `AvaKitMessenger: untrusted remote` and the UI shows the side as "not linked".
 - Send: `sendMessage(destinationBlockchainID, destinationAddress, text)` on the source chain.
   `text` is at most 256 UTF-8 bytes (`MAX_MESSAGE_LENGTH`) — the contract reverts with
   `AvaKitMessenger: message too long` above that, and the UI checks the same limit
@@ -31,6 +33,13 @@ Teleporter), against a local 2-L1 devnet.
   verifies the source and stores it. The UI polls the destination and treats
   `messagesReceived()` going up as the arrival; after 30 seconds without one it reports the
   message as not delivered instead of showing "in flight" forever.
+
+## Tooling
+
+- Tooling status: the scripts drive Avalanche CLI (`avalanche`), which Ava Labs put in
+  maintenance mode in December 2025. Last proven end to end with 1.9.6 in July 2026; a
+  migration to the supported toolchain is planned. Do not swap its commands for another
+  tool's — the scripts parse its output.
 
 ## The one detail that trips everyone up
 

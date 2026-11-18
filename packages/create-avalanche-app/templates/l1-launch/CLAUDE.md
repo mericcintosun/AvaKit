@@ -14,6 +14,20 @@ of the same chain on the public Fuji testnet (advanced).
 
 Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem · shadcn/ui · next-themes · Foundry (demo contract) · avalanche-cli (the L1)
 
+## Tooling status
+
+- The local network is driven by **Avalanche CLI** (`avalanche`, ava-labs/avalanche-cli). Ava Labs
+  put it in maintenance mode in December 2025 and removed its pages from the Avalanche
+  documentation on 2026-10-06 in favour of Platform CLI.
+- Last proven end to end: July 2026, with Avalanche CLI 1.9.6. `scripts/l1.sh` and
+  `scripts/l1-fuji.sh` have been changed since then, and the changed versions have not been through a
+  full run on a live network yet.
+- Migration to the supported toolchain is planned work, not done. Until then do not replace the
+  `avalanche …` commands with another tool's: the scripts parse what
+  `avalanche blockchain describe` prints (the RPC URL, the hex blockchain ID and the EWOQ row).
+  If a step fails, compare `avalanche --version` with 1.9.6 first and show the user what the CLI
+  printed.
+
 ## Architecture
 
 - `scripts/l1.sh` (`pnpm l1`) — creates + deploys a local Subnet-EVM L1 and writes `l1.config.json`.
@@ -74,10 +88,11 @@ commit a real private key. On Fuji you bring your own funded wallet.
 ## Graduating to Fuji (advanced)
 
 `FUJI_KEY=<key> pnpm l1:fuji` puts your chain on the public Fuji testnet. Unlike the local flow this
-needs, and the script will walk you through: (1) a Fuji key funded with test AVAX (Builder Hub faucet
-→ C-Chain → cross-chain transfer to the P-Chain), (2) a **bootstrap validator** — your machine can be
-it (`--use-local-machine`), but that process must **stay running** or the L1 stops producing blocks,
-(3) an ongoing validator **balance** that drains over time (~1 AVAX ≈ 1 month) and must be topped up.
+needs, and the script will walk you through: (1) a Fuji key funded with test AVAX (the official
+faucet, which needs a free Builder Hub sign-in → C-Chain → cross-chain transfer to the P-Chain),
+(2) a **bootstrap validator** — your machine can be it (`--use-local-machine`), but that process
+must **stay running** or the L1 stops producing blocks, (3) an ongoing validator **balance** that
+drains over time (~1 AVAX ≈ 1 month) and must be topped up.
 It is a multi-minute process with CLI prompts along the way. There is no automatic hosted explorer for
 a custom Fuji L1 — this app's built-in explorer keeps working by pointing at your Fuji L1's RPC.
 
@@ -113,8 +128,9 @@ this:
 
 1. **Do they have a funded key?** Run `avalanche key list --fuji --keys <key>` (or create one:
    `avalanche key create <key>`). Check the key's **C-Chain** balance — if it's 0, the next step is
-   the faucet: send them to `https://build.avax.network/console/primary-network/faucet` for their key's
-   C-Chain address, and wait until the balance is non-zero. Budget ~1–2 test AVAX (validators pay a
+   the official faucet, which needs a free Builder Hub sign-in: send them to
+   `https://build.avax.network/console/primary-network/faucet` for their key's C-Chain address,
+   and wait until the balance is non-zero. Budget ~1–2 test AVAX (validators pay a
    continuous P-Chain fee, ~1 AVAX ≈ 1 month).
 2. **Is the balance on the P-Chain?** The L1 deploy spends from the **P-Chain**, but the faucet funds
    the **C-Chain**. If P-Chain balance is 0, next command:

@@ -34,6 +34,4 @@ sovereign, `--proof-of-authority`, `--production-defaults` (no EWOQ; the owner a
 
 ## External docs
 
-- Create/deploy an L1 locally: https://build.avax.network/docs/tooling/avalanche-cli/create-deploy-avalanche-l1s/deploy-locally
-- Deploy on Fuji: https://build.avax.network/docs/tooling/avalanche-cli/create-deploy-avalanche-l1s/deploy-on-fuji-testnet
-- avalanche-cli: https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli
+- Avalanche CLI (https://github.com/ava-labs/avalanche-cli) drives the local network. It has been in maintenance mode since December 2025; this template was last proven end to end with 1.9.6 in July 2026 (see "Tooling status" in README.md).

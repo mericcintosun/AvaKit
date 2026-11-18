@@ -46,7 +46,8 @@ Deploy your L1 to Fuji — what you need first (one-time):
 
   1. A Fuji key funded with test AVAX:
        avalanche key create mykey            # creates a key
-       # fund its C-Chain address from the Builder Hub faucet:
+       # fund its C-Chain address from the official faucet (needs a free Builder Hub
+       # sign-in):
        #   https://build.avax.network/console/primary-network/faucet
        # then move funds to the P-Chain (the deploy spends from there; keep a
        # little on the C-Chain for the transfer fee):

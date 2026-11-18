@@ -20,6 +20,13 @@ Launch your own Avalanche L1, then explore it in a built-in dashboard.
   `--proof-of-authority --production-defaults`): never deploy the local dev config (non-sovereign,
   EWOQ-funded genesis) to a public network, and never `create --force` over a config that is live.
 
+## Tooling
+
+- Tooling status: the scripts drive Avalanche CLI (`avalanche`), which Ava Labs put in
+  maintenance mode in December 2025. Last proven end to end with 1.9.6 in July 2026; a
+  migration to the supported toolchain is planned. Do not swap its commands for another
+  tool's — the scripts parse its output.
+
 ## L1 config decisions
 
 VM = Subnet-EVM (`--evm`); EVM chain id (`--evm-chain-id`, avoid collisions); native token
