@@ -202,11 +202,12 @@ contract AvaKitMessengerTest is TestBase {
     }
 
     function test_DeliveryBudgetLeavesHeadroom() public {
-        // A call can pass on at most 63/64 of the gas its caller has left
-        // (EIP-150), so a relayer that barely satisfies the Teleporter delivers
-        // slightly less than was requested; a rebuilt contract may also burn a
-        // little more. Keep a tenth in reserve: if this fails, raise the gas
-        // `sendMessage` requests (or lower MAX_MESSAGE_LENGTH).
+        // Keep a tenth of the requested gas in reserve. The EVM holds back 1/64
+        // of a caller's remaining gas on every call (EIP-150), so a delivery
+        // made with only just enough gas hands the receiver slightly less than
+        // was asked for, and a contract rebuilt with other compiler settings
+        // may burn a little more. If this fails, raise the gas `sendMessage`
+        // requests (or lower MAX_MESSAGE_LENGTH).
         string memory text = messageOfLength(messenger.MAX_MESSAGE_LENGTH());
         messenger.sendMessage(DEST_CHAIN, address(destination), text);
 
