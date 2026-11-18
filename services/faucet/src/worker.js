@@ -29,8 +29,10 @@ import { verifyTurnstile } from "./turnstile.js";
  * what makes the rate limits exact and keeps two drips off the same nonce.
  *
  * ⚠️ Testnet only. CHAINS is an allowlist, so this can never drip real funds.
- *    Set TURNSTILE_SECRET before advertising it widely — the rate limits bound
- *    what one network can take; a captcha is what stops a thousand of them.
+ *    The rate limits bound what one network can take; a captcha is what stops
+ *    a thousand of them. Set TURNSTILE_SECRET for that — but only once every
+ *    client of this faucet sends a token (README, "Turnstile"), because from
+ *    then on a request without one is refused.
  */
 
 /**

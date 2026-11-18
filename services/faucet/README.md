@@ -110,21 +110,46 @@ that is what Turnstile is for.
 
 ### Turnstile (optional)
 
-**Turn it on before advertising the faucet widely.** It is enforced only when
-`TURNSTILE_SECRET` is set, so it needs no code change:
+A captcha in front of `POST /fund`. It is enforced only when `TURNSTILE_SECRET`
+is set, so turning it on needs no code change in the Worker — but it does need
+every client of the faucet to send a token first.
+
+> **The hosted faucet runs without it, and has to for now.** The public demo
+> page (`avakit.dev/new`) does not render a Turnstile widget yet, so it has no
+> token to send. Setting `TURNSTILE_SECRET` on the faucet behind that page makes
+> every drip from it fail with `403 turnstile_required`. Leave the secret unset
+> there until the page sends a token.
+
+On your own faucet:
 
 1. Add a [Turnstile](https://developers.cloudflare.com/turnstile/) widget in
    the Cloudflare dashboard for the hostnames that call the faucet. It gives
    you a site key (public) and a secret key.
 2. Render the widget with the site key on the page that calls the faucet, and
-   send the token it produces as `turnstileToken` in the `POST /fund` body.
+   hand the token it produces to the client you use:
+
+   ```tsx
+   // @avakit/react: asked before every faucet request, the automatic drip included
+   <AvaKitProvider faucetUrl="https://<worker>.workers.dev/fund" faucetToken={() => getToken()}>
+   ```
+
+   ```ts
+   // @avakit/core: a string, or a function asked before every attempt
+   await requestFaucet({ url, address, chainId: 43113, turnstileToken: () => getToken() });
+   ```
+
+   Both options are in the releases of `@avakit/core` and `@avakit/react` after
+   0.2.1; an older client cannot send a token. Any other client puts the token
+   in the request body as `turnstileToken`.
 3. `npx wrangler secret put TURNSTILE_SECRET` with the secret key.
 
 From step 3 on, a request without a valid token gets a `403` — so do it last,
-once every client of this faucet sends one. A token is single-use and expires
-after five minutes; ask the widget for a fresh one per request. If Cloudflare's
-verification cannot be reached the faucet answers `503` rather than letting
-everyone through.
+once every client of this faucet sends one. `GET /health` answers
+`"turnstile": true` from then on, which is how a client or an operator can tell
+without a drip. A token is single-use and expires after five minutes; ask the
+widget for a fresh one per request (which is why both clients take a function).
+If Cloudflare's verification cannot be reached the faucet answers `503` rather
+than letting everyone through.
 
 ## Local
 
