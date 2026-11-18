@@ -18,7 +18,12 @@ export function SiteHeader() {
   const pathname = usePathname();
   return (
     <header className="sticky top-0 z-40 border-b backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+      {/* From md up: logo | nav | actions. The side columns are `1fr`, not
+          `minmax(0,1fr)`: they share the spare width equally, which centres the
+          nav, but neither can shrink below its content. So where the actions
+          need more than their half (a narrow desktop, a longer locale) the nav
+          moves aside and keeps its gap instead of sliding under the buttons. */}
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8 md:grid md:grid-cols-[1fr_auto_1fr] md:gap-6">
         <Link href="/" className="flex items-center gap-2 justify-self-start">
           <Image
             src="/logo.png"
