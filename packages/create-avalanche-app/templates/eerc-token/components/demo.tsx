@@ -11,6 +11,7 @@ import {
   type CircuitURLs,
   EERC_CONTRACT_ADDRESS,
   loadVerifiedCircuits,
+  usesSharedInstance,
 } from "@/lib/eerc-config";
 
 function ThemeToggle() {
@@ -214,11 +215,23 @@ function EercPanel({
 
       <div className="flex flex-col gap-2 border-t pt-4">
         <p className="text-sm">Mint privately to yourself</p>
-        {isOwner ? null : (
+        {isOwner ? null : usesSharedInstance ? (
           <p className="text-muted-foreground text-xs">
             Minting is owner-only, and this app is pointed at the shared demo instance — run{" "}
             <span className="font-mono">pnpm deploy:eerc</span> to deploy your own instance, then
             connect the deployer wallet to mint.
+          </p>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            Minting is owner-only. This app is pointed at your own instance, so connect the wallet
+            that deployed it
+            {eerc.owner ? (
+              <>
+                {" "}
+                (<span className="font-mono">{shortenAddress(eerc.owner, 6)}</span>)
+              </>
+            ) : null}{" "}
+            to mint.
           </p>
         )}
         <div className="flex gap-2">

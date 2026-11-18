@@ -161,10 +161,15 @@ const address = match[1];
 // [4/4] Point the app at YOUR instance.
 const eercConfig = join(appDir, "lib", "eerc-config.ts");
 const lib = readFileSync(eercConfig, "utf8");
-writeFileSync(
-  eercConfig,
-  lib.replace(/export const EERC_CONTRACT_ADDRESS: Hex = "0x[0-9a-fA-F]{40}";/, `export const EERC_CONTRACT_ADDRESS: Hex = "${address}";`),
-);
+const pointer = /export const EERC_CONTRACT_ADDRESS: Hex = "0x[0-9a-fA-F]{40}";/;
+if (!pointer.test(lib)) {
+  console.error(
+    `\nYour instance is deployed at ${address}, but the EERC_CONTRACT_ADDRESS line in ` +
+      "lib/eerc-config.ts was not found — set it to that address by hand.",
+  );
+  process.exit(1);
+}
+writeFileSync(eercConfig, lib.replace(pointer, `export const EERC_CONTRACT_ADDRESS: Hex = "${address}";`));
 
 console.log(
   `\n[4/4] Done — lib/eerc-config.ts now points at YOUR instance:\n  ${address}\n\n` +

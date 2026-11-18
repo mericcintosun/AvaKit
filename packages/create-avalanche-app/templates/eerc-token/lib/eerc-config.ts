@@ -4,10 +4,19 @@ import type { Hex } from "viem";
  * Standalone eERC deployment on Avalanche Fuji, shared by every app scaffolded
  * from this template. Deployed with `ava-labs/EncryptedERC`'s
  * `scripts/deploy-standalone.ts` (name "Test", symbol "TEST", 2 decimals).
- * Run `pnpm deploy:eerc` to replace it with your own instance (required for
- * minting — `privateMint` is owner-only).
+ */
+export const SHARED_EERC_CONTRACT_ADDRESS: Hex = "0xfB27bcdb845ECF231a36f3d14466e9ce9CF98d58";
+
+/**
+ * The eERC instance this app talks to: the shared one until you run
+ * `pnpm deploy:eerc`, which rewrites this line to point at your own instance
+ * (required for minting — `privateMint` is owner-only).
  */
 export const EERC_CONTRACT_ADDRESS: Hex = "0xfB27bcdb845ECF231a36f3d14466e9ce9CF98d58";
+
+/** True while the app still points at the shared demo instance. */
+export const usesSharedInstance =
+  EERC_CONTRACT_ADDRESS.toLowerCase() === SHARED_EERC_CONTRACT_ADDRESS.toLowerCase();
 
 /**
  * Circuit wasm + zkey files, served from the `ava-labs/EncryptedERC` repo via
@@ -79,12 +88,17 @@ async function fetchAndVerify(file: { path: string; sha256: string }): Promise<s
   return URL.createObjectURL(new Blob([bytes]));
 }
 
-/**
- * Download every circuit, verify it against the pinned SHA-256, and return
- * blob URLs in the shape `useEERC` expects. ~50 MB on first visit (browser-
- * cached afterwards); rejects if any file fails its integrity check.
- */
-export async function loadVerifiedCircuits(): Promise<CircuitURLs> {
+async function downloadAndVerify(): Promise<CircuitURLs> {
+  // WebCrypto only exists in a secure context: https, or http://localhost. On a
+  // plain-http address (e.g. this dev server opened from another device on the
+  // LAN) browsers leave `crypto.subtle` undefined — say that, instead of failing
+  // with "cannot read properties of undefined".
+  if (!globalThis.crypto?.subtle) {
+    throw new Error(
+      "Circuit verification needs WebCrypto, which browsers only provide on https:// or " +
+        "http://localhost. Open this app on localhost, or serve it over https.",
+    );
+  }
   const entries = await Promise.all(
     Object.entries(CIRCUIT_FILES).map(async ([name, files]) => [
       name,
@@ -92,4 +106,25 @@ export async function loadVerifiedCircuits(): Promise<CircuitURLs> {
     ]),
   );
   return Object.fromEntries(entries) as CircuitURLs;
+}
+
+let verified: Promise<CircuitURLs> | null = null;
+
+/**
+ * Download every circuit, verify it against the pinned SHA-256, and return
+ * blob URLs in the shape `useEERC` expects. ~50 MB on first visit (browser-
+ * cached afterwards); rejects if any file fails its integrity check.
+ *
+ * The work happens once per page load, however often the UI asks (React runs
+ * effects twice in development, and a remount asks again): later callers share
+ * the same verified blobs instead of downloading everything again and holding a
+ * second copy in memory. A failed attempt is not remembered, so asking again
+ * retries.
+ */
+export function loadVerifiedCircuits(): Promise<CircuitURLs> {
+  verified ??= downloadAndVerify().catch((error: unknown) => {
+    verified = null;
+    throw error;
+  });
+  return verified;
 }
