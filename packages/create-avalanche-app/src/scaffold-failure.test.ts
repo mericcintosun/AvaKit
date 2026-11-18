@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,7 +56,9 @@ describe("scaffoldApp when writing fails part-way", () => {
     expect(existsSync(path.join(target, "package.json"))).toBe(true);
   });
 
-  it("never removes a directory that was there before it started", async () => {
+  it("empties, but keeps, a directory that was there and empty before it started", async () => {
+    // The CLI and scaffold_app both accept an existing empty directory, so this
+    // is the other way a retry used to be refused as "not empty".
     const target = path.join(dir, "existing");
     mkdirSync(target);
     disk.room = 3;
@@ -56,6 +66,24 @@ describe("scaffoldApp when writing fails part-way", () => {
       scaffoldApp({ projectName: "app", targetDir: target, template: "minimal" }),
     ).rejects.toThrow(/ENOSPC/);
     expect(existsSync(target)).toBe(true);
-    expect(readdirSync(target).length).toBeGreaterThan(0);
+    expect(readdirSync(target)).toEqual([]);
+
+    disk.room = Number.POSITIVE_INFINITY;
+    const retry = await scaffoldApp({ projectName: "app", targetDir: target, template: "minimal" });
+    expect(retry.files.length).toBeGreaterThan(3);
+  });
+
+  it("never removes anything from a directory that already had files in it", async () => {
+    // Nothing tells the files that were there from the ones this call wrote, so
+    // such a directory is left exactly as far as the scaffold got.
+    const target = path.join(dir, "occupied");
+    mkdirSync(target);
+    writeFileSync(path.join(target, "notes.txt"), "keep me");
+    disk.room = 3;
+    await expect(
+      scaffoldApp({ projectName: "app", targetDir: target, template: "minimal" }),
+    ).rejects.toThrow(/ENOSPC/);
+    expect(readFileSync(path.join(target, "notes.txt"), "utf8")).toBe("keep me");
+    expect(readdirSync(target).length).toBeGreaterThan(1);
   });
 });

@@ -188,9 +188,11 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
 
   // A scaffold that fails part-way (a full disk, a permission error) must not
   // leave a half-written project behind: the retry would find the directory
-  // "not empty" and be refused. Only a directory this call creates is removed —
-  // never one that was already there.
-  const createdHere = !pathExists(opts.targetDir);
+  // "not empty" and be refused. So what this call wrote is taken away again —
+  // the directory itself when this call created it, only its contents when it
+  // was already there and empty. One that already held files is left alone:
+  // nothing tells theirs from ours.
+  const before = targetState(opts.targetDir);
   try {
     const files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
 
@@ -208,18 +210,34 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
 
     return { targetDir: opts.targetDir, files };
   } catch (error) {
-    if (createdHere) rmSync(opts.targetDir, { recursive: true, force: true });
+    try {
+      if (before === "missing") {
+        rmSync(opts.targetDir, { recursive: true, force: true });
+      } else if (before === "empty") {
+        for (const entry of readdirSync(opts.targetDir)) {
+          rmSync(path.join(opts.targetDir, entry), { recursive: true, force: true });
+        }
+      }
+    } catch {
+      // Tidying up failed too. The error worth reporting is still the first one.
+    }
     throw error;
   }
 }
 
-/** Whether anything is at `target` — including a symlink that points nowhere. */
-function pathExists(target: string): boolean {
+/** What is at `target` before anything is written: nothing, an empty directory, or more. */
+function targetState(target: string): "missing" | "empty" | "occupied" {
   try {
+    // lstat, so that a symlink pointing nowhere counts as something being there.
     lstatSync(target);
-    return true;
   } catch {
-    return false;
+    return "missing";
+  }
+  try {
+    return readdirSync(target).length === 0 ? "empty" : "occupied";
+  } catch {
+    // Not a directory, or not one we can read: nothing of ours to tidy up later.
+    return "occupied";
   }
 }
 
