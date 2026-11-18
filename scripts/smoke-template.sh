@@ -26,6 +26,14 @@
 # Usage: scripts/smoke-template.sh <template-id> [workdir]
 set -euo pipefail
 
+# A smoke run is this repo testing itself, not someone using AvaKit, so it must
+# never be counted as usage. The scaffolder reports each run to the production
+# collector unless telemetry is off, and its CI detection does not cover a run on
+# a developer's machine: on 2026-11-18 local smoke runs added 52 scaffolds to the
+# public count on avakit.dev/stats. Switch telemetry off here, for every process
+# this script starts, instead of relying on the caller to remember.
+export AVAKIT_TELEMETRY_DISABLED=1
+
 TEMPLATE="${1:?usage: smoke-template.sh <template-id> [workdir]}"
 WORKDIR="${2:-$(mktemp -d)}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"

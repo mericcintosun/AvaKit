@@ -54,6 +54,9 @@ jobs:
   # that needs an unpublished core feature is verified before release. Run
   # `SMOKE_USE_NPM=1 scripts/smoke-template.sh <id>` after a release to verify the
   # per-package pins the scaffolder stamps really resolve from npm.
+  #
+  # The script switches the scaffolder's telemetry off itself, so a smoke run is
+  # never counted as usage, here or on a developer's machine.
   smoke-templates:
     name: Smoke · ${{ matrix.template }}
     runs-on: ubuntu-latest

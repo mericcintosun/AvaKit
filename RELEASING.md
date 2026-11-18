@@ -37,9 +37,15 @@ exchange is also what produces the **provenance attestation** on each tarball
 
 4. **Verify.** `npm view <pkg> version`, and smoke-test the real thing in a clean dir:
    ```bash
-   npm create avalanche-app@latest my-app
+   AVAKIT_TELEMETRY_DISABLED=1 npm create avalanche-app@latest my-app
    cd my-app && pnpm install && pnpm build
    ```
+   Keep `AVAKIT_TELEMETRY_DISABLED=1` on that command. A maintainer checking a release
+   is not someone using AvaKit, and without it the run is counted as a scaffold on
+   avakit.dev/stats. `SMOKE_USE_NPM=1 scripts/smoke-template.sh <template>` is the
+   scripted variant: it scaffolds with the locally built CLI, installs the published
+   `@avakit/*` versions that CLI pins, then type-checks and builds, with telemetry
+   already off.
 
 ## Nothing is published from a red tree
 
