@@ -21,7 +21,9 @@ export interface TransactionButtonProps {
 
 /**
  * One-click transaction button: sends from the connected wallet, shows a
- * pending state, and reveals an explorer link on success. Built on shadcn/ui.
+ * pending state while the wallet is asked, and reveals an explorer link once
+ * the transaction is broadcast (`onSuccess` fires then too; neither waits for
+ * the transaction to be mined). Built on shadcn/ui.
  */
 export function TransactionButton({
   to,

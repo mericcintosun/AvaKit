@@ -177,7 +177,15 @@ export function useAvaDeploy() {
 
 export type TxStatus = "idle" | "pending" | "success" | "error";
 
-/** Send a transaction from the connected wallet, with status + explorer link. */
+/**
+ * Send a transaction from the connected wallet, with status + explorer link.
+ *
+ * `status` becomes "success", and `send()` resolves with the hash, as soon as
+ * the wallet has broadcast the transaction. Neither waits for it to be mined,
+ * so a transaction that later reverts is not reported here. When the outcome
+ * matters, wait for the receipt and check its status, e.g.
+ * `getPublicClient(chain).waitForTransactionReceipt({ hash })` from @avakit/core.
+ */
 export function useSendTransaction() {
   const { chain, provider, address } = useAvaKit();
   const [status, setStatus] = useState<TxStatus>("idle");
