@@ -252,6 +252,8 @@ async function attempt(
   timeoutMs: number,
 ): Promise<FaucetResult> {
   const { signal } = options;
+  // An abort that has already happened fires no event, so ask.
+  if (signal?.aborted) throw abortError(signal);
   // One controller per attempt, aborted by the caller's signal or by the time
   // limit. (`AbortSignal.any` would say this in one line, but is missing from
   // browsers that are still in use.)

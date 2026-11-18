@@ -563,6 +563,22 @@ describe("requestFaucet abort and time limit", () => {
     expect(error?.message).toMatch(/aborted/);
   });
 
+  it("sends nothing when the caller aborts in the same tick as the call", async () => {
+    const spy = stubFetch(() => json({ txHash: "0xabc" }));
+    const controller = new AbortController();
+
+    const outcome = settle(
+      requestFaucet({ url: FAUCET, address: ADDRESS, signal: controller.signal }),
+    );
+    // The call has returned its promise, but the request has not gone out yet.
+    controller.abort();
+    const { result, error } = await outcome;
+
+    expect(result).toBeNull();
+    expect(error?.message).toMatch(/aborted/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it("stops a request in flight when the caller aborts, and does not retry it", async () => {
     const spy = stubHangingFetch();
     const controller = new AbortController();
