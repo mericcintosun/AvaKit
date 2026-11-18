@@ -20,7 +20,7 @@ import { verifyTurnstile } from "./turnstile.js";
  * Worker secret, so AvaKit client code never touches a private key.
  *
  *   POST /fund   { address, chainId?, turnstileToken? }  → { txHash, amount, chainId }
- *   GET  /health                        → { ok, address, chainId, balance, turnstile }
+ *   GET  /health                → { ok, address, chainId, balance, amount, turnstile }
  *
  * Point a dapp at it: <AvaKitProvider faucetUrl="https://<worker>/fund">
  *
@@ -111,17 +111,41 @@ function preflight(env) {
 
 const KEY_MISSING = { code: "misconfigured", message: "Faucet key not configured." };
 
+/**
+ * What one drip is: `amount` as configured (AVAX, as text) and `value` in wei.
+ * Throws FaucetConfigError if FAUCET_DRIP_AVAX is not an amount.
+ */
+function dripAmount(env) {
+  const amount = env.FAUCET_DRIP_AVAX || "0.05";
+  let value = 0n;
+  try {
+    value = parseEther(amount);
+  } catch {
+    // Falls through to the check below.
+  }
+  if (value <= 0n) throw new FaucetConfigError("FAUCET_DRIP_AVAX is not a valid amount.");
+  return { amount, value };
+}
+
+/**
+ * The faucet's state, for a client or an operator to read without a drip. It
+ * names the faucet's own address and that address's balance, nothing else.
+ */
 async function health(env) {
   if (!env.AVAKIT_FAUCET_KEY) return refuse(KEY_MISSING, env);
 
   const { account, client } = connect(DEFAULT_CHAIN_ID, env);
+  const { amount } = dripAmount(env);
   const balance = await client.getBalance({ address: account.address }).catch(() => null);
   return json(
     {
       ok: true,
       address: account.address,
       chainId: DEFAULT_CHAIN_ID,
+      // Wei, as text; null when the RPC could not be asked.
       balance: balance != null ? balance.toString() : null,
+      // What one drip sends, in AVAX — the `amount` POST /fund answers with.
+      amount,
       // Whether POST /fund expects a `turnstileToken`.
       turnstile: Boolean(env.TURNSTILE_SECRET),
     },
@@ -314,15 +338,6 @@ export class Faucet extends DurableObject {
       this.connection = { ...connection, sender: new DripSender(connection) };
     }
 
-    const amount = this.env.FAUCET_DRIP_AVAX || "0.05";
-    let value = 0n;
-    try {
-      value = parseEther(amount);
-    } catch {
-      // Falls through to the check below.
-    }
-    if (value <= 0n) throw new FaucetConfigError("FAUCET_DRIP_AVAX is not a valid amount.");
-
-    return { sender: this.connection.sender, amount, value };
+    return { sender: this.connection.sender, ...dripAmount(this.env) };
   }
 }

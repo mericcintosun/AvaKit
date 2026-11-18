@@ -94,7 +94,7 @@ const statuses = (results) => results.map((result) => result.status);
 const count = (results, status) => statuses(results).filter((s) => s === status).length;
 
 describe("GET /health", () => {
-  it("reports the faucet account and its balance", async () => {
+  it("reports the faucet account, its balance and what a drip is", async () => {
     const health = await call("/health");
 
     assert.equal(health.status, 200);
@@ -103,8 +103,21 @@ describe("GET /health", () => {
       address: faucetAddress,
       chainId: CHAIN_ID,
       balance: parseEther("10").toString(),
+      amount: "0.02",
       turnstile: false,
     });
+    // Only the faucet's own balance was asked for, and the key is not in the answer.
+    assert.deepEqual(chain.calls, ["eth_getBalance"]);
+    assert.ok(!health.text.includes(key.slice(2)));
+  });
+
+  it("promises the amount that a drip then sends", async () => {
+    const { amount } = (await call("/health")).body;
+
+    const funded = await fund();
+
+    assert.equal(funded.body.amount, amount);
+    assert.equal(chain.accepted[0].value, parseEther(amount));
   });
 });
 
@@ -637,11 +650,14 @@ describe("a misconfigured faucet", () => {
 
   it("refuses to guess a drip amount", async () => {
     await worker.configure(env({ FAUCET_DRIP_AVAX: "lots" }));
-
-    assert.deepEqual(answer(await fund()), [
+    const expected = [
       500,
       { error: "FAUCET_DRIP_AVAX is not a valid amount.", code: "misconfigured" },
-    ]);
+    ];
+
+    assert.deepEqual(answer(await fund()), expected);
     assert.equal(chain.accepted.length, 0);
+    // /health says so too, rather than naming an amount no drip will send.
+    assert.deepEqual(answer(await call("/health")), expected);
   });
 });

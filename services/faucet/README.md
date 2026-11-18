@@ -74,8 +74,12 @@ it is redacted from everything the Worker logs.
 
 - `POST /fund` — `{ "address": "0x…", "chainId"?: 43113, "turnstileToken"?: "…" }`
   → `{ txHash, amount, chainId }`
-- `GET /health` — `{ ok, address, chainId, balance, turnstile }`. `turnstile` is
-  `true` when `POST /fund` expects a token.
+- `GET /health` — `{ ok, address, chainId, balance, amount, turnstile }`: the
+  faucet's state, without a drip. `address` is the faucet's own account and
+  `balance` what it holds, in wei (`null` if the RPC could not be asked);
+  `amount` is what one drip sends, in AVAX (`"0.02"`); `turnstile` is `true`
+  when `POST /fund` expects a token. A faucet that is set up wrong answers
+  `500 misconfigured` here too.
 
 Anything else answers `{ "error": "…", "code": "…" }`. The message is fixed text
 for people; branch on `code`:
