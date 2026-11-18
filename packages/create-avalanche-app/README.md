@@ -10,17 +10,20 @@ npm create avalanche-app@latest
 npm create avalanche-app@latest my-app -- --template nft-mint --yes
 ```
 
-The CLI prints the exact next steps for your choices (they vary by template). Typically:
+Use the package manager you prefer (`pnpm create`, `yarn create`, and `bun create` work the same
+way): the CLI installs the dependencies with the one you launched it with, or with the one you
+name with `--pm`.
+
+It then prints the exact next steps for your choices (they vary by template). With npm, typically:
 
 ```bash
 cd my-app
-pnpm install
 # Optional: social login works on localhost via a bundled demo key. Only your own
 # deployment needs a client id — then copy .env.example and add it:
 cp .env.example .env.local
 # devnet templates only — start the local Avalanche network first:
-pnpm run devnet              # icm-messenger   (or: pnpm run l1 / pnpm run bridge)
-pnpm dev                     # http://localhost:3000
+npm run devnet               # icm-messenger   (or: npm run l1 / npm run bridge)
+npm run dev                  # http://localhost:3000
 ```
 
 ## Templates
@@ -47,6 +50,7 @@ The `icm-messenger`, `l1-launch`, and `token-bridge` templates run a local devne
                         icm-messenger | eerc-token | l1-launch | token-bridge
 -c, --chain <id>        fuji | c-chain           (default: fuji)
     --pm <manager>      pnpm | npm | yarn | bun
+                        (default: the one you ran this with, else npm)
 -y, --yes               skip prompts (non-interactive)
     --no-install        do not install dependencies
     --no-telemetry      opt out of anonymous usage counting (persisted)
@@ -78,10 +82,16 @@ Full details: [avakit.dev/docs/telemetry](https://avakit.dev/docs/telemetry).
 
 ## Notes
 
-- When you scaffold with `--pm pnpm` (the default) and let the CLI install, it uses its own
-  bundled **pnpm 11**, so the generated `pnpm-lock.yaml` is a pnpm-11 lockfile even if your system
-  pnpm is 10. If your team pins pnpm 10, run `pnpm install` yourself after `--no-install`.
+- **Package manager.** Without `--pm`, the CLI uses the package manager you launched it with
+  (`npm create` → npm, `pnpm create` → pnpm, `yarn create` → yarn, `bun create` → bun) and falls
+  back to npm when it cannot tell. It runs that manager from your `PATH` — nothing is bundled — so
+  the lockfile is whatever your installed version writes. To control the install yourself, pass
+  `--no-install`.
+- **A failed install is an error.** If the package manager is missing or the install fails, the
+  project is still created, but the CLI says what went wrong, prints the commands to run by hand,
+  and exits with a non-zero status, so a script never carries on with a half-set-up app.
 - Each template ships a `pnpm-workspace.yaml` that pre-approves native builds (e.g. `sharp`) and
   exempts `@avakit/*` from pnpm's supply-chain age gate, so `pnpm install` is clean out of the box.
+  Other package managers ignore that file.
 
 MIT © AvaKit contributors

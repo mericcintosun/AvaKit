@@ -1,6 +1,7 @@
 import { ConfirmInput, Select, Spinner, TextInput, ThemeProvider } from "@inkjs/ui";
-import { Box, render, Text, useApp } from "ink";
+import { Box, type RenderOptions, render, Text, useApp } from "ink";
 import { useEffect, useMemo, useState } from "react";
+import type { PackageManager } from "../pm.js";
 import { C, crimsonAt, uiTheme } from "./theme.js";
 
 // ── The shared AvaKit logo ────────────────────────────────────────────────
@@ -30,19 +31,41 @@ export type Answers = {
 export type TemplateInfo = { id: string; title: string; description: string };
 
 /** A command to optionally run for the user once scaffolding finishes. */
-export type StartCommand = { command: string[]; cwd: string; label: string };
+export type StartCommand = { pm: PackageManager; args: string[]; cwd: string; label: string };
+
+/** How the dependency install went; `reason` and `output` explain a failure. */
+export type InstallOutcome = { ok: boolean; reason: string; output: string };
 
 export type WizardProps = {
   version: string;
   templates: TemplateInfo[];
+  /** The package managers to offer, in display order (the first is the default). */
+  packageManagers: string[];
+  /** The manager the CLI was launched with, if known — labelled in the list. */
+  detectedPackageManager: string | null;
   presets: Partial<Answers>;
   scaffold: (a: Answers) => Promise<{ created: number }>;
-  install: ((a: Answers) => boolean) | null;
-  nextSteps: (a: Answers) => string[];
+  /** Installs the dependencies, or null when the user passed --no-install. */
+  install: ((a: Answers) => Promise<InstallOutcome>) | null;
+  /** `installed` is false when the install was skipped or failed. */
+  nextSteps: (a: Answers, installed: boolean) => string[];
   /** If it returns a command, the wizard offers to run it (e.g. the dev server). */
-  startCommand: (a: Answers) => StartCommand | null;
-  /** Called once before exit with the command the user chose to run, or null. */
-  onFinish: (start: StartCommand | null) => void;
+  startCommand: (a: Answers, installed: boolean) => StartCommand | null;
+};
+
+export type WizardResult = {
+  /**
+   * `created`: the app was scaffolded (its install may still have failed).
+   * `failed`: scaffolding itself failed. `cancelled`: the user backed out.
+   */
+  outcome: "created" | "failed" | "cancelled";
+  /** The command the user chose to run next, or null. */
+  start: StartCommand | null;
+};
+
+type AppProps = WizardProps & {
+  /** Called once, just before the wizard exits. */
+  onFinish: (result: WizardResult) => void;
 };
 
 type StepKey = keyof Answers;
@@ -100,24 +123,27 @@ function displayValue(templates: TemplateInfo[], key: StepKey, value: string): s
   return value;
 }
 
-function optionsFor(key: StepKey, templates: TemplateInfo[]): { label: string; value: string }[] {
+function optionsFor(key: StepKey, props: WizardProps): { label: string; value: string }[] {
   switch (key) {
     case "template":
-      return templates.map((t) => ({ label: t.title, value: t.id }));
+      return props.templates.map((t) => ({ label: t.title, value: t.id }));
     case "chain":
       return [
         { label: "Fuji testnet  ·  recommended", value: "fuji" },
         { label: "C-Chain (mainnet)", value: "c-chain" },
       ];
     case "pm":
-      return ["pnpm", "npm", "yarn", "bun"].map((m) => ({ label: m, value: m }));
+      return props.packageManagers.map((m) => ({
+        label: m === props.detectedPackageManager ? `${m}  ·  detected` : m,
+        value: m,
+      }));
     default:
       return [];
   }
 }
 
 // ── The wizard ──────────────────────────────────────────────────────────────
-function App(props: WizardProps) {
+function App(props: AppProps) {
   const { exit } = useApp();
   const askSteps = useMemo(() => STEP_ORDER.filter((k) => !props.presets[k]), [props.presets]);
   const [idx, setIdx] = useState(0);
@@ -128,13 +154,17 @@ function App(props: WizardProps) {
   const [nameError, setNameError] = useState<string | null>(null);
   const [created, setCreated] = useState(0);
   const [scaffoldState, setScaffoldState] = useState<"running" | "done">("running");
-  const [installState, setInstallState] = useState<"pending" | "running" | "done" | "warn">(
-    props.install ? "pending" : "done",
+  const [installState, setInstallState] = useState<"pending" | "running" | "done" | "failed">(
+    "pending",
   );
+  const [installProblem, setInstallProblem] = useState<InstallOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [startCmd, setStartCmd] = useState<StartCommand | null>(null);
 
   const currentKey = askSteps[idx];
+  // Only a finished, successful install counts: the next steps and the
+  // dev-server offer must not assume dependencies that are not there.
+  const installed = props.install !== null && installState === "done";
 
   // Run scaffolding + install when we enter that phase.
   useEffect(() => {
@@ -148,9 +178,10 @@ function App(props: WizardProps) {
         setScaffoldState("done");
         if (props.install) {
           setInstallState("running");
-          const ok = props.install(answers as Answers);
+          const outcome = await props.install(answers as Answers);
           if (!alive) return;
-          setInstallState(ok ? "done" : "warn");
+          setInstallProblem(outcome.ok ? null : outcome);
+          setInstallState(outcome.ok ? "done" : "failed");
         }
         setPhase("done");
       } catch (e) {
@@ -167,21 +198,20 @@ function App(props: WizardProps) {
   // On completion: offer to start the dev server if eligible; otherwise finish.
   useEffect(() => {
     if (phase === "error") {
-      process.exitCode = 1;
-      props.onFinish(null);
+      props.onFinish({ outcome: "failed", start: null });
       const t = setTimeout(() => exit(), 40);
       return () => clearTimeout(t);
     }
     if (phase === "done") {
-      const cmd = props.startCommand(answers as Answers);
+      const cmd = props.startCommand(answers as Answers, installed);
       setStartCmd(cmd);
       if (!cmd) {
-        props.onFinish(null);
+        props.onFinish({ outcome: "created", start: null });
         const t = setTimeout(() => exit(), 40);
         return () => clearTimeout(t);
       }
     }
-  }, [phase, exit, props, answers]);
+  }, [phase, exit, props, answers, installed]);
 
   function submit(value: string) {
     if (!currentKey) return;
@@ -243,10 +273,7 @@ function App(props: WizardProps) {
                     }}
                   />
                 ) : (
-                  <Select
-                    options={optionsFor(currentKey, props.templates)}
-                    onChange={(v) => submit(v)}
-                  />
+                  <Select options={optionsFor(currentKey, props)} onChange={(v) => submit(v)} />
                 )}
               </Box>
               {nameError && currentKey === "projectName" ? (
@@ -280,7 +307,7 @@ function App(props: WizardProps) {
               <ConfirmInput
                 onConfirm={() => setPhase("scaffolding")}
                 onCancel={() => {
-                  props.onFinish(null);
+                  props.onFinish({ outcome: "cancelled", start: null });
                   exit();
                 }}
               />
@@ -309,11 +336,18 @@ function App(props: WizardProps) {
               )}
               {props.install ? (
                 installState === "running" ? (
-                  <Spinner label="Installing dependencies" />
+                  <Spinner label={`Installing dependencies with ${answers.pm}`} />
                 ) : installState === "done" ? (
                   <Text color={C.green}>✓ Dependencies installed</Text>
-                ) : installState === "warn" ? (
-                  <Text color={C.yellow}>! Install skipped — run it manually</Text>
+                ) : installState === "failed" ? (
+                  <Box flexDirection="column">
+                    <Text color={C.yellow}>
+                      {`! Dependencies were not installed: ${installProblem?.reason ?? "the install failed"}`}
+                    </Text>
+                    {installProblem?.output ? (
+                      <Text color={C.dim}>{installProblem.output}</Text>
+                    ) : null}
+                  </Box>
                 ) : (
                   <Text color={C.dim}>· Installing dependencies</Text>
                 )
@@ -322,12 +356,18 @@ function App(props: WizardProps) {
 
             {phase === "done" ? (
               <Box marginTop={1} flexDirection="column">
-                <Text bold color={C.green}>
-                  Your Avalanche dapp is ready.
-                </Text>
+                {installState === "failed" ? (
+                  <Text bold color={C.yellow}>
+                    Your Avalanche dapp was created, but its dependencies are not installed.
+                  </Text>
+                ) : (
+                  <Text bold color={C.green}>
+                    Your Avalanche dapp is ready.
+                  </Text>
+                )}
                 <Box marginTop={1} flexDirection="column">
                   <Text color={C.dim}>Next steps</Text>
-                  {props.nextSteps(answers as Answers).map((s) => (
+                  {props.nextSteps(answers as Answers, installed).map((s) => (
                     <Text key={s} color={C.crimsonBright}>{`  ${s}`}</Text>
                   ))}
                 </Box>
@@ -340,11 +380,11 @@ function App(props: WizardProps) {
                     <Text color={C.crimsonBright}>{`${startCmd.label} `}</Text>
                     <ConfirmInput
                       onConfirm={() => {
-                        props.onFinish(startCmd);
+                        props.onFinish({ outcome: "created", start: startCmd });
                         exit();
                       }}
                       onCancel={() => {
-                        props.onFinish(null);
+                        props.onFinish({ outcome: "created", start: null });
                         exit();
                       }}
                     />
@@ -365,8 +405,26 @@ function App(props: WizardProps) {
   );
 }
 
-/** Render the interactive wizard and resolve when it exits. */
-export async function runWizard(props: WizardProps): Promise<void> {
-  const instance = render(<App {...props} />);
+/**
+ * Render the interactive wizard and resolve with how it ended once it exits.
+ * Leaving without finishing (Ctrl+C) counts as cancelled.
+ *
+ * @param renderOptions Ink render options; tests pass fake streams here.
+ */
+export async function runWizard(
+  props: WizardProps,
+  renderOptions?: RenderOptions,
+): Promise<WizardResult> {
+  let result: WizardResult = { outcome: "cancelled", start: null };
+  const instance = render(
+    <App
+      {...props}
+      onFinish={(finished) => {
+        result = finished;
+      }}
+    />,
+    renderOptions,
+  );
   await instance.waitUntilExit();
+  return result;
 }
