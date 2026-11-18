@@ -98,7 +98,12 @@ function fromJson(source: string): ContractArtifact {
  * that a bracket inside one does not count.
  */
 function exportedArray(source: string, name: string): string | undefined {
-  const declaration = new RegExp(`(?:^|[\\s;])export\\s+const\\s+${name}\\s*(?::[^=]*)?=\\s*\\[`);
+  // A type annotation (`: Abi`) is one line of at most 200 characters. Unbounded, as
+  // `[^=]*`, it made a file of many `export const abi:` without an `=` cost quadratic
+  // time, and the parse is synchronous, so such a file could stall every tool.
+  const declaration = new RegExp(
+    `(?:^|[\\s;])export\\s+const\\s+${name}\\s*(?::[^=\\n]{0,200})?=\\s*\\[`,
+  );
   const match = declaration.exec(source);
   if (!match) return undefined;
   const start = match.index + match[0].length - 1;
@@ -132,8 +137,9 @@ function fromModule(source: string): ContractArtifact {
   const declared = /(?:^|[\s;])export\s+const\s+bytecode\b/.test(source);
   // One quoted string and then the end of the statement (or `as Hex`): a value
   // built up with `+` is not something to guess the rest of.
+  // The type annotation is bounded for the same reason as in exportedArray().
   const bytecode =
-    /(?:^|[\s;])export\s+const\s+bytecode\s*(?::[^=]*)?=\s*(["'`])([^"'`\s]*)\1(?=\s*(?:;|$|as\b|satisfies\b))/m.exec(
+    /(?:^|[\s;])export\s+const\s+bytecode\s*(?::[^=\n]{0,200})?=\s*(["'`])([^"'`\s]*)\1(?=\s*(?:;|$|as\b|satisfies\b))/m.exec(
       source,
     )?.[2];
   if (declared && bytecode === undefined) {

@@ -203,6 +203,27 @@ describe("parseArtifact", () => {
     }
   });
 
+  it("takes linear time on a file built to make the declaration search backtrack", () => {
+    // A file just under the size cap, full of declarations that never reach an `=`.
+    // With an unbounded type annotation in the search this took over two minutes,
+    // during which the server answered nothing.
+    const filler = (name: string) =>
+      `;export const ${name}:`.repeat(Math.floor((MAX_ARTIFACT_BYTES - 200) / (16 + name.length)));
+    const noAbi = filler("abi");
+    expect(noAbi.length).toBeGreaterThan(MAX_ARTIFACT_BYTES * 0.9);
+    let started = performance.now();
+    expect(() => parseArtifact(noAbi, "lib/x-artifact.ts")).toThrow("export const abi");
+    expect(performance.now() - started).toBeLessThan(2000);
+
+    // The same for the bytecode search, which runs once the ABI has been found.
+    const noBytecode = `export const abi = ${JSON.stringify([MINT])};\n${filler("bytecode")}`;
+    started = performance.now();
+    expect(() => parseArtifact(noBytecode, "lib/x-artifact.ts")).toThrow(
+      "its `bytecode` export is not a single hex string",
+    );
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
   it("does not run the file", () => {
     const flag = "__avakit_artifact_was_evaluated__";
     const source = `globalThis.${flag} = true;\nexport const abi = (() => { globalThis.${flag} = true; return []; })();\nexport const bytecode = "0x60";`;
