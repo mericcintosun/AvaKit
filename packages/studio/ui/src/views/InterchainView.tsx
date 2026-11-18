@@ -184,7 +184,8 @@ export function InterchainView() {
             <p className="text-muted-foreground mt-1 text-sm">
               One <span className="font-mono">AvaKitMessenger</span> per L1 — it both sends and
               receives. Studio deploys it for you with the local dev key, and links the messengers
-              so they accept each other's messages.
+              so they accept each other's messages. A messenger that went with a wiped devnet, or
+              that an older Studio deployed, is replaced.
             </p>
           </div>
           <Button size="sm" disabled={busy !== null} onClick={deploy} className="self-start">

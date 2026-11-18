@@ -11,7 +11,7 @@ It starts a small server on `127.0.0.1`, opens your browser, and gives you six v
 - **Overview** — your toolchain, project, and network at a glance.
 - **Devnet** — spin up two local L1s with Interchain Messaging and a relayer, launch your own L1, start/stop the network, with a **live log** streamed from avalanche-cli.
 - **Launch on Fuji** — create your own L1 on the Fuji testnet and watch it come up, without touching the CLI.
-- **Interchain** — deploy messengers and watch a message travel between any two running L1s.
+- **Interchain** — deploy messengers and watch a message (up to 256 bytes) travel between any two running L1s.
 - **Data** — balances, NFTs, and transactions for any Fuji or C-Chain address (AvaCloud Data API, no indexer).
 - **Environment** — the tools and project detected on this machine.
 
@@ -46,6 +46,6 @@ Studio is a tool **you launch yourself** from your terminal (like Prisma Studio)
 - validates the `Host` header (defends DNS rebinding),
 - gates its API behind a per-session token injected into the served page (a cross-origin page can't read it),
 - refuses to be embedded in a frame, and starts an action only from a `POST` (never a `GET`),
-- runs external tools only via `spawn`/`execFile` with argument arrays — never a shell string, so there's no command injection. The few request-derived values that can reach an argument (an L1's name, chain id and token symbol, a transfer amount, an Interchain message) are validated first, and the message is handed to `cast` after a `--`, so it can never be read as an option.
+- runs external tools only via `spawn`/`execFile` with argument arrays — never a shell string, so there's no command injection. The few request-derived values that can reach an argument (an L1's name, chain id and token symbol, a transfer amount) are validated first. The text of an Interchain message never reaches a command line at all: Studio checks its length, ABI-encodes it, and hands `cast` only the resulting hex, after a `--`.
 
 MIT © AvaKit contributors

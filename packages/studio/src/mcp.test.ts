@@ -1,13 +1,16 @@
 import { readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { decodeFunctionData, parseAbi } from "viem/utils";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMcpServer } from "./mcp.js";
+import { SEND_MESSAGE_SIG } from "./messenger-artifact.js";
 import {
   blockchainId,
   createSandbox,
   type FakeRpc,
   type Sandbox,
+  SEND_MESSAGE_SELECTOR,
   startFakeRpc,
 } from "./testing/sandbox.js";
 
@@ -108,15 +111,36 @@ describe("MCP tools", () => {
     expect(sandbox.calls("cast")).toEqual([]);
   });
 
-  it("icm_send sends a valid message with the text as the last argument after `--`", async () => {
+  it("icm_send sends a valid message as calldata: its text never reaches cast's arguments", async () => {
     deployedDevnet();
     sandbox.fakeCast();
-    const reply = await call("icm_send", { from: "chain1", to: "chain2", message: "gm agents" });
+    // Starts with a quote, which cast would read as the start of a string literal.
+    const message = '"gm" agents';
+    const reply = await call("icm_send", { from: "chain1", to: "chain2", message });
     expect(reply.isError).toBe(false);
     expect(JSON.parse(reply.text)).toEqual({ txHash: "0xfeed", receivedBefore: 3 });
-    const argv = sandbox.calls("cast").find((a) => a[0] === "send" && a.at(-1) === "gm agents");
-    expect(argv).toBeDefined();
+
+    const argv = sandbox
+      .calls("cast")
+      .find((a) => a[0] === "send" && a.at(-1)?.startsWith(SEND_MESSAGE_SELECTOR));
     expect(argv?.indexOf("--")).toBe(6);
+    expect(argv?.slice(7)).toEqual([MESSENGER, expect.stringMatching(/^0x[0-9a-f]+$/)]);
+    const { args } = decodeFunctionData({
+      abi: parseAbi([`function ${SEND_MESSAGE_SIG}`]),
+      data: argv?.at(-1) as `0x${string}`,
+    });
+    expect(args[2]).toBe(message);
+    expect(argv?.join(" ")).not.toContain("agents");
+  });
+
+  it("icm_send refuses a messenger from before the message-length cap", async () => {
+    deployedDevnet();
+    rpc.setOutdated("chain2", MESSENGER);
+    sandbox.fakeCast();
+    const reply = await call("icm_send", { from: "chain1", to: "chain2", message: "gm" });
+    expect(reply.isError).toBe(true);
+    expect(reply.text).toBe("deploy the messengers first");
+    expect(sandbox.calls("cast")).toEqual([]);
   });
 
   it("icm_state lists only the L1s that can exchange a message", async () => {

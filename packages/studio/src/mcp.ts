@@ -130,7 +130,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Interchain state",
       description:
-        "Report the running, ICM-ready local L1s: each one's messenger address (null until deployed) and last received cross-chain message.",
+        "Report the running, ICM-ready local L1s: each one's messenger address and last received cross-chain message. A null messenger means there is none to use — never deployed, gone with a wiped devnet, or from an older Studio — until icm_deploy_messengers has run.",
       inputSchema: {},
     },
     async () => text(toJson(await getIcmState())),
@@ -141,7 +141,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Deploy ICM messengers",
       description:
-        "Deploy the AvaKitMessenger contract on each running L1 that doesn't have a live one, and link the messengers so they accept each other's messages.",
+        "Deploy the AvaKitMessenger contract on each running L1 that doesn't have a usable one (none yet, gone with a wiped devnet, or from an older Studio), and link the messengers so they accept each other's messages.",
       inputSchema: {},
     },
     async () => text(toJson(await deployMessengers())),

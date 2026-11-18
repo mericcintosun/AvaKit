@@ -1,3 +1,4 @@
+import { decodeFunctionData, parseAbi } from "viem/utils";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { InputError } from "./errors.js";
 import {
@@ -13,6 +14,7 @@ import {
   createSandbox,
   type FakeRpc,
   type Sandbox,
+  SEND_MESSAGE_SELECTOR,
   startFakeRpc,
 } from "./testing/sandbox.js";
 
@@ -20,6 +22,8 @@ import {
 const SHARED = "0x52C84043CD9c865236f11d9Fc9F56aa003c1f922";
 const OTHER = "0x17aB05351fC94a1a67Bf3f56DdbB941aE6c63E25";
 const STALE = "0x000000000000000000000000000000000000dEaD";
+// A messenger an earlier Studio deployed: it has code, but no message-length cap.
+const OLD = "0x5DB9A7629912EBF95876228C24A848de0bfB43A9";
 
 const id1 = blockchainId(1);
 const id2 = blockchainId(2);
@@ -53,15 +57,37 @@ function deployed(address = SHARED): void {
 
 /** The positionals of a cast invocation (everything after `--`). */
 const positionals = (argv: string[]) => argv.slice(argv.indexOf("--") + 1);
+const chainOf = (argv: string[]) =>
+  new URL(argv[argv.indexOf("--rpc-url") + 1] ?? "").pathname.split("/")[1];
 const sends = (sig: string) =>
   sandbox
     .calls("cast")
     .filter((argv) => argv[0] === "send" && positionals(argv)[1] === sig)
-    .map((argv) => ({
-      chain: new URL(argv[argv.indexOf("--rpc-url") + 1] ?? "").pathname.split("/")[1],
-      args: positionals(argv),
-    }));
+    .map((argv) => ({ chain: chainOf(argv), args: positionals(argv) }));
 const creates = () => sandbox.calls("cast").filter((argv) => argv.includes("--create"));
+
+const SEND_MESSAGE_ABI = parseAbi([`function ${SEND_MESSAGE_SIG}`]);
+/** Every `sendMessage` transaction handed to cast, decoded from its calldata. */
+const sentMessages = () =>
+  sandbox
+    .calls("cast")
+    .filter((argv) => argv[0] === "send" && positionals(argv)[1]?.startsWith(SEND_MESSAGE_SELECTOR))
+    .map((argv) => {
+      const [messenger, calldata, ...rest] = positionals(argv);
+      const { args } = decodeFunctionData({
+        abi: SEND_MESSAGE_ABI,
+        data: calldata as `0x${string}`,
+      });
+      return {
+        chain: chainOf(argv),
+        argv,
+        messenger,
+        rest,
+        to: args[0],
+        remote: args[1],
+        text: args[2],
+      };
+    });
 
 describe("getIcmState", () => {
   it("lists only the running, Teleporter-ready L1s of the local network", async () => {
@@ -138,6 +164,66 @@ describe("getIcmState", () => {
     sandbox.fakeCast();
     const state = await getIcmState();
     expect(state.chains.map((c) => c.messenger)).toEqual([SHARED, SHARED]);
+  });
+
+  it("does not trust a recorded messenger from before the message-length cap", async () => {
+    // A devnet that outlived a Studio upgrade: the old messenger is still
+    // deployed, but it has no MAX_MESSAGE_LENGTH — the call reverts.
+    twoChains();
+    rpc.setOutdated("chain1", OLD);
+    rpc.setCode("chain2", SHARED);
+    sandbox.writeIcmState({ chain1: OLD, chain2: SHARED });
+    sandbox.fakeCast();
+    const state = await getIcmState();
+    expect(state.chains.map((c) => [c.name, c.messenger, c.lastMessage])).toEqual([
+      ["chain1", null, null],
+      ["chain2", SHARED, "hello"],
+    ]);
+    // Nothing was read from the old contract.
+    expect(sandbox.calls("cast").map(chainOf)).toEqual(["chain2", "chain2"]);
+  });
+
+  it("recognises a revert under either error code a node reports it with", async () => {
+    twoChains();
+    sandbox.writeIcmState({ chain1: OLD, chain2: OLD });
+    sandbox.fakeCast();
+    for (const error of [
+      // geth-family nodes (an L1's own) use -32000 for a revert without data …
+      { code: -32000, message: "execution reverted" },
+      // … and 3 for one with data, as anvil does for every revert.
+      { code: 3, message: "execution reverted" },
+      { code: 3, message: "execution reverted: no such function" },
+    ]) {
+      rpc.setOutdated("chain1", OLD, error);
+      rpc.setOutdated("chain2", OLD, error);
+      const state = await getIcmState();
+      expect(
+        state.chains.map((c) => c.messenger),
+        error.message,
+      ).toEqual([null, null]);
+    }
+  });
+
+  it("keeps a recorded messenger when the RPC cannot say whether it has the cap", async () => {
+    twoChains();
+    rpc.setCode("chain1", SHARED);
+    rpc.setCode("chain2", SHARED);
+    // Not a revert: the node is busy. Unknown is never treated as outdated.
+    rpc.breakCall("chain1");
+    sandbox.writeIcmState({ chain1: SHARED, chain2: SHARED });
+    sandbox.fakeCast();
+    const state = await getIcmState();
+    expect(state.chains.map((c) => c.messenger)).toEqual([SHARED, SHARED]);
+    expect(rpc.seen).toContain("chain1:eth_call");
+  });
+
+  it("returns a received message exactly as it was sent", async () => {
+    // cast's own rendering would escape every one of these.
+    const text = 'say "hi" \\ back\\slash \ttab — 山 🔺 ​';
+    deployed();
+    sandbox.fakeCast({ lastMessage: text });
+    const state = await getIcmState();
+    expect(state.chains.map((c) => c.lastMessage)).toEqual([text, text]);
   });
 
   it("ignores state entries that are not addresses", async () => {
@@ -246,6 +332,77 @@ describe("deployMessengers", () => {
     expect(Object.keys(sandbox.readIcmState())).toEqual(["chain1", "chain2"]);
   });
 
+  it("replaces a messenger from before the message-length cap and relinks the chains", async () => {
+    // Both chains were set up by an earlier Studio: old messengers, linked to each other.
+    twoChains();
+    rpc.setCode("chain1", OLD);
+    rpc.setCode("chain2", OLD);
+    sandbox.writeIcmState({ chain1: OLD, chain2: OLD });
+    sandbox.fakeCast();
+    await deployMessengers();
+    expect(sandbox.castJournal()).toEqual(["link chain1", "link chain2"]);
+
+    // Seen for what they are — no MAX_MESSAGE_LENGTH — they count as missing …
+    rpc.setOutdated("chain1", OLD);
+    rpc.setOutdated("chain2", OLD);
+    expect((await getIcmState()).chains.map((c) => c.messenger)).toEqual([null, null]);
+
+    // … and the next deploy puts current ones in their place.
+    rpc.setCode("chain1", SHARED);
+    rpc.setCode("chain2", OTHER);
+    sandbox.fakeCast({ deploy: { chain1: SHARED, chain2: OTHER } });
+    const state = await deployMessengers();
+
+    expect(sandbox.castJournal().slice(2)).toEqual([
+      "create chain1",
+      "create chain2",
+      "link chain1",
+      "link chain2",
+    ]);
+    expect(sandbox.readIcmState()).toEqual({ chain1: SHARED, chain2: OTHER });
+    expect(state.chains.map((c) => c.messenger)).toEqual([SHARED, OTHER]);
+    // Each new messenger trusts the other NEW one, not the one it replaced.
+    expect(sends(SET_TRUSTED_REMOTE_SIG).slice(2)).toEqual([
+      { chain: "chain1", args: [SHARED, SET_TRUSTED_REMOTE_SIG, id2.hex, OTHER] },
+      { chain: "chain2", args: [OTHER, SET_TRUSTED_REMOTE_SIG, id1.hex, SHARED] },
+    ]);
+  });
+
+  it("replaces only the outdated messenger and points the current one at its successor", async () => {
+    twoChains();
+    rpc.setCode("chain1", OLD);
+    rpc.setCode("chain2", SHARED);
+    sandbox.writeIcmState({ chain1: OLD, chain2: SHARED });
+    sandbox.fakeCast();
+    await deployMessengers(); // chain2's messenger now trusts OLD on chain1
+
+    rpc.setOutdated("chain1", OLD);
+    rpc.setCode("chain1", OTHER);
+    sandbox.fakeCast({ deploy: { chain1: OTHER } });
+    await deployMessengers();
+
+    expect(sandbox.castJournal().slice(2)).toEqual(["create chain1", "link chain1", "link chain2"]);
+    expect(sandbox.readIcmState()).toEqual({ chain1: OTHER, chain2: SHARED });
+    expect(sends(SET_TRUSTED_REMOTE_SIG).slice(2)).toEqual([
+      { chain: "chain1", args: [OTHER, SET_TRUSTED_REMOTE_SIG, id2.hex, SHARED] },
+      { chain: "chain2", args: [SHARED, SET_TRUSTED_REMOTE_SIG, id1.hex, OTHER] },
+    ]);
+  });
+
+  it("fails when a transaction is mined but reverted, and records nothing", async () => {
+    twoChains();
+    sandbox.fakeCast({ deploy: { chain1: SHARED, chain2: SHARED }, receiptStatus: "0x0" });
+    await expect(deployMessengers()).rejects.toThrow("the transaction was mined but reverted");
+    expect(sandbox.readIcmState()).toEqual({});
+  });
+
+  it("fails when a link cannot be read, instead of assuming it is there", async () => {
+    deployed();
+    sandbox.fakeCast({ trustedRemoteError: "Error: error sending request for url" });
+    await expect(deployMessengers()).rejects.toThrow("error sending request for url");
+    expect(sandbox.castJournal()).toEqual([]);
+  });
+
   it("records each deployed address at once, so a later failure cannot lose it", async () => {
     twoChains();
     rpc.setCode("chain1", SHARED);
@@ -275,6 +432,9 @@ describe("messageProblem", () => {
     expect(messageProblem("gm from the other chain")).toBeNull();
     expect(messageProblem("a".repeat(MAX_MESSAGE_BYTES))).toBeNull();
     expect(messageProblem("not a - flag")).toBeNull();
+    // Text that cast would have parsed or rejected as an argument is fine as calldata.
+    expect(messageProblem('"quoted"')).toBeNull();
+    expect(messageProblem("'")).toBeNull();
   });
 
   it("measures UTF-8 bytes, not characters", () => {
@@ -284,11 +444,10 @@ describe("messageProblem", () => {
     expect(messageProblem("a".repeat(MAX_MESSAGE_BYTES + 1))).toMatch(/257 bytes/);
   });
 
-  it("refuses an empty message, a leading dash and a NUL", () => {
+  it("refuses an empty message and a leading dash", () => {
     expect(messageProblem("")).toBe("message is empty");
     expect(messageProblem("--help")).toBe("message cannot start with '-'");
     expect(messageProblem("-1")).toBe("message cannot start with '-'");
-    expect(messageProblem("a\0b")).toMatch(/NUL/);
   });
 });
 
@@ -339,20 +498,43 @@ describe("sendIcmMessage", () => {
     await expect(sendIcmMessage("chain1", "chain2", "gm")).rejects.toThrow(
       "deploy the messengers first",
     );
-    expect(sends(SEND_MESSAGE_SIG)).toEqual([]);
+    expect(sentMessages()).toEqual([]);
   });
 
-  it("puts every positional after `--`, with the message last", async () => {
+  it("refuses to send through a messenger from before the message-length cap", async () => {
+    // Either end being outdated is enough: the old contract asks for too little
+    // delivery gas, so a longer message would be sent and never arrive.
+    for (const outdated of ["chain1", "chain2"]) {
+      const current = outdated === "chain1" ? "chain2" : "chain1";
+      twoChains();
+      rpc.setOutdated(outdated, OLD);
+      rpc.setCode(current, SHARED);
+      sandbox.writeIcmState({ [outdated]: OLD, [current]: SHARED });
+      sandbox.fakeCast();
+      const failure = await sendIcmMessage("chain1", "chain2", "gm").catch((e: unknown) => e);
+      expect(failure, outdated).toBeInstanceOf(InputError);
+      expect((failure as Error).message).toBe("deploy the messengers first");
+    }
+    expect(sandbox.calls("cast")).toEqual([]);
+  });
+
+  it("hands cast the message as ABI-encoded calldata, never as text", async () => {
+    // Every part of this would mean something to cast's own argument parser.
+    const text = `"quoted" 'single' --rpc-url \\ back\\slash 山 🔺`;
     deployed();
     sandbox.fakeCast();
-    const result = await sendIcmMessage("chain1", "chain2", "gm from chain1");
+    const result = await sendIcmMessage("chain1", "chain2", text);
     expect(result).toEqual({ txHash: "0xfeed", receivedBefore: 3 });
 
-    const argv = sandbox
-      .calls("cast")
-      .find((a) => a[0] === "send" && a.includes(SEND_MESSAGE_SIG)) as string[];
+    const [sent] = sentMessages();
+    expect(sent).toMatchObject({ chain: "chain1", messenger: SHARED, rest: [] });
+    // The calldata is the whole call: destination chain, destination messenger, text.
+    expect(sent?.to).toBe(id2.hex);
+    expect(sent?.remote.toLowerCase()).toBe(SHARED.toLowerCase());
+    expect(sent?.text).toBe(text);
+
+    const argv = sent?.argv ?? [];
     const split = argv.indexOf("--");
-    expect(split).toBeGreaterThan(0);
     // Options only before the separator …
     expect(argv.slice(0, split)).toEqual([
       "send",
@@ -362,14 +544,19 @@ describe("sendIcmMessage", () => {
       expect.stringMatching(/^0x[0-9a-f]{64}$/),
       "--json",
     ]);
-    // … and after it: messenger, signature, destination chain, destination messenger, text.
-    expect(argv.slice(split + 1)).toEqual([
-      SHARED,
-      SEND_MESSAGE_SIG,
-      id2.hex,
-      SHARED,
-      "gm from chain1",
-    ]);
+    // … and after it nothing but an address and hex.
+    expect(argv.slice(split + 1)).toEqual([SHARED, expect.stringMatching(/^0x[0-9a-f]+$/)]);
+    for (const piece of ["quoted", "single", "back", "山"]) {
+      expect(argv.join(" "), piece).not.toContain(piece);
+    }
+  });
+
+  it("sends a message of exactly the byte limit, multi-byte characters included", async () => {
+    const text = `${"山".repeat(85)}a`; // 85 × 3 + 1 = 256 bytes
+    deployed();
+    sandbox.fakeCast();
+    await sendIcmMessage("chain1", "chain2", text);
+    expect(sentMessages()[0]?.text).toBe(text);
   });
 
   it("repairs a missing link before sending, so the message can be delivered", async () => {
@@ -388,11 +575,24 @@ describe("sendIcmMessage", () => {
     expect(sandbox.castJournal().filter((j) => j.startsWith("link"))).toEqual(["link chain2"]);
   });
 
-  it("sends through a pre-allowlist messenger without trying to link it", async () => {
+  it("does not send when the link cannot be verified", async () => {
+    // Sending blind is how a message ends up accepted on one chain and dropped on the other.
     deployed();
-    sandbox.fakeCast({ legacy: true });
-    await sendIcmMessage("chain1", "chain2", "gm");
-    expect(sandbox.castJournal()).toEqual(["send begin chain1", "send end chain1"]);
+    sandbox.fakeCast({ trustedRemoteError: "Error: error sending request for url" });
+    await expect(sendIcmMessage("chain1", "chain2", "gm")).rejects.toThrow(
+      "error sending request for url",
+    );
+    expect(sandbox.castJournal()).toEqual([]);
+  });
+
+  it("reports a send that was mined but reverted as a failure", async () => {
+    deployed();
+    sandbox.fakeCast();
+    await sendIcmMessage("chain1", "chain2", "links the chains first");
+    sandbox.fakeCast({ receiptStatus: "0x0" });
+    await expect(sendIcmMessage("chain1", "chain2", "gm")).rejects.toThrow(
+      "the transaction was mined but reverted",
+    );
   });
 
   it("runs transactions one at a time (they share the dev key's nonce)", async () => {

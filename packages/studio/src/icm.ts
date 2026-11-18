@@ -2,15 +2,22 @@
  * Interchain Messaging, driven server-side with `cast`. Studio deploys the
  * AvaKitMessenger on each local L1 and sends a cross-chain message using the
  * pre-funded local dev key — so you can watch a message cross chains without a
- * wallet. Every call is execFile("cast", [...]) with array args (no shell), and
- * every value that comes from a request or a file sits after a `--`, so cast
- * can never read it as an option.
+ * wallet. Every call is execFile("cast", [...]) with array args (no shell). An
+ * L1's RPC URL is only ever the value of `--rpc-url`, and every other value
+ * that comes from a request or a file sits after a `--`, so cast can never
+ * read it as an option.
+ *
+ * The text of a message never reaches cast as text at all: it goes out inside
+ * calldata that Studio ABI-encodes itself, and it is read back as raw bytes
+ * that Studio decodes. cast would otherwise parse it (a leading quote starts a
+ * string literal) and re-format it (quotes and backslashes come back escaped).
  */
 
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { decodeAbiParameters, encodeFunctionData, parseAbi, toFunctionSelector } from "viem/utils";
 import { cb58ToHex } from "./cb58.js";
 import { type DevnetStatus, getDevnetStatus, type L1Info } from "./devnet.js";
 import { InputError } from "./errors.js";
@@ -37,6 +44,21 @@ const DEV_KEY = "0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8
  * source chain, so it is refused here with a readable reason instead.
  */
 export const MAX_MESSAGE_BYTES = 256;
+
+/**
+ * The getter of that cap, as a cast signature like the ones in
+ * messenger-artifact.ts. Only a messenger that has the cap answers it, which is
+ * how one deployed by an earlier Studio is told apart (see `capsMessageLength`).
+ */
+const MAX_MESSAGE_LENGTH_SIG = "MAX_MESSAGE_LENGTH()(uint256)";
+
+/** A cast signature without its return types: "lastMessage()(string)" -> "lastMessage()". */
+function withoutReturns(sig: string): string {
+  return sig.replace(/\)\([^()]*\)$/, ")");
+}
+
+const MAX_MESSAGE_LENGTH_CALL = toFunctionSelector(withoutReturns(MAX_MESSAGE_LENGTH_SIG));
+const SEND_MESSAGE_ABI = parseAbi([`function ${SEND_MESSAGE_SIG}`]);
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
@@ -96,7 +118,7 @@ interface Peer {
   blockchainIdHex: `0x${string}`;
 }
 
-/** A peer together with the live messenger deployed on it. */
+/** A peer together with the usable messenger deployed on it. */
 interface Endpoint extends Peer {
   messenger: string;
 }
@@ -135,8 +157,6 @@ function listPeers(status: DevnetStatus): Peer[] {
   return status.l1s.map(toPeer).filter((peer): peer is Peer => peer !== null);
 }
 
-class ToolMissingError extends Error {}
-
 /** Run cast and return its stdout. Failures carry cast's own words, not the command line. */
 async function cast(args: string[], timeout: number): Promise<string> {
   try {
@@ -145,7 +165,7 @@ async function cast(args: string[], timeout: number): Promise<string> {
   } catch (e) {
     const err = e as NodeJS.ErrnoException & { stderr?: string; killed?: boolean };
     if (err.code === "ENOENT") {
-      throw new ToolMissingError("Foundry's cast is not installed or not on your PATH");
+      throw new Error("Foundry's cast is not installed or not on your PATH");
     }
     if (err.killed) throw new Error("cast timed out");
     // execFile's own message repeats the whole command line (dev key included);
@@ -155,6 +175,7 @@ async function cast(args: string[], timeout: number): Promise<string> {
   }
 }
 
+/** Read from a contract. With return types in `sig` cast prints the decoded values. */
 async function castCall(
   rpcUrl: string,
   address: string,
@@ -162,39 +183,61 @@ async function castCall(
   args: string[] = [],
 ): Promise<string> {
   const stdout = await cast(["call", "--rpc-url", rpcUrl, "--", address, sig, ...args], 15000);
-  return stdout.trim().replace(/^"|"$/g, "");
+  return stdout.trim();
 }
 
-async function castSend(rpcUrl: string, positionals: string[]): Promise<string> {
-  // Flags first, then `--`: nothing after it can be taken for an option.
-  return cast(
-    ["send", "--rpc-url", rpcUrl, "--private-key", DEV_KEY, "--json", "--", ...positionals],
-    90000,
-  );
+interface Receipt {
+  status?: unknown;
+  transactionHash?: unknown;
+  contractAddress?: unknown;
 }
 
 /**
- * Whether a contract lives at `address` on the chain behind `rpcUrl`. Null
- * means the RPC did not answer: unknown, which is never treated as "gone".
+ * Send a transaction signed by the dev key and return its receipt. `rest` is
+ * what follows the common flags; whatever in it is not a flag of ours must come
+ * after a `--`, so cast can never take it for an option.
  */
-async function hasCode(rpcUrl: string, address: string): Promise<boolean | null> {
+async function castSend(rpcUrl: string, rest: string[]): Promise<Receipt> {
+  const stdout = await cast(
+    ["send", "--rpc-url", rpcUrl, "--private-key", DEV_KEY, "--json", ...rest],
+    90000,
+  );
+  let receipt: Receipt | null;
+  try {
+    receipt = JSON.parse(stdout) as Receipt | null;
+  } catch {
+    receipt = null;
+  }
+  if (!receipt || typeof receipt !== "object") throw new Error("cast send printed no receipt");
+  // cast exits 0 for a transaction that was mined and then reverted.
+  if (receipt.status === "0x0") throw new Error("the transaction was mined but reverted");
+  return receipt;
+}
+
+/** What a local L1's RPC answered to one read-only request. */
+type RpcAnswer =
+  | { result: string }
+  /** The node ran the call and the contract reverted. */
+  | { reverted: true }
+  /** No usable answer: unreachable, too slow, or an error of the node's own. */
+  | null;
+
+async function rpcRead(rpcUrl: string, method: string, params: unknown[]): Promise<RpcAnswer> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3000);
   try {
     const res = await fetch(rpcUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "eth_getCode",
-        params: [address, "latest"],
-      }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
       signal: controller.signal,
     });
-    const json = (await res.json()) as { result?: unknown };
-    if (!res.ok || typeof json.result !== "string") return null;
-    return !/^0x0*$/.test(json.result);
+    const json = (await res.json()) as { result?: unknown; error?: { message?: unknown } };
+    if (res.ok && typeof json.result === "string") return { result: json.result };
+    // EVM nodes word a revert "execution reverted" (under more than one error
+    // code); every other error says nothing about the contract.
+    const message = json.error?.message;
+    return typeof message === "string" && /\brevert/i.test(message) ? { reverted: true } : null;
   } catch {
     return null;
   } finally {
@@ -203,15 +246,62 @@ async function hasCode(rpcUrl: string, address: string): Promise<boolean | null>
 }
 
 /**
- * The messenger Studio recorded for this chain, if a contract still lives
- * there. A devnet that was wiped and re-deployed (`avalanche network clean`,
- * which AvaKit's own template scripts run) keeps its chain names but none of
- * its contracts, so a recorded address alone proves nothing.
+ * Whether a contract lives at `address` on the chain behind `rpcUrl`. Null
+ * means the RPC did not answer: unknown, which is never treated as "gone".
  */
-async function liveMessenger(peer: Peer, state: State): Promise<string | null> {
+async function hasCode(rpcUrl: string, address: string): Promise<boolean | null> {
+  const answer = await rpcRead(rpcUrl, "eth_getCode", [address, "latest"]);
+  return answer && "result" in answer ? !/^0x0*$/.test(answer.result) : null;
+}
+
+/**
+ * Whether the contract at `address` is a messenger that caps the message
+ * length. One deployed by an earlier Studio has no `MAX_MESSAGE_LENGTH`, so the
+ * call reverts — and it also asks for too little delivery gas, which is why a
+ * longer message sent through it never arrives. Null means the RPC gave no
+ * usable answer: unknown.
+ */
+async function capsMessageLength(rpcUrl: string, address: string): Promise<boolean | null> {
+  const answer = await rpcRead(rpcUrl, "eth_call", [
+    { to: address, data: MAX_MESSAGE_LENGTH_CALL },
+    "latest",
+  ]);
+  if (!answer) return null;
+  // The getter returns exactly one 32-byte word.
+  return "result" in answer && /^0x[0-9a-fA-F]{64}$/.test(answer.result);
+}
+
+/**
+ * The messenger Studio recorded for this chain, if it is still the one to use.
+ * A recorded address alone proves nothing:
+ *  - a devnet that was wiped and re-deployed (`avalanche network clean`, which
+ *    AvaKit's own template scripts run) keeps its chain names but none of its
+ *    contracts, so the address may hold no code;
+ *  - a devnet that outlived a Studio upgrade still has the messenger an earlier
+ *    Studio deployed, without the message-length cap.
+ * Either way the answer is null — "no messenger here" — and the next deploy
+ * puts a current one in its place and relinks the chains. The messenger Studio
+ * deploys (messenger-artifact.ts) must therefore have the cap itself.
+ * When the RPC cannot say, the recorded address is kept: unknown is not gone.
+ */
+async function usableMessenger(peer: Peer, state: State): Promise<string | null> {
   const stored = state.get(peer.name);
   if (!stored) return null;
-  return (await hasCode(peer.rpcUrl, stored)) === false ? null : stored;
+  const code = await hasCode(peer.rpcUrl, stored);
+  if (code === null) return stored;
+  if (!code) return null;
+  return (await capsMessageLength(peer.rpcUrl, stored)) === false ? null : stored;
+}
+
+/**
+ * The last message a messenger received, exactly as it was sent. It is read as
+ * raw ABI bytes and decoded here: cast's own rendering of a string escapes
+ * quotes, backslashes and control characters.
+ */
+async function readLastMessage(rpcUrl: string, messenger: string): Promise<string> {
+  const raw = await castCall(rpcUrl, messenger, withoutReturns(LAST_MESSAGE_SIG));
+  const [text] = decodeAbiParameters([{ type: "string" }], raw as `0x${string}`);
+  return text;
 }
 
 async function readReceived(rpcUrl: string, messenger: string): Promise<number | null> {
@@ -230,12 +320,12 @@ export async function getIcmState(): Promise<IcmState> {
 
   const chains = await Promise.all(
     listPeers(status).map(async (peer): Promise<IcmChain> => {
-      const messenger = await liveMessenger(peer, state);
+      const messenger = await usableMessenger(peer, state);
       let lastMessage: string | null = null;
       let messagesReceived: number | null = null;
       if (messenger) {
         try {
-          lastMessage = await castCall(peer.rpcUrl, messenger, LAST_MESSAGE_SIG);
+          lastMessage = await readLastMessage(peer.rpcUrl, messenger);
           messagesReceived = await readReceived(peer.rpcUrl, messenger);
         } catch {
           // messenger not reachable yet
@@ -270,22 +360,16 @@ function exclusive<T>(task: () => Promise<T>): Promise<T> {
  * Make `self`'s messenger accept messages from `other`'s: register it as the
  * trusted remote for `other`'s chain. Idempotent — reads `trustedRemote` first
  * and only sends the transaction when the link is missing or points elsewhere.
- * Pre-allowlist messengers (from an old icm-state.json) don't have
- * `trustedRemote`: the read reverts and the pair is left alone, since those
- * old contracts accept every source anyway.
+ * A link that cannot be read is a failure, never "probably fine": a message
+ * sent over a missing link is accepted on the source chain and then dropped.
  */
 async function ensureTrusted(self: Endpoint, other: Endpoint): Promise<void> {
-  let current: string;
-  try {
-    current = await castCall(self.rpcUrl, self.messenger, TRUSTED_REMOTE_SIG, [
-      other.blockchainIdHex,
-    ]);
-  } catch (e) {
-    if (e instanceof ToolMissingError) throw e;
-    return;
-  }
+  const current = await castCall(self.rpcUrl, self.messenger, TRUSTED_REMOTE_SIG, [
+    other.blockchainIdHex,
+  ]);
   if (current.toLowerCase() === other.messenger.toLowerCase()) return;
   await castSend(self.rpcUrl, [
+    "--",
     self.messenger,
     SET_TRUSTED_REMOTE_SIG,
     other.blockchainIdHex,
@@ -294,7 +378,7 @@ async function ensureTrusted(self: Endpoint, other: Endpoint): Promise<void> {
 }
 
 /**
- * Deploy the messenger on every peer that doesn't have a live one, then link
+ * Deploy the messenger on every peer that doesn't have a usable one, then link
  * them all: each messenger only accepts messages from its registered trusted
  * remote, so without the link the relayer's delivery reverts.
  */
@@ -304,29 +388,18 @@ export function deployMessengers(): Promise<IcmState> {
     const state = readState();
     const endpoints: Endpoint[] = [];
     for (const peer of peers) {
-      let messenger = await liveMessenger(peer, state);
+      let messenger = await usableMessenger(peer, state);
       if (!messenger) {
-        // Flags before positionals: cast treats anything after `--create <code>`
-        // as the constructor SIG/ARGS, so the RPC flags must come first. The
-        // trailing SIG/ARGS pass the chain's Teleporter to the messenger's
-        // constructor — on avalanche-cli local devnets that is always the
-        // canonical predeploy.
-        const stdout = await cast(
-          [
-            "send",
-            "--rpc-url",
-            peer.rpcUrl,
-            "--private-key",
-            DEV_KEY,
-            "--json",
-            "--create",
-            MESSENGER_BYTECODE,
-            CONSTRUCTOR_SIG,
-            TELEPORTER_PREDEPLOY,
-          ],
-          90000,
-        );
-        const receipt = JSON.parse(stdout) as { contractAddress?: unknown };
+        // cast treats everything after `--create <code>` as the constructor
+        // SIG/ARGS, so they come last. They pass the chain's Teleporter to the
+        // messenger's constructor — on avalanche-cli local devnets that is
+        // always the canonical predeploy.
+        const receipt = await castSend(peer.rpcUrl, [
+          "--create",
+          MESSENGER_BYTECODE,
+          CONSTRUCTOR_SIG,
+          TELEPORTER_PREDEPLOY,
+        ]);
         if (typeof receipt.contractAddress !== "string" || !ADDRESS.test(receipt.contractAddress)) {
           throw new Error(`deploying the messenger on ${peer.name} returned no contract address`);
         }
@@ -354,13 +427,13 @@ export function deployMessengers(): Promise<IcmState> {
 /** Why `message` can't be sent, or null when it can. */
 export function messageProblem(message: string): string | null {
   if (message.length === 0) return "message is empty";
-  if (message.includes("\0")) return "message cannot contain a NUL character";
   const bytes = Buffer.byteLength(message, "utf8");
   if (bytes > MAX_MESSAGE_BYTES) {
     return `message is ${bytes} bytes; the messenger accepts at most ${MAX_MESSAGE_BYTES} (UTF-8)`;
   }
-  // `--` already keeps cast from reading it as an option; refusing a leading
-  // dash as well means that never rests on a single safeguard.
+  // The text only ever reaches cast inside hex calldata, after a `--`, so it
+  // could not be read as an option anyway. A leading dash is refused all the
+  // same, as the dashboard always did: that never rests on a single safeguard.
   if (message.startsWith("-")) return "message cannot start with '-'";
   return null;
 }
@@ -395,8 +468,8 @@ export async function sendIcmMessage(
     const state = readState();
     const src = requirePeer(status, from);
     const dst = requirePeer(status, to);
-    const fromMessenger = await liveMessenger(src, state);
-    const toMessenger = await liveMessenger(dst, state);
+    const fromMessenger = await usableMessenger(src, state);
+    const toMessenger = await usableMessenger(dst, state);
     if (!fromMessenger || !toMessenger) throw new InputError("deploy the messengers first");
 
     // The destination drops messages from anyone but its trusted remote, so a
@@ -405,14 +478,16 @@ export async function sendIcmMessage(
     await ensureTrusted({ ...dst, messenger: toMessenger }, { ...src, messenger: fromMessenger });
     const receivedBefore = await readReceived(dst.rpcUrl, toMessenger);
 
-    const stdout = await castSend(src.rpcUrl, [
-      fromMessenger,
-      SEND_MESSAGE_SIG,
-      dst.blockchainIdHex,
-      toMessenger,
-      message,
-    ]);
-    const receipt = JSON.parse(stdout) as { transactionHash?: string };
-    return { txHash: receipt.transactionHash ?? "", receivedBefore };
+    // The whole call as calldata: cast carries the text as hex and never parses it.
+    const calldata = encodeFunctionData({
+      abi: SEND_MESSAGE_ABI,
+      functionName: "sendMessage",
+      args: [dst.blockchainIdHex, toMessenger as `0x${string}`, message],
+    });
+    const receipt = await castSend(src.rpcUrl, ["--", fromMessenger, calldata]);
+    return {
+      txHash: typeof receipt.transactionHash === "string" ? receipt.transactionHash : "",
+      receivedBefore,
+    };
   });
 }

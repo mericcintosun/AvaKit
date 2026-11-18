@@ -20,6 +20,7 @@ import {
 import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+import { encodeAbiParameters, toFunctionSelector } from "viem/utils";
 
 export interface L1Fixture {
   /** Present when the L1 is deployed on the local network. */
@@ -36,10 +37,14 @@ export interface FakeCastOptions {
   deploy?: Record<string, string>;
   /** Make `--create` fail with this on stderr. */
   deployError?: string;
-  /** Pre-allowlist messengers: reading `trustedRemote` reverts. */
-  legacy?: boolean;
+  /** Make reading `trustedRemote` fail with this on stderr. */
+  trustedRemoteError?: string;
   /** How long a `sendMessage` transaction takes (to observe overlap). */
   sendDelayMs?: number;
+  /** The text every messenger's `lastMessage()` holds (default "hello"). */
+  lastMessage?: string;
+  /** The `status` of every receipt: "0x0" is a transaction that was mined but reverted. */
+  receiptStatus?: "0x1" | "0x0";
 }
 
 export interface Sandbox {
@@ -56,7 +61,9 @@ export interface Sandbox {
   /**
    * Install a `cast` stub that behaves like Foundry's against the fake RPC: it
    * "deploys" messengers, remembers every `setTrustedRemote`, and answers the
-   * reads Studio makes. It refuses positionals that do not follow a `--`.
+   * reads Studio makes. It refuses positionals that do not follow a `--`, and
+   * it only knows `sendMessage` as raw calldata and `lastMessage` as raw bytes —
+   * the two places where a message's text must not pass through cast as text.
    */
   fakeCast: (options?: FakeCastOptions) => void;
   /** What the fake cast did, in order: "create <chain>", "link <chain>", "send begin|end <chain>". */
@@ -193,12 +200,17 @@ export function createSandbox(): Sandbox {
   };
 }
 
+/** `sendMessage(bytes32,address,string)`: how the fake cast recognises a message being sent. */
+export const SEND_MESSAGE_SELECTOR = toFunctionSelector("sendMessage(bytes32,address,string)");
+
 /** The source of the fake cast's handler (it runs in the stub's own process). */
 function fakeCastSource(stateFile: string, options: FakeCastOptions): string {
+  const lastMessage = encodeAbiParameters([{ type: "string" }], [options.lastMessage ?? "hello"]);
   return `async (args) => {
     const fs = await import("node:fs");
     const config = ${JSON.stringify(options)};
     const file = ${JSON.stringify(stateFile)};
+    const status = config.receiptStatus ?? "0x1";
     const load = () =>
       fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { trusted: {}, journal: [] };
     const update = (change) => {
@@ -213,7 +225,7 @@ function fakeCastSource(stateFile: string, options: FakeCastOptions): string {
       if (config.deployError) return { err: config.deployError + "\\n", code: 1 };
       update((s) => s.journal.push("create " + chain));
       const contractAddress = (config.deploy ?? {})[chain];
-      return { out: JSON.stringify({ contractAddress, transactionHash: "0x01" }) + "\\n" };
+      return { out: JSON.stringify({ status, contractAddress, transactionHash: "0x01" }) + "\\n" };
     }
 
     const split = args.indexOf("--");
@@ -226,20 +238,22 @@ function fakeCastSource(stateFile: string, options: FakeCastOptions): string {
         s.trusted[slot] = params[1];
         s.journal.push("link " + chain);
       });
-      return { out: JSON.stringify({ transactionHash: "0x02" }) + "\\n" };
+      return { out: JSON.stringify({ status, transactionHash: "0x02" }) + "\\n" };
     }
-    if (args[0] === "send" && sig.startsWith("sendMessage")) {
+    // A message goes out as raw calldata only: its text is never an argument.
+    if (args[0] === "send" && sig.startsWith(${JSON.stringify(SEND_MESSAGE_SELECTOR)}) && params.length === 0) {
       update((s) => s.journal.push("send begin " + chain));
       if (config.sendDelayMs) await new Promise((r) => setTimeout(r, config.sendDelayMs));
       update((s) => s.journal.push("send end " + chain));
-      return { out: JSON.stringify({ transactionHash: "0xfeed" }) + "\\n" };
+      return { out: JSON.stringify({ status, transactionHash: "0xfeed" }) + "\\n" };
     }
     if (args[0] === "call" && sig.startsWith("trustedRemote")) {
-      if (config.legacy) return { err: "Error: execution reverted\\n", code: 1 };
+      if (config.trustedRemoteError) return { err: config.trustedRemoteError + "\\n", code: 1 };
       const remote = load().trusted[slot] ?? "0x0000000000000000000000000000000000000000";
       return { out: remote + "\\n" };
     }
-    if (args[0] === "call" && sig.startsWith("lastMessage")) return { out: '"hello"\\n' };
+    // ... and comes back as raw ABI bytes only: no return types in the signature.
+    if (args[0] === "call" && sig === "lastMessage()") return { out: ${JSON.stringify(lastMessage)} + "\\n" };
     if (args[0] === "call" && sig.startsWith("messagesReceived")) return { out: "3\\n" };
     return { err: "error: unexpected cast invocation\\n", code: 2 };
   }`;
@@ -270,20 +284,60 @@ export function blockchainId(seed: number): { cb58: string; hex: `0x${string}` }
 export interface FakeRpc {
   /** An RPC endpoint for a chain; every `chain` path is served by this one server. */
   url: (chain: string) => string;
-  /** Make `eth_getCode` report a contract at `address` on `chain`. */
+  /**
+   * Put a contract at `address` on `chain`: `eth_getCode` reports it, and it
+   * answers `MAX_MESSAGE_LENGTH()` like a current AvaKitMessenger.
+   */
   setCode: (chain: string, address: string, code?: string) => void;
+  /**
+   * Put a messenger from before the message-length cap at `address`: it has
+   * code, but calling `MAX_MESSAGE_LENGTH()` reverts. `error` is how the node
+   * words that revert (default: the way geth-family nodes do).
+   */
+  setOutdated: (chain: string, address: string, error?: { code: number; message: string }) => void;
   /** Make `eth_getCode` fail on `chain` (the RPC answers, but with an error). */
   breakCode: (chain: string) => void;
+  /** Make `eth_call` fail on `chain` with an error that is not a revert. */
+  breakCall: (chain: string) => void;
   /** Every JSON-RPC method received so far, as "chain:method". */
   seen: string[];
   close: () => Promise<void>;
 }
 
+/** `MAX_MESSAGE_LENGTH()`, as `cast sig` prints it. */
+const MAX_MESSAGE_LENGTH_SELECTOR = "0x2a027211";
+
 /** A local JSON-RPC endpoint that answers like a running L1 (loopback only). */
 export async function startFakeRpc(): Promise<FakeRpc> {
   const code = new Map<string, string>();
-  const broken = new Set<string>();
+  const outdated = new Map<string, { code: number; message: string }>();
+  const brokenCode = new Set<string>();
+  const brokenCall = new Set<string>();
   const seen: string[] = [];
+
+  /** What the chain answers: a result, or a JSON-RPC error. */
+  const answer = (
+    chain: string,
+    method: string,
+    params: unknown[],
+  ): { result: string } | { error: { code: number; message: string } } => {
+    const busy = { error: { code: -32000, message: "busy" } };
+    if (method === "eth_getCode") {
+      if (brokenCode.has(chain)) return busy;
+      return { result: code.get(`${chain}:${String(params[0]).toLowerCase()}`) ?? "0x" };
+    }
+    if (method === "eth_call") {
+      if (brokenCall.has(chain)) return busy;
+      const call = params[0] as { to?: string; data?: string };
+      const at = `${chain}:${String(call.to).toLowerCase()}`;
+      // Only the cap's getter is implemented; an address without code returns nothing.
+      if (!code.has(at) || call.data !== MAX_MESSAGE_LENGTH_SELECTOR) return { result: "0x" };
+      const revert = outdated.get(at);
+      return revert ? { error: revert } : { result: `0x${(256).toString(16).padStart(64, "0")}` };
+    }
+    return { result: "0x1" };
+  };
+
   const server = createServer((req, res) => {
     let body = "";
     req.on("data", (c: Buffer) => {
@@ -294,19 +348,11 @@ export async function startFakeRpc(): Promise<FakeRpc> {
       const { id, method, params } = JSON.parse(body) as {
         id: number;
         method: string;
-        params: string[];
+        params: unknown[];
       };
       seen.push(`${chain}:${method}`);
       res.writeHead(200, { "content-type": "application/json" });
-      if (method === "eth_getCode" && broken.has(chain)) {
-        res.end(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32000, message: "busy" } }));
-        return;
-      }
-      const result =
-        method === "eth_getCode"
-          ? (code.get(`${chain}:${String(params[0]).toLowerCase()}`) ?? "0x")
-          : "0x1";
-      res.end(JSON.stringify({ jsonrpc: "2.0", id, result }));
+      res.end(JSON.stringify({ jsonrpc: "2.0", id, ...answer(chain, method, params) }));
     });
   });
   const port = await new Promise<number>((resolve) => {
@@ -319,9 +365,17 @@ export async function startFakeRpc(): Promise<FakeRpc> {
     url: (chain) => `http://127.0.0.1:${port}/${chain}/rpc`,
     setCode: (chain, address, bytecode = "0x6080") => {
       code.set(`${chain}:${address.toLowerCase()}`, bytecode);
+      outdated.delete(`${chain}:${address.toLowerCase()}`);
+    },
+    setOutdated: (chain, address, error = { code: -32000, message: "execution reverted" }) => {
+      code.set(`${chain}:${address.toLowerCase()}`, "0x6080");
+      outdated.set(`${chain}:${address.toLowerCase()}`, error);
     },
     breakCode: (chain) => {
-      broken.add(chain);
+      brokenCode.add(chain);
+    },
+    breakCall: (chain) => {
+      brokenCall.add(chain);
     },
     seen,
     close: () =>
