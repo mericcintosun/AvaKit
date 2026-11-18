@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { usePrefersReducedMotion } from "@/components/use-media-query";
 import { Link } from "@/i18n/navigation";
 import { getContent, type Locale, site } from "@/lib/content";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,9 @@ export function SurfacesSection() {
   const c = getContent(useLocale() as Locale);
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  const bgY = useTransform(scrollYProgress, [0, 1], [-50, 50]);
+  // Scroll-linked values bypass MotionConfig, so the parallax opts out itself.
+  const drift = usePrefersReducedMotion() ? 0 : 50;
+  const bgY = useTransform(scrollYProgress, [0, 1], [-drift, drift]);
 
   return (
     <Section id="architecture">

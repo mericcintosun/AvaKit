@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { usePrefersReducedMotion } from "@/components/use-media-query";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
@@ -58,12 +59,15 @@ const iconClass: Record<Tone, string> = {
   brand: "text-primary",
 };
 
-// A steady blinking block cursor.
+// A steady blinking block cursor; a solid block when motion is reduced.
 function Cursor({ className }: { className?: string }) {
+  const still = usePrefersReducedMotion();
+  const block = cn("bg-primary inline-block h-[1.05em] w-[0.6ch] translate-y-[0.15em]", className);
+  if (still) return <span aria-hidden className={block} />;
   return (
     <motion.span
       aria-hidden
-      className={cn("bg-primary inline-block h-[1.05em] w-[0.6ch] translate-y-[0.15em]", className)}
+      className={block}
       animate={{ opacity: [1, 1, 0, 0] }}
       transition={{ duration: 1, ease: "linear", repeat: Number.POSITIVE_INFINITY }}
     />
@@ -95,15 +99,21 @@ export function TerminalDemo() {
   // Typewriter for the command line.
   const [typed, setTyped] = useState(0);
   const commandDone = typed >= COMMAND.length;
+  const still = usePrefersReducedMotion();
 
   // `typed` must stay in the deps: each change re-runs this effect to schedule
   // the next keystroke — dropping it would freeze the typewriter after one char.
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional cadence
   useEffect(() => {
     if (commandDone) return;
+    // Reduced motion: no keystroke-by-keystroke reveal, just the finished line.
+    if (still) {
+      setTyped(COMMAND.length);
+      return;
+    }
     const id = setTimeout(() => setTyped((n) => n + 1), 55);
     return () => clearTimeout(id);
-  }, [typed, commandDone]);
+  }, [typed, commandDone, still]);
 
   return (
     <div className="w-full">
@@ -150,7 +160,12 @@ export function TerminalDemo() {
                   initial="hidden"
                   animate="show"
                   variants={{
-                    show: { transition: { staggerChildren: 0.28, delayChildren: 0.15 } },
+                    // Reduced motion shows the whole run at once, not line by line.
+                    show: {
+                      transition: still
+                        ? { staggerChildren: 0, delayChildren: 0 }
+                        : { staggerChildren: 0.28, delayChildren: 0.15 },
+                    },
                   }}
                 >
                   {OUTPUT.map((line, i) => (

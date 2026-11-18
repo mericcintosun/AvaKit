@@ -1,22 +1,12 @@
 "use client";
 
 import { type MotionValue, motion, useScroll, useTransform } from "framer-motion";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 
+import { useIsDesktop, usePrefersReducedMotion } from "@/components/use-media-query";
 import { cn } from "@/lib/utils";
 
-/** True on >=768px — the video is rendered + loaded on desktop only. */
-function useIsDesktop() {
-  const [desktop, setDesktop] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const update = () => setDesktop(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-  return desktop;
-}
+const captionClass = "absolute flex max-w-3xl flex-col items-center gap-4 px-6 text-center";
 
 function TimedCaption({
   progress,
@@ -33,10 +23,7 @@ function TimedCaption({
   const opacity = useTransform(progress, [start, start + fade, end - fade, end], [0, 1, 1, 0]);
   const y = useTransform(progress, [start, start + fade], [24, 0]);
   return (
-    <motion.div
-      style={{ opacity, y }}
-      className="absolute flex max-w-3xl flex-col items-center gap-4 px-6 text-center"
-    >
+    <motion.div style={{ opacity, y }} className={captionClass}>
       {children}
     </motion.div>
   );
@@ -62,6 +49,10 @@ export interface ScrollVideoProps {
  * A scroll-scrubbed background video: the clip's playhead is driven by scroll
  * position (eased with a rAF lerp for buttery smoothness) while captions fade
  * through in sequence. Reusable on any page — pass a video + captions.
+ *
+ * With "reduce motion" on there is no scrub: the section collapses from its
+ * scroll runway to one screen showing the poster and the final caption, and the
+ * clip is never requested.
  */
 export function ScrollVideo({
   src,
@@ -73,8 +64,13 @@ export function ScrollVideo({
   desktopOnly = true,
 }: ScrollVideoProps) {
   const isDesktop = useIsDesktop();
+  const reducedMotion = usePrefersReducedMotion();
   const sectionRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // The scrub only runs at breakpoints that show the section, and only when
+  // motion is welcome.
+  const scrub = (!desktopOnly || isDesktop) && !reducedMotion;
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -83,7 +79,7 @@ export function ScrollVideo({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !scrub) return;
     let raf = 0;
     let cancelled = false;
     const tick = () => {
@@ -108,7 +104,7 @@ export function ScrollVideo({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [scrollYProgress]);
+  }, [scrub, scrollYProgress]);
 
   const count = captions.length;
   const spanStart = 0.03;
@@ -119,15 +115,21 @@ export function ScrollVideo({
     <section
       ref={sectionRef}
       aria-hidden="true"
-      style={{ height: `${heightVh}vh` }}
-      className={cn("relative", desktopOnly && "hidden md:block", className)}
+      style={{ "--scroll-video-height": `${heightVh}vh` } as CSSProperties}
+      className={cn(
+        // The height is a class (not an inline style) so the reduced-motion
+        // override applies in CSS, before hydration, with no layout jump.
+        "relative h-(--scroll-video-height) motion-reduce:h-auto",
+        desktopOnly && "hidden md:block",
+        className,
+      )}
     >
       {/* Pin below the 56px (h-14) sticky header so the first scroll doesn't
           shift the video up by the header's height. */}
       <div className="sticky top-14 h-[calc(100dvh-3.5rem)] w-full overflow-hidden bg-black">
         <video
           ref={videoRef}
-          src={!desktopOnly || isDesktop ? src : undefined}
+          src={scrub ? src : undefined}
           poster={poster}
           muted
           playsInline
@@ -143,17 +145,22 @@ export function ScrollVideo({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-black/25 to-black/60" />
         <div className="pointer-events-none absolute inset-0 bg-black/10" />
         <div className="absolute inset-0 flex items-center justify-center text-white">
-          {captions.map((caption, i) => (
-            <TimedCaption
-              // biome-ignore lint/suspicious/noArrayIndexKey: captions are a fixed ordered list
-              key={i}
-              progress={scrollYProgress}
-              start={spanStart + i * seg}
-              end={spanStart + (i + 1) * seg}
-            >
-              {caption}
-            </TimedCaption>
-          ))}
+          {reducedMotion ? (
+            // No scroll runway to pace the sequence, so show where it ends.
+            <div className={captionClass}>{captions[count - 1]}</div>
+          ) : (
+            captions.map((caption, i) => (
+              <TimedCaption
+                // biome-ignore lint/suspicious/noArrayIndexKey: captions are a fixed ordered list
+                key={i}
+                progress={scrollYProgress}
+                start={spanStart + i * seg}
+                end={spanStart + (i + 1) * seg}
+              >
+                {caption}
+              </TimedCaption>
+            ))
+          )}
         </div>
       </div>
     </section>

@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import { useRef } from "react";
 
+import { usePrefersReducedMotion } from "@/components/use-media-query";
 import { cn } from "@/lib/utils";
 
 export interface ScrollArtProps {
@@ -48,10 +49,13 @@ export function ScrollArt({
   const y = useTransform(scrollYProgress, [0, 1], [parallax, -parallax]);
   const opacity = useTransform(scrollYProgress, [0, 0.22], reveal ? [0, 1] : [1, 1]);
   const scale = useTransform(scrollYProgress, [0, 0.3], reveal ? [0.94, 1] : [1, 1]);
+  // Scroll-linked values bypass MotionConfig, so with "reduce motion" on the
+  // art drops them itself and simply sits still, fully revealed.
+  const still = usePrefersReducedMotion();
 
   return (
     <div ref={ref} className={cn("relative", className)}>
-      <motion.div style={{ y, opacity, scale }}>
+      <motion.div style={still ? undefined : { y, opacity, scale }}>
         <Image
           src={src}
           alt={alt}

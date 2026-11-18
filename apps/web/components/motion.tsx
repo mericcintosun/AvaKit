@@ -1,7 +1,18 @@
 "use client";
 
-import { motion, type Variants } from "framer-motion";
+import { MotionConfig, motion, type Variants } from "framer-motion";
 import type { ReactNode } from "react";
+
+/**
+ * Site-wide Framer Motion settings. `reducedMotion="user"` makes every `motion`
+ * element honour the OS "reduce motion" preference: movement (x / y / scale /
+ * rotate) lands instantly while opacity fades still play. Framer Motion's own
+ * default is "never". Scroll-linked values, videos and timers are not covered by
+ * this switch — those components read `usePrefersReducedMotion()` themselves.
+ */
+export function MotionProvider({ children }: { children: ReactNode }) {
+  return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
+}
 
 export const fadeUp: Variants = {
   hidden: { opacity: 0, y: 16 },
