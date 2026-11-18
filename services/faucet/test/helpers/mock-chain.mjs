@@ -78,10 +78,11 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
     /**
      * Handle the next `times` calls of `method` as usual, then lose the answer:
      * the caller gets an HTTP error (a 502, as from a proxy whose upstream hung
-     * up) for a call that did happen.
+     * up) for a call that did happen — or, with `hangUp`, no answer at all,
+     * because the connection is dropped.
      */
-    lose(method, { times = 1, status = 502 } = {}) {
-      failures.push({ method, times, status, lost: true });
+    lose(method, { times = 1, status = 502, hangUp = false } = {}) {
+      failures.push({ method, times, status, lost: true, hangUp });
     },
 
     /**
@@ -259,7 +260,7 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
       if (failure.lost) {
         // The call happens; only its answer goes missing.
         await call(request).catch(() => {});
-        return { status: failure.status };
+        return { status: failure.status, hangUp: failure.hangUp };
       }
       chain.calls.push(request.method);
       if (failure.status) return { status: failure.status };
@@ -284,6 +285,10 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
       if (delay > 0) await sleep(delay);
 
       const broken = replies.find((reply) => reply.status);
+      if (broken?.hangUp) {
+        req.socket.destroy();
+        return;
+      }
       if (broken) {
         res.writeHead(broken.status, { "content-type": "text/plain" });
         res.end("upstream boom");

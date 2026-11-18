@@ -58,7 +58,7 @@ const NONCE_TAKEN = /nonce too low|replacement transaction underpriced/;
 /** …and when it already holds this exact signed transaction. */
 const ALREADY_KNOWN = /already known|transaction already imported/;
 const INSUFFICIENT_FUNDS = /insufficient funds|exceeds transaction sender account balance/;
-/** …and when the recipient's own code refused the transfer. */
+/** What it says when the recipient's own code turned the transfer down. */
 const REVERTED = /execution reverted/;
 
 /**

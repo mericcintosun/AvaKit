@@ -199,6 +199,18 @@ describe("DripSender", () => {
     assert.equal(chain.count("eth_sendRawTransaction"), 2, "the taken nonce cost no retry");
   });
 
+  it("reports a drip as sent when the connection dropped before the node could answer", async (t) => {
+    // No HTTP status at all this time: the request went out and nothing came back.
+    t.mock.method(console, "warn", () => {});
+    const sender = freshFaucet().sender();
+    chain.lose("eth_sendRawTransaction", { hangUp: true });
+
+    const hash = await drip(sender);
+
+    assert.equal(chain.accepted.length, 1);
+    assert.equal(chain.accepted[0].hash, hash);
+  });
+
   it("keeps looking for a moment when the node asked has not heard of the drip yet", async (t) => {
     t.mock.method(console, "warn", () => {});
     const sender = freshFaucet().sender();
