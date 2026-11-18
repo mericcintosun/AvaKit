@@ -358,7 +358,9 @@ export function CtaSection() {
       <Container>
         <Reveal>
           <div className="bg-foreground text-background relative flex flex-col items-center gap-6 overflow-hidden rounded-3xl px-6 py-16 text-center">
-            <Eyebrow>{c.cta.eyebrow}</Eyebrow>
+            {/* The band inverts the surface, so the page's muted grey would sit
+                on the wrong background; use the band's own secondary tone. */}
+            <Eyebrow className="text-background/70">{c.cta.eyebrow}</Eyebrow>
             <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
               {c.cta.title}
             </h2>
