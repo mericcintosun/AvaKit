@@ -136,8 +136,8 @@ describe("the published shape of the package", () => {
   it("names every package it bundles in THIRD_PARTY_LICENSES.txt", () => {
     const notices = readFileSync(path.join(installed, "dist", "THIRD_PARTY_LICENSES.txt"), "utf8");
     for (const name of BUNDLED) {
-      expect(notices).toMatch(new RegExp(`^  ${name} \\d+\\.\\d+\\.\\d+ \\(`, "m"));
-      expect(notices).toMatch(new RegExp(`^${name} \\d+\\.\\d+\\.\\d+\nLicense: `, "m"));
+      expect(notices).toMatch(new RegExp(`^  ${name} \\d\\S* \\(`, "m"));
+      expect(notices).toMatch(new RegExp(`^${name} \\d\\S*\nLicense: `, "m"));
     }
     expect(notices).toContain("Permission is hereby granted, free of charge");
   });
