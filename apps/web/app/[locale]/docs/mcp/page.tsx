@@ -19,6 +19,21 @@ const CONFIG = `{
   }
 }`;
 
+// Mainnet is opt-in twice: this env var on the server, plus confirm:true on the
+// call (see assertMainnetAllowed in packages/mcp/src/guards.ts).
+const MAINNET_CONFIG = `{
+  "mcpServers": {
+    "avakit": {
+      "command": "npx",
+      "args": ["-y", "@avakit/mcp"],
+      "env": {
+        "AVAKIT_DEPLOYER_KEY": "0x…",
+        "AVAKIT_ALLOW_MAINNET": "1"
+      }
+    }
+  }
+}`;
+
 export default function McpDocs() {
   return (
     <>
@@ -118,8 +133,36 @@ export default function McpDocs() {
       <Note>
         <C>deploy_contract</C> signs with a private key from the <C>AVAKIT_DEPLOYER_KEY</C>{" "}
         environment variable. Use a <strong>throwaway testnet key</strong> — never one holding real
-        funds. Mainnet deploys require an explicit <C>confirm: true</C>.
+        funds.
       </Note>
+
+      <H2>Mainnet deploys</H2>
+      <P>
+        <C>deploy_contract</C> targets Fuji unless told otherwise. A deploy to mainnet (
+        <C>chain: "c-chain"</C>) needs two independent approvals, and the tool refuses unless both
+        are there:
+      </P>
+      <UL>
+        <li>
+          the tool call passes <C>confirm: true</C>, and
+        </li>
+        <li>
+          the server itself was started with <C>AVAKIT_ALLOW_MAINNET=1</C> in its environment.
+        </li>
+      </UL>
+      <P>
+        The second gate is out-of-band on purpose. A prompt-injected instruction can talk an agent
+        into passing <C>confirm: true</C>, but it cannot set an environment variable on the machine
+        that runs the server, so a prompt alone can never spend real funds. Set it where your MCP
+        client configures the server, next to the deployer key:
+      </P>
+      <CodeBlock code={MAINNET_CONFIG} />
+      <P>
+        Leave <C>AVAKIT_ALLOW_MAINNET</C> unset for everyday work: Fuji needs neither approval, and
+        a mainnet call then fails with a message that names the variable. A mainnet deploy spends
+        real AVAX from the deployer key, so give it a dedicated key that holds only what the deploy
+        needs.
+      </P>
 
       <NextLinks
         items={[
