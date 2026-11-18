@@ -20,6 +20,10 @@
  * supported. Components read these tokens — they never hardcode colors, so the
  * whole brand can shift by editing this file.
  *
+ * A surface that must stay dark in both themes (the video sections, the
+ * /terminal window) does not get colors of its own either: it carries the
+ * `dark` class, which re-scopes every token below to its dark value.
+ *
  * Contrast: the crimson is tuned so both of its jobs clear WCAG AA (4.5:1) in
  * each theme: as the fill under --primary-foreground and as text on the page
  * surfaces. No single crimson can sit under white text *and* read as text on
@@ -61,6 +65,19 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.58 0.207 25.3); /* crimson focus ring */
+
+  /*
+   * Theme-invariant tokens: the same in light and dark, so `.dark` does not
+   * redefine them.
+   */
+
+  /* Scrim behind sheets and dialogs. */
+  --overlay: oklch(0 0 0 / 50%);
+
+  /* Window-chrome lights on the /terminal demo (close, minimise, zoom). */
+  --terminal-close: oklch(0.694 0.196 26.4);
+  --terminal-minimize: oklch(0.8348 0.1612 80.91);
+  --terminal-zoom: oklch(0.728 0.2173 144.71);
 }
 
 .dark {
@@ -122,6 +139,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+  --color-terminal-close: var(--terminal-close);
+  --color-terminal-minimize: var(--terminal-minimize);
+  --color-terminal-zoom: var(--terminal-zoom);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

@@ -11,10 +11,12 @@ import { cn } from "@/lib/utils";
 /* Standalone, playful terminal-themed page.
    The window is intentionally always-dark: it is wrapped in a `dark` class so
    every design token (background, foreground, primary/crimson) resolves to its
-   dark-theme value — no hardcoded colors, matching the repo's token rule. */
+   dark-theme value — no hardcoded colors, matching the repo's token rule. The
+   three window-chrome lights are tokens too (--terminal-* in globals.css). */
 
-// The shared AvaKit logo: a hand-drawn ASCII mountain (rendered white, like snow)
-// above the block-letter AVAKIT wordmark (ANSI Shadow figlet, tinted crimson).
+// The shared AvaKit logo: a hand-drawn ASCII mountain (in the foreground tone,
+// like snow) above the block-letter AVAKIT wordmark (ANSI Shadow figlet, tinted
+// crimson).
 const MOUNTAIN_ROWS = [
   "        /\\",
   "       /  \\",
@@ -82,7 +84,7 @@ function Logo() {
       className="leading-[1.1] font-bold [text-shadow:0_0_18px_var(--brand)]"
     >
       {MOUNTAIN_ROWS.map((row) => (
-        <span key={row} className="block text-white">
+        <span key={row} className="text-foreground block">
           {row}
         </span>
       ))}
@@ -120,11 +122,11 @@ export function TerminalDemo() {
       {/* dark → force dark tokens so the window stays near-black in either theme */}
       <div className="dark bg-background text-foreground overflow-hidden rounded-xl border shadow-2xl">
         {/* Title bar */}
-        <div className="border-border/80 flex items-center gap-2 border-b bg-white/[0.03] px-4 py-3">
+        <div className="border-border/80 bg-foreground/[0.03] flex items-center gap-2 border-b px-4 py-3">
           <div className="flex gap-2">
-            <span className="size-3 rounded-full bg-[#ff5f57]" />
-            <span className="size-3 rounded-full bg-[#febc2e]" />
-            <span className="size-3 rounded-full bg-[#28c840]" />
+            <span className="bg-terminal-close size-3 rounded-full" />
+            <span className="bg-terminal-minimize size-3 rounded-full" />
+            <span className="bg-terminal-zoom size-3 rounded-full" />
           </div>
           <span className="text-muted-foreground mx-auto pr-8 font-mono text-xs">avakit — zsh</span>
         </div>

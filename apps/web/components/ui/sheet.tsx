@@ -18,7 +18,7 @@ function SheetContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { side?: "left" | "right" }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+      <DialogPrimitive.Overlay className="bg-overlay fixed inset-0 z-50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
       <DialogPrimitive.Content
         className={cn(
           "bg-background fixed inset-y-0 z-50 flex h-full w-3/4 max-w-sm flex-col gap-4 border-l p-6 shadow-lg transition-transform data-[state=closed]:animate-out data-[state=open]:animate-in",

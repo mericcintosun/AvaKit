@@ -91,7 +91,8 @@ export function AmbientBand() {
   return (
     <section
       ref={sectionRef}
-      className="relative hidden h-[85vh] overflow-hidden bg-black md:block"
+      // `dark` scopes the tokens: the band stays dark in both themes.
+      className="dark bg-background text-foreground relative hidden h-[85vh] overflow-hidden md:block"
     >
       {/* The picture is decoration; the statement and the control are not. */}
       <div aria-hidden="true" className="absolute inset-0">
@@ -109,7 +110,7 @@ export function AmbientBand() {
           style={{ opacity: 0 }}
           className="absolute inset-0 h-full w-full object-cover invert"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
+        <div className="from-background/60 via-background/40 to-background/70 absolute inset-0 bg-gradient-to-b" />
       </div>
       <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
         <motion.div
@@ -117,9 +118,9 @@ export function AmbientBand() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="flex flex-col items-center gap-4 text-white"
+          className="flex flex-col items-center gap-4"
         >
-          <span className="font-mono text-xs tracking-[0.3em] text-white/60 uppercase">
+          <span className="text-foreground/60 font-mono text-xs tracking-[0.3em] uppercase">
             {c.ambient.eyebrow}
           </span>
           <p className="max-w-2xl text-3xl font-semibold tracking-tight text-balance lg:text-5xl">
@@ -127,20 +128,17 @@ export function AmbientBand() {
           </p>
         </motion.div>
       </div>
-      {/* `dark` scopes the tokens so the control reads on the always-dark band.
-          Bottom-left keeps it clear of the floating feedback pill. */}
-      <div className="dark absolute bottom-5 left-5 sm:left-8">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => setChoice(wantsPlayback ? "pause" : "play")}
-          aria-label={wantsPlayback ? "Pause background video" : "Play background video"}
-          className="text-foreground bg-background/60 rounded-full backdrop-blur-sm"
-        >
-          {wantsPlayback ? <Pause /> : <Play />}
-        </Button>
-      </div>
+      {/* Bottom-left keeps the control clear of the floating feedback pill. */}
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        onClick={() => setChoice(wantsPlayback ? "pause" : "play")}
+        aria-label={wantsPlayback ? "Pause background video" : "Play background video"}
+        className="bg-background/60 absolute bottom-5 left-5 rounded-full backdrop-blur-sm sm:left-8"
+      >
+        {wantsPlayback ? <Pause /> : <Play />}
+      </Button>
     </section>
   );
 }

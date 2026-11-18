@@ -176,8 +176,9 @@ export function ScrollVideo({
       )}
     >
       {/* Pin below the 56px (h-14) sticky header so the first scroll doesn't
-          shift the video up by the header's height. */}
-      <div className="sticky top-14 h-[calc(100dvh-3.5rem)] w-full overflow-hidden bg-black">
+          shift the video up by the header's height. `dark` scopes the tokens:
+          this surface (and the captions on it) stays dark in both themes. */}
+      <div className="dark bg-background sticky top-14 h-[calc(100dvh-3.5rem)] w-full overflow-hidden">
         <video
           ref={videoRef}
           src={active ? src : undefined}
@@ -195,9 +196,9 @@ export function ScrollVideo({
           }}
           className={videoClassName}
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-black/25 to-black/60" />
-        <div className="pointer-events-none absolute inset-0 bg-black/10" />
-        <div className="absolute inset-0 flex items-center justify-center text-white">
+        <div className="from-background/50 via-background/25 to-background/60 pointer-events-none absolute inset-0 bg-gradient-to-b" />
+        <div className="bg-background/10 pointer-events-none absolute inset-0" />
+        <div className="text-foreground absolute inset-0 flex items-center justify-center">
           {reducedMotion ? (
             // No scroll runway to pace the sequence, so show where it ends.
             <div className={captionClass}>{captions[count - 1]}</div>

@@ -38,11 +38,11 @@ export function CinematicIntro() {
             height={653}
             className="mb-2 h-16 w-auto invert lg:h-20"
           />
-          <span className="font-mono text-sm tracking-[0.3em] text-white/60 uppercase">
+          <span className="text-foreground/60 font-mono text-sm tracking-[0.3em] uppercase">
             {c.cinematic.introducing}
           </span>
           <span className="text-6xl font-semibold tracking-tight lg:text-8xl">AvaKit</span>
-          <span className="max-w-md text-base text-balance text-white/70 lg:text-lg">
+          <span className="text-foreground/70 max-w-md text-base text-balance lg:text-lg">
             {c.footer.tagline}
           </span>
         </div>,
