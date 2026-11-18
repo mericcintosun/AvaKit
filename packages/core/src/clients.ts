@@ -1,7 +1,9 @@
 /**
  * viem client factory. Turns an AvaChain into viem public/wallet clients with
  * sensible Avalanche defaults. Wallet clients are created from an EIP-1193
- * provider supplied by a WalletAdapter — AvaKit never touches private keys.
+ * provider supplied by a WalletAdapter, so signing happens in the wallet and no
+ * key passes through here. (The burner adapter's provider is the one place
+ * AvaKit itself holds a key: a throwaway, testnet-only one. See SECURITY.md.)
  */
 
 import {

@@ -11,8 +11,11 @@ export interface WalletConnection {
  * Wallet provider abstraction.
  *
  * An adapter only ever exposes an EIP-1193 provider (a signing interface).
- * Private keys never pass through AvaKit code — they stay inside the provider
- * (an injected wallet, or a social-login provider's HSM/enclave).
+ * With a real wallet, private keys never pass through AvaKit code — they stay
+ * inside the provider (an injected wallet, or a social-login provider's
+ * HSM/enclave). The one deliberate exception is `burnerAdapter()`, whose
+ * provider signs with a throwaway, testnet-only key that AvaKit generates in
+ * the browser. See SECURITY.md.
  */
 export interface WalletAdapter {
   /** Stable identifier, e.g. "injected" or "web3auth". */
