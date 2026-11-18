@@ -24,6 +24,7 @@ import { InputError } from "./errors.js";
 import {
   CONSTRUCTOR_SIG,
   LAST_MESSAGE_SIG,
+  MAX_MESSAGE_LENGTH_SIG,
   MESSAGES_RECEIVED_SIG,
   MESSENGER_BYTECODE,
   SEND_MESSAGE_SIG,
@@ -44,13 +45,6 @@ const DEV_KEY = "0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8
  * source chain, so it is refused here with a readable reason instead.
  */
 export const MAX_MESSAGE_BYTES = 256;
-
-/**
- * The getter of that cap, as a cast signature like the ones in
- * messenger-artifact.ts. Only a messenger that has the cap answers it, which is
- * how one deployed by an earlier Studio is told apart (see `capsMessageLength`).
- */
-const MAX_MESSAGE_LENGTH_SIG = "MAX_MESSAGE_LENGTH()(uint256)";
 
 /** A cast signature without its return types: "lastMessage()(string)" -> "lastMessage()". */
 function withoutReturns(sig: string): string {

@@ -30,3 +30,5 @@ export const SET_TRUSTED_REMOTE_SIG = "setTrustedRemote(bytes32,address)" as con
 export const TRUSTED_REMOTE_SIG = "trustedRemote(bytes32)(address)" as const;
 export const LAST_MESSAGE_SIG = "lastMessage()(string)" as const;
 export const MESSAGES_RECEIVED_SIG = "messagesReceived()(uint256)" as const;
+/** Only a messenger that caps message length answers this; an older one reverts. */
+export const MAX_MESSAGE_LENGTH_SIG = "MAX_MESSAGE_LENGTH()(uint256)" as const;
