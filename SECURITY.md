@@ -67,9 +67,19 @@ by design and is scoped to local/testnet use:
 
 ## Reporting a vulnerability
 
-Please do not open a public issue for security vulnerabilities. Instead, report them
-privately to the maintainers so a fix can be prepared before disclosure. We aim to
-acknowledge reports promptly and will coordinate a disclosure timeline with you.
+Please do not open a public issue, discussion, or pull request for a security
+vulnerability. Report it privately instead, so a fix can be prepared before disclosure:
+
+**[Report a vulnerability](https://github.com/mericcintosun/AvaKit/security/advisories/new)**
+— GitHub's private vulnerability reporting, also reachable from the **Security** tab of
+the repository (**Report a vulnerability**). All you need is a GitHub account; the
+report is visible only to you and the maintainers.
+
+It helps to include the affected package and version (or commit), what an attacker
+could do, and the steps or a proof of concept that reproduce it.
+
+We aim to acknowledge reports promptly and will coordinate a disclosure timeline with
+you in that advisory.
 
 ## Supported versions
 
