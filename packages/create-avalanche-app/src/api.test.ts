@@ -1,14 +1,33 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  AVAKIT_CORE_VERSION,
+  AVAKIT_REACT_VERSION,
   assertChainSupported,
   assertSafeProjectName,
   isChainId,
   listTemplates,
   scaffoldApp,
 } from "./api.js";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+/** The current version of a sibling package (`core` or `react`) in this repo. */
+const readVersion = (pkg: string) =>
+  (
+    JSON.parse(readFileSync(path.join(here, "..", "..", pkg, "package.json"), "utf8")) as {
+      version: string;
+    }
+  ).version;
+
+const scaffoldedPackage = (target: string) =>
+  JSON.parse(readFileSync(path.join(target, "package.json"), "utf8")) as {
+    name: string;
+    dependencies: Record<string, string>;
+  };
 
 let dir: string;
 beforeEach(() => {
@@ -171,5 +190,123 @@ describe("scaffoldApp", () => {
     expect(await providers()).toContain("chains={[fuji]}");
     expect(await providers("fuji")).toContain("chains={[fuji]}");
     expect(await providers("c-chain")).toContain("chains={[cChain]}");
+  });
+});
+
+describe("scaffoldApp version pins", () => {
+  it("pins @avakit/core and @avakit/react each from its OWN package's version", async () => {
+    // Core and react version independently, so a single shared number cannot pin
+    // both. This asserts each pin tracks its own package — if the code ever
+    // regressed to one value, and the two versions differed, this fails.
+    expect(AVAKIT_CORE_VERSION).toBe(readVersion("core"));
+    expect(AVAKIT_REACT_VERSION).toBe(readVersion("react"));
+
+    const target = path.join(dir, "app");
+    await scaffoldApp({ projectName: "app", targetDir: target, template: "minimal" });
+
+    const deps = scaffoldedPackage(target).dependencies;
+    expect(deps["@avakit/core"]).toBe(`^${readVersion("core")}`);
+    expect(deps["@avakit/react"]).toBe(`^${readVersion("react")}`);
+  });
+
+  it("pins every template the same way", async () => {
+    for (const template of listTemplates()) {
+      const target = path.join(dir, template.id);
+      await scaffoldApp({ projectName: "app", targetDir: target, template: template.id });
+      const deps = scaffoldedPackage(target).dependencies;
+      expect(deps["@avakit/core"], template.id).toBe(`^${readVersion("core")}`);
+      expect(deps["@avakit/react"], template.id).toBe(`^${readVersion("react")}`);
+    }
+  });
+
+  it("links via workspace when local", async () => {
+    const target = path.join(dir, "app");
+    await scaffoldApp({ projectName: "app", targetDir: target, template: "minimal", local: true });
+
+    const deps = scaffoldedPackage(target).dependencies;
+    expect(deps["@avakit/core"]).toBe("workspace:*");
+    expect(deps["@avakit/react"]).toBe("workspace:*");
+  });
+
+  it("always installs @web3auth/modal, since every template wires the social adapter", async () => {
+    for (const template of listTemplates()) {
+      const target = path.join(dir, template.id);
+      await scaffoldApp({ projectName: "app", targetDir: target, template: template.id });
+      const deps = scaffoldedPackage(target).dependencies;
+      // An exact version, not a range: this SDK is pinned on purpose.
+      expect(deps["@web3auth/modal"], template.id).toMatch(/^\d+\.\d+\.\d+$/);
+      // Inserted in place, so the dependency list stays sorted.
+      expect(Object.keys(deps), template.id).toEqual(
+        [...Object.keys(deps)].sort((a, b) => a.localeCompare(b)),
+      );
+    }
+  });
+});
+
+describe("scaffoldApp output", () => {
+  it("restores the dot-files that cannot ship under their real names", async () => {
+    // npm will not publish a literal `.gitignore`, so templates carry these
+    // without the dot and the scaffolder puts it back.
+    for (const template of listTemplates()) {
+      const target = path.join(dir, template.id);
+      await scaffoldApp({ projectName: "app", targetDir: target, template: template.id });
+      for (const restored of [".gitignore", ".env.example", ".cursor/rules/avakit.mdc"]) {
+        expect(existsSync(path.join(target, restored)), `${template.id} ${restored}`).toBe(true);
+      }
+      for (const undotted of ["gitignore", "env.example", "cursor"]) {
+        expect(existsSync(path.join(target, undotted)), `${template.id} ${undotted}`).toBe(false);
+      }
+    }
+  });
+
+  it("keeps the template's manifest out of the generated app", async () => {
+    const target = path.join(dir, "app");
+    const { files } = await scaffoldApp({
+      projectName: "app",
+      targetDir: target,
+      template: "nft-mint",
+    });
+    expect(existsSync(path.join(target, "manifest.json"))).toBe(false);
+    expect(files).not.toContain("manifest.json");
+  });
+
+  it("fills in every placeholder in every file of every template", async () => {
+    for (const template of listTemplates()) {
+      const target = path.join(dir, template.id);
+      const { files } = await scaffoldApp({
+        projectName: "my-avax-app",
+        targetDir: target,
+        template: template.id,
+      });
+      for (const file of files) {
+        const content = readFileSync(path.join(target, file), "utf8");
+        // Every placeholder is `__UPPER_CASE__`; none may survive scaffolding.
+        expect(content.match(/__[A-Z][A-Z_]*[A-Z]__/g), `${template.id}/${file}`).toBeNull();
+      }
+      expect(scaffoldedPackage(target).name, template.id).toBe("my-avax-app");
+    }
+  });
+
+  it("returns the files it wrote, relative to the target directory", async () => {
+    const target = path.join(dir, "app");
+    const result = await scaffoldApp({
+      projectName: "app",
+      targetDir: target,
+      template: "minimal",
+    });
+    expect(result.targetDir).toBe(target);
+    expect(result.files).toEqual(
+      expect.arrayContaining([
+        "package.json",
+        ".gitignore",
+        ".env.example",
+        path.join("app", "providers.tsx"),
+        path.join(".cursor", "rules", "avakit.mdc"),
+      ]),
+    );
+    for (const file of result.files) {
+      expect(path.isAbsolute(file), file).toBe(false);
+      expect(existsSync(path.join(target, file)), file).toBe(true);
+    }
   });
 });
