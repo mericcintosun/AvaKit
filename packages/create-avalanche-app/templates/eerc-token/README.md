@@ -15,7 +15,8 @@ pnpm dev    # http://localhost:3000 (or the port Next prints)
 
 Then: connect a wallet → **Register** (one-time, on-chain) → **Unlock private balance** (free,
 off-chain) → mint / confidential transfer / burn. These cost gas (except unlock), so fund your
-wallet on Fuji first (in-app faucet link).
+wallet with test AVAX on Fuji first: https://core.app/tools/testnet-faucet (the app itself has no
+faucet link — click the wallet button to see the full address to fund).
 
 ## How it works
 
