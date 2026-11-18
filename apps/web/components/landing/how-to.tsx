@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { Reveal } from "@/components/motion";
 import { Container, Section, SectionHeading } from "@/components/section";
-import { usePrefersReducedMotion } from "@/components/use-media-query";
+import { useDataSaver } from "@/components/use-data-saver";
+import { useIsDesktop, usePrefersReducedMotion } from "@/components/use-media-query";
 import { getContent, type Locale, TUTORIAL_YOUTUBE_URL } from "@/lib/content";
 
 /** "How to use" — a zero-to-dapp walkthrough. Plays a muted, silent preview of
@@ -13,13 +14,18 @@ import { getContent, type Locale, TUTORIAL_YOUTUBE_URL } from "@/lib/content";
  * into view, so it never blocks the initial page load. The full, narrated
  * version links out to YouTube when TUTORIAL_YOUTUBE_URL is set.
  *
- * The preview starts by itself only when motion is welcome; otherwise the
- * poster and the native controls wait for the visitor to press play. */
+ * The preview starts by itself only on a desktop-sized screen, with motion
+ * welcome and no data-saving in effect: it is a 14 MB clip, so a phone, a
+ * Save-Data visitor or a reduce-motion visitor gets the poster and the native
+ * controls, and nothing is fetched until they press play. */
 export function HowToSection() {
   const c = getContent(useLocale() as Locale);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [inView, setInView] = useState(false);
-  const autoplay = !usePrefersReducedMotion();
+  const isDesktop = useIsDesktop();
+  const reducedMotion = usePrefersReducedMotion();
+  const dataSaver = useDataSaver();
+  const autoplay = isDesktop && !reducedMotion && !dataSaver;
   // Start it once; after that the visitor's own play/pause is left alone.
   const started = useRef(false);
 
