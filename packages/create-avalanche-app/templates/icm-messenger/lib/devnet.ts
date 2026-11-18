@@ -2,8 +2,9 @@
  * Local ICM devnet configuration.
  *
  * `scripts/devnet.sh` spins up two Avalanche L1s with Interchain Messaging and a
- * relayer, then writes the discovered RPC URLs and blockchain IDs into
- * `icm.config.json`. This module turns that into AvaKit chains the app can use.
+ * relayer, then writes the discovered RPC URLs, blockchain IDs and
+ * TeleporterMessenger address into `icm.config.json`. This module turns that
+ * into AvaKit chains the app can use.
  */
 
 import { type AvaChain, defineChain } from "@avakit/core/chains";
@@ -21,7 +22,11 @@ export interface IcmChainConfig {
 
 export interface IcmConfig {
   configured: boolean;
-  /** TeleporterMessenger predeploy, the same address on every ICM-enabled chain. */
+  /**
+   * The TeleporterMessenger both chains use. `pnpm devnet` reads it from
+   * `avalanche blockchain describe` and checks that a contract is deployed
+   * there; it is normally the canonical predeploy, but never assume that.
+   */
   teleporterMessenger: string;
   chain1: IcmChainConfig;
   chain2: IcmChainConfig;

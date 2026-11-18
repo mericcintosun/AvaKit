@@ -12,7 +12,9 @@ Teleporter), against a local 2-L1 devnet.
 ## Flow
 
 - `pnpm devnet` (scripts/devnet.sh) creates + deploys two local L1s with the
-  TeleporterMessenger and a relayer, and writes `icm.config.json`.
+  TeleporterMessenger and a relayer, and writes `icm.config.json` — including the
+  TeleporterMessenger address it read from `avalanche blockchain describe` and verified
+  on-chain. Use that value; do not hardcode the canonical address in the app.
 - Deploy the same contract on both chains (constructor takes the chain's
   TeleporterMessenger address — the UI passes it from `icm.config.json`).
 - Link: `setTrustedRemote(otherBlockchainID, otherMessenger)` on BOTH sides (owner-only) —

@@ -39,7 +39,7 @@ Then in your wallet (Core / MetaMask), **import the EWOQ dev key** (pre-funded o
   - **Message size:** at most 256 bytes of UTF-8 (`MAX_MESSAGE_LENGTH`). `sendMessage` reverts with `AvaKitMessenger: message too long` above that, and the app counts bytes the same way before it lets you send (most emoji are four bytes, not one).
   - **Delivery gas:** the destination chain runs `receiveTeleporterMessage` with 350,000 gas — enough to store the longest message. That fixed budget is why the size is capped; if you raise one, raise the other.
   - **Trust:** a chain is trusted only while a non-zero remote is registered for it. `setTrustedRemote(blockchainID, address(0))` stops accepting messages from that chain again.
-- `scripts/devnet.sh` — creates two subnet-EVM L1s, deploys them locally, and lets avalanche-cli wire the TeleporterMessenger + relayer automatically. It then writes each chain's RPC URL and **hex blockchain ID** into `icm.config.json`.
+- `scripts/devnet.sh` — creates two subnet-EVM L1s, deploys them locally, and lets avalanche-cli wire the TeleporterMessenger + relayer automatically. It then reads each chain's RPC URL, **hex blockchain ID** and TeleporterMessenger address from `avalanche blockchain describe`, checks that a contract really is deployed at that address on both chains (it stops with an error if not), and writes them into `icm.config.json`.
 - `lib/devnet.ts` — turns that config into AvaKit chains and exposes `blockchainIdOf(chain)`.
 
 > **Gotcha:** ICM routes by the **bytes32 blockchain ID** (hex), not the EVM `chainId`. This template handles that for you — see `lib/devnet.ts`.

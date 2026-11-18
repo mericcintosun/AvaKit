@@ -22,7 +22,8 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   `trustedRemote` (owner-only). The Teleporter address is an immutable
   constructor parameter.
 - `lib/messenger-artifact.ts` — the compiled ABI + bytecode (browser deploy, no Foundry at runtime).
-- `icm.config.json` — the two local chains (RPC URL + **hex blockchain ID**). Written by `pnpm devnet`.
+- `icm.config.json` — the two local chains (RPC URL + **hex blockchain ID**) and the
+  TeleporterMessenger address they use. Written by `pnpm devnet`.
 - `lib/devnet.ts` — turns that config into AvaKit chains + helpers.
 - `lib/deployed-contract.ts` — `useDeployedContract(name, chain)`: remembers each chain's deployed
   messenger in `localStorage`, keyed by chain id **and RPC URL**, and only hands the address to the
@@ -31,7 +32,11 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   a contract address straight from `localStorage`.
 - `app/providers.tsx` — `<AvaKitProvider chains={[chain1, chain2]}>` with the injected wallet.
 - `components/demo.tsx` — the **Devnet Studio**: live chain cards (block height + ICM status), deploy on both chains, send, and watch the message land on the other chain. When the devnet isn't up yet it shows a copy-command setup panel (`pnpm devnet`) — it never runs shell itself.
-- `scripts/devnet.sh` — the one-command local ICM devnet.
+- `scripts/devnet.sh` — the one-command local ICM devnet. After deploying the two chains it reads
+  their RPC URL, hex blockchain ID and TeleporterMessenger address from
+  `avalanche blockchain describe`, verifies with `eth_getCode` that a contract is deployed at that
+  address on both chains (no contract → the script fails instead of writing a config that cannot
+  work), and only then writes `icm.config.json`.
 
 ## The flow
 
@@ -79,8 +84,9 @@ the EVM `chainId` (1001/1002). Get it from `avalanche blockchain describe <name>
   stops trusting that chain again.
 - The TeleporterMessenger address is an **immutable constructor parameter**, not a hardcoded
   constant: the canonical predeploy is `0x253b…5fcf`, but a chain can run a different
-  Teleporter version — read the real address from `avalanche blockchain describe` (the UI
-  passes it from `icm.config.json`).
+  Teleporter version. `pnpm devnet` reads the real address from `avalanche blockchain describe`
+  and writes it to `icm.config.json`; the UI passes it to the constructor from there. Do not
+  replace that with a constant in the app.
 
 ## Editing the contract
 

@@ -3,8 +3,9 @@
 # One-command local ICM devnet.
 #
 # Spins up TWO Avalanche L1s (subnet-EVM) with Interchain Messaging (Teleporter)
-# and a relayer, all on a local network, then writes the discovered RPC URLs and
-# blockchain IDs into icm.config.json so the app can talk to both chains.
+# and a relayer, all on a local network, then writes the discovered RPC URLs,
+# blockchain IDs and TeleporterMessenger address into icm.config.json so the app
+# can talk to both chains.
 #
 # Requires avalanche-cli. It downloads avalanchego + subnet-EVM on first run.
 
@@ -20,9 +21,14 @@ TOKEN_1="TOK1"
 TOKEN_2="TOK2"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="$ROOT/icm.config.json"
+# Where the TeleporterMessenger lives on a chain that uses the canonical
+# predeploy. The real address is read from avalanche-cli below; this is only the
+# assumption when the CLI does not name one, and it is still checked on-chain.
+CANONICAL_TELEPORTER="0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf"
 
-say() { printf "\033[1;37m▸\033[0m %s\n" "$1"; }
-die() { printf "\033[1;31m✖\033[0m %s\n" "$1" >&2; exit 1; }
+say()  { printf "\033[1;37m▸\033[0m %s\n" "$1"; }
+warn() { printf "\033[1;33m!\033[0m %s\n" "$1" >&2; }
+die()  { printf "\033[1;31m✖\033[0m %s\n" "$1" >&2; exit 1; }
 
 # Deploy an L1 to the local network with an actionable error on stale state.
 deploy_local() {
@@ -49,6 +55,7 @@ Then re-run: pnpm devnet
 EOF
   exit 1
 fi
+command -v node >/dev/null 2>&1 || die "node not found (this script uses it to check that ICM is deployed)."
 
 # --- 0b. Opt-in clean slate -------------------------------------------------
 # `CLEAN=1 pnpm devnet` wipes any existing local network first. Off by default
@@ -82,29 +89,90 @@ deploy_local "$CHAIN1"
 say "Deploying '$CHAIN2' locally…"
 deploy_local "$CHAIN2"
 
-# --- 3. Discover RPC URL + hex blockchain ID for each chain -----------------
-# `describe` prints the RPC URL and the blockchain ID in hex. We grep by shape
-# (robust across CLI versions): the localhost RPC path, and a 0x + 64-hex id.
-discover() {
-  local name="$1" out rpc bid
-  out="$(avalanche blockchain describe "$name" 2>/dev/null)"
-  rpc="$(printf '%s' "$out" | grep -oE 'http://127\.0\.0\.1:[0-9]+/ext/bc/[A-Za-z0-9]+/rpc' | head -1)"
-  # The bytes32 blockchain ID lives on the "BlockchainID (HEX)" row.
-  bid="$(printf '%s' "$out" | grep -iE 'BlockchainID \(HEX\)' | grep -oiE '0x[0-9a-f]{64}' | head -1)"
-  printf '%s\t%s' "$rpc" "$bid"
-}
+# --- 3. Discover each chain's RPC URL, blockchain ID and Teleporter ----------
+# `describe` prints all three. We grep by shape (robust across CLI versions):
+# the localhost RPC path, a 0x + 64-hex id, and the address on the first
+# "ICM Messenger" row.
+rpc_of() { printf '%s' "$1" | grep -oE 'http://127\.0\.0\.1:[0-9]+/ext/bc/[A-Za-z0-9]+/rpc' | head -1; }
+# The bytes32 blockchain ID lives on the "BlockchainID (HEX)" row.
+bid_of() { printf '%s' "$1" | grep -iE 'BlockchainID \(HEX\)' | grep -oiE '0x[0-9a-f]{64}' | head -1; }
+teleporter_of() { printf '%s' "$1" | grep -iE 'ICM Messenger' | grep -oE '0x[0-9a-fA-F]{40}' | head -1; }
+
 say "Reading chain details…"
-IFS=$'\t' read -r RPC1 BID1 < <(discover "$CHAIN1")
-IFS=$'\t' read -r RPC2 BID2 < <(discover "$CHAIN2")
+DESC1="$(avalanche blockchain describe "$CHAIN1" 2>/dev/null)"
+DESC2="$(avalanche blockchain describe "$CHAIN2" 2>/dev/null)"
+RPC1="$(rpc_of "$DESC1")"; BID1="$(bid_of "$DESC1")"
+RPC2="$(rpc_of "$DESC2")"; BID2="$(bid_of "$DESC2")"
 
 [ -n "$RPC1" ] && [ -n "$BID1" ] || die "Could not read '$CHAIN1' RPC/blockchain ID. Run: avalanche blockchain describe $CHAIN1"
 [ -n "$RPC2" ] && [ -n "$BID2" ] || die "Could not read '$CHAIN2' RPC/blockchain ID. Run: avalanche blockchain describe $CHAIN2"
 
-# --- 4. Write icm.config.json -----------------------------------------------
+# --- 4. Find the TeleporterMessenger and make sure it is really there -------
+# The messenger contract takes its chain's TeleporterMessenger address as a
+# constructor argument, so the app has to be given the real one. A messenger
+# deployed against an address with no contract cannot send or receive anything.
+teleporter_for() { # <chain name> <describe output>
+  local found
+  found="$(teleporter_of "$2")"
+  if [ -z "$found" ]; then
+    warn "avalanche-cli did not name the TeleporterMessenger on '$1' — assuming the canonical predeploy."
+    found="$CANONICAL_TELEPORTER"
+  fi
+  printf '%s' "$found"
+}
+ICM1="$(teleporter_for "$CHAIN1" "$DESC1")"
+ICM2="$(teleporter_for "$CHAIN2" "$DESC2")"
+
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+[ "$(lower "$ICM1")" = "$(lower "$ICM2")" ] || die "The two chains use different TeleporterMessenger addresses
+     ($CHAIN1: $ICM1 · $CHAIN2: $ICM2), but the app expects one address for both.
+     Rebuild the devnet so both chains run the same ICM version: CLEAN=1 pnpm devnet"
+
+# Is there contract code at address $2 on the chain behind RPC $1?
+# Prints "yes", "no", or "unreachable" (the RPC did not answer).
+has_code() {
+  node -e '
+    const [rpc, address] = process.argv.slice(1);
+    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getCode", params: [address, "latest"] });
+    fetch(rpc, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+      signal: AbortSignal.timeout(10000),
+    })
+      .then((response) => response.json())
+      .then((json) => {
+        if (typeof json.result !== "string") throw new Error("no result");
+        console.log(/^0x0*$/.test(json.result) ? "no" : "yes");
+      })
+      .catch(() => console.log("unreachable"));
+  ' "$1" "$2" 2>/dev/null
+}
+require_teleporter() { # <chain name> <rpc url> <address>
+  local answer="" attempt
+  for attempt in 1 2 3 4 5; do
+    answer="$(has_code "$2" "$3")"
+    [ "$answer" = "unreachable" ] || break
+    sleep 2
+  done
+  case "$answer" in
+    yes) ;;
+    no) die "ICM is not deployed on '$1': there is no contract at the TeleporterMessenger address
+     $3 ($2).
+     Messages cannot be sent without it. Inspect the chain with: avalanche blockchain describe $1" ;;
+    *) warn "Could not reach '$1' at $2 to confirm that ICM is deployed — continuing.
+     If the app shows \"ICM —\" on this chain, check the network: avalanche network status" ;;
+  esac
+}
+say "Checking that ICM is deployed on both chains ($ICM1)…"
+require_teleporter "$CHAIN1" "$RPC1" "$ICM1"
+require_teleporter "$CHAIN2" "$RPC2" "$ICM2"
+
+# --- 5. Write icm.config.json -----------------------------------------------
 cat > "$CONFIG" <<EOF
 {
   "configured": true,
-  "teleporterMessenger": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+  "teleporterMessenger": "$ICM1",
   "chain1": { "name": "$CHAIN1", "token": "$TOKEN_1", "evmChainId": $EVM_CHAIN_ID_1, "rpcUrl": "$RPC1", "blockchainIdHex": "$BID1" },
   "chain2": { "name": "$CHAIN2", "token": "$TOKEN_2", "evmChainId": $EVM_CHAIN_ID_2, "rpcUrl": "$RPC2", "blockchainIdHex": "$BID2" }
 }

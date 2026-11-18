@@ -6,8 +6,8 @@
 
 - [contracts/src/AvaKitMessenger.sol](contracts/src/AvaKitMessenger.sol): one contract that both sends and receives ICM messages (implements ITeleporterReceiver). Deployed per chain, then linked: each side registers the other as its trusted remote.
 - [lib/messenger-artifact.ts](lib/messenger-artifact.ts): compiled ABI + bytecode (browser deploy, no Foundry at runtime).
-- [scripts/devnet.sh](scripts/devnet.sh): one command — two local L1s with ICM + relayer.
-- [icm.config.json](icm.config.json): the two chains (RPC URL + hex blockchain ID); written by `pnpm devnet`.
+- [scripts/devnet.sh](scripts/devnet.sh): one command — two local L1s with ICM + relayer. Reads each chain's RPC URL, hex blockchain ID and TeleporterMessenger address from `avalanche blockchain describe` and fails if no contract is deployed at that address.
+- [icm.config.json](icm.config.json): the two chains (RPC URL + hex blockchain ID) and their TeleporterMessenger address; written by `pnpm devnet`.
 - [lib/devnet.ts](lib/devnet.ts): config → AvaKit chains + `blockchainIdOf()`.
 - [lib/deployed-contract.ts](lib/deployed-contract.ts): `useDeployedContract(name, chain)` — remembers a deployed messenger per chain instance (chain id + RPC URL) and only uses it once `eth_getCode` confirms bytecode, so addresses from before a devnet reset are dropped.
 - [components/demo.tsx](components/demo.tsx): the Devnet Studio — live chain cards (block + ICM status), deploy on both chains, send, watch it arrive. Setup is a copy-command panel (never runs shell).
@@ -16,7 +16,7 @@
 ## Key facts
 
 - `destinationBlockchainID` is a **bytes32 hex blockchain ID**, NOT the EVM chainId. Use `blockchainIdOf(chain)`.
-- TeleporterMessenger canonical predeploy: `0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf` — passed to the messenger's constructor (immutable), the UI reads it from `icm.config.json`.
+- TeleporterMessenger canonical predeploy: `0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf`. The address actually used is the one avalanche-cli reports: `pnpm devnet` writes it to `icm.config.json` (after checking it has code) and the UI passes it to the messenger's constructor (immutable).
 - The receiver requires BOTH `msg.sender == TELEPORTER` AND `trustedRemote[sourceBlockchainID] == originSenderAddress` — deploy, then link both sides (`setTrustedRemote`, owner-only) before sending.
 - A message is at most 256 bytes of UTF-8 (`MAX_MESSAGE_LENGTH`): `sendMessage` reverts with `AvaKitMessenger: message too long` above that. The UI enforces the same limit with its own constant (`MAX_MESSAGE_BYTES`, counted with `TextEncoder`) — it does not read the getter, which older deployments lack.
 - Delivery gas is fixed at 350,000 (`REQUIRED_GAS_LIMIT`), enough to store the longest message. Raise it together with the size limit.
