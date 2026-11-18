@@ -19,6 +19,111 @@
 > above says were corrected. They are corrected in place now, each one re-checked
 > against the code: items **2, 4, 5, 12**, **B1**, **E6**, **F1**, **F2**, **F3**,
 > **F4** and **F6**. Nothing was added in this pass.
+>
+> **2026-11-18 release pass (after both review rounds):** the section right below
+> is new and lists what is open on the day of the release, in one place. Items
+> **4, 5, 6**, **B1**, **B2**, **C1**, **C2**, **C3**, **C5**, **C7**, **D1**, **D2**,
+> **E2**, **E3**, **F3**, **F4**, **F5** and **G3** were re-checked against the code
+> and corrected in place.
+> Every other body is as the earlier passes left it and was **not** re-checked in
+> this one.
+
+## Open on 2026-11-18
+
+The short list. Each item is one or two sentences; the older sections below have
+the detail where there is any.
+
+**Tooling and infrastructure**
+
+- **Avalanche CLI is in maintenance mode.** The `icm-messenger`, `l1-launch` and
+  `token-bridge` templates and `@avakit/studio` drive Avalanche CLI, which Ava Labs
+  put in maintenance mode in December 2025 and removed from the Avalanche
+  documentation on 2026-10-06 in favour of Platform CLI. They were last proven end
+  to end in July 2026 (Avalanche CLI 1.9.6); their scripts have changed since
+  without a full run on a live network, and the move to the supported toolchain
+  has not been done.
+- **The faucet Worker's hardening is not deployed.** `services/faucet` has exact
+  limits in a Durable Object, queued sends, a lookup by hash when the node's answer
+  is lost, a refusal of contract recipients and an optional Turnstile check. The
+  hosted faucet still runs the earlier Worker, whose limits are counted in KV and
+  are a floor, not a guarantee. Deploying is a manual `wrangler deploy` by the
+  owner (`services/faucet/README.md`, "First deploy of this version").
+- **The telemetry collector's changes are not deployed, and test events are in the
+  public count.** On 2026-11-18 local smoke tests wrote 52 scaffold events into the
+  production collector, because `scripts/smoke-template.sh` did not opt out. The
+  script now sets `AVAKIT_TELEMETRY_DISABLED=1` itself. The events are still counted
+  on avakit.dev/stats until the owner deploys `services/telemetry` and removes that
+  day with `POST /admin/purge` (`services/telemetry/README.md`, "Removing test
+  events"). The purge removes a whole UTC day, so real scaffolds of that day go
+  with it.
+- **Single maintainer.** One person reviews and releases, and pays for and
+  operates the faucet and the telemetry collector. There is no second reviewer,
+  and no response time is promised beyond the intention stated in `SECURITY.md`.
+
+**Validation**
+
+- **No external users validated yet.** Nobody outside the project has been
+  observed going through a first run. The flows are proven by the maintainer and
+  by scripts, and the public usage numbers are small.
+- **Native Windows is not exercised by a person.** One leg of
+  `.github/workflows/e2e-fuji.yml` (windows-latest, Node 24) scaffolds `nft-mint`
+  through the MCP server and builds it with npm; nothing goes further there. The
+  setup scripts of the three local-devnet templates are bash and need WSL2.
+- **No test drives a browser.** `scripts/e2e-fuji.mjs` covers scaffold → build →
+  deploy → mint through the MCP server on Fuji (see item 6). Connecting a wallet
+  and clicking Deploy and Mint in a scaffolded app, and the Google sign-in of the
+  social login (item 1), are still checked by hand only.
+- **`contracts-ci/scripts/guards.test.mjs` is not run in CI.** The `contracts` job
+  runs `sync.mjs`, `forge test` and `check-artifacts.mjs`; the test file that
+  proves those two scripts still catch what they are for is a manual step.
+
+**Dependencies**
+
+- **The eERC template is pinned to an older upstream commit.** `eerc-token` loads
+  its circuits and builds its contracts from `ava-labs/EncryptedERC` at
+  `c7eb0e09bc9315e68c35d3c09f5dce4b794d0485`. Upstream merged security fixes with
+  regenerated verifier keys on 2026-08-31 that are not in a tagged release; the
+  template has not been moved to them and is testnet-only.
+- **Major-version upgrades are pending.** The repository is on TypeScript 6,
+  Vitest 4, Vite 7, tsup 8, Ink 7, framer-motion 12 and (in `eerc-token` only)
+  wagmi 2. The November review recorded a newer major of each as available
+  (TypeScript 7, Vitest 5, Vite 8, tsup 9, Ink 8, framer-motion 14, wagmi 3); none
+  has been tried.
+- **`token-bridge/lib/ictt-artifacts.json` is only partly checked.** Its
+  `DemoToken` entry is rebuilt and compared in CI. The other three entries
+  (`ERC20TokenHome`, `ERC20TokenRemote`, `TeleporterRegistry`) are builds of
+  `ava-labs/icm-contracts` with no source in this repository and no automated
+  check; they were last recompiled and compared by hand in July 2026
+  (`docs/12-security-review.md`, D).
+- **`viem` is a dev-only dependency of `@avakit/react`** although its types appear
+  in the public API (E1).
+
+**Studio**
+
+- **The EWOQ dev key is a literal in Studio and visible on the `cast` command
+  line** (C1), and **avalanche-cli children are detached** and can outlive Studio
+  (C2).
+- **No lock between the dashboard and a separate `avakit-studio mcp` process.**
+  "One action at a time" holds inside one Studio server. A dashboard and an MCP
+  process started side by side can each run avalanche-cli at the same moment.
+
+**Conventions and decisions**
+
+- **Website chrome under `/tr`.** The landing page and the templates page are
+  translated; the footer's link labels and the command menu stay English under
+  `/tr`, and every other page is English-only by design.
+- **Tailwind keyframe animations versus the "Framer Motion or GSAP only" rule.**
+  All eight templates import `tw-animate-css`, and Studio's UI defines a CSS
+  keyframe animation and uses `animate-*` classes. Either the rule gets an
+  exception for these or they are replaced.
+- **AvaKitNFT's on-chain identity (owner decision pending).** The description in
+  `tokenURI` is neutral since this release ("Generated on-chain by the AvaKitNFT
+  contract. …"). The collection name ("AvaKit NFT"), the symbol ("AVAKIT") and the
+  art's palette are still AvaKit's own in a contract users deploy as theirs.
+- **`--passWithNoTests` is still in four test scripts** (`@avakit/core`,
+  `@avakit/react`, `@avakit/mcp`, `create-avalanche-app`). All four have tests now,
+  so it changes nothing today, but a package whose tests stopped being found
+  would pass (B1).
 
 ## Critical / user-visible
 
@@ -74,8 +179,11 @@
      components: `AvaKitProvider` with `useAvaKit` (connect, disconnect, use outside
      the provider), `useBalance`, and `ConnectAvalanche` (an available adapter, an
      unavailable one with its reason, and the burner-first layout).
-   - **Still untested:** `TransactionButton`, the data hooks (`data-hooks.ts`), and
-     `useContract` / `useAvaDeploy` / `useSendTransaction` / `useFaucet`.
+   - **Since then (re-checked 2026-11-18):** the data hooks
+     (`data-hooks.test.tsx`), `useContract`, `useAvaDeploy`, `useSendTransaction`
+     and `useFaucet` (`hooks.test.tsx`, `faucet.test.tsx`) and an app on two chains
+     (`two-chains.test.tsx`) have tests. The package stood at 118 tests in 6 files.
+   - **Still untested:** `TransactionButton`.
 
 5. **`@avakit/core` coverage was thin — IMPROVED.**
    - Added `errors.test.ts`, `network.test.ts` (`ensureChain`), and
@@ -83,12 +191,21 @@
    - Since then `data.test.ts` covers the RPC helpers in `data.ts` — the gap this
      item used to end on — and `chains`, `clients`, `data-api`, `coinbase` and the
      burner and injected adapters have test files of their own. Core stood at 49
-     tests in 11 files on 2026-11-18 (it was 15 tests).
+     tests in 11 files before the November review rounds (it was 15 tests), and at
+     201 tests in 13 files after them, with `faucet.test.ts` and
+     `adapters/web3auth-missing.test.ts` added.
 
-6. **No integration / e2e coverage.** Smoke tests only scaffold→install→
-   typecheck→build. No test drives connect → deploy → mint against a chain, so a
-   regression in the mint/deploy flow would not be caught by CI. Follow-up: a
-   headless viem/anvil-backed test, or a Playwright flow with a mock provider.
+6. **No integration / e2e coverage — PARTIALLY FIXED (2026-11-18).** Smoke tests
+   only scaffold→install→typecheck→build. `scripts/e2e-fuji.mjs` now drives the
+   agent path against a real chain: through the MCP server it scaffolds
+   `nft-mint`, builds it with npm, deploys the contract on Fuji, mints and reads
+   `ownerOf(1)` back. `.github/workflows/e2e-fuji.yml` runs it against the
+   published packages daily and on demand (four legs; the on-chain half on one).
+   It is not part of a pull request's checks, and a faucet refusal turns its
+   on-chain leg red.
+   **Still open:** no test drives connect → deploy → mint in a browser, so a
+   regression in a template's UI flow would not be caught. Follow-up: a
+   Playwright flow with a mock provider.
 
 ## Fragility
 
@@ -172,62 +289,80 @@ A2. **`AVAKIT_DEP_VERSION` is a hand-maintained magic constant** decoupled from
 ## B. Testing (whole packages untested)
 
 B1. **`create-avalanche-app`, `@avakit/mcp`, and `@avakit/studio` had zero tests —
-   PARTIALLY FIXED.** Each now has a first test file, aimed at a security guard:
-   `create-avalanche-app/src/api.test.ts` (project-name validation, and
-   `scaffoldApp` refusing an unsafe name before it touches the filesystem),
-   `mcp/src/guards.test.ts` (the two-key mainnet gate and the bytecode pattern) and
-   `studio/src/server.test.ts` (the session-token comparison). `pnpm test` is no
-   longer a green no-op for them, although all three still declare
-   `"test": "vitest run --passWithNoTests"`.
-   **Still untested:** Studio's argument validation, path-traversal guard and CB58
-   decoding; the scaffolder's placeholder replacement and dot-segment renaming;
-   the MCP tool handlers themselves.
+   FIXED (re-checked 2026-11-18).** After the two review rounds:
+   `create-avalanche-app` has 164 tests in 13 files (argument parsing, the package
+   manager runner, the Node.js preflight, scaffolding and its failure path, the
+   packed file list, telemetry, the wizard), `@avakit/mcp` has 212 tests in 13
+   files (the tool handlers through an in-memory client, the session wallet, the
+   faucet client, artifacts, the guards, the registry listing, stdio) and
+   `@avakit/studio` has 200 tests in 14 files (argument validation, CB58, devnet,
+   Fuji, Interchain, the run manager, the server, its MCP face).
+   Studio's test script is now `vitest run`. The other four packages
+   (`@avakit/core`, `@avakit/react`, `@avakit/mcp`, `create-avalanche-app`) still
+   declare `vitest run --passWithNoTests`, which no longer hides anything but
+   would if their tests stopped being found.
 
-B2. **No integration / e2e coverage anywhere** (carried over from item 6). Nothing
-   drives connect → deploy → mint against a chain, or scaffold → install → run.
+B2. **No integration / e2e coverage anywhere** (carried over from item 6) —
+   **PARTIALLY FIXED**, see item 6: the agent path is run end to end on Fuji by
+   `scripts/e2e-fuji.mjs`; nothing drives a browser.
 
 ## C. `@avakit/studio`
 
-C1. **Hardcoded EWOQ private key in source** (`packages/studio/src/icm.ts:25`).
-   It is the well-known public local-devnet key and only used against local
-   chains, but it is a literal private key committed to the repo and passed on the
-   `cast` command line (visible in process listings). Document loudly / centralize.
+C1. **Hardcoded EWOQ private key in source — STILL OPEN** (`DEV_KEY` in
+   `packages/studio/src/icm.ts`). It is the well-known public local-devnet key and
+   only used against local chains, but it is a literal private key committed to
+   the repo and passed on the `cast` command line (`--private-key`, visible in
+   process listings). The templates' devnet scripts no longer carry it: they read
+   it from avalanche-cli. Studio could do the same.
 
-C2. **`detached: true` orphan processes** (`devnet.ts:260`, `fuji.ts:285`):
-   avalanche-cli children intentionally outlive Studio, so stopping Studio can
-   leave a running local network/validator with no obvious owner and no "stop
-   everything" affordance.
+C2. **`detached: true` orphan processes — STILL OPEN** (`runSteps` in
+   `packages/studio/src/steps.ts`): avalanche-cli children are started in their
+   own process group so that the local network or the Fuji validator survives a
+   Studio restart. Stopping Studio can therefore leave one running with no obvious
+   owner. The console's **Cancel** stops the action in progress, not a network it
+   already started; Devnet's stop action does that.
 
-C3. **`token` vs `symbol` query-param split is a latent landmine**
-   (`server.ts:130-132`, `api.ts:110`, `fuji.ts` note): the L1 native-token symbol
-   once collided with the session-auth `token` param and broke the Fuji deploy;
-   the workaround is comment-guarded only.
+C3. **`token` vs `symbol` query-param split was a latent landmine — CLOSED.** The
+   L1 native-token symbol once collided with the session-auth `token` query
+   parameter and broke the Fuji deploy. Actions no longer travel in a query
+   string at all: they start with a JSON `POST /api/run` whose body carries the
+   symbol as `symbol` (`startRun` in `server.ts`), so there is nothing left to
+   collide with.
 
 C4. **Fuji deploy depends on avalanche-cli's interactive prompt behavior**
    (`fuji.ts:216-222` relies on stdin being closed to auto-skip the "fund
    relayer?" prompt). A CLI update could hang or change the flow.
 
-C5. **Side-effecting GET SSE routes, session-token as the only CSRF defense.**
-   `GET /api/devnet/stream` spawns avalanche-cli via a GET (EventSource can't
-   POST); same-origin + `x-studio-token` is the whole defense. Acceptable for a
-   localhost tool, but unconventional.
+C5. **Side-effecting GET SSE routes — CLOSED.** `GET /api/devnet/stream` used to
+   spawn avalanche-cli from a GET (EventSource can't POST). An action now starts
+   only from `POST /api/run`; `GET /api/run/stream` attaches to the log of the run
+   that is already going and closing it stops nothing. The dashboard also
+   refuses to be framed.
+   **Still true:** the session token is the defense, and the event stream takes
+   it as a query parameter because EventSource cannot set a header.
 
 C6. **`getFujiKeyBalance` does lossy integer math on wei**
    (`fuji.ts:82`, `Number(wei / 1e12n) / 1e6`) to avoid a bignum dep — truncates;
    display-only, fine for now.
 
-C7. **`messenger-artifact.ts` is a hand-copied build artifact** with only a
-   comment on how to regenerate — can silently drift from the `icm-messenger`
-   template's Solidity source.
+C7. **`messenger-artifact.ts` was a hand-copied build artifact — RESOLVED.** It
+   could silently drift from the `icm-messenger` template's Solidity source.
+   `contracts-ci/scripts/check-artifacts.mjs` now rebuilds that contract in CI and
+   fails unless `MESSENGER_BYTECODE` matches the build and the `*_SIG` constants
+   Studio calls the contract with match its ABI; `--write` regenerates the file.
 
 ## D. `@avakit/mcp`
 
-D1. **`deploy_contract` uses `as never` casts** (`mcp/src/index.ts:~159,~254`) to
-   bypass viem's generics — brittle if viem's `deployContract`/`readContract`
-   signatures change.
+D1. **`as never` casts around viem's generics** — brittle if viem's signatures
+   change. Re-checked 2026-11-18: `deploy_contract` no longer has one (it encodes
+   and signs the transaction itself, `deploy.ts` and `send.ts`). Two remain:
+   `read_chain`'s `readContract` call (`server.ts`) and `write_contract`'s
+   `simulateContract` call (`write.ts`).
 
 D2. **`estimate_gas` loses precision on large costs** — computes AVAX cost as
-   `Number(costWei) / 1e18`. Display-only, but note it.
+   `Number(costWei) / 1e18`; `read_chain`'s balance does the same with
+   `Number(wei) / 1e18`. Display-only (the wei value is returned next to it), but
+   note it. `wallet_status` uses `formatEther` and is exact.
 
 ## E. `@avakit/core` / `@avakit/react` (beyond the 2026-07-04 items)
 
@@ -238,13 +373,15 @@ E1. **`viem` is a devDependency-only in `@avakit/react`.** Works today purely
    viem. Make viem a real peer dep, or keep a lint rule forbidding value imports.
 
 E2. **No connection persistence / auto-reconnect** in `AvaKitProvider` — state is
-   in-memory only, so a reload drops the wallet. Adapters expose `on` /
-   `removeListener` but the provider never subscribes to `accountsChanged` /
-   `chainChanged`.
+   in-memory only, so a reload drops the wallet. **Still open.**
+   **Closed (re-checked 2026-11-18):** the second half of this item. The provider
+   now subscribes to the wallet's `accountsChanged`, `chainChanged` and
+   `disconnect` events and follows them.
 
-E3. **Data hooks silently drop pagination.** `DataApiOptions` plumbs
-   `pageSize`/`pageToken` through core, but `useTokenBalances`/`useNfts`/
-   `useTxHistory` only read the first page and discard `nextPageToken`.
+E3. **Data hooks silently dropped pagination — CLOSED.** `useTokenBalances`,
+   `useNfts` and `useTxHistory` take `(address?, { pageSize })` and return
+   `hasMore`, `fetchMore()`, `isFetchingMore` and `nextPageToken` next to the
+   first page (`data-hooks.ts`, tested in `data-hooks.test.tsx`).
 
 E4. **shadcn "style-only" shipping model** (ADR-012): `@avakit/react` emits
    Tailwind token classes and renders unstyled if the consumer hasn't configured
@@ -282,10 +419,12 @@ F2. **`eerc-token` demo Mint reverted for most users — FIXED in the UI.** The 
 F3. **Cross-chain "in flight" UX is timing-heuristic — PARTIALLY FIXED.**
    `deploy-bridge.mjs` no longer sleeps a fixed 8 s: it polls the home contract
    until the remote is registered, and stops with a clear error after 90 s.
+   `icm-messenger` no longer clears its banner when the destination inbox string
+   matches: it waits until the destination messenger has counted another
+   delivery, so identical text sent twice is handled, and a message that does not
+   arrive in time is reported as overdue instead of staying in flight.
    **Still open:** the `token-bridge` UI clears its banner on a hardcoded
-   `setTimeout(…, 12000)`, and `icm-messenger` clears its banner when the
-   destination inbox string matches, so sending identical text twice can clear it
-   prematurely.
+   `setTimeout(…, 12000)`.
 
 F4. **Source/artifact duplication — the drift it warned about already happened; a
    CI check now guards against the next one.**
@@ -306,11 +445,25 @@ F4. **Source/artifact duplication — the drift it warned about already happened
    `forge test` tests the canonical copies, and `scripts/check-artifacts.mjs`
    recompiles each template's contract and fails unless its `lib/*-artifact.ts`
    matches the build.
+   **RESOLVED (re-checked 2026-11-18, all three steps run clean on this tree).**
+   The check now covers nine artifacts: the five templates' own, the `DemoToken`
+   entry of `token-bridge`'s `lib/ictt-artifacts.json`, Studio's messenger
+   bytecode (C7), the website's and the example app's. It fails on an artifact
+   file nobody listed, `--write` regenerates instead of comparing, and `sync.mjs`
+   also fails on a `foundry.toml` whose compiler settings differ from the
+   harness's or sit outside `[profile.default]`.
+   **Still open:** the three upstream entries of `ictt-artifacts.json` have no
+   source in this repository and are not checked, and
+   `contracts-ci/scripts/guards.test.mjs`, which tests the two scripts, is not run
+   in CI (see "Open on 2026-11-18").
 
 F5. **Setup templates need external tooling and only run locally.** `icm-messenger`,
    `l1-launch`, `token-bridge` require `avalanche-cli` and ship
    `*.config.json` as `configured:false` placeholders (a `SetupPanel` blocks the
    app until the one-command script runs). Scripts use `set -uo pipefail` (no `-e`).
+   **2026-11-18:** the tool they require, Avalanche CLI, is in maintenance mode;
+   each of the three templates' READMEs now carries a "Tooling status" note. See
+   "Open on 2026-11-18".
 
 F6. **Bundled Solidity is intentionally minimal (not production).** The ERC-20
    `mint` is a public faucet with no access control, and the NFT's `mint` is open
@@ -345,6 +498,8 @@ G3. **Hidden pages have no inbound links.** `/terminal`, `/pitch`, `/avatar` are
    sitemap). `/pitch` is a grant deck ("Team1 Mini Grant") — arguably intentional.
    **PARTIALLY FIXED (2026-07-15):** `/avatar` is now linked from the footer.
    `/terminal` and `/pitch` remain deliberate direct-URL-only pages.
+   **Re-checked 2026-11-18:** `/terminal` and `/avatar` are in the sitemap now
+   (`app/sitemap.ts`); `/pitch` is left out of it on purpose.
 
 G4. **Copy inconsistency: "four surfaces" vs "five surfaces/packages."** The layout
    and docs say "one core, four surfaces" (= 5 packages); the pitch deck / npm
