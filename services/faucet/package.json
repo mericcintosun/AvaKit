@@ -12,10 +12,10 @@
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.mjs"
   },
   "dependencies": {
-    "viem": "2.54.1"
+    "viem": "2.57.17"
   },
   "devDependencies": {
-    "wrangler": "4.110.0"
+    "wrangler": "4.163.0"
   },
   "engines": {
     "node": ">=20.11"
