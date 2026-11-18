@@ -193,15 +193,17 @@ function drift({ bytecode = "bytecode", abi = true }, built, text) {
   return problems;
 }
 
-/** The *-artifact.ts files git knows about that the list above leaves out. */
+/** The *-artifact.ts files tracked by git that the list above leaves out.
+ * Tracked only: an app scaffolded into the checkout for a quick try carries an
+ * artifact of its own, and that is not the repo's to check. */
 function unlisted() {
   let files;
   try {
-    files = execFileSync(
-      "git",
-      ["ls-files", "--cached", "--others", "--exclude-standard", "--", "*-artifact.ts"],
-      { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-    );
+    files = execFileSync("git", ["ls-files", "--", "*-artifact.ts"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
   } catch {
     return []; // not a git checkout: nothing to enumerate
   }

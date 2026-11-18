@@ -36,7 +36,7 @@ node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the sour
   contract the website's `/new` page deploys (`apps/web/lib/nft-artifact.ts`,
   which has to be the `nft-mint` template's), and the example app's
   (`examples/web3auth-demo/lib/nft-artifact.ts`). It also fails on any
-  `*-artifact.ts` in the repo that it has not been told about, so a new
+  committed `*-artifact.ts` that it has not been told about, so a new
   artifact cannot land unchecked. It builds into a temporary directory, so it
   leaves no `out/` or `cache/` behind in a template (those folders would be
   copied into every app scaffolded from this checkout).
