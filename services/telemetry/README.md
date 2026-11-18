@@ -112,8 +112,8 @@ it on first:
 cd services/telemetry
 
 # The token that opens the route: any random string of 32 characters or more
-# (`openssl rand -hex 32`). With a shorter one the route stays off. You paste it
-# here, and once more below.
+# (`openssl rand -hex 32`). With a shorter one the route stays off and answers
+# 500, saying so. You paste the token here, and once more below.
 npx wrangler secret put TELEMETRY_ADMIN_TOKEN
 
 # Ships the route itself. Only needed while the deployed Worker predates it.

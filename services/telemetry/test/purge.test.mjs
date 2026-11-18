@@ -290,23 +290,25 @@ describe("who may call /admin/purge", () => {
     }
   });
 
-  it("stays off while the token is too short to be a secret", async (t) => {
+  it("stays off, and says why, while the token is too short to be a secret", async (t) => {
     clock(t);
-    const warn = t.mock.method(console, "warn", () => {});
+    const tooShort = [500, { error: "TELEMETRY_ADMIN_TOKEN must be at least 32 characters." }];
 
+    // Even the right token opens nothing, and nobody is told what it is.
     const guessable = await withAdmin({ TELEMETRY_ADMIN_TOKEN: "hunter2" });
+    await scaffold(guessable);
     const refused = await purge(guessable, { day: FIRST_DAY }, { authorization: "Bearer hunter2" });
-    assert.equal(refused.status, 404);
-    assert.equal(warn.mock.callCount(), 1);
-    const warning = String(warn.mock.calls[0].arguments[0]);
-    assert.match(warning, /TELEMETRY_ADMIN_TOKEN is shorter than 32 characters/);
-    assert.doesNotMatch(warning, /hunter2/);
+    assert.deepEqual([refused.status, refused.body], tooShort);
+    const anonymous = await purge(guessable, { day: FIRST_DAY }, { authorization: null });
+    assert.deepEqual([anonymous.status, anonymous.body], tooShort);
+    assert.equal(guessable.counters.calls.purge, 0);
+    assert.equal(stored(guessable, "scaffolds").length, 1);
 
     // 31 characters is still off; 32 is on.
     const short = "s".repeat(31);
     const off = await withAdmin({ TELEMETRY_ADMIN_TOKEN: short });
     const stillOff = await purge(off, { day: FIRST_DAY }, { authorization: `Bearer ${short}` });
-    assert.equal(stillOff.status, 404);
+    assert.deepEqual([stillOff.status, stillOff.body], tooShort);
 
     const enough = "s".repeat(32);
     const on = await withAdmin({ TELEMETRY_ADMIN_TOKEN: enough });

@@ -449,22 +449,23 @@ function isDay(value) {
  *   { "day": "YYYY-MM-DD", "installId"?: "<uuid>", "dryRun"?: true }
  *     → { day, dryRun, rows, events, succeeded, install? }
  *
- * Off unless TELEMETRY_ADMIN_TOKEN is set (404), and then only for whoever
- * sends it (401 otherwise). A body it does not fully understand is a 400. It
- * can remove counts, never add them.
+ * Off unless TELEMETRY_ADMIN_TOKEN is set (404) to something long enough to be
+ * a secret (500 if not), and then only for whoever sends it (401 otherwise). A
+ * body it does not fully understand is a 400. It can remove counts, never add
+ * them.
  */
 async function purge(request, env) {
   const secret = env.TELEMETRY_ADMIN_TOKEN;
-  if (typeof secret !== "string" || secret.length < ADMIN_TOKEN_MIN_LENGTH) {
-    if (secret) {
-      console.warn(
-        JSON.stringify({
-          message: `TELEMETRY_ADMIN_TOKEN is shorter than ${ADMIN_TOKEN_MIN_LENGTH} characters, so /admin/purge stays off`,
-        }),
-      );
-    }
-    // No secret, no route: the same answer as for any other unknown path.
-    return notFound();
+  // No secret, no route: the same answer as for any other unknown path.
+  if (typeof secret !== "string" || secret === "") return notFound();
+  // A secret too short to be one opens nothing either. That is a mistake in
+  // the setup, so it is said out loud — as a missing salt is — instead of
+  // leaving the maintainer to wonder why a route they switched on is a 404.
+  if (secret.length < ADMIN_TOKEN_MIN_LENGTH) {
+    return adminJson(
+      { error: `TELEMETRY_ADMIN_TOKEN must be at least ${ADMIN_TOKEN_MIN_LENGTH} characters.` },
+      500,
+    );
   }
   if (!(await sameSecret(bearerToken(request), secret))) {
     return adminJson({ error: "Unauthorized." }, 401, { "www-authenticate": "Bearer" });
