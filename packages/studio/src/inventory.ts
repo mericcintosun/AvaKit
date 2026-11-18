@@ -6,9 +6,9 @@
 
 import { execFile } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { subnetsDir } from "./paths.js";
 
 const exec = promisify(execFile);
 
@@ -72,7 +72,7 @@ function detectProject(cwd: string): ProjectInfo {
 }
 
 function listLocalL1s(): string[] {
-  const dir = path.join(homedir(), ".avalanche-cli", "subnets");
+  const dir = subnetsDir();
   if (!existsSync(dir)) return [];
   try {
     return readdirSync(dir, { withFileTypes: true })

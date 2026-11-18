@@ -1,0 +1,262 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  getDevnetStatus,
+  isDevnetAction,
+  isValidChainId,
+  isValidL1Name,
+  isValidL1Params,
+  isValidToken,
+  runDevnetAction,
+  runDevnetActionAsync,
+} from "./devnet.js";
+import {
+  blockchainId,
+  createSandbox,
+  type FakeRpc,
+  type Sandbox,
+  startFakeRpc,
+} from "./testing/sandbox.js";
+
+describe("argument validators", () => {
+  it("isValidL1Name accepts only short lowercase alphanumeric names", () => {
+    for (const ok of ["ab", "chain1", "mychain", `a${"b".repeat(31)}`]) {
+      expect(isValidL1Name(ok), ok).toBe(true);
+    }
+    for (const bad of [
+      "",
+      "a",
+      "1chain",
+      "Chain",
+      "my-chain",
+      "my_chain",
+      "my chain",
+      "--force",
+      "-x",
+      "../etc",
+      "a/b",
+      "a.b",
+      "chain1\n",
+      "chain1;rm",
+      `a${"b".repeat(32)}`,
+    ]) {
+      expect(isValidL1Name(bad), JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("isValidToken accepts 1–8 upper-case alphanumerics starting with a letter", () => {
+    for (const ok of ["A", "AVAX", "TOK1", "ABCDEFGH"]) expect(isValidToken(ok), ok).toBe(true);
+    for (const bad of ["", "avax", "1TOK", "ABCDEFGHI", "TO-K", "--x", "TOK ", "TOK\n"]) {
+      expect(isValidToken(bad), JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("isValidChainId accepts 1–4294967295 in plain decimal", () => {
+    for (const ok of ["1", "9999", "43113", "4294967295"]) {
+      expect(isValidChainId(ok), ok).toBe(true);
+    }
+    for (const bad of [
+      "",
+      "0",
+      "01",
+      "-1",
+      "1.5",
+      "1e3",
+      "0x10",
+      "4294967296",
+      "99999999999",
+      " 1",
+    ]) {
+      expect(isValidChainId(bad), JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("isValidL1Params needs all three to be valid strings", () => {
+    expect(isValidL1Params({ name: "mychain", chainId: "9999", token: "MYL1" })).toBe(true);
+    expect(isValidL1Params({ name: "mychain", chainId: "9999" })).toBe(false);
+    expect(isValidL1Params({ name: "--force", chainId: "9999", token: "MYL1" })).toBe(false);
+    expect(isValidL1Params({ name: "mychain", chainId: "0", token: "MYL1" })).toBe(false);
+    expect(isValidL1Params({ name: "mychain", chainId: "9999", token: "myl1" })).toBe(false);
+    // Not strings at all (a JSON body can carry anything).
+    expect(isValidL1Params({ name: 1, chainId: 2, token: 3 } as never)).toBe(false);
+  });
+
+  it("isDevnetAction knows the four actions", () => {
+    for (const ok of ["start", "stop", "create-icm", "create-l1"]) {
+      expect(isDevnetAction(ok)).toBe(true);
+    }
+    expect(isDevnetAction("network clean")).toBe(false);
+    expect(isDevnetAction("")).toBe(false);
+  });
+});
+
+describe("devnet status and actions", () => {
+  let sandbox: Sandbox;
+  let rpc: FakeRpc;
+  beforeEach(async () => {
+    sandbox = createSandbox();
+    rpc = await startFakeRpc();
+  });
+  afterEach(async () => {
+    await rpc.close();
+    sandbox.dispose();
+  });
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("reads status from avalanche-cli's files and probes the local RPC", async () => {
+    sandbox.addL1("chain1", {
+      local: { rpcUrl: rpc.url("chain1"), blockchainId: blockchainId(1).cb58 },
+      evmChainId: 1001,
+      token: "TOK1",
+    });
+    // Deployed locally once, but nothing answers on its RPC any more.
+    sandbox.addL1("stale", {
+      local: { rpcUrl: "http://127.0.0.1:9/dead/rpc", blockchainId: blockchainId(2).cb58 },
+    });
+    // Only ever deployed to Fuji: not a local deployment at all.
+    sandbox.addL1("myfujil1", {
+      fuji: { rpcUrl: rpc.url("myfujil1"), blockchainId: blockchainId(3).cb58 },
+    });
+
+    const status = await getDevnetStatus();
+    expect(status.running).toBe(true);
+    expect(status.l1s.map((l) => [l.name, l.deployed, l.running])).toEqual([
+      ["chain1", true, true],
+      ["myfujil1", false, false],
+      ["stale", true, false],
+    ]);
+    expect(status.l1s[0]).toMatchObject({
+      evmChainId: 1001,
+      token: "TOK1",
+      teleporterReady: true,
+      blockchainId: blockchainId(1).cb58,
+      rpcUrl: rpc.url("chain1"),
+    });
+  });
+
+  it("reports no L1s when avalanche-cli has never been used", async () => {
+    expect(await getDevnetStatus()).toEqual({ running: false, l1s: [] });
+  });
+
+  it("spin-up creates only the missing L1s and deploys both", async () => {
+    sandbox.addL1("chain1");
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    const { exitCode } = await runDevnetActionAsync("create-icm");
+    expect(exitCode).toBe(0);
+    expect(sandbox.calls("avalanche").map((a) => a.slice(0, 3).join(" "))).toEqual([
+      "blockchain create chain2",
+      "blockchain deploy chain1",
+      "blockchain deploy chain2",
+    ]);
+  });
+
+  it("builds the create-l1 command from the validated values only", async () => {
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    const { exitCode } = await runDevnetActionAsync("create-l1", {
+      name: "mychain",
+      chainId: "9999",
+      token: "MYL1",
+    });
+    expect(exitCode).toBe(0);
+    expect(sandbox.calls("avalanche")).toEqual([
+      [
+        "blockchain",
+        "create",
+        "mychain",
+        "--evm",
+        "--latest",
+        "--evm-chain-id",
+        "9999",
+        "--evm-token",
+        "MYL1",
+        "--test-defaults",
+        "--sovereign=false",
+      ],
+      ["blockchain", "deploy", "mychain", "--local"],
+    ]);
+  });
+
+  it("refuses to build a create-l1 command from unvalidated values", async () => {
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    await expect(
+      runDevnetActionAsync("create-l1", { name: "--force", chainId: "9999", token: "MYL1" }),
+    ).rejects.toThrow(/validated params/);
+    await expect(runDevnetActionAsync("create-l1")).rejects.toThrow(/validated params/);
+    expect(sandbox.calls("avalanche")).toEqual([]);
+  });
+
+  it("continues past a deploy that only says the blockchain is already deployed", async () => {
+    sandbox.addL1("chain1");
+    sandbox.addL1("chain2");
+    sandbox.stub(
+      "avalanche",
+      `(args) => {
+        const name = args[2];
+        // avalanche-cli prints this progress line on every local deploy after the first.
+        return {
+          out: "ICM Messenger has already been deployed to C-Chain\\n",
+          err: "Error: blockchain " + name + " has already been deployed\\n",
+          code: 1,
+        };
+      }`,
+    );
+    const { exitCode, log } = await runDevnetActionAsync("create-icm");
+    expect(exitCode).toBe(0);
+    expect(log.filter((l) => l === "↳ already in place — continuing")).toHaveLength(2);
+  });
+
+  it("does not let an informational 'already deployed' line hide a real failure", async () => {
+    sandbox.addL1("chain1");
+    sandbox.addL1("chain2");
+    sandbox.stub(
+      "avalanche",
+      `() => ({
+        out: "ICM Messenger has already been deployed to C-Chain\\n",
+        err: "Error: failed to start relayer: exit status 1\\n",
+        code: 1,
+      })`,
+    );
+    const { exitCode, log } = await runDevnetActionAsync("create-icm");
+    expect(exitCode).toBe(1);
+    expect(log.at(-1)).toBe("✖ exited with code 1");
+    // It stopped at the first deploy.
+    expect(sandbox.calls("avalanche")).toHaveLength(1);
+  });
+
+  it("does not treat an unrelated 'is already' error as success", async () => {
+    sandbox.stub(
+      "avalanche",
+      '() => ({ err: "Error: port 9650 is already in use by another process\\n", code: 1 })',
+    );
+    const { exitCode, log } = await runDevnetActionAsync("start");
+    expect(exitCode).toBe(1);
+    expect(log).not.toContain("↳ already in place — continuing");
+  });
+
+  it("treats 'the network is already running' as the state start was asked for", async () => {
+    sandbox.stub("avalanche", '() => ({ err: "Error: network is already running\\n", code: 1 })');
+    expect((await runDevnetActionAsync("start")).exitCode).toBe(0);
+  });
+
+  it("reports a missing avalanche-cli once and emits nothing afterwards", async () => {
+    // No stub installed: the spawn fails with ENOENT (`error`, then `close`).
+    const lines: string[] = [];
+    const exits: number[] = [];
+    let linesAtFirstDone = -1;
+    runDevnetAction(
+      "start",
+      (line) => lines.push(line),
+      (code) => {
+        exits.push(code);
+        if (linesAtFirstDone === -1) linesAtFirstDone = lines.length;
+      },
+    );
+    await sleep(300);
+    expect(exits).toEqual([1]);
+    expect(lines).toEqual([
+      "$ avalanche network start",
+      "error: avalanche is not installed or not on your PATH",
+    ]);
+    expect(lines.length).toBe(linesAtFirstDone);
+  });
+});

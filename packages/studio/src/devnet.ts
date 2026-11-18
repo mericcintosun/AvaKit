@@ -1,16 +1,17 @@
 /**
  * Local devnet control, Avalanche-specific. Reads avalanche-cli's own metadata
  * (sidecar.json / genesis.json) for status — no fragile CLI-output parsing — and
- * drives create/deploy/start/stop through spawn with FIXED argument arrays
- * (never a shell string, never request-derived args).
+ * drives create/deploy/start/stop by spawning avalanche-cli with argument
+ * ARRAYS (never a shell string). The only request-derived values that reach an
+ * argument are a custom L1's name, chain id and token symbol, each strictly
+ * whitelist-validated first.
  */
 
-import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
+import { subnetsDir } from "./paths.js";
+import { type RunHandle, runSteps, type Step } from "./steps.js";
 
-const SUBNETS_DIR = path.join(homedir(), ".avalanche-cli", "subnets");
 const LOCAL = "Local Network";
 
 export interface L1Info {
@@ -58,7 +59,7 @@ async function probeRpc(rpcUrl: string): Promise<boolean> {
 }
 
 function readL1(name: string): L1Info {
-  const dir = path.join(SUBNETS_DIR, name);
+  const dir = path.join(subnetsDir(), name);
   const sidecar = readJson(path.join(dir, "sidecar.json")) ?? {};
   const genesis = readJson(path.join(dir, "genesis.json")) ?? {};
 
@@ -81,9 +82,10 @@ function readL1(name: string): L1Info {
 }
 
 function listL1Names(): string[] {
-  if (!existsSync(SUBNETS_DIR)) return [];
+  const dir = subnetsDir();
+  if (!existsSync(dir)) return [];
   try {
-    return readdirSync(SUBNETS_DIR, { withFileTypes: true })
+    return readdirSync(dir, { withFileTypes: true })
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
       .sort();
@@ -103,7 +105,7 @@ export async function getDevnetStatus(): Promise<DevnetStatus> {
   return { running: l1s.some((l1) => l1.running), l1s };
 }
 
-// --- Actions: fixed command sequences, no user input reaches argv ------------
+// --- Actions: command sequences built from whitelisted values only ------------
 
 export type DevnetAction = "start" | "stop" | "create-icm" | "create-l1";
 
@@ -116,8 +118,8 @@ export interface L1Params {
 
 // Strict, whitelist-only validators. Even though we spawn with an argument
 // ARRAY (never a shell), we still constrain these so a value can never be read
-// as a flag or path — the same "no arbitrary user input reaches argv" posture as
-// the fixed ICM action. Callers (server/MCP) reject anything that fails these.
+// as a flag or path. They are the ONLY request-derived values that reach an
+// avalanche-cli argument; callers (server/MCP) reject anything that fails them.
 export function isValidL1Name(v: string): boolean {
   return /^[a-z][a-z0-9]{1,31}$/.test(v);
 }
@@ -142,9 +144,9 @@ export function isValidL1Params(p: Partial<L1Params>): p is L1Params {
 
 // No `--force`: overwriting an existing chain's config wipes its deployment
 // metadata (sidecar Networks), so we only create chains that don't exist yet.
-const CREATE = (name: string, id: string, token: string): [string, string[]] => [
-  "avalanche",
-  [
+const CREATE = (name: string, id: string, token: string): Step => ({
+  cmd: "avalanche",
+  args: [
     "blockchain",
     "create",
     name,
@@ -158,54 +160,73 @@ const CREATE = (name: string, id: string, token: string): [string, string[]] => 
     "--sovereign=false",
     "--icm",
   ],
-];
+});
+
+/**
+ * Deploy a blockchain to the local network. avalanche-cli refuses when it is
+ * already deployed there ("Error: blockchain chain1 has already been
+ * deployed"); for an idempotent spin-up that is the state we want, not a
+ * failure. The pattern is that exact report about THIS chain, so neither an
+ * informational "ICM Messenger has already been deployed to …" line nor an
+ * unrelated "… is already in use" error can pass for it.
+ */
+const DEPLOY_LOCAL = (name: string): Step => ({
+  cmd: "avalanche",
+  args: ["blockchain", "deploy", name, "--local"],
+  alreadyDone: new RegExp(
+    `\\b(?:blockchain|subnet|chain|l1) "?${name.replace(/[^a-z0-9]/gi, "\\$&")}"? has already been deployed\\b`,
+    "i",
+  ),
+});
+
+/** "The network is already running" is the state `network start` was asked for. */
+const NETWORK_ALREADY_UP =
+  /\bnetwork (?:is|has) already (?:been )?(?:running|booted|bootstrapped|started)\b/i;
 
 /** Idempotent "spin up": create only the missing L1s, then (re)deploy both. */
-function createIcmSteps(): [string, string[]][] {
+function createIcmSteps(): Step[] {
   const existing = new Set(listL1Names());
   return [
     ...(existing.has("chain1") ? [] : [CREATE("chain1", "1001", "TOK1")]),
     ...(existing.has("chain2") ? [] : [CREATE("chain2", "1002", "TOK2")]),
-    ["avalanche", ["blockchain", "deploy", "chain1", "--local"]],
-    ["avalanche", ["blockchain", "deploy", "chain2", "--local"]],
+    DEPLOY_LOCAL("chain1"),
+    DEPLOY_LOCAL("chain2"),
   ];
 }
 
 // A single custom L1 — the "launch your own L1" flow. Non-sovereign for a
 // zero-prompt local deploy (same rationale as the ICM chains). Create only if it
 // doesn't exist yet, then deploy locally.
-function createL1Steps(params: L1Params): [string, string[]][] {
+function createL1Steps(params: L1Params): Step[] {
   const existing = new Set(listL1Names());
-  return [
-    ...(existing.has(params.name)
-      ? []
-      : [
-          [
-            "avalanche",
-            [
-              "blockchain",
-              "create",
-              params.name,
-              "--evm",
-              "--latest",
-              "--evm-chain-id",
-              params.chainId,
-              "--evm-token",
-              params.token,
-              "--test-defaults",
-              "--sovereign=false",
-            ],
-          ] as [string, string[]],
-        ]),
-    ["avalanche", ["blockchain", "deploy", params.name, "--local"]],
-  ];
+  const create: Step = {
+    cmd: "avalanche",
+    args: [
+      "blockchain",
+      "create",
+      params.name,
+      "--evm",
+      "--latest",
+      "--evm-chain-id",
+      params.chainId,
+      "--evm-token",
+      params.token,
+      "--test-defaults",
+      "--sovereign=false",
+    ],
+  };
+  return [...(existing.has(params.name) ? [] : [create]), DEPLOY_LOCAL(params.name)];
 }
 
-function stepsFor(action: DevnetAction, params?: L1Params): [string, string[]][] {
-  if (action === "start") return [["avalanche", ["network", "start"]]];
-  if (action === "stop") return [["avalanche", ["network", "stop"]]];
+function stepsFor(action: DevnetAction, params?: L1Params): Step[] {
+  if (action === "start") {
+    return [{ cmd: "avalanche", args: ["network", "start"], alreadyDone: NETWORK_ALREADY_UP }];
+  }
+  if (action === "stop") return [{ cmd: "avalanche", args: ["network", "stop"] }];
   if (action === "create-l1") {
-    if (!params) throw new Error("create-l1 requires validated params");
+    if (!params || !isValidL1Params(params)) {
+      throw new Error("create-l1 requires validated params");
+    }
     return createL1Steps(params);
   }
   return createIcmSteps();
@@ -215,80 +236,14 @@ export function isDevnetAction(v: string): v is DevnetAction {
   return v === "start" || v === "stop" || v === "create-icm" || v === "create-l1";
 }
 
-// A non-zero exit is benign when avalanche-cli is only telling us the target is
-// already in the desired state (already deployed / network already running).
-const BENIGN = /already (been )?(deployed|running|bootstrapped)|is already/i;
-
-// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally strips ANSI escape sequences
-const ANSI = /\x1b\[[0-9;]*[a-zA-Z]/g;
-
-function emitLines(chunk: Buffer, onLine: (line: string) => void): void {
-  const text = chunk.toString("utf8").replace(ANSI, "").replace(/\r/g, "\n");
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed) onLine(trimmed);
-  }
-}
-
-export interface RunHandle {
-  cancel: () => void;
-}
-
-/** Run an action's fixed command sequence, streaming each line. Returns a cancel handle. */
+/** Run an action's command sequence, streaming each line. Returns a cancel handle. */
 export function runDevnetAction(
   action: DevnetAction,
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
   params?: L1Params,
 ): RunHandle {
-  const steps = stepsFor(action, params);
-  let current: ChildProcess | null = null;
-  let cancelled = false;
-
-  const runStep = (i: number): void => {
-    if (cancelled) return;
-    const step = steps[i];
-    if (!step) {
-      onDone(0);
-      return;
-    }
-    const [cmd, args] = step;
-    onLine(`$ ${cmd} ${args.join(" ")}`);
-    let benign = false;
-    // `detached` puts avalanche-cli in its own process group so the local
-    // network it boots survives even if Studio is stopped or restarted.
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
-    current = child;
-    const scan = (c: Buffer) => {
-      if (BENIGN.test(c.toString())) benign = true;
-      emitLines(c, onLine);
-    };
-    child.stdout?.on("data", scan);
-    child.stderr?.on("data", scan);
-    child.on("error", (e) => {
-      onLine(`error: ${e.message}`);
-      onDone(1);
-    });
-    child.on("close", (code) => {
-      if (cancelled) return;
-      if (code && code !== 0 && !benign) {
-        onLine(`✖ exited with code ${code}`);
-        onDone(code);
-        return;
-      }
-      if (code && code !== 0) onLine("↳ already in place — continuing");
-      runStep(i + 1);
-    });
-  };
-
-  runStep(0);
-
-  return {
-    cancel: () => {
-      cancelled = true;
-      current?.kill();
-    },
-  };
+  return runSteps(stepsFor(action, params), onLine, onDone);
 }
 
 /** Promise variant: run an action to completion, collecting the log (for MCP). */
