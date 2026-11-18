@@ -1,3 +1,7 @@
+// `cn` comes from the server-safe "@avakit/react/utils" entry: this layout is a
+// Server Component, and the main "@avakit/react" entry is a client module whose
+// functions cannot be called on the server.
+import { cn } from "@avakit/react/utils";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
@@ -18,7 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={cn(geistSans.variable, geistMono.variable, "font-sans antialiased")}
       >
         <Providers>{children}</Providers>
       </body>

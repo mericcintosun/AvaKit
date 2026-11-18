@@ -3,33 +3,16 @@
 import { getWalletClient } from "@avakit/core";
 import {
   Button,
-  ConnectAvalanche,
   shortenAddress,
   useAvaAccount,
   useAvaChain,
   useAvaKit,
   useBalance,
 } from "@avakit/react";
-import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useState } from "react";
 import { formatEther } from "viem";
 
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  return (
-    <Button
-      variant="outline"
-      size="icon"
-      aria-label="Toggle theme"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-    >
-      <Sun className="hidden size-4 dark:block" />
-      <Moon className="block size-4 dark:hidden" />
-    </Button>
-  );
-}
-
+/** The interactive part of the page; the static shell lives in app/page.tsx. */
 export function Demo() {
   const { address, isConnected } = useAvaAccount();
   const { chain } = useAvaChain();
@@ -61,15 +44,7 @@ export function Demo() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-xl flex-col gap-8 px-6 py-16">
-      <header className="flex items-center justify-between">
-        <span className="font-mono text-sm font-semibold">hello-avax</span>
-        <div className="flex items-center gap-2">
-          <ConnectAvalanche />
-          <ThemeToggle />
-        </div>
-      </header>
-
+    <>
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">
           Your first transaction on Avalanche
@@ -123,7 +98,7 @@ export function Demo() {
           Connect a wallet to begin.
         </div>
       )}
-    </div>
+    </>
   );
 }
 
