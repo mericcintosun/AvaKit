@@ -3,7 +3,7 @@
 import { isMainnet } from "@avakit/core";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Loader2, LogOut, Sparkles, Wallet } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { BURNER_ADAPTER_ID, useAvaKit } from "./provider.js";
 import { Button } from "./ui.js";
 import { cn, shortenAddress } from "./utils.js";
@@ -65,9 +65,16 @@ export function ConnectAvalanche({ label = "Connect wallet", className }: Connec
   const burner = isMainnet(chain) ? undefined : adapters.find((a) => a.id === BURNER_ADAPTER_ID);
   const others = adapters.filter((a) => a.id !== BURNER_ADAPTER_ID);
 
-  // Close the picker once a connection lands.
+  // The picker and the account dialog share `open`, so close it whenever the
+  // wallet connects (the picker is done) or disconnects (the account dialog is
+  // gone — left open, the picker would pop up in its place). A failed attempt
+  // goes connecting → disconnected without ever being connected, so the picker
+  // stays open and shows the error.
+  const wasConnected = useRef(false);
   useEffect(() => {
-    if (status === "connected") {
+    const isConnected = status === "connected";
+    if (isConnected !== wasConnected.current) {
+      wasConnected.current = isConnected;
       setOpen(false);
     }
   }, [status]);

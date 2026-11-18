@@ -577,6 +577,78 @@ describe("ConnectAvalanche", () => {
     expect(burner.connect).toHaveBeenCalledTimes(1);
   });
 
+  // The account dialog and the wallet picker share one "open" flag, so leaving
+  // it set on disconnect made the picker pop up in the account dialog's place.
+  it("closes on disconnect instead of reopening as the wallet picker", async () => {
+    render(
+      <AvaKitProvider chains={[fuji]} adapters={[makeMockAdapter({ name: "Available Wallet" })]}>
+        <ConnectAvalanche />
+      </AvaKitProvider>,
+    );
+
+    fireEvent.click(screen.getByText("Connect wallet"));
+    fireEvent.click(await screen.findByRole("button", { name: /Available Wallet/i }));
+    // Connected: the trigger now shows the shortened address.
+    fireEvent.click(await screen.findByRole("button", { name: /0x0000…dEaD/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Disconnect/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Connect wallet/i })).toBeTruthy();
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByText("Connect a wallet")).toBeNull();
+  });
+
+  it("closes the account dialog when the wallet itself ends the session", async () => {
+    const wallet = eventedWallet();
+    const adapter = makeMockAdapter({
+      name: "Available Wallet",
+      connect: vi.fn(
+        async (): Promise<WalletConnection> => ({
+          address: TEST_ADDRESS,
+          provider: wallet.provider,
+        }),
+      ),
+      getProvider: () => wallet.provider,
+    });
+    render(
+      <AvaKitProvider chains={[fuji]} adapters={[adapter]}>
+        <ConnectAvalanche />
+      </AvaKitProvider>,
+    );
+    fireEvent.click(screen.getByText("Connect wallet"));
+    fireEvent.click(await screen.findByRole("button", { name: /Available Wallet/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /0x0000…dEaD/ }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+
+    act(() => wallet.emit("accountsChanged", []));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Connect wallet/i })).toBeTruthy();
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps the picker open, showing the error, when a connection attempt fails", async () => {
+    const failing = makeMockAdapter({
+      name: "Failing Wallet",
+      connect: vi.fn(async (): Promise<WalletConnection> => {
+        throw new Error("User closed the wallet window.");
+      }),
+    });
+    render(
+      <AvaKitProvider chains={[fuji]} adapters={[failing]}>
+        <ConnectAvalanche />
+      </AvaKitProvider>,
+    );
+
+    fireEvent.click(screen.getByText("Connect wallet"));
+    fireEvent.click(await screen.findByRole("button", { name: /Failing Wallet/i }));
+
+    expect(await screen.findByText("User closed the wallet window.")).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
   it("does not offer the burner on a mainnet, only the real wallets", async () => {
     const burner = makeMockAdapter({ id: "burner", name: "Temporary wallet (no setup)" });
     const social = makeMockAdapter({ id: "web3auth", name: "Social login" });
