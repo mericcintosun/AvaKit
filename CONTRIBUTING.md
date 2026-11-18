@@ -7,7 +7,7 @@ Thanks for your interest in AvaKit — the open-source, AI-native Avalanche deve
 - **Node.js `>= 20.11`** (see `.nvmrc` — the repo targets Node 24 in CI).
 - **pnpm `>= 10`** — run `corepack enable` to get the version pinned in `package.json` (`pnpm@10.20.0`).
 - **Foundry** (optional) — only needed if you work on contract templates or regenerate bundled bytecode (see [Contracts and bytecode artifacts](#contracts-and-bytecode-artifacts)). Install with `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
-- **avalanche-cli** (optional) — only needed to run the templates that spin up a local devnet or L1 (`icm-messenger`, `l1-launch`, `token-bridge`). See the [Avalanche CLI docs](https://docs.avax.network/tooling/cli-guides/install-avalanche-cli).
+- **Avalanche CLI** (optional) — only needed to run the templates that spin up a local devnet or L1 (`icm-messenger`, `l1-launch`, `token-bridge`) and Studio's devnet views. Install it from [ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli). It has been in maintenance mode since December 2025, and its pages were removed from the Avalanche documentation on 2026-10-06; those templates were last proven end to end with version 1.9.6.
 
 ## Getting started
 
@@ -43,6 +43,8 @@ Before opening a PR, make sure `pnpm lint`, `pnpm typecheck`, `pnpm build`, and 
 - the tests of the two Workers under `services/`, which are standalone npm projects outside the pnpm workspace: `cd services/faucet && npm ci && npm test` (likewise `services/telemetry`; Node 22.15 or newer);
 - the checks on the repo's own scripts: `node --test scripts/*.test.mjs` and `node scripts/check-template-deps.mjs`.
 
+A second workflow, `.github/workflows/e2e-fuji.yml`, is not part of a pull request's checks: it runs the [end-to-end script](#end-to-end-run-on-fuji) against the packages published on npm, daily and on demand.
+
 `pnpm typecheck` builds the website before it type-checks it. `tsc` reads `.next/types`, which `next build` deletes and rewrites, so `apps/web/turbo.json` orders the two instead of letting them race.
 
 ## Repository layout
@@ -60,7 +62,7 @@ examples/               live demo dapps (private)
 services/               faucet + telemetry Cloudflare Workers (standalone npm projects, not in the workspace)
 contracts-ci/           Foundry harness: contract tests + artifact check (repo-only)
 docs/                   planning, PRD, architecture, ADRs, specs, security review
-scripts/                repo scripts (template smoke test, template dependency check)
+scripts/                repo scripts (template smoke test, end-to-end Fuji run, template dependency check) and their tests
 ```
 
 Templates live in `packages/create-avalanche-app/templates/`. Keep the dependency direction one-way: **core ← react ← cli ← mcp**. No circular dependencies, and never import React into `@avakit/core`.
@@ -69,7 +71,7 @@ The templates are standalone apps, not workspace members, and Dependabot does no
 
 ## Template smoke test
 
-A template smoke test scaffolds one template into a throwaway directory and verifies it installs, type-checks, and production-builds — the same flow a user gets from `npm create avalanche-app`. Build `@avakit/core`, `@avakit/react` and the scaffolder first (the script needs all three), then run it with a template id:
+A template smoke test scaffolds one template into a throwaway directory with the locally built scaffolder and verifies that the app installs, type-checks, and production-builds. It installs with pnpm; the [end-to-end run](#end-to-end-run-on-fuji) is the one that uses npm. Build `@avakit/core`, `@avakit/react` and the scaffolder first (the script needs all three), then run it with a template id:
 
 ```bash
 pnpm --filter "@avakit/core" --filter "@avakit/react" --filter create-avalanche-app build
@@ -89,15 +91,59 @@ Without a second argument the app is built in a temporary directory that is remo
 
 The script switches the scaffolder's telemetry off, so a smoke run is never counted as usage. When you run the built CLI by hand from this repo (`node packages/create-avalanche-app/dist/index.js …`), set `AVAKIT_TELEMETRY_DISABLED=1` yourself: a contributor trying out a change is not adoption, and without it the run is counted on [avakit.dev/stats](https://avakit.dev/stats). The variable also works in front of `pnpm test` and any other `turbo` command: `turbo.json` passes it (and `DO_NOT_TRACK`, `AVAKIT_TELEMETRY_URL` and `AVAKIT_CONFIG_DIR`) through to the tasks, which Turborepo's strict environment would otherwise drop.
 
+## End-to-end run on Fuji
+
+`scripts/e2e-fuji.mjs` goes through AvaKit the way an AI agent on a clean machine would, with nothing but Node.js and npm. It starts the MCP server and speaks MCP to it over stdio; checks that the server lists every tool the flow needs (`scaffold_app`, `deploy_contract`, `write_contract`, `read_chain`, `wallet_status`); has `scaffold_app` create the `nft-mint` template; installs and builds the app with npm; and then, on the Fuji testnet, calls `wallet_status`, `deploy_contract`, `write_contract` (mint) and `read_chain` (the owner of token 1). It reads no file of the scaffolded project itself: the artifact path comes from `scaffold_app`'s result. Fuji is the only chain, and the script removes `AVAKIT_ALLOW_MAINNET` from the server's environment.
+
+It has two modes, and `--source` is required:
+
+```bash
+# The packages published on npm: @avakit/mcp started with npx.
+node scripts/e2e-fuji.mjs --source npm [--version <v|latest>] [--skip-chain] [--keep] [--json <file>]
+
+# This checkout's build of the MCP server.
+pnpm build
+node scripts/e2e-fuji.mjs --source workspace [--skip-chain] [--keep] [--json <file>]
+```
+
+- **`--source npm`** tests what users get. It is what `.github/workflows/e2e-fuji.yml` runs, daily and from **Run workflow**, on fresh GitHub-hosted runners (Ubuntu with Node 22 and Node 24, macOS, Windows) that have Node.js and npm and nothing of AvaKit. `--version` picks the `@avakit/mcp` version or dist-tag (default `latest`).
+- **`--source workspace`** tests your changes to the MCP server before they are released. The scaffolded app is installed and built only when the `@avakit/core` and `@avakit/react` versions it pins are on npm; otherwise that half is reported as skipped, and `scripts/smoke-template.sh` is what covers it against this checkout.
+
+**The on-chain half spends one drip of the shared Fuji faucet per run.** Without `AVAKIT_DEPLOYER_KEY` in the environment the server signs with its session test wallet and asks AvaKit's faucet to fund it. That faucet is shared and rate-limited, and it is what a newcomer's first run depends on, so:
+
+- Pass **`--skip-chain`** whenever the change you are checking is not about deploying or minting: scaffolding, templates, the build, the install on another operating system. The run then stops after the build, sends no transaction and asks no faucet. The server must still list all five tools.
+- Run the on-chain half when you changed the signing tools, the session wallet, the faucet client or the `nft-mint` contract, and run it once, not in a loop. The workflow does the same: only one of its four legs (Ubuntu, Node 24) goes on chain.
+- When the faucet refuses or is empty, the run fails and its summary says that the faucet, not necessarily a package, is what failed. Nothing that signs or asks the faucet is tried a second time. Wait out the rate limit before running it again.
+- With `AVAKIT_DEPLOYER_KEY` set to your own funded Fuji key the faucet is not asked; the summary then says that the session wallet was not exercised.
+
+`--keep` leaves the temporary directory with the scaffolded app in place, and `--json <file>` also writes the summary as JSON. Every child process runs with `DO_NOT_TRACK=1` and `AVAKIT_TELEMETRY_DISABLED=1`, so a run is not counted as usage. The whole run is stopped after 20 minutes (`AVAKIT_E2E_TIMEOUT_SECONDS` changes that). Exit status: `0` when every step that ran passed, `1` when a step failed or the run timed out, `2` for a usage error.
+
+The parts of the script that have no side effects are tested offline by `scripts/e2e-fuji.test.mjs`, which CI runs with the other script tests (`node --test scripts/*.test.mjs`).
+
 ## Contracts and bytecode artifacts
 
-The Solidity the repo ships lives in the templates (`packages/create-avalanche-app/templates/*/contracts/src`; `examples/web3auth-demo` has a contract of its own). Several files carry bytecode compiled from it, so that an app can deploy without Foundry: each template's `lib/*-artifact.ts`, and the artifacts Studio, the website and the example app use. Those artifacts are **generated — never copy an abi or bytecode into one by hand.** After you edit a contract (in every template that ships a copy of it), regenerate and verify them from `contracts-ci`:
+The Solidity the repo ships lives in the templates (`packages/create-avalanche-app/templates/*/contracts/src`; `examples/web3auth-demo` has a contract of its own). Nine artifacts carry bytecode compiled from it, so that an app can deploy without Foundry:
+
+- the five templates' own `lib/*-artifact.ts` (`erc20-token`, `l1-launch`, `nft-mint`, `token-gated-app`, `icm-messenger`);
+- the `DemoToken` entry of `token-bridge`'s `lib/ictt-artifacts.json`, which is the `erc20-token` contract;
+- the messenger bytecode Studio deploys (`packages/studio/src/messenger-artifact.ts`);
+- the website's `apps/web/lib/nft-artifact.ts` and the example's `examples/web3auth-demo/lib/nft-artifact.ts`.
+
+Those artifacts are **generated — never copy an abi or bytecode into one by hand.** After you edit a contract (in every template that ships a copy of it), regenerate and verify them from `contracts-ci`:
 
 ```bash
 cd contracts-ci && node scripts/sync.mjs && forge test && node scripts/check-artifacts.mjs --write
 ```
 
-`sync.mjs` checks that templates sharing a contract ship identical copies and that every `foundry.toml` compiles with the same settings, `forge test` runs the contract tests, and `check-artifacts.mjs --write` rewrites the abi and bytecode of every artifact from a fresh build. Commit the regenerated artifacts together with the source change: CI runs the same three steps without `--write` and fails on any artifact that no longer matches its source.
+- `sync.mjs` checks that templates sharing a contract ship identical copies, and that every `foundry.toml` compiles with the settings of `contracts-ci/foundry.toml`. It reads the `[profile.default]` table only, so it refuses a `foundry.toml` that could change the compiler from anywhere else: a sub-table or array table of that profile, the header in another spelling, the legacy `[default]` table, or a key above the first table.
+- `forge test` runs the contract tests.
+- `check-artifacts.mjs` rebuilds each contract and compares all nine artifacts with the build; with `--write` it rewrites their abi and bytecode instead. It also fails on a committed `*-artifact.ts` or `*-artifacts.json` it has not been told about, so a new artifact cannot land unchecked.
+
+Commit the regenerated artifacts together with the source change: CI (the `contracts` job) runs the same three steps without `--write` and fails on any artifact that no longer matches its source.
+
+Not covered: the other three entries of `token-bridge`'s `lib/ictt-artifacts.json` (`ERC20TokenHome`, `ERC20TokenRemote`, `TeleporterRegistry`) are builds of `ava-labs/icm-contracts`, whose sources are not in this repository. The script names them as upstream and leaves them alone, also under `--write`.
+
+When you change either script, run its tests as well: `node --test scripts/guards.test.mjs` from `contracts-ci` (it needs `forge`). Each test breaks one thing in a temporary copy and expects the script to fail on it. CI does not run this file yet, so it is a manual step.
 
 Use the Foundry release CI pins (`version:` in `.github/workflows/ci.yml`; `foundryup --install <that version>`), because the check compares bytecode byte for byte. More in [`contracts-ci/README.md`](contracts-ci/README.md).
 
@@ -128,7 +174,7 @@ Read [`docs/11-conventions.md`](docs/11-conventions.md) before contributing. In 
 - **Latest stable** versions of all frontend tech.
 - Formatting and linting are handled by **Biome** (`pnpm lint`, `pnpm format`); CI runs `biome check`.
 - **Testnet-first**: default to Fuji. Never deploy to mainnet without an explicit opt-in and balance check.
-- Never commit secrets or private keys — key management belongs to the wallet provider, never to AvaKit code.
+- Never commit secrets or private keys — key management belongs to the wallet provider, never to AvaKit code. The two deliberate exceptions are throwaway and testnet-only (the in-browser burner wallet and the MCP server's session test wallet, see [`SECURITY.md`](./SECURITY.md)); do not add a third, and do not let either hold value.
 
 Please also follow the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
