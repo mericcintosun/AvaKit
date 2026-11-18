@@ -190,51 +190,16 @@ async function assertCodeAt(
 }
 
 /**
- * Deploy a compiled contract and wait until it exists.
+ * Wait for a deployment transaction and confirm that it left a contract behind.
  *
- * Resolves only once the deployment transaction has succeeded and the code is
- * on chain at the new address. Rejects with `DeployFailedError` when the
- * transaction reverted, created no contract, or left no code behind; with
- * `MainnetConfirmationError` on a mainnet without `confirmMainnet`; and with
- * `InsufficientFundsError` when a confirmed mainnet deployment cannot be paid
- * for.
+ * This is the second half of `deployContract`, on its own for code that sends
+ * the creation transaction itself (a script or a server signing with its own
+ * account) and should apply the same definition of "deployed": the transaction
+ * succeeded, it names a contract address, and code can be read back from that
+ * address. Rejects with `DeployFailedError` otherwise.
  */
-export async function deployContract(params: DeployParams): Promise<DeployResult> {
-  const { artifact, args, chain, provider, account, confirmMainnet } = params;
-  // Testnet-first guardrail: never deploy to a mainnet chain without opt-in.
-  // isMainnet() also catches a known mainnet id mislabelled testnet (audit A9)
-  // and a definition that never said `testnet: true` at all.
-  const mainnet = isMainnet(chain);
-  if (mainnet && !confirmMainnet) {
-    throw new MainnetConfirmationError(chain.name, missingTestnetFlagHint(chain));
-  }
-  const walletClient = getWalletClient(chain, provider);
+export async function waitForDeployment(txHash: Hex, chain: AvaChain): Promise<DeployResult> {
   const publicClient = getPublicClient(chain);
-  const bytecode = getBytecode(artifact);
-
-  // The confirmation is half of the mainnet guardrail; the balance check is the
-  // other half.
-  if (mainnet) {
-    await assertCanPayForDeploy(
-      publicClient,
-      chain,
-      account,
-      encodeDeployData({
-        abi: artifact.abi,
-        bytecode,
-        args: args as readonly unknown[] | undefined,
-      } as Parameters<typeof encodeDeployData>[0]),
-    );
-  }
-
-  // The wallet client already carries the chain; account is a JSON-RPC address.
-  const txHash = await walletClient.deployContract({
-    abi: artifact.abi,
-    bytecode,
-    args: args as readonly unknown[] | undefined,
-    account,
-  } as Parameters<typeof walletClient.deployContract>[0]);
-
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   // Mined is not the same as deployed. A creation that ran out of gas or whose
   // constructor reverted still gets a receipt, and nodes fill `contractAddress`
@@ -260,4 +225,53 @@ export async function deployContract(params: DeployParams): Promise<DeployResult
     // relative "/address/0x…" link that points back into the app.
     explorerUrl: chain.explorerUrl ? `${chain.explorerUrl}/address/${receipt.contractAddress}` : "",
   };
+}
+
+/**
+ * Deploy a compiled contract and wait until it exists.
+ *
+ * Resolves only once the deployment transaction has succeeded and the code is
+ * on chain at the new address. Rejects with `DeployFailedError` when the
+ * transaction reverted, created no contract, or left no code behind; with
+ * `MainnetConfirmationError` on a mainnet without `confirmMainnet`; and with
+ * `InsufficientFundsError` when a confirmed mainnet deployment cannot be paid
+ * for.
+ */
+export async function deployContract(params: DeployParams): Promise<DeployResult> {
+  const { artifact, args, chain, provider, account, confirmMainnet } = params;
+  // Testnet-first guardrail: never deploy to a mainnet chain without opt-in.
+  // isMainnet() also catches a known mainnet id mislabelled testnet (audit A9)
+  // and a definition that never said `testnet: true` at all.
+  const mainnet = isMainnet(chain);
+  if (mainnet && !confirmMainnet) {
+    throw new MainnetConfirmationError(chain.name, missingTestnetFlagHint(chain));
+  }
+  const walletClient = getWalletClient(chain, provider);
+  const bytecode = getBytecode(artifact);
+
+  // The confirmation is half of the mainnet guardrail; the balance check is the
+  // other half.
+  if (mainnet) {
+    await assertCanPayForDeploy(
+      getPublicClient(chain),
+      chain,
+      account,
+      encodeDeployData({
+        abi: artifact.abi,
+        bytecode,
+        args: args as readonly unknown[] | undefined,
+      } as Parameters<typeof encodeDeployData>[0]),
+    );
+  }
+
+  // The wallet client already carries the chain; account is a JSON-RPC address.
+  const txHash = await walletClient.deployContract({
+    abi: artifact.abi,
+    bytecode,
+    args: args as readonly unknown[] | undefined,
+    account,
+  } as Parameters<typeof walletClient.deployContract>[0]);
+
+  // Sent is not deployed: wait for the receipt, then for the code.
+  return waitForDeployment(txHash, chain);
 }

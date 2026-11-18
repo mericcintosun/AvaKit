@@ -65,6 +65,7 @@ export {
   deployContract,
   type FoundryArtifact,
   getBytecode,
+  waitForDeployment,
 } from "./deploy.js";
 // Errors
 export {

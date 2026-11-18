@@ -38,7 +38,7 @@ Chains live at `@avakit/core/chains`. The two adapters that need an extra SDK si
 - **Clients** — `getPublicClient`, `getWalletClient`, `toViemChain`
 - **Adapters** — `burnerAdapter({ chain })` (a throwaway in-browser wallet, zero setup — see the warning below) + `clearBurner()`; `injectedAdapter()` (Core / MetaMask); `web3authAdapter({ clientId })` (social login, from `@avakit/core/web3auth`); `coinbaseAdapter()` (passkey smart wallet, from `@avakit/core/coinbase`)
 - **Network** — `ensureChain(provider, chain)` (add + switch; once it resolves the wallet is on the chain, burner wallet included)
-- **Deploy** — `deployContract`, `getBytecode`
+- **Deploy** — `deployContract`, `waitForDeployment`, `getBytecode`
 - **Faucet** — `requestFaucet({ url, address, chainId })` asks a faucet API for testnet AVAX, retries a failure that may be temporary and rejects with a typed `FaucetError` (see [Faucet requests](#faucet-requests)); `AVAKIT_FAUCET_URL` is the endpoint of AvaKit's shared Fuji faucet (see [The hosted faucet](#the-hosted-faucet))
 - **RPC data** — `getBalance`, `getTransactionReceipt`, `readContract` (take an `AvaChain`)
 - **Indexed data (AvaCloud)** — `getNativeBalance`, `listErc20Balances`, `listNfts`, `listTransactions` (take an address + a chain, either an `AvaChain` like `fuji` or a raw chain id like `43113`)
@@ -58,7 +58,7 @@ Everything defaults to the Fuji testnet. `deployContract` refuses a mainnet chai
 
 A chain counts as mainnet unless its definition says `testnet: true`, and always when its id is a known mainnet (`43114`). A definition that leaves the flag out is therefore treated as a mainnet, not as a testnet.
 
-`deployContract` resolves only for a contract that really exists. A deployment transaction that reverted is rejected with `DeployFailedError`, and so is one that succeeded but left no code at the new address: after a successful receipt the code is read back with `eth_getCode`, and because a node can serve a receipt slightly before the state behind it, an empty read is repeated for up to two seconds before the deployment is given up on.
+`deployContract` resolves only for a contract that really exists. A deployment transaction that reverted is rejected with `DeployFailedError`, and so is one that succeeded but left no code at the new address: after a successful receipt the code is read back with `eth_getCode`, and because a node can serve a receipt slightly before the state behind it, an empty read is repeated for up to two seconds before the deployment is given up on. `waitForDeployment(txHash, chain)` applies the same checks to a creation transaction you sent yourself (from a script or a server with its own key) and resolves with the same `{ address, txHash, explorerUrl }`.
 
 ## Explorer and faucet links
 

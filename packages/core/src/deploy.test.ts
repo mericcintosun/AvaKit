@@ -1,8 +1,9 @@
 import type { EIP1193Provider } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AvaChain, cChain, defineChain, fuji } from "./chains.js";
-import { deployContract, getBytecode } from "./deploy.js";
+import { deployContract, getBytecode, waitForDeployment } from "./deploy.js";
 import { DeployFailedError, InsufficientFundsError, MainnetConfirmationError } from "./errors.js";
+import * as entry from "./index.js";
 import { endpoint, stubRpc } from "./testing/rpc.js";
 
 afterEach(() => {
@@ -505,6 +506,61 @@ describe("deployContract result", () => {
       expect(error?.message).toMatch(/no contract code/);
       expect(error?.message).not.toMatch(/https?:\/\//);
       expect(error?.message).not.toContain("()");
+    });
+  });
+
+  // For code that sends the creation transaction itself (a script, a server
+  // with its own key): the same definition of "deployed", without the wallet.
+  describe("waitForDeployment", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("is exported from the package entry", () => {
+      expect(entry.waitForDeployment).toBe(waitForDeployment);
+    });
+
+    it("resolves with the address, hash and explorer link of a deployment that exists", async () => {
+      const calls = stubDeployed();
+
+      const result = await waitForDeployment(txHash, fuji);
+
+      expect(result).toEqual({
+        address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        txHash,
+        explorerUrl: `${fuji.explorerUrl}/address/${created}`,
+      });
+      // It only reads: the receipt, then the code.
+      expect(calls.map((call) => call.method)).toEqual([
+        "eth_getTransactionReceipt",
+        "eth_getCode",
+      ]);
+      expect(calls[0]?.params[0]).toBe(txHash);
+    });
+
+    it("rejects a reverted deployment", async () => {
+      stubDeployed({ eth_getTransactionReceipt: () => receipt({ status: "0x0" }) });
+
+      const deployment = waitForDeployment(txHash, fuji);
+
+      await expect(deployment).rejects.toBeInstanceOf(DeployFailedError);
+      await expect(deployment).rejects.toThrow(/reverted/);
+    });
+
+    it("rejects a deployment that left no code behind", async () => {
+      vi.useFakeTimers();
+      const calls = stubDeployed({ eth_getCode: () => "0x" });
+
+      const outcome = waitForDeployment(txHash, fuji).then(
+        () => null,
+        (error: unknown) => error as Error,
+      );
+      await vi.advanceTimersByTimeAsync(2000);
+      const error = await outcome;
+
+      expect(error).toBeInstanceOf(DeployFailedError);
+      expect(error?.message).toMatch(/no contract code/);
+      expect(calls.filter((call) => call.method === "eth_getCode")).toHaveLength(5);
     });
   });
 });
