@@ -386,6 +386,11 @@ describe("malformed requests", () => {
         { from: "chain1", to: "chain2", message: "x".repeat(300) },
         "message is 300 bytes; the messenger accepts at most 256 (UTF-8)",
       ],
+      // 86 characters, but 258 bytes of UTF-8: the limit is in bytes.
+      [
+        { from: "chain1", to: "chain2", message: "山".repeat(86) },
+        "message is 258 bytes; the messenger accepts at most 256 (UTF-8)",
+      ],
       [{ from: "chain1", to: "chain2", message: "gm" }, "unknown chain: chain1"],
     ];
     for (const [body, error] of cases) {
