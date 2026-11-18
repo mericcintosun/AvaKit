@@ -31,7 +31,7 @@ const SLOW_REVALIDATE = 3600;
 export interface NpmStats {
   /** Downloads in the last 30 days, summed across all packages. */
   last30d: number;
-  /** Per-package last-30-day downloads, same order as NPM_PACKAGES. */
+  /** Per-package last-30-day downloads: every package, same order as NPM_PACKAGES. */
   byPackage: { name: string; downloads: number }[];
 }
 
@@ -106,8 +106,11 @@ async function getNpm(): Promise<NpmStats | null> {
       return isRecord(data) && isCount(data.downloads) ? { name, downloads: data.downloads } : null;
     }),
   );
+  // All or nothing: the total is published as the figure for every package, so
+  // a sum that is missing some of them is not a smaller answer but a wrong one.
+  // The requests that failed are retried on the next revalidation.
   const byPackage = results.filter((r) => r !== null);
-  if (byPackage.length === 0) return null;
+  if (byPackage.length !== NPM_PACKAGES.length) return null;
   return {
     last30d: byPackage.reduce((sum, p) => sum + p.downloads, 0),
     byPackage,

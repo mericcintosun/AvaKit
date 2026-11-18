@@ -6,7 +6,7 @@ import { StatTile } from "@/components/stats/stat-tile";
 import { TemplateBars } from "@/components/stats/template-bars";
 import { Card } from "@/components/ui/card";
 import { pageMetadata } from "@/lib/metadata";
-import { compact, GITHUB_REPO, getStats, zeroFillDays } from "@/lib/stats";
+import { compact, GITHUB_REPO, getStats, NPM_PACKAGES, zeroFillDays } from "@/lib/stats";
 
 export const metadata: Metadata = pageMetadata({
   route: "/stats",
@@ -65,7 +65,7 @@ export default async function StatsPage() {
         <StatTile
           label="npm downloads"
           value={npm ? compact(npm.last30d) : null}
-          hint="Last 30 days, all 5 packages"
+          hint={`Last 30 days, all ${NPM_PACKAGES.length} packages`}
           source="npm"
         />
         <StatTile
