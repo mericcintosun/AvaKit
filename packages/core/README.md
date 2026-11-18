@@ -80,12 +80,12 @@ When the faucet refuses or cannot be reached, it rejects with a `FaucetError`. T
 | `code` | Meaning | `retryable` |
 | --- | --- | --- |
 | `"rate_limited"` | This address, or this network, was funded recently (HTTP 429) | no |
-| `"empty"` | The faucet has run out of funds (503) | no |
+| `"empty"` | The faucet has run out of funds (a 503 that carries the faucet's own answer) | no |
 | `"invalid"` | The request itself was refused: a bad address, a chain the faucet does not serve, a missing or rejected captcha token (400 and every other 4xx) | no |
-| `"unavailable"` | The faucet failed on its side: it could not send the drip, or is busy (500, 502 and every other 5xx) | yes |
+| `"unavailable"` | The faucet failed on its side: it could not send the drip, is busy or is down (500, 502 and every other 5xx, including a 503 that is a platform or proxy error page rather than the faucet's answer) | yes |
 | `"network"` | No answer arrived: the request could not be sent, timed out or was aborted | yes |
 
-The error also carries `status` (the HTTP status, undefined when no answer arrived), `retryAfterMs` (the faucet's `Retry-After`, when it sent one) and `faucetCode` (the faucet's own, more specific refusal code, such as `"address_limited"` or `"faucet_busy"`, when its answer had one — that code, where known, decides `code` ahead of the status).
+The error also carries `status` (the HTTP status, undefined when no answer arrived), `retryAfterMs` (the faucet's `Retry-After`, when it sent one) and `faucetCode` (the faucet's own, more specific refusal code, such as `"address_limited"` or `"faucet_busy"`, when its answer had one). Where the faucet's own code is known it decides `code` ahead of the status, which is how a busy faucet (retryable) is told from an empty one although both answer 503; a 4xx is never treated as retryable, whatever it carries.
 
 ```ts
 import { FaucetError, requestFaucet } from "@avakit/core";

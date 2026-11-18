@@ -89,12 +89,12 @@ export class InsufficientFundsError extends AvaKitError {
  * Why a faucet request failed, for code to branch on:
  *
  * - `"rate_limited"`: this address, or this network, was funded recently (429).
- * - `"empty"`: the faucet has run out of funds (503).
+ * - `"empty"`: the faucet has run out of funds (503, as the faucet's own answer).
  * - `"invalid"`: the request itself was refused, and sending it again will not
  *   help: a bad address, a chain the faucet does not serve, a missing or
  *   rejected captcha token (400 and every other 4xx).
  * - `"unavailable"`: the faucet failed on its side: it could not send the
- *   drip, is busy or is misconfigured (500, 502 and every other 5xx).
+ *   drip, is busy, misconfigured or down (500, 502 and every other 5xx).
  * - `"network"`: no answer arrived: the request could not be sent, timed out
  *   or was aborted.
  */

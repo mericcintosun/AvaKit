@@ -131,9 +131,22 @@ function refusal(res: Response, body: unknown): FaucetError {
     typeof fields.error === "string" && fields.error
       ? fields.error
       : `Faucet request failed (HTTP ${res.status}).`;
+  // Undefined for an unknown code, which leaves the decision to the status.
+  let code = faucetCode === undefined ? undefined : FAUCET_CODES.get(faucetCode);
+  // A 4xx says the request was refused, and a refusal is never retried. No
+  // code in the body may turn it into a failure worth another attempt.
+  if (code === "unavailable" && res.status >= 400 && res.status < 500) {
+    code = undefined;
+  }
+  // By status alone a 503 means "empty", because that is what the faucet
+  // answers when it has run dry. A 503 without the faucet's own JSON answer
+  // was not written by the faucet, though: it is the error page of the platform
+  // or a proxy in front of it. That is an outage, and worth another attempt.
+  if (code === undefined && res.status === 503 && typeof fields.error !== "string") {
+    code = "unavailable";
+  }
   return new FaucetError(message, res.status, {
-    // Undefined for an unknown code, which leaves the decision to the status.
-    code: faucetCode === undefined ? undefined : FAUCET_CODES.get(faucetCode),
+    code,
     faucetCode,
     retryAfterMs: parseRetryAfter(res.headers.get("retry-after")),
   });

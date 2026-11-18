@@ -238,6 +238,45 @@ describe("requestFaucet failures are typed", () => {
     expect(error?.code).toBe("invalid");
   });
 
+  // "Empty" is something the faucet says. A 503 that is an error page from the
+  // platform or a proxy says nothing about its funds: it is an outage.
+  it("reads a 503 without the faucet's own answer as an outage, not an empty faucet", async () => {
+    noJitter();
+    const spy = stubAnswers(
+      () => new Response("<html>Service Unavailable</html>", { status: 503 }),
+      () => json({ txHash: "0xabc" }),
+    );
+
+    const result = await requestFaucet({ url: FAUCET, address: ADDRESS });
+
+    // It was worth another attempt, and that one went through.
+    expect(result).toEqual({ txHash: "0xabc" });
+    expect(spy).toHaveBeenCalledTimes(2);
+
+    stubFetch(() => new Response("", { status: 503 }));
+    const { error } = await settle(requestFaucet({ url: FAUCET, address: ADDRESS, retries: 0 }));
+    expect(error?.code).toBe("unavailable");
+    expect(error?.retryable).toBe(true);
+    expect(error?.message).toBe("Faucet request failed (HTTP 503).");
+  });
+
+  // A 4xx is a refusal, and a refusal is never retried. A body code that says
+  // "try again" cannot overrule that.
+  it.each([
+    [429, "faucet_busy", "rate_limited"],
+    [400, "drip_failed", "invalid"],
+    [403, "internal", "invalid"],
+  ] as const)("never turns HTTP %i into a retryable failure (code %s)", async (status, faucetCode, code) => {
+    const spy = stubFetch(() => json({ error: "refused", code: faucetCode }, status));
+
+    const { error } = await settle(requestFaucet({ url: FAUCET, address: ADDRESS, retries: 3 }));
+
+    expect(error?.code).toBe(code);
+    expect(error?.retryable).toBe(false);
+    expect(error?.faucetCode).toBe(faucetCode);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it("exposes Retry-After in milliseconds, given as seconds", async () => {
     stubFetch(() =>
       json({ error: "Funded recently.", code: "address_limited" }, 429, { "retry-after": "3600" }),
