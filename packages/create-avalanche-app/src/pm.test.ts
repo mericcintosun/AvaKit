@@ -186,6 +186,35 @@ describe.skipIf(!canFakeBin)("running a package manager", { timeout: FAKE_BIN_TI
       });
     });
   });
+
+  describe("through a shell, as on Windows", () => {
+    // `platform: "win32"` selects the shell path; on this machine the shell is
+    // /bin/sh rather than cmd.exe, which is enough to run that path for real.
+    const windows = { platform: "win32" } as const;
+
+    it("launches the manager and reads its exit status", () => {
+      const ok = runPackageManager("pnpm", ["install"], { cwd, env: bin.env(), ...windows });
+      expect(ok).toMatchObject({ ok: true, status: 0 });
+      expect(bin.calls()).toEqual([`pnpm install @ ${realpathSync(cwd)}`]);
+
+      const env = bin.env({ exit: 2 });
+      const failed = runPackageManager("npm", ["run", "dev"], { cwd, env, ...windows });
+      expect(failed).toMatchObject({
+        ok: false,
+        failure: "exit-code",
+        status: 2,
+        reason: '"npm run dev" exited with code 2',
+      });
+    });
+
+    it("reports a missing manager as a failed command, with what the shell said", async () => {
+      // Behind a shell there is no ENOENT: the shell itself starts, then fails.
+      const env = bin.emptyEnv();
+      const result = await runPackageManagerQuietly("yarn", ["install"], { cwd, env, ...windows });
+      expect(result).toMatchObject({ ok: false, failure: "exit-code", status: 127 });
+      expect(result.output).toMatch(/yarn.*not found/);
+    });
+  });
 });
 
 describe("outputTail", () => {

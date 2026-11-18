@@ -27,7 +27,12 @@ beforeEach(() => {
 afterEach(() => rmSync(cwd, { recursive: true, force: true }));
 
 /** Run the CLI in-process and collect what it printed. Non-interactive unless `tty`. */
-async function invoke(argv: string[], env: NodeJS.ProcessEnv = {}, tty = false) {
+async function invoke(
+  argv: string[],
+  env: NodeJS.ProcessEnv = {},
+  tty = false,
+  platform: NodeJS.Platform = process.platform,
+) {
   let stdout = "";
   let stderr = "";
   const code = await run({
@@ -37,7 +42,7 @@ async function invoke(argv: string[], env: NodeJS.ProcessEnv = {}, tty = false) 
     stdout: { write: (text) => (stdout += text) },
     stderr: { write: (text) => (stderr += text) },
     stdinIsTTY: tty,
-    platform: process.platform,
+    platform,
   });
   return { code, stdout: stdout.replace(ANSI, ""), stderr: stderr.replace(ANSI, "") };
 }
@@ -323,6 +328,27 @@ describe.skipIf(!canFakeBin)(
         "Install pnpm first, or pick a package manager you have with --pm (pnpm | npm | yarn | bun).",
       );
       expect(result.stderr).toContain("  cd app\n  pnpm install\n  pnpm run dev\n");
+    });
+
+    it("starts the package manager through a shell when the platform is Windows", async () => {
+      // There npm, pnpm and yarn are .cmd shims that Node cannot start directly,
+      // so every install used to fail. Run here, the same code path goes through
+      // /bin/sh instead of cmd.exe — which still proves the command is launched
+      // as one shell string and its result is read back.
+      const installed = await invoke(
+        ["app", "--yes"],
+        bin.env({}, { npm_config_user_agent: PNPM_AGENT }),
+        false,
+        "win32",
+      );
+      expect(installed.code).toBe(0);
+      expect(bin.calls()).toEqual([`pnpm install @ ${appDir()}`]);
+
+      const failed = await invoke(["other", "--yes"], bin.env({ exit: 1 }), false, "win32");
+      expect(failed.code).toBe(1);
+      expect(failed.stderr).toContain(
+        'Dependencies were not installed: "npm install" exited with code 1.',
+      );
     });
   },
 );
