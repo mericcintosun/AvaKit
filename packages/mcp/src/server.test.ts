@@ -48,6 +48,16 @@ describe("the tool surface", () => {
     expect(result.isError).toBe(true);
   });
 
+  it("tells the model to leave the repository-only `local` option alone", async () => {
+    // "Link @avakit/* via workspace" read like an ordinary choice; taken outside
+    // the AvaKit monorepo it produces an app whose dependencies cannot install.
+    const { tools } = await mcp.client.listTools();
+    const scaffold = tools.find((tool) => tool.name === "scaffold_app");
+    const options = scaffold?.inputSchema.properties as Record<string, { description?: string }>;
+    expect(options.local?.description).toContain("only inside the AvaKit monorepo");
+    expect(options.local?.description).toContain("Leave unset");
+  });
+
   it("tells the model about both mainnet gates, so a refusal is not a surprise", async () => {
     // The description used to say confirm:true was the requirement, while the
     // server also demanded an environment variable the description never named.

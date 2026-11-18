@@ -117,7 +117,12 @@ server.registerTool(
           .describe(
             "Parent directory for the project. Must be inside the server's working directory, which is also the default.",
           ),
-        local: z.boolean().optional().describe("Link @avakit/* via workspace (repo dev only)"),
+        local: z
+          .boolean()
+          .optional()
+          .describe(
+            "Only for developing AvaKit itself: links @avakit/* with workspace:*, so the app installs only inside the AvaKit monorepo. Leave unset.",
+          ),
       })
       .strict(),
   },
