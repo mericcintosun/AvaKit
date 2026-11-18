@@ -1,0 +1,23 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      // Everything the site reads from the environment at build time (grep
+      // process.env). Turborepo runs tasks in strict env mode, so a variable
+      // that is not declared is left out of the cache key and is not passed to
+      // `next build` at all. NEXT_PUBLIC_* is inferred for a Next.js app anyway;
+      // it is listed so the declaration is complete in one place.
+      "env": ["AVAKIT_TELEMETRY_STATS_URL", "NEXT_PUBLIC_*"]
+    },
+    "typecheck": {
+      // `tsc --noEmit` reads .next/types, which `next build` deletes and
+      // rewrites. Run side by side (`turbo run typecheck build`) the two race,
+      // and tsc fails now and then with "TS2307: Cannot find module
+      // './routes.js'". Running typecheck after this package's own build removes
+      // the race, and checks against the route types of the current code
+      // instead of whatever an earlier build left in .next.
+      "dependsOn": ["build"]
+    }
+  }
+}
