@@ -250,6 +250,35 @@ describe("burner wallet on a mainnet chain", () => {
     expect(screen.getByTestId("error").textContent).toMatch(/testnet-only/);
   });
 
+  // A chain defined in plain JavaScript or JSON can lack the `testnet` flag.
+  // That must read as a mainnet (fail closed), and the refusal has to say why.
+  it("treats a chain without a testnet flag as a mainnet, and says so", async () => {
+    const { testnet: _omitted, ...withoutFlag } = fuji;
+    const unflagged = { ...withoutFlag, id: 99_999, name: "Unflagged L1" } as AvaChain;
+    const adapter = burnerAdapter({ persist: false, chain: fuji });
+    render(
+      <AvaKitProvider chains={[unflagged]} adapters={[adapter]}>
+        <AccountProbe />
+        <ChainProbe next={unflagged} />
+        <ConnectAvalanche />
+      </AvaKitProvider>,
+    );
+
+    fireEvent.click(screen.getByText("connect burner"));
+    await waitFor(() => {
+      expect(screen.getByTestId("error").textContent).toMatch(/testnet-only/);
+    });
+    expect(screen.getByTestId("error").textContent).toMatch(
+      /^Unflagged L1 has no boolean `testnet` flag/,
+    );
+    expect(screen.getByTestId("status").textContent).toBe("disconnected");
+
+    // …and the connect dialog does not offer the burner there either.
+    fireEvent.click(screen.getByText("Connect wallet"));
+    expect(await screen.findByText(/temporary wallet is testnet-only/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Start instantly/i })).toBeNull();
+  });
+
   it("leaves real wallets alone on a mainnet", async () => {
     const injected = makeMockAdapter({ id: "injected", name: "Browser Wallet" });
     render(

@@ -32,8 +32,16 @@ export const BURNER_ADAPTER_ID = "burner";
  * is asked to switch to; this is the same refusal for the chain the app is on.
  */
 function burnerOnMainnetError(chain: AvaChain): Error {
+  // isMainnet() reads a definition without a boolean `testnet` flag (possible
+  // from plain JavaScript or JSON) as a mainnet. Say so first, or the developer
+  // of a mis-defined testnet has no way to tell why the burner is refused.
+  const unflagged = typeof (chain as { testnet?: unknown }).testnet !== "boolean";
+  const why = unflagged
+    ? `${chain.name} has no boolean \`testnet\` flag in its definition, so it is treated as a ` +
+      "mainnet (set testnet: true if it is a testnet). "
+    : "";
   return new WalletConnectionError(
-    `The temporary (burner) wallet is testnet-only and cannot be used on ${chain.name}. ` +
+    `${why}The temporary (burner) wallet is testnet-only and cannot be used on ${chain.name}. ` +
       "Connect a real wallet (injected / social) to use mainnet.",
   );
 }
