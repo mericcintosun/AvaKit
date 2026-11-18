@@ -105,6 +105,10 @@ var to turn off:
 export AVAKIT_TELEMETRY_DISABLED=1   # or DO_NOT_TRACK=1, or --no-telemetry
 ```
 
+`--no-telemetry` is remembered: it writes `{"enabled": false}` to `~/.config/avakit/config.json`
+(`%APPDATA%\avakit\config.json` on Windows). Writing that file yourself — from a provisioning
+script, say — opts out just the same.
+
 **Sent:** which template, chain, and package manager you picked, the CLI
 version, your OS and Node major, whether the scaffold succeeded, and a random id
 generated on your machine (so we can tell ten people apart from ten runs).
