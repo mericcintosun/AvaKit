@@ -3,8 +3,15 @@
  * contract as the icm-messenger template. Studio deploys it with `cast` so you
  * can send a cross-chain message without leaving the dashboard.
  *
- * Regenerate from packages/create-avalanche-app/templates/icm-messenger:
- *   cd contracts && forge build  → copy out/AvaKitMessenger.sol/*.json bytecode.object
+ * The bytecode is generated from
+ * packages/create-avalanche-app/templates/icm-messenger/contracts — do not edit
+ * it by hand. After that contract changes, regenerate it with
+ *   cd contracts-ci && node scripts/check-artifacts.mjs --write
+ * CI fails if it drifts from that source, or if one of the *_SIG constants
+ * below names something the contract does not have.
+ *
+ * The contract rejects messages longer than 256 bytes of UTF-8
+ * (MAX_MESSAGE_LENGTH), so a delivery always fits its gas budget.
  */
 
 export const MESSENGER_BYTECODE =
