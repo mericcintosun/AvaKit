@@ -139,6 +139,16 @@ interface FaucetState {
 
 const IDLE_FAUCET: FaucetState = { status: "idle", result: null, error: null, session: "" };
 
+/** A faucet request in flight. */
+interface FaucetFlight {
+  request: Promise<FaucetResult>;
+  /**
+   * The signal the request was sent with. Whoever reports its outcome reads it:
+   * an aborted request is not a refusal worth showing.
+   */
+  signal?: AbortSignal;
+}
+
 /** Names the account and chain a faucet state belongs to. */
 function faucetSession(chain: AvaChain, address: Address | null): string {
   return `${chain.id}:${address?.toLowerCase() ?? ""}`;
@@ -237,7 +247,7 @@ export function AvaKitProvider({
   // Faucet requests in flight, by chain and address. Asking again for a pair
   // that is already being funded joins that request rather than sending a
   // second one, which the faucet would only refuse as "funded recently".
-  const faucetInFlight = useRef<Map<string, Promise<FaucetResult>>>(new Map());
+  const faucetInFlight = useRef<Map<string, FaucetFlight>>(new Map());
   const addressRef = useLatest(address);
   // Usually an inline function, new on every render of the parent.
   const faucetTokenRef = useLatest(faucetToken);
@@ -430,6 +440,11 @@ export function AvaKitProvider({
   // the automatic drip and fund() go through here, which is what lets an app
   // show "funding", "funded" or the faucet's refusal whichever of them asked.
   // `forSession` is the account and chain the app was on when it was asked.
+  //
+  // The latest call reports, whether it sent the request or joined one already
+  // in flight for the same chain and address: after a reset(), the call that
+  // started the request no longer reports, and one that joins it takes over
+  // rather than resolving with nobody saying "funding" or "funded".
   const runFaucet = useCallback(
     (
       url: string,
@@ -438,12 +453,6 @@ export function AvaKitProvider({
       forSession: string,
       signal?: AbortSignal,
     ): Promise<FaucetResult> => {
-      const key = `${on.id}:${to.toLowerCase()}`;
-      const running = faucetInFlight.current.get(key);
-      if (running) {
-        return running;
-      }
-
       faucetRun.current += 1;
       const run = faucetRun.current;
       const report = (next: Omit<FaucetState, "session">) => {
@@ -453,37 +462,46 @@ export function AvaKitProvider({
       };
       report({ status: "funding", result: null, error: null });
 
-      const request = (async () => {
-        try {
-          // requestFaucet retries a failure that may be temporary (a bounded
-          // number of times) and limits every attempt, so this settles.
-          const result = await requestFaucet({
-            url,
-            address: to,
-            chainId: on.id,
-            signal,
-            // Asked again before every attempt: a captcha token is single-use.
-            turnstileToken: faucetTokenRef.current ? () => faucetTokenRef.current?.() : undefined,
-          });
+      const key = `${on.id}:${to.toLowerCase()}`;
+      let flight = faucetInFlight.current.get(key);
+      if (!flight) {
+        // requestFaucet retries a failure that may be temporary (a bounded
+        // number of times) and limits every attempt, so this settles.
+        const request = requestFaucet({
+          url,
+          address: to,
+          chainId: on.id,
+          signal,
+          // Asked again before every attempt: a captcha token is single-use.
+          turnstileToken: faucetTokenRef.current ? () => faucetTokenRef.current?.() : undefined,
+        });
+        const sent: FaucetFlight = { request, signal };
+        // Whatever the outcome, the pair is then free to be asked for again.
+        const settled = () => {
+          if (faucetInFlight.current.get(key) === sent) {
+            faucetInFlight.current.delete(key);
+          }
+        };
+        faucetInFlight.current.set(key, sent);
+        request.then(settled, settled);
+        flight = sent;
+      }
+
+      const { request, signal: sentWith } = flight;
+      return request.then(
+        (result) => {
           report({ status: "success", result, error: null });
           return result;
-        } catch (e) {
+        },
+        (e: unknown) => {
           const err = e instanceof Error ? e : new Error(String(e));
           // Aborted means the provider cut it short itself (the wallet left, or
-          // the app unmounted): that is not a refusal worth showing.
-          report(signal?.aborted ? IDLE_FAUCET : { status: "error", result: null, error: err });
+          // the app unmounted): that is not a refusal worth showing, whoever
+          // reports it.
+          report(sentWith?.aborted ? IDLE_FAUCET : { status: "error", result: null, error: err });
           throw err;
-        }
-      })();
-      // Whatever the outcome, the pair is then free to be asked for again.
-      const settled = () => {
-        if (faucetInFlight.current.get(key) === request) {
-          faucetInFlight.current.delete(key);
-        }
-      };
-      faucetInFlight.current.set(key, request);
-      request.then(settled, settled);
-      return request;
+        },
+      );
     },
     [faucetTokenRef],
   );

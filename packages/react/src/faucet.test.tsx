@@ -734,6 +734,123 @@ describe("one faucet state for every caller", () => {
     expect(view.result.current.faucet.status).toBe("idle");
   });
 
+  // After a reset() the first request no longer reports. A fund() that joins it
+  // then has to report it, or the app sees nothing while it is funded (or refused).
+  describe("a fund() that joins a request dismissed by reset()", () => {
+    async function fundResetFund(view: View) {
+      let first: Promise<FaucetResult> = Promise.resolve({});
+      act(() => {
+        first = view.result.current.faucet.fund();
+      });
+      await waitFor(() => {
+        expect(view.result.current.faucet.status).toBe("funding");
+      });
+      act(() => view.result.current.faucet.reset());
+      expect(view.result.current.faucet.status).toBe("idle");
+
+      let second: Promise<FaucetResult> = Promise.resolve({});
+      act(() => {
+        second = view.result.current.faucet.fund();
+      });
+      // Neither caller is left with an unhandled rejection while the test looks on.
+      first.catch(() => {});
+      second.catch(() => {});
+      return { first, second };
+    }
+
+    it("reports funding at once and then the drip", async () => {
+      const faucet = stubPendingFaucet();
+      const view = renderFaucet({ adapters: [wallet("injected").adapter] });
+      await connect(view, "injected");
+
+      const { first, second } = await fundResetFund(view);
+      expect(view.result.current.faucet.status).toBe("funding");
+      await settle();
+      expect(faucet.spy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        faucet.answer(drip());
+        await second;
+      });
+
+      await expect(second).resolves.toMatchObject({ txHash: TX_HASH });
+      await expect(first).resolves.toMatchObject({ txHash: TX_HASH });
+      expect(view.result.current.faucet.status).toBe("success");
+      expect(view.result.current.faucet.result?.txHash).toBe(TX_HASH);
+      expect(view.statuses).toEqual(["idle", "funding", "idle", "funding", "success"]);
+      expect(faucet.spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports the faucet's refusal", async () => {
+      const faucet = stubPendingFaucet();
+      const view = renderFaucet({ adapters: [wallet("injected").adapter] });
+      await connect(view, "injected");
+
+      const { second } = await fundResetFund(view);
+      await act(async () => {
+        faucet.answer(fundedRecently());
+        await second.catch(() => {});
+      });
+
+      await expect(second).rejects.toBeInstanceOf(FaucetError);
+      expect(view.result.current.faucet.status).toBe("error");
+      expect(view.result.current.faucet.error?.message).toBe(
+        "This address was funded recently. Try again later.",
+      );
+      expect(view.statuses).toEqual(["idle", "funding", "idle", "funding", "error"]);
+      expect(faucet.spy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // The automatic drip sends its request with an abort signal. When it is
+  // aborted, the fund() that joined it reports, and has to see that it was
+  // aborted rather than refused.
+  it("leaves the state idle when a request a fund() joined is aborted", async () => {
+    // Empty for the first look, funded afterwards, so that the drip starting
+    // over finds nothing to do.
+    vi.mocked(getBalance).mockResolvedValue(5n);
+    vi.mocked(getBalance).mockResolvedValueOnce(0n);
+    const faucet = stubPendingFaucet();
+    let faucetUrl = FAUCET_URL;
+    const adapters = [wallet("burner").adapter];
+    const chains = [fuji];
+    const view = renderHook(() => ({ kit: useAvaKit(), faucet: useFaucet() }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <AvaKitProvider faucetUrl={faucetUrl} chains={chains} adapters={adapters}>
+          {children}
+        </AvaKitProvider>
+      ),
+    });
+    await act(async () => {
+      await view.result.current.kit.connect("burner");
+    });
+    await waitFor(() => {
+      expect(view.result.current.faucet.status).toBe("funding");
+    });
+    const signal = faucet.spy.mock.calls[0]?.[1]?.signal;
+
+    act(() => view.result.current.faucet.reset());
+    let manual: Promise<FaucetResult> = Promise.resolve({});
+    act(() => {
+      manual = view.result.current.faucet.fund();
+    });
+    manual.catch(() => {});
+    expect(view.result.current.faucet.status).toBe("funding");
+
+    // The app moves to another faucet: the automatic drip's effect is cleaned
+    // up and aborts its request, on the same wallet and chain.
+    faucetUrl = "https://faucet.example/other";
+    view.rerender();
+    await settle();
+
+    expect(signal?.aborted).toBe(true);
+    await expect(manual).rejects.toThrow();
+    expect(view.result.current.kit.status).toBe("connected");
+    expect(view.result.current.faucet.status).toBe("idle");
+    expect(view.result.current.faucet.error).toBeNull();
+    expect(faucet.spy).toHaveBeenCalledTimes(1);
+  });
+
   // "Funded" is a statement about one wallet. It must not carry over to the next.
   it("reads idle again once the wallet disconnects", async () => {
     stubFaucet(drip);
