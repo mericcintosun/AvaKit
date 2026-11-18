@@ -10,7 +10,7 @@ import {
   readContract,
   requestFaucet,
 } from "@avakit/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Abi, Address, Hex } from "viem";
 import { useAvaKit } from "./provider.js";
 
@@ -58,7 +58,15 @@ export function useBalance(address?: Address) {
   return { data, isLoading, refetch };
 }
 
-/** Read/write helpers bound to a contract. */
+/**
+ * Read/write helpers bound to a contract.
+ *
+ * The returned object keeps its identity for as long as the contract address,
+ * the ABI, the chain and the connected wallet stay the same, so it is safe in a
+ * dependency array: `useEffect(() => { contract.read(...) }, [contract])` runs
+ * when one of those changes, not after every render. Pass a stable `abi` (a
+ * module-level constant, not an array literal built during render).
+ */
 export function useContract(params: { address: Address; abi: Abi }) {
   const { chain, provider, address } = useAvaKit();
 
@@ -90,7 +98,7 @@ export function useContract(params: { address: Address; abi: Abi }) {
     [chain, provider, address, params.address, params.abi],
   );
 
-  return { read, write };
+  return useMemo(() => ({ read, write }), [read, write]);
 }
 
 export type DeployStatus = "idle" | "deploying" | "success" | "error";
