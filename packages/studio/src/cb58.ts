@@ -1,15 +1,22 @@
 /**
  * CB58 → hex. avalanche-cli stores a blockchain's ID in CB58 (base58 of the
- * 32-byte id followed by a 4-byte checksum). Teleporter routes by the raw
- * bytes32, so we decode the CB58 and drop the checksum — no CLI call needed.
+ * 32-byte id followed by a 4-byte checksum: the last four bytes of the id's
+ * SHA-256). Teleporter routes by the raw bytes32, so we decode the CB58, verify
+ * it, and drop the checksum — no CLI call needed.
  */
+
+import { createHash } from "node:crypto";
 
 const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const MAP: Record<string, number> = {};
 for (let i = 0; i < ALPHABET.length; i++) MAP[ALPHABET[i] as string] = i;
 
+const ID_BYTES = 32;
+const CHECKSUM_BYTES = 4;
+
 function base58Decode(input: string): Uint8Array {
-  const bytes: number[] = [0];
+  // Little-endian while accumulating; reversed at the end.
+  const bytes: number[] = [];
   for (const ch of input) {
     const value = MAP[ch];
     if (value === undefined) throw new Error(`invalid CB58 character: ${ch}`);
@@ -32,13 +39,24 @@ function base58Decode(input: string): Uint8Array {
   return new Uint8Array(bytes.reverse());
 }
 
-/** Convert an avalanche-cli CB58 blockchain ID to a 0x-prefixed bytes32 hex. */
+/**
+ * Convert an avalanche-cli CB58 blockchain ID to a 0x-prefixed bytes32 hex.
+ * Throws when the input is not a well-formed ID — a wrong length or a checksum
+ * mismatch means a corrupted or mistyped ID, and routing a message by it would
+ * silently send it nowhere.
+ */
 export function cb58ToHex(cb58: string): `0x${string}` {
   const decoded = base58Decode(cb58);
-  // Strip the trailing 4-byte checksum.
-  const payload = decoded.slice(0, Math.max(0, decoded.length - 4));
-  const hex = Array.from(payload)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return `0x${hex}`;
+  if (decoded.length !== ID_BYTES + CHECKSUM_BYTES) {
+    throw new Error(
+      `invalid CB58 blockchain ID: expected ${ID_BYTES} bytes plus a checksum, got ${decoded.length} bytes`,
+    );
+  }
+  const payload = decoded.subarray(0, ID_BYTES);
+  const checksum = decoded.subarray(ID_BYTES);
+  const expected = createHash("sha256").update(payload).digest().subarray(-CHECKSUM_BYTES);
+  if (!expected.equals(checksum)) {
+    throw new Error("invalid CB58 blockchain ID: checksum mismatch");
+  }
+  return `0x${Buffer.from(payload).toString("hex")}`;
 }

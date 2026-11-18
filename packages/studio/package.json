@@ -19,7 +19,7 @@
     "build:ui": "vite build",
     "dev": "tsup --watch",
     "start": "node dist/index.js",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -p ui/tsconfig.json --noEmit",
     "clean": "rm -rf dist .turbo"
   },
