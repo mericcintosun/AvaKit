@@ -140,6 +140,40 @@ describe("requestFaucet", () => {
       await expect(requestFaucet({ url: FAUCET, address: ADDRESS })).resolves.toEqual({});
     }
   });
+
+  // What a wrong faucet URL gets from a site that serves its app for every
+  // path: a page, with a 200. Reading that as a drip would report "funded" for
+  // funds nobody sent.
+  it("does not take a web page for a drip, even with a 200", async () => {
+    for (const page of [
+      "<!doctype html><html><body>My app</body></html>",
+      "\n  <html><head></head></html>",
+      '<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>',
+    ]) {
+      const spy = stubFetch(
+        () => new Response(page, { status: 200, headers: { "content-type": "text/html" } }),
+      );
+
+      const { result, error } = await settle(
+        requestFaucet({ url: FAUCET, address: ADDRESS, retries: 3 }),
+      );
+
+      expect(result).toBeNull();
+      expect(error).toBeInstanceOf(FaucetError);
+      expect(error?.code).toBe("invalid");
+      expect(error?.retryable).toBe(false);
+      expect(error?.status).toBe(200);
+      expect(error?.message).toMatch(/web page, not a faucet's JSON/);
+      // The same wrong URL would only answer the same way again.
+      expect(spy).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("judges a page by its body, not by a content type a plain answer may carry", async () => {
+    stubFetch(() => new Response("OK", { status: 200, headers: { "content-type": "text/html" } }));
+
+    await expect(requestFaucet({ url: FAUCET, address: ADDRESS })).resolves.toEqual({});
+  });
 });
 
 describe("requestFaucet failures are typed", () => {

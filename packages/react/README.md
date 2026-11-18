@@ -77,7 +77,7 @@ const adapters = useMemo(() => [burnerAdapter()], []);
 
 `AVAKIT_FAUCET_URL` is AvaKit's shared Fuji faucet (one small drip per address per day): fine for a first run, and something to replace with your own deployment of [`services/faucet`](https://github.com/mericcintosun/AvaKit/tree/main/services/faucet) for anything serious. Without a `faucetUrl` nothing is ever requested.
 
-The automatic drip is for the burner wallet only, on a testnet only, and once per address. The balance is read first and a wallet that already holds funds is left alone, so reloading the page neither spends a drip nor shows a "funded recently" error.
+The automatic drip is for the burner wallet only, on a testnet only, and once per address. The balance is read first and a wallet that already holds funds is left alone, so reloading the page neither spends a drip nor shows a "funded recently" error. (If the balance cannot be read within five seconds, the faucet is asked anyway.)
 
 `useFaucet()` reports what the faucet is doing. Its state lives in the provider, so it shows the automatic drip exactly as it shows a manual `fund()`, in every component that reads it:
 

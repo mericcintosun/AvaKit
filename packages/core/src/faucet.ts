@@ -114,6 +114,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * True for a body that is markup (an HTML page, an XML error document). Judged
+ * by how it starts, not by its declared type: plenty of servers label a plain
+ * "OK" as text/html.
+ */
+function isMarkup(text: string): boolean {
+  return text.trimStart().startsWith("<");
+}
+
 /** `Retry-After` in milliseconds: the header is either a number of seconds or an HTTP date. */
 function parseRetryAfter(header: string | null): number | undefined {
   const value = header?.trim();
@@ -299,7 +308,20 @@ async function attempt(
       // Not JSON (a proxy's HTML error page, say): the status still speaks.
     }
     if (!res.ok) throw refusal(res, body);
-    return isRecord(body) ? (body as FaucetResult) : {};
+    if (isRecord(body)) return body as FaucetResult;
+    // A web page is not a faucet's answer, whatever its status. It is what a
+    // wrong URL gets from a site that serves its app for every path, and
+    // reading it as "funded" would report a drip that nobody sent.
+    if (body === undefined && isMarkup(text)) {
+      throw new FaucetError(
+        `The faucet URL answered with a web page, not a faucet's JSON (HTTP ${res.status}). ` +
+          "Check that it points at the faucet's endpoint.",
+        res.status,
+        { code: "invalid" },
+      );
+    }
+    // A faucet that reports nothing more than success.
+    return {};
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);

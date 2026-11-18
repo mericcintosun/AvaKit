@@ -85,7 +85,7 @@ When the faucet refuses or cannot be reached, it rejects with a `FaucetError`. T
 | `"unavailable"` | The faucet failed on its side: it could not send the drip, is busy or is down (500, 502 and every other 5xx, including a 503 that is a platform or proxy error page rather than the faucet's answer) | yes |
 | `"network"` | No answer arrived: the request could not be sent, timed out or was aborted | yes |
 
-The error also carries `status` (the HTTP status, undefined when no answer arrived), `retryAfterMs` (the faucet's `Retry-After`, when it sent one) and `faucetCode` (the faucet's own, more specific refusal code, such as `"address_limited"` or `"faucet_busy"`, when its answer had one). Where the faucet's own code is known it decides `code` ahead of the status, which is how a busy faucet (retryable) is told from an empty one although both answer 503; a 4xx is never treated as retryable, whatever it carries.
+The error also carries `status` (the HTTP status, undefined when no answer arrived), `retryAfterMs` (the faucet's `Retry-After`, when it sent one) and `faucetCode` (the faucet's own, more specific refusal code, such as `"address_limited"` or `"faucet_busy"`, when its answer had one). Where the faucet's own code is known it decides `code` ahead of the status, which is how a busy faucet (retryable) is told from an empty one although both answer 503; a 4xx is never treated as retryable, whatever it carries. An answer that is a web page rather than JSON is rejected as `"invalid"` even with a 200: that is what a wrong URL gets from a site that serves its app for every path, and it is not a drip.
 
 ```ts
 import { FaucetError, requestFaucet } from "@avakit/core";
