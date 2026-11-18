@@ -77,9 +77,9 @@ function dripFailure(e: unknown) {
 
 /** Pre-filled post. Same voice as the launch calendar: lowercase, human, one 🔺. */
 function shareUrl(txHash: string) {
-  const text = `just deployed an nft contract and minted from it on Avalanche.
+  const text = `just deployed an nft contract and minted from it on Avalanche's Fuji testnet.
 
-no install, no signup, no seed phrase, no gas. about a minute, in the browser.
+no install, no signup, no seed phrase, no gas to pay. about a minute, in the browser.
 
 my mint: ${fuji.explorerUrl}/tx/${txHash}
 
@@ -497,9 +497,11 @@ function Flow() {
             ) : null}
 
             <div className="border-primary/30 bg-primary/5 rounded-lg border p-4">
-              <p className="text-sm font-medium">That was a real transaction on Avalanche. 🔺</p>
+              <p className="text-sm font-medium">
+                That was a real transaction on the Avalanche Fuji testnet. 🔺
+              </p>
               <p className="text-muted-foreground mt-1 text-sm">
-                No install, no signup, no seed phrase, no gas. Now build one of your own:
+                No install, no signup, no seed phrase, no gas to pay. Now build one of your own:
               </p>
               <pre className="bg-background/70 mt-3 overflow-x-auto rounded-md border p-3 font-mono text-xs">
                 npm create avalanche-app@latest
@@ -556,10 +558,12 @@ export function LiveDemo() {
           Live on Fuji
         </span>
         <h1 className="mt-5 text-4xl font-semibold tracking-tight sm:text-5xl">
-          A real Avalanche transaction, <span className="text-primary">in about a minute</span>.
+          A real transaction on Avalanche Fuji,{" "}
+          <span className="text-primary">in about a minute</span>.
         </h1>
         <p className="text-muted-foreground mt-4 text-base leading-relaxed">
-          No install. No signup. No seed phrase. No gas. This runs on the same{" "}
+          No install. No signup. No seed phrase. No gas to pay: the temporary wallet is funded with
+          test AVAX for you. This runs on the same{" "}
           <code className="bg-foreground/10 rounded px-1 py-0.5 text-[13px]">@avakit</code> packages{" "}
           <code className="bg-foreground/10 rounded px-1 py-0.5 text-[13px]">
             npm create avalanche-app
