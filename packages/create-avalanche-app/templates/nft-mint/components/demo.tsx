@@ -22,6 +22,19 @@ const ZERO = "0x0000000000000000000000000000000000000000" as const;
 // Where the address of the collection you deploy is remembered in localStorage.
 const CONTRACT_STORAGE_KEY = "__PROJECT_NAME__:nft-contract";
 
+// The last mint you sent. It is "sent" from the moment it is broadcast and only
+// becomes "minted" once its receipt says it succeeded; a mint that reverted, or
+// whose receipt could not be read, keeps its explorer link but never shows as
+// minted.
+type MintTx = { hash: string; status: "sent" | "minted" | "reverted" | "unconfirmed" };
+
+const MINT_LINE: Record<MintTx["status"], string> = {
+  sent: "Mint sent:",
+  minted: "✓ Minted:",
+  reverted: "Mint reverted:",
+  unconfirmed: "Mint not confirmed:",
+};
+
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   return (
@@ -53,7 +66,7 @@ export function Demo() {
   const { read, write } = useContract({ address: contractAddress ?? ZERO, abi });
 
   const [minting, setMinting] = useState(false);
-  const [mintHash, setMintHash] = useState<string | null>(null);
+  const [mintTx, setMintTx] = useState<MintTx | null>(null);
   const [supply, setSupply] = useState<bigint | null>(null);
   const [owned, setOwned] = useState<bigint | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,16 +112,25 @@ export function Demo() {
     if (!contractAddress) return;
     setMinting(true);
     setError(null);
-    setMintHash(null);
+    setMintTx(null);
     try {
       const hash = await write("mint", []);
-      setMintHash(hash);
+      setMintTx({ hash, status: "sent" });
       // Wait for the mint to be mined before reading counts — otherwise the
       // reads race the pending tx and the UI looks like nothing happened.
-      const receipt = await getPublicClient(chain).waitForTransactionReceipt({ hash });
+      const receipt = await getPublicClient(chain)
+        .waitForTransactionReceipt({ hash })
+        .catch((e: unknown) => {
+          // Sent, but its receipt never came back: it may still be mined, so it
+          // keeps its explorer link as "not confirmed", never as minted.
+          setMintTx({ hash, status: "unconfirmed" });
+          throw e;
+        });
       if (receipt.status === "reverted") {
+        setMintTx({ hash, status: "reverted" });
         throw new Error("The mint transaction reverted on-chain.");
       }
+      setMintTx({ hash, status: "minted" });
       await refreshCounts();
     } catch (e) {
       setError(humanizeError(e));
@@ -121,7 +143,7 @@ export function Demo() {
   // e.g. to deploy the new bytecode after editing the contract.
   function startOver() {
     deployed.forget();
-    setMintHash(null);
+    setMintTx(null);
     setError(null);
   }
 
@@ -188,14 +210,18 @@ export function Demo() {
             View contract on explorer
           </a>
 
-          {mintHash ? (
+          {mintTx ? (
             <a
-              href={`${chain.explorerUrl}/tx/${mintHash}`}
+              href={`${chain.explorerUrl}/tx/${mintTx.hash}`}
               target="_blank"
               rel="noreferrer"
-              className="text-sm break-all underline underline-offset-4"
+              className={
+                mintTx.status === "minted"
+                  ? "text-sm break-all underline underline-offset-4"
+                  : "text-muted-foreground text-sm break-all underline underline-offset-4"
+              }
             >
-              ✓ Minted: {mintHash}
+              {MINT_LINE[mintTx.status]} {mintTx.hash}
             </a>
           ) : null}
 

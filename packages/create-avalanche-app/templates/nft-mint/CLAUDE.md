@@ -28,7 +28,10 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 1. Connect a wallet (`<ConnectAvalanche />`).
 2. Deploy: `useAvaDeploy().deploy({ abi, bytecode })` → returns the contract address, which the demo
    keeps with `useDeployedContract(...).remember(address)`.
-3. Mint: `useContract({ address, abi }).write("mint", [])`.
+3. Mint: `useContract({ address, abi }).write("mint", [])` returns the hash as soon as the
+   transaction is sent. The demo shows it as "Mint sent" and only as "✓ Minted" once
+   `waitForTransactionReceipt` returns `status: "success"`; a reverted mint (or one whose receipt
+   never came back) keeps its explorer link and never shows the check mark.
 4. Read state: `useContract(...).read("totalSupply")`, `.read("balanceOf", [address])`.
 
 ## Test AVAX (faucet)
