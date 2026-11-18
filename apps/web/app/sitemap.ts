@@ -1,10 +1,13 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/content";
 
-// Landing + templates are translated (EN at /, TR at /tr). Docs are English-only
-// and canonicalize to their EN path, so they're listed once.
+// Landing + templates are translated (EN at /, TR at /tr). Everything else is
+// English-only and canonicalizes to its EN path (see pageMetadata), so it is
+// listed once. Keep both lists in step with the pages' own metadata; /pitch is
+// left out on purpose, it is a deck to hand out, not a page to be found.
 const TRANSLATED = ["", "/templates"];
 const EN_ONLY = [
+  "/new",
   "/docs",
   "/docs/core",
   "/docs/react",
@@ -13,6 +16,8 @@ const EN_ONLY = [
   "/docs/studio",
   "/docs/telemetry",
   "/stats",
+  "/terminal",
+  "/avatar",
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -26,6 +31,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       languages: {
         en: `${SITE_URL}${route}`,
         tr: `${SITE_URL}/tr${route}`,
+        "x-default": `${SITE_URL}${route}`,
       },
     },
   }));
@@ -33,7 +39,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: `${SITE_URL}${route}`,
     lastModified,
     changeFrequency: "weekly" as const,
-    priority: 0.6,
+    // /new is the "Try it now" page the header leads to.
+    priority: route === "/new" ? 0.9 : 0.6,
   }));
   return [...translated, ...enOnly];
 }
