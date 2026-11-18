@@ -80,6 +80,19 @@ function reason(cause: unknown): string {
 }
 
 /**
+ * What the node itself said, in brackets, when viem keeps it apart from its own
+ * short message (which for a failed read is often just "RPC Request failed.").
+ * Empty when there is nothing more to add.
+ */
+function nodeDetails(cause: unknown): string {
+  const details =
+    typeof cause === "object" && cause !== null
+      ? (cause as { details?: unknown }).details
+      : undefined;
+  return typeof details === "string" && details ? ` (${details})` : "";
+}
+
+/**
  * The balance check of the mainnet guardrail: refuse a deployment the account
  * cannot pay for, before the wallet is asked to sign anything. The cost is the
  * node's gas estimate at its current gas price, which is about the least the
@@ -171,21 +184,25 @@ async function assertCodeAt(
     await new Promise((resolve) => setTimeout(resolve, wait));
   }
 
-  const where = chain.explorerUrl ? ` (${chain.explorerUrl}/tx/${txHash})` : "";
+  // The transaction did succeed, so say where to look before anyone deploys a
+  // second time: if the RPC was merely further behind than this waited for, the
+  // contract is there after all.
+  const where = chain.explorerUrl ? ` (${chain.explorerUrl}/address/${address})` : "";
   if (failure !== undefined) {
     throw new DeployFailedError(
       `Deployment transaction ${txHash} succeeded on ${chain.name} and names ${address} as the ` +
         `new contract, but its code could not be read back to confirm it (${reads} attempts). ` +
-        `Check the transaction${where} before using the address. The last read failed with: ` +
-        reason(failure),
+        `Check the address${where} before using it or deploying again. The last read failed ` +
+        `with: ${reason(failure)}${nodeDetails(failure)}`,
       { cause: failure },
     );
   }
   throw new DeployFailedError(
-    `Deployment transaction ${txHash} succeeded on ${chain.name}, but there is no contract ` +
-      `code at ${address} (read ${reads} times over ${CODE_CHECK_SECONDS} seconds). Nothing ` +
-      "usable was deployed: make sure the artifact holds creation bytecode and that the " +
-      `constructor does not self-destruct, and check the transaction${where}.`,
+    `Deployment transaction ${txHash} succeeded on ${chain.name}, but no contract code could ` +
+      `be read at ${address} (${reads} reads over ${CODE_CHECK_SECONDS} seconds). Most likely ` +
+      "the creation left none: the artifact must hold creation bytecode, and the constructor " +
+      "must not self-destruct. If the RPC is only behind, the contract will appear at that " +
+      `address, so check it${where} before deploying again.`,
   );
 }
 

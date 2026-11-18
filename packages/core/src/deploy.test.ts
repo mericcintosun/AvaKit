@@ -393,9 +393,16 @@ describe("deployContract result", () => {
       expect(result).toBeNull();
       expect(error).toBeInstanceOf(DeployFailedError);
       expect(error?.message).toMatch(
-        /no contract code at 0x5FbDB2315678afecb367f032d93F642f64180aa3/,
+        /no contract code could be read at 0x5FbDB2315678afecb367f032d93F642f64180aa3/,
       );
-      expect(error?.message).toContain(`${fuji.explorerUrl}/tx/${txHash}`);
+      expect(error?.message).toContain(txHash);
+      expect(error?.message).toContain("5 reads over 2 seconds");
+      // The transaction succeeded, so before anyone deploys again the message
+      // points at where the contract would be if the RPC was only behind.
+      expect(error?.message).toContain(
+        `${fuji.explorerUrl}/address/0x5FbDB2315678afecb367f032d93F642f64180aa3`,
+      );
+      expect(error?.message).toMatch(/before deploying again/);
       // One read at once and four more over the two seconds: bounded, not a poll.
       expect(getCodeCalls(calls)).toHaveLength(5);
     });
@@ -465,6 +472,10 @@ describe("deployContract result", () => {
       expect(error?.message).toMatch(/could not be read back/);
       expect(error?.message).toContain("0x5FbDB2315678afecb367f032d93F642f64180aa3");
       expect(error?.message).toContain(txHash);
+      expect(error?.message).toContain(
+        `${fuji.explorerUrl}/address/0x5FbDB2315678afecb367f032d93F642f64180aa3`,
+      );
+      expect(error?.message).toContain("header not found");
       expect(error?.cause).toBeDefined();
       expect(getCodeCalls(calls)).toHaveLength(5);
     });
