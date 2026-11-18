@@ -208,7 +208,9 @@ async function castSend(rpcUrl: string, rest: string[]): Promise<Receipt> {
   } catch {
     receipt = null;
   }
-  if (!receipt || typeof receipt !== "object") throw new Error("cast send printed no receipt");
+  if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) {
+    throw new Error("cast send printed no receipt");
+  }
   // cast exits 0 for a transaction that was mined and then reverted.
   if (receipt.status === "0x0") throw new Error("the transaction was mined but reverted");
   return receipt;

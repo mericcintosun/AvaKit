@@ -435,6 +435,15 @@ describe("deployMessengers", () => {
     expect((failure as Error).message).not.toContain("--private-key");
   });
 
+  it("fails when cast exits cleanly without printing a receipt", async () => {
+    twoChains();
+    for (const output of ["Transaction sent.", "null", "[]"]) {
+      sandbox.stub("cast", `() => ({ out: ${JSON.stringify(`${output}\n`)} })`);
+      await expect(deployMessengers(), output).rejects.toThrow("cast send printed no receipt");
+    }
+    expect(sandbox.readIcmState()).toEqual({});
+  });
+
   it("says so when cast is not installed", async () => {
     twoChains();
     await expect(deployMessengers()).rejects.toThrow(/cast is not installed/);
