@@ -24,7 +24,9 @@ const DEMO_WEB3AUTH_CLIENT_ID =
 
 // A mainnet app moves real funds, so it gets the production wallet setup: no
 // temporary in-browser wallet, Web3Auth's Sapphire Mainnet instead of its devnet,
-// and no fallback to the shared demo client ID.
+// and no fallback to the shared demo client ID. This template is Fuji-only (see
+// the note above the wagmi config below), so this is false unless you change
+// the chain yourself — the guard is here so that doing so fails safe.
 const ON_MAINNET = isMainnet(__CHAIN_CONST__);
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -70,8 +72,14 @@ export function Providers({ children }: { children: ReactNode }) {
   // AvaKitProvider's adapters (Web3Auth / injected) — wagmi never owns the
   // account here, it only provides an RPC-backed read client. Derive the wagmi
   // chain from the same __CHAIN_CONST__ AvaKit uses, so the two never diverge.
-  // (The shared eERC contract in lib/eerc-config.ts only exists on Fuji — deploy
-  // your own instance to use another chain; see CLAUDE.md.)
+  //
+  // This template is Fuji-only. The shared eERC contract in lib/eerc-config.ts
+  // exists only on Fuji, and `pnpm deploy:eerc` deploys your own instance to
+  // Fuji as well — there is no supported path to another chain. Changing the
+  // chain here on its own leaves the app reading an address with no contract
+  // behind it; you would first have to deploy the eERC contracts on that chain
+  // yourself (with the upstream ava-labs/EncryptedERC tooling) and point
+  // EERC_CONTRACT_ADDRESS at them.
   const [wagmiConfig] = useState(() => {
     const viemChain = toViemChain(__CHAIN_CONST__);
     return createConfig({

@@ -42,5 +42,7 @@ Register, mint, and privately transfer tokens with hidden balances using Avalanc
 - shadcn/ui only; black & white for now; dark/light via next-themes; both must work.
 - Animations: Framer Motion or GSAP only.
 - Registering/minting/transferring/burning cost gas (except unlocking); fund the wallet on Fuji first.
-- Default chain is Fuji testnet; mainnet requires explicit opt-in.
+- Fuji only: the shared eERC instance and `pnpm deploy:eerc` both live on Fuji. Do not switch the
+  chain in `app/providers.tsx` — on any other chain there is no eERC contract at
+  `EERC_CONTRACT_ADDRESS`.
 - wagmi is pinned to 2.x (not the latest major) because `@avalabs/eerc-sdk` peer-depends on `^2.0.0`.

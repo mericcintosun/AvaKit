@@ -112,7 +112,11 @@ mint/transfer/burn succeeds) → Mint.
 - Amounts are in the token's base units (2 decimals here) — always convert with `parseUnits` /
   `formatUnits`, read `decimals` from `balance.decimals` rather than hardcoding it.
 - Never hardcode private keys; wallet signing always goes through the connected adapter.
-- Default chain is Fuji testnet; mainnet requires explicit opt-in.
+- **Fuji only.** The shared eERC instance exists only on Fuji and `pnpm deploy:eerc` deploys only
+  to Fuji, so there is no supported way to run this template on another chain. Changing the chain
+  in `app/providers.tsx` alone leaves the app reading an address with no contract behind it; to
+  use another chain you would first have to deploy the eERC contracts there yourself with the
+  upstream `ava-labs/EncryptedERC` tooling and point `EERC_CONTRACT_ADDRESS` at them.
 - Social login works out of the box on localhost via a bundled demo Web3Auth key. Set your own `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (free at https://dashboard.web3auth.io) in `.env.local` before deploying — the demo key only allows localhost.
 
 ## Commands
