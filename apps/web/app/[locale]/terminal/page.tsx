@@ -11,7 +11,8 @@ import { pageMetadata } from "@/lib/metadata";
 export const metadata: Metadata = pageMetadata({
   route: "/terminal",
   title: "Terminal",
-  description: "Watch AvaKit scaffold a social-login Avalanche dapp — live in about a minute.",
+  description:
+    "A replay of create-avalanche-app in a terminal: the questions it asks and the lines it prints while it scaffolds an Avalanche dapp.",
 });
 
 export default async function TerminalPage({ params }: { params: Promise<{ locale: Locale }> }) {

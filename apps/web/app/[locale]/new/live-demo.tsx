@@ -33,8 +33,13 @@ import { abi, bytecode } from "@/lib/nft-artifact";
 
 /** AvaKit-hosted faucet that drips Fuji AVAX (see services/faucet). */
 const FAUCET_URL = process.env.NEXT_PUBLIC_AVAKIT_FAUCET_URL;
-/** The public Fuji faucet: the way forward whenever ours can't fund the wallet. */
-const PUBLIC_FAUCET_URL = fuji.faucetUrl ?? "https://core.app/tools/testnet-faucet/";
+/**
+ * The official Fuji faucet: the way forward whenever ours can't fund the wallet.
+ * It is the Builder Hub faucet (the older core.app address redirects there) and
+ * asks for a free Builder Hub sign-in, which the copy below says up front.
+ */
+const PUBLIC_FAUCET_URL =
+  fuji.faucetUrl ?? "https://build.avax.network/console/primary-network/faucet";
 /** A faucet that takes the request and then stalls is a failure, not a wait. */
 const FAUCET_TIMEOUT_MS = 20_000;
 /** A drip lands within seconds. Past this, stop implying it is on its way. */
@@ -180,8 +185,8 @@ function FundManually({
         {children}
       </p>
       <p className="text-muted-foreground text-sm">
-        You can fund this wallet yourself. Send it test AVAX from the public faucet and this page
-        carries on by itself as soon as it lands:
+        You can fund this wallet yourself. Send it test AVAX from the official faucet (it needs a
+        free Builder Hub sign-in) and this page carries on by itself as soon as it lands:
       </p>
       <code className="bg-foreground/10 w-fit rounded px-2 py-1 font-mono text-xs break-all">
         {address}
@@ -196,7 +201,7 @@ function FundManually({
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
           {copied ? "Copied" : "Copy address"}
         </Button>
-        <ExplorerLink href={PUBLIC_FAUCET_URL} label="Open the public Fuji faucet" />
+        <ExplorerLink href={PUBLIC_FAUCET_URL} label="Open the official Fuji faucet" />
       </div>
     </div>
   );
