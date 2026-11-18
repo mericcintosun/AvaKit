@@ -18,7 +18,10 @@ Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer.
 ## Bridging
 
 - home→remote: `approve(home, amount)` on the token, then `home.send(SendTokensInput, amount)` (locks + ICM).
-- remote→home: `remote.send(SendTokensInput, amount)` (burns the bridged token; no approval).
+- remote→home: `approve(remote, amount)` on the remote token itself, then
+  `remote.send(SendTokensInput, amount)`. The approval is required on this leg too: `ERC20TokenRemote`
+  is an ERC-20 and `send` pulls the tokens with `transferFrom` before burning them, so without it the
+  send reverts. Never drop the approve step from either leg.
 - SendTokensInput fields: destinationBlockchainID (bytes32 via `blockchainIdOf`), destinationTokenTransferrerAddress,
   recipient, primaryFeeTokenAddress (0x0 on local), primaryFee (0), secondaryFee (0), requiredGasLimit (250000),
   multiHopFallback (0x0).
