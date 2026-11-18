@@ -5,7 +5,7 @@
 ## Project map
 
 - [scripts/bridge.sh](scripts/bridge.sh): `pnpm bridge` — 2 L1s + relayer, then deploy the bridge.
-- [scripts/deploy-bridge.mjs](scripts/deploy-bridge.mjs): deploys demo ERC-20 + Home + Remote + registers them (viem + embedded artifacts + EWOQ key); writes bridge.config.json.
+- [scripts/deploy-bridge.mjs](scripts/deploy-bridge.mjs): deploys demo ERC-20 + Home + Remote + registers them (viem + embedded artifacts + the EWOQ dev key, read from `avalanche blockchain describe` at run time — it is not stored in the repo; `BRIDGE_DEPLOYER_KEY` overrides it); writes bridge.config.json.
 - [lib/ictt-artifacts.json](lib/ictt-artifacts.json): ABIs + optimized bytecode for TeleporterRegistry, ERC20TokenHome, ERC20TokenRemote, demo ERC-20 (from ava-labs/icm-contracts).
 - [lib/ictt.ts](lib/ictt.ts): bridge.config.json → AvaKit chains + addresses + ABIs; `blockchainIdOf`, `isConfigured`.
 - [components/demo.tsx](components/demo.tsx): the bridge UI — balances, mint, bridge in either direction.

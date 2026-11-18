@@ -101,7 +101,7 @@ cd contracts && forge build
 
 - UI uses **shadcn/ui only** (`@avakit/react` components are shadcn-styled). Black & white; dark/light via `next-themes`.
 - Animations: **Framer Motion** or **GSAP** only.
-- Never hardcode private keys. The EWOQ key is a **public dev key** — local devnet only, never a real network.
+- Never hardcode private keys. The EWOQ key is a **public dev key** — local devnet only, never a real network — and even it is not written into this repo: `pnpm devnet` reads it from `avalanche blockchain describe` to print it, so secret scanners stay quiet.
 
 ## Commands
 

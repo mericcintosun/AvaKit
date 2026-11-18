@@ -162,7 +162,9 @@ After changing `contracts/src/AvaKitToken.sol`: `cd contracts && forge build`, t
 - shadcn/ui only; `@avakit/react` components are shadcn-styled. Black & white for now; dark/light via next-themes; both must work.
 - Animations: Framer Motion or GSAP only.
 - The explorer is all read-only viem (`getPublicClient(chain)` → `getBlock`/`getBalance`/…); keep it that way — no server, no indexer.
-- Never hardcode a real private key. The EWOQ key is public/local-only.
+- Never hardcode a real private key. The EWOQ key is public/local-only, and even it is not written
+  into this repo: `pnpm l1` reads it from `avalanche blockchain describe` to print it, so secret
+  scanners stay quiet.
 
 ## Commands
 

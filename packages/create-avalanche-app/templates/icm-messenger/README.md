@@ -20,11 +20,7 @@ curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts
 
 The two local chains are named `icm1`/`icm2` (EVM chainIds 1001/1002), so this can run alongside the token-bridge devnet without colliding.
 
-Then in your wallet (Core / MetaMask), **import the EWOQ dev key** (pre-funded on both local chains — public dev key, never use on a real network):
-
-```
-0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027
-```
+Then in your wallet (Core / MetaMask), **import the EWOQ dev key** — avalanche-cli's public local dev key, pre-funded on both local chains. `pnpm devnet` prints it when it finishes; it is also on the `ewoq` row of `avalanche blockchain describe icm1`. It is deliberately not written in this repo (secret scanners flag committed keys, even public dev ones). Never use it on a real network.
 
 ## The flow
 

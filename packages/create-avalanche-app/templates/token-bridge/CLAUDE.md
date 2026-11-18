@@ -28,7 +28,9 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 - `scripts/bridge.sh` (`pnpm bridge`) — creates + deploys two L1s, then runs `deploy-bridge.mjs`.
 - `scripts/deploy-bridge.mjs` — deploys the demo ERC-20 + TeleporterRegistry + Home on chain1, a
   TeleporterRegistry + Remote on chain2, and calls `registerWithHome`. Uses viem + the embedded
-  artifacts + the public EWOQ key. Writes all addresses to `bridge.config.json`.
+  artifacts + the public EWOQ dev key, which it reads from `avalanche blockchain describe` at run
+  time (the key is not stored in this repo; `BRIDGE_DEPLOYER_KEY=0x…` deploys with another key
+  that is funded on both chains). Writes all addresses to `bridge.config.json`.
 - `lib/ictt-artifacts.json` — ABIs + bytecode for TeleporterRegistry, ERC20TokenHome,
   ERC20TokenRemote, and the demo ERC-20, compiled from `ava-labs/icm-contracts` with the optimizer.
 - `lib/ictt.ts` — turns `bridge.config.json` into AvaKit chains + the addresses/ABIs the app uses.
@@ -65,7 +67,9 @@ build to compile under the size limit — this template ships pre-compiled bytec
 - shadcn/ui only; `@avakit/react` components are shadcn-styled. Black & white for now; dark/light via next-themes; both must work.
 - Animations: Framer Motion or GSAP only.
 - Amounts are 18-decimal — always convert with `parseEther` / `formatEther`.
-- Never hardcode a real private key. The EWOQ key is a PUBLIC dev key — local devnet only.
+- Never hardcode a real private key. The EWOQ key is a PUBLIC dev key — local devnet only — and
+  even it is not written into this repo: the scripts read it from avalanche-cli, so secret scanners
+  stay quiet. Keep it that way.
 
 ## Commands
 

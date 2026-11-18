@@ -180,13 +180,26 @@ EOF
 
 say "Wrote icm.config.json:"
 printf "   %s → %s\n   %s → %s\n" "$CHAIN1" "$RPC1" "$CHAIN2" "$RPC2"
+
+# --- 6. The EWOQ dev key, for the wallet import below -----------------------
+# EWOQ is avalanche-cli's public local dev key, pre-funded on both chains. It is
+# not written in this repo (secret scanners flag committed keys, even public dev
+# ones): avalanche-cli prints it on the "ewoq" row of `blockchain describe`.
+EWOQ_KEY="$(printf '%s' "$DESC1" | grep -E '^[^|]*\|[[:space:]]*ewoq[[:space:]]*\|' | grep -oE '[0-9a-fA-F]{64}' | head -1)"
+if [ -n "$EWOQ_KEY" ]; then
+  EWOQ_HINT="0x$EWOQ_KEY"
+else
+  EWOQ_HINT="(avalanche-cli shows it on the \"ewoq\" row of: avalanche blockchain describe $CHAIN1)"
+fi
+
 cat <<EOF
 
 ✔ Local ICM devnet is up.
 
 Next:
   1. In your wallet (Core / MetaMask), import the EWOQ dev key (pre-funded on both chains):
-       0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027
+       $EWOQ_HINT
+     (public dev key — local devnet only, never a real network)
   2. pnpm dev  →  http://localhost:3000 (or the port Next prints)
   3. Deploy the messenger on both chains, then send a message across.
 

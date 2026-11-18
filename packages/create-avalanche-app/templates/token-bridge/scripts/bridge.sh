@@ -71,17 +71,14 @@ say "Deploying '$CHAIN2' locally…"
 deploy_local "$CHAIN2"
 
 # --- 2. Discover each chain's RPC URL + hex blockchain ID -------------------
-discover() {
-  local name="$1" out
-  out="$(avalanche blockchain describe "$name" 2>/dev/null)"
-  local rpc bid
-  rpc="$(printf '%s' "$out" | grep -oE 'http://127\.0\.0\.1:[0-9]+/ext/bc/[A-Za-z0-9]+/rpc' | head -1)"
-  bid="$(printf '%s' "$out" | grep -iE 'BlockchainID \(HEX\)' | grep -oiE '0x[0-9a-f]{64}' | head -1)"
-  printf '%s\t%s' "$rpc" "$bid"
-}
+# `describe` prints both. We grep by shape (robust across CLI versions).
+rpc_of() { printf '%s' "$1" | grep -oE 'http://127\.0\.0\.1:[0-9]+/ext/bc/[A-Za-z0-9]+/rpc' | head -1; }
+bid_of() { printf '%s' "$1" | grep -iE 'BlockchainID \(HEX\)' | grep -oiE '0x[0-9a-f]{64}' | head -1; }
 say "Reading chain details…"
-IFS=$'\t' read -r RPC1 BID1 < <(discover "$CHAIN1")
-IFS=$'\t' read -r RPC2 BID2 < <(discover "$CHAIN2")
+DESC1="$(avalanche blockchain describe "$CHAIN1" 2>/dev/null)"
+DESC2="$(avalanche blockchain describe "$CHAIN2" 2>/dev/null)"
+RPC1="$(rpc_of "$DESC1")"; BID1="$(bid_of "$DESC1")"
+RPC2="$(rpc_of "$DESC2")"; BID2="$(bid_of "$DESC2")"
 [ -n "$RPC1" ] && [ -n "$BID1" ] || die "Could not read '$CHAIN1' RPC/blockchain ID."
 [ -n "$RPC2" ] && [ -n "$BID2" ] || die "Could not read '$CHAIN2' RPC/blockchain ID."
 
@@ -100,13 +97,24 @@ say "Deploying the ICTT bridge (demo token, home, remote, registration)…"
 command -v node >/dev/null 2>&1 || die "node is required to deploy the bridge contracts."
 node "$ROOT/scripts/deploy-bridge.mjs" || die "Bridge deploy failed. Is the network healthy? Try: avalanche network status"
 
+# --- 5. The EWOQ dev key, for the wallet import below -----------------------
+# EWOQ is avalanche-cli's public local dev key, pre-funded on both chains. It is
+# not written in this repo (secret scanners flag committed keys, even public dev
+# ones): avalanche-cli prints it on the "ewoq" row of `blockchain describe`.
+EWOQ_KEY="$(printf '%s' "$DESC1" | grep -E '^[^|]*\|[[:space:]]*ewoq[[:space:]]*\|' | grep -oE '[0-9a-fA-F]{64}' | head -1)"
+if [ -n "$EWOQ_KEY" ]; then
+  EWOQ_HINT="0x$EWOQ_KEY"
+else
+  EWOQ_HINT="(avalanche-cli shows it on the \"ewoq\" row of: avalanche blockchain describe $CHAIN1)"
+fi
+
 cat <<EOF
 
 ✔ Local ICTT bridge is up.
 
 Next:
   1. Import the EWOQ dev key into your wallet (Core / MetaMask), pre-funded on both chains:
-       0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027
+       $EWOQ_HINT
      (public dev key, local only)
   2. pnpm dev  →  http://localhost:3000 (or the port Next prints)
   3. Mint the demo token on $CHAIN1, then bridge it to $CHAIN2 and watch it arrive.

@@ -23,8 +23,9 @@ CONFIG="$ROOT/l1.config.json"
 
 # EWOQ: avalanche-cli's well-known local dev key, pre-funded on every local
 # chain. PUBLIC — for local networks only, never a real network. Import it into
-# your wallet to transact on your L1.
-EWOQ_PK="0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027"
+# your wallet to transact on your L1. This is its address; the key itself is not
+# written in this repo (secret scanners flag committed keys, even public dev
+# ones) — it is read from avalanche-cli further down.
 EWOQ_ADDR="0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
 
 say() { printf "\033[1;37m▸\033[0m %s\n" "$1"; }
@@ -119,13 +120,23 @@ cat > "$CONFIG" <<EOF
 EOF
 
 say "Wrote l1.config.json → $RPC"
+
+# --- 5. The EWOQ dev key, for the wallet import below -----------------------
+# avalanche-cli prints it on the "ewoq" row of `blockchain describe`.
+EWOQ_KEY="$(printf '%s' "$OUT" | grep -E '^[^|]*\|[[:space:]]*ewoq[[:space:]]*\|' | grep -oE '[0-9a-fA-F]{64}' | head -1)"
+if [ -n "$EWOQ_KEY" ]; then
+  EWOQ_HINT="0x$EWOQ_KEY"
+else
+  EWOQ_HINT="(avalanche-cli shows it on the \"ewoq\" row of: avalanche blockchain describe $NAME)"
+fi
+
 cat <<EOF
 
 ✔ Your L1 is live locally.
 
 Next:
   1. Import the EWOQ dev key into your wallet (Core / MetaMask) — pre-funded on your chain:
-       $EWOQ_PK
+       $EWOQ_HINT
      (public dev key, local only)
   2. pnpm dev  →  http://localhost:3000 (or the port Next prints)  (your chain dashboard + explorer)
   3. Deploy the demo token, watch blocks and transactions land in real time.

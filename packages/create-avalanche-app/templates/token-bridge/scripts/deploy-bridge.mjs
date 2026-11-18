@@ -6,8 +6,13 @@
 // All addresses are written back into bridge.config.json for the app to read.
 //
 // Uses viem + the embedded ICTT artifacts (lib/ictt-artifacts.json). Runs with
-// the public EWOQ dev key, which is pre-funded on every local chain.
+// the public EWOQ dev key, which is pre-funded on every local chain — read from
+// avalanche-cli at run time, never stored in this repo (see deployerAccount).
+//
+//   node scripts/deploy-bridge.mjs
+//   BRIDGE_DEPLOYER_KEY=0x… node scripts/deploy-bridge.mjs   # another funded key
 
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createPublicClient, createWalletClient, http } from "viem";
@@ -21,9 +26,60 @@ const cfg = JSON.parse(readFileSync(CONFIG, "utf8"));
 // The TeleporterMessenger is the same fixed predeploy on every ICM-enabled L1.
 const MESSENGER = "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf";
 const ZERO = "0x0000000000000000000000000000000000000000";
-// EWOQ: avalanche-cli's public local dev key, pre-funded on every local chain.
-const EWOQ = "0x56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027";
-const account = privateKeyToAccount(EWOQ);
+// EWOQ is avalanche-cli's public local dev key; this is its address, which every
+// local chain pre-funds. The key itself is deliberately not written in this repo
+// — secret scanners flag committed keys, even public dev ones.
+const EWOQ_ADDRESS = "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC";
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+// The account that deploys the bridge and pays for it on both chains: the EWOQ
+// dev key, taken from avalanche-cli, which prints it in `blockchain describe`.
+// BRIDGE_DEPLOYER_KEY overrides it with any key that is funded on both chains.
+function deployerAccount() {
+  const override = process.env.BRIDGE_DEPLOYER_KEY;
+  if (override) {
+    if (!/^0x[0-9a-fA-F]{64}$/.test(override)) {
+      fail("BRIDGE_DEPLOYER_KEY must be a 0x-prefixed 32-byte hex private key.");
+    }
+    return privateKeyToAccount(override);
+  }
+
+  let described;
+  try {
+    described = execFileSync("avalanche", ["blockchain", "describe", cfg.chain1.name], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    fail(
+      `Could not run "avalanche blockchain describe ${cfg.chain1.name}" to read the EWOQ dev key.\n` +
+        "Is avalanche-cli installed and did `pnpm bridge` create the chains?\n" +
+        "Or pass a key that is funded on both chains: BRIDGE_DEPLOYER_KEY=0x… node scripts/deploy-bridge.mjs",
+    );
+  }
+  // Any 64-digit hex string in the output could be a key (a blockchain ID is one
+  // too). EWOQ is the one that controls the pre-funded EWOQ address, so a change
+  // in the table's layout cannot make this pick the wrong one.
+  const candidates = described.match(/(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])/g) ?? [];
+  for (const candidate of new Set(candidates)) {
+    try {
+      const account = privateKeyToAccount(`0x${candidate}`);
+      if (account.address.toLowerCase() === EWOQ_ADDRESS.toLowerCase()) return account;
+    } catch {
+      // not a valid private key
+    }
+  }
+  fail(
+    `avalanche-cli did not print the EWOQ dev key for "${cfg.chain1.name}" (expected in the token ` +
+      `allocation table of: avalanche blockchain describe ${cfg.chain1.name}).\n` +
+      "Pass a key that is funded on both chains instead: BRIDGE_DEPLOYER_KEY=0x… node scripts/deploy-bridge.mjs",
+  );
+}
+const account = deployerAccount();
 
 function clients(c) {
   const chain = {
