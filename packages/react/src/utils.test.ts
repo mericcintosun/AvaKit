@@ -139,6 +139,53 @@ describe("humanizeError", () => {
     expect(out).not.toContain("second line");
   });
 
+  it("ends a long first line with its last complete sentence inside the limit", () => {
+    const first = `First sentence ${"a".repeat(120)}.`;
+    const out = humanizeError(new Error(`${first} Second sentence ${"b".repeat(100)}.`));
+    expect(out).toBe(first);
+  });
+
+  it("cuts at the limit when the last sentence inside it ends early", () => {
+    const long = `Short. ${"c".repeat(300)}`;
+    expect(humanizeError(new Error(long))).toBe(long.slice(0, 200));
+  });
+
+  // The temporary (burner) wallet refuses a transaction with a
+  // WalletConnectionError written for the user. Through a viem wallet client it
+  // arrives wrapped in "An unknown RPC error occurred.", which says nothing.
+  describe("a refusal from AvaKit's own wallet", () => {
+    const REFUSAL =
+      "Nothing was signed or sent: icm2 is defined as chain 1002, but the node at its rpcUrl " +
+      "reports chain 43114, which is a mainnet.";
+
+    function refusal(message = REFUSAL): Error {
+      return Object.assign(new Error(message), { name: "WalletConnectionError" });
+    }
+
+    it("is shown in place of viem's wrapper", () => {
+      const wrapped = transactionError(
+        new BaseError("An unknown RPC error occurred.", { cause: refusal() }),
+      );
+      expect(wrapped.shortMessage).toBe("An unknown RPC error occurred.");
+      expect(humanizeError(wrapped)).toBe(REFUSAL);
+    });
+
+    it("is shown when it is the error itself", () => {
+      expect(humanizeError(refusal())).toBe(REFUSAL);
+    });
+
+    it("does not hide a rejection or a missing balance further down", () => {
+      const rejected = Object.assign(refusal("Connecting failed."), {
+        cause: { code: 4001, message: "Request declined." },
+      });
+      expect(humanizeError(rejected)).toBe(REJECTED);
+      const unfunded = Object.assign(refusal("Sending failed."), {
+        cause: { name: "InsufficientFundsError", message: "0 AVAX" },
+      });
+      expect(humanizeError(unfunded)).toBe(FUND_IT);
+    });
+  });
+
   it("handles non-Error/string inputs without throwing", () => {
     expect(typeof humanizeError("plain string error")).toBe("string");
     expect(typeof humanizeError(null)).toBe("string");

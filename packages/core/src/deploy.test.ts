@@ -1,8 +1,15 @@
-import type { EIP1193Provider } from "viem";
+import type { EIP1193Provider, Hex } from "viem";
+import { parseTransaction } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { burnerAdapter } from "./adapters/burner.js";
 import { type AvaChain, cChain, defineChain, fuji } from "./chains.js";
 import { deployContract, getBytecode, waitForDeployment } from "./deploy.js";
-import { DeployFailedError, InsufficientFundsError, MainnetConfirmationError } from "./errors.js";
+import {
+  DeployFailedError,
+  InsufficientFundsError,
+  MainnetConfirmationError,
+  WalletConnectionError,
+} from "./errors.js";
 import * as entry from "./index.js";
 import { endpoint, stubRpc } from "./testing/rpc.js";
 
@@ -329,6 +336,65 @@ describe("deployContract result", () => {
     await deployContract({ artifact, chain: fuji, provider: walletOn(fuji.id), account });
 
     expect(calls.map((call) => call.method)).toEqual(["eth_getTransactionReceipt", "eth_getCode"]);
+  });
+
+  // deployContract asks the wallet which chain it is on, and the temporary
+  // (burner) wallet answers from its definition. A definition labelled Fuji
+  // whose rpcUrl points at a mainnet node therefore passes both the mainnet
+  // guard and viem's chain check; the burner itself has to stop the deployment.
+  describe("with the temporary (burner) wallet", () => {
+    /** What the burner asks of a node to send the deployment, on a node that says it serves `chainId`. */
+    function stubNodeServing(chainId: number) {
+      return stubDeployed({
+        eth_chainId: () => `0x${chainId.toString(16)}`,
+        eth_getTransactionCount: () => "0x0",
+        eth_estimateGas: () => "0x5208",
+        eth_getBlockByNumber: () => ({ number: "0x10", baseFeePerGas: "0x3b9aca00" }),
+        eth_maxPriorityFeePerGas: () => "0x1",
+        eth_gasPrice: () => "0x3b9aca00",
+        eth_sendRawTransaction: () => txHash,
+      });
+    }
+
+    async function connectBurner() {
+      const { address, provider } = await burnerAdapter({ chain: fuji, persist: false }).connect();
+      return { burner: address, provider };
+    }
+
+    it("sends no deployment when a Fuji-labelled definition points at a mainnet node", async () => {
+      const calls = stubNodeServing(cChain.id);
+      const { burner, provider } = await connectBurner();
+
+      const deployment = deployContract({ artifact, chain: fuji, provider, account: burner });
+
+      await expect(deployment).rejects.toThrow(
+        /Nothing was signed or sent: Avalanche Fuji is defined as chain 43113, but the node at its rpcUrl reports chain 43114, which is a mainnet/,
+      );
+      // The refusal is the burner's own error, under viem's wrapper.
+      const error = await deployment.catch((caught: unknown) => caught);
+      let link = error as { cause?: unknown } | undefined;
+      while (link && !(link instanceof WalletConnectionError)) {
+        link = link.cause as { cause?: unknown } | undefined;
+      }
+      expect(link).toBeInstanceOf(WalletConnectionError);
+      // The node was asked which chain it is, and for nothing else.
+      expect(calls.map((call) => call.method)).toEqual(["eth_chainId"]);
+    });
+
+    it("deploys on a node that serves the definition's chain, signed for that chain", async () => {
+      const calls = stubNodeServing(fuji.id);
+      const { burner, provider } = await connectBurner();
+
+      const result = await deployContract({ artifact, chain: fuji, provider, account: burner });
+
+      expect(result.address).toBe("0x5FbDB2315678afecb367f032d93F642f64180aa3");
+      const broadcast = calls.filter((call) => call.method === "eth_sendRawTransaction");
+      expect(broadcast).toHaveLength(1);
+      const sent = parseTransaction(broadcast[0]?.params[0] as Hex);
+      expect(sent.chainId).toBe(fuji.id);
+      expect(sent.to).toBeUndefined();
+      expect(sent.data).toBe("0x6080");
+    });
   });
 
   // A successful receipt is half of "deployed". The other half is code at the

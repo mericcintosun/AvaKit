@@ -7,7 +7,7 @@ import {
   numberToHex,
 } from "viem";
 import { generatePrivateKey, type PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
-import { type AvaChain, fuji, isMainnet } from "../chains.js";
+import { type AvaChain, fuji, isMainnet, KNOWN_MAINNET_CHAIN_IDS } from "../chains.js";
 import { toViemChain } from "../clients.js";
 import { missingTestnetFlagHint, WalletConnectionError } from "../errors.js";
 import type { AvaChainSwitcher } from "../network.js";
@@ -78,6 +78,79 @@ function assertTestnet(chain: AvaChain, action: "connect on" | "switch to"): voi
 }
 
 /**
+ * How every refusal on the send path opens, so that the verdict survives a UI
+ * that shows only the start of an error.
+ */
+const NOTHING_SENT = "Nothing was signed or sent: ";
+
+/** A chain id as a node gives it: a hex quantity and nothing else. */
+const HEX_QUANTITY_RE = /^0x[0-9a-fA-F]+$/;
+
+function isKnownMainnetId(id: bigint): boolean {
+  return id <= BigInt(Number.MAX_SAFE_INTEGER) && KNOWN_MAINNET_CHAIN_IDS.has(Number(id));
+}
+
+/**
+ * The refusal for a transaction that would not be for the chain the definition
+ * names. `source` says who named the other chain; `found` is that chain's id,
+ * or undefined when none was named at all.
+ *
+ * The wording stays clear of "wrong network" and "chain mismatch": apps map
+ * those to "switch your wallet", and switching cannot repair a definition whose
+ * id and RPC disagree.
+ */
+function otherChainError(
+  chain: AvaChain,
+  source: string,
+  found: bigint | undefined,
+): WalletConnectionError {
+  const start =
+    `${NOTHING_SENT}${chain.name} is defined as chain ${chain.id}, but ${source} ` +
+    (found === undefined ? "no chain" : `chain ${found}`);
+  return new WalletConnectionError(
+    found !== undefined && isKnownMainnetId(found)
+      ? `${start}, which is a mainnet. The temporary (burner) wallet is testnet-only. Point the ` +
+          `definition's rpcUrl at a chain ${chain.id} node, or connect a real wallet ` +
+          "(injected / social) to use mainnet."
+      : `${start}. The temporary (burner) wallet signs only for the chain its definition names. ` +
+          "Make the definition's id and rpcUrl describe the same chain, then try again.",
+  );
+}
+
+/** The refusal for a node that did not say which chain it serves. */
+function unconfirmedNodeError(
+  chain: AvaChain,
+  why: string,
+  cause?: unknown,
+): WalletConnectionError {
+  return new WalletConnectionError(
+    `${NOTHING_SENT}the temporary (burner) wallet could not confirm that the node at ` +
+      `${chain.name}'s rpcUrl serves chain ${chain.id}. ${why} Check the RPC and try again.`,
+    cause === undefined ? undefined : { cause },
+  );
+}
+
+/** One sentence for why a request failed. viem's short message leaves the RPC URL out. */
+function reason(cause: unknown): string {
+  if (typeof cause === "object" && cause !== null) {
+    const { shortMessage, message } = cause as { shortMessage?: unknown; message?: unknown };
+    if (typeof shortMessage === "string") return shortMessage;
+    if (typeof message === "string") return message;
+  }
+  return String(cause);
+}
+
+/** The burner's own refusal, when `error` is one or wraps one. Bounded, in case a cause chain loops. */
+function refusalIn(error: unknown): WalletConnectionError | undefined {
+  let link = error;
+  for (let depth = 0; typeof link === "object" && link !== null && depth < 10; depth += 1) {
+    if (link instanceof WalletConnectionError) return link;
+    link = (link as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
+
+/**
  * An EIP-1193 provider backed by a local key. `avakitSwitchChain` is its real
  * chain switch: unlike `wallet_switchEthereumChain` it receives the whole
  * `AvaChain`, so it knows which RPC to talk to and can refuse a mainnet.
@@ -91,16 +164,100 @@ type BurnerProvider = EIP1193Provider & AvaChainSwitcher;
  * read method to the chain's RPC. Signing / accounts / chain-id are handled
  * locally; everything else (nonce, gas, estimate, calls, receipts) is proxied to
  * `chain.rpcUrl`, so viem's wallet client treats it like a normal wallet.
+ *
+ * A transaction is only ever signed for the chain the definition names. The id
+ * and the `testnet` flag are the definition's own claim, and its RPC URL can
+ * contradict them: a definition labelled Fuji whose `rpcUrl` points at a mainnet
+ * node would otherwise have the burner transact on that mainnet. Two things
+ * stand in the way, and neither touches `connect()`, which stays offline:
+ *
+ * 1. Before a send, the node behind `rpcUrl` is asked which chain it serves,
+ *    and the send is refused unless it answers with the definition's id.
+ * 2. The signer itself refuses a transaction whose chain id is not the
+ *    definition's, whoever prepared it. A node that lies to the first check
+ *    still gets nothing but a signature bound to the definition's id, which
+ *    any other chain rejects (EIP-155).
+ *
+ * Message and typed-data signatures are not transactions and are not bound to
+ * the node's chain.
  */
 function createBurnerProvider(account: PrivateKeyAccount, initialChain: AvaChain): BurnerProvider {
+  /** The burner's account, able to sign transactions for `target` and for no other chain. */
+  function signerFor(target: AvaChain): PrivateKeyAccount {
+    const signTransaction = (async (
+      transaction: { chainId?: number },
+      options?: Parameters<PrivateKeyAccount["signTransaction"]>[1],
+    ) => {
+      if (transaction.chainId !== target.id) {
+        throw otherChainError(
+          target,
+          "the transaction handed to the signer names",
+          typeof transaction.chainId === "number" ? BigInt(transaction.chainId) : undefined,
+        );
+      }
+      return account.signTransaction(transaction as never, options);
+    }) as PrivateKeyAccount["signTransaction"];
+    return { ...account, signTransaction };
+  }
+
+  function walletFor(target: AvaChain) {
+    return createWalletClient({
+      account: signerFor(target),
+      chain: toViemChain(target),
+      transport: http(target.rpcUrl),
+    });
+  }
+
   let chain = initialChain;
-  let wallet = createWalletClient({
-    account,
-    chain: toViemChain(chain),
-    transport: http(chain.rpcUrl),
-  });
+  let wallet = walletFor(chain);
   let rpcId = 0;
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+
+  /**
+   * The node check for the current chain: running, or passed. One that passed
+   * stays, so the question costs one request per chain and not one per
+   * transaction. One that failed is dropped, so the next send asks again, and
+   * `avakitSwitchChain` drops it for another chain or another RPC URL.
+   */
+  let nodeCheck: Promise<void> | null = null;
+
+  /** Ask the node behind `target.rpcUrl` which chain it serves; reject unless it is `target`. */
+  async function askNode(target: AvaChain, client: typeof wallet): Promise<void> {
+    let answer: unknown;
+    try {
+      answer = await client.request({ method: "eth_chainId" });
+    } catch (cause) {
+      throw unconfirmedNodeError(target, `Its eth_chainId request failed: ${reason(cause)}`, cause);
+    }
+    // Anything but a hex quantity is no answer, and no answer is never a match.
+    if (typeof answer !== "string" || !HEX_QUANTITY_RE.test(answer)) {
+      const shown = (JSON.stringify(answer) ?? String(answer)).slice(0, 80);
+      throw unconfirmedNodeError(
+        target,
+        `It answered eth_chainId with ${shown}, which is not a chain id.`,
+      );
+    }
+    const reported = BigInt(answer);
+    if (reported !== BigInt(target.id)) {
+      throw otherChainError(target, "the node at its rpcUrl reports", reported);
+    }
+  }
+
+  /** The current chain's node check: the one remembered, or a new one. */
+  function assertNodeServes(): Promise<void> {
+    if (nodeCheck) {
+      return nodeCheck;
+    }
+    const check = askNode(chain, wallet);
+    nodeCheck = check;
+    check.catch(() => {
+      // Only this check is dropped: by now a switch may have started another.
+      if (nodeCheck === check) {
+        nodeCheck = null;
+      }
+    });
+    return check;
+  }
 
   async function forward(method: string, params: unknown[]): Promise<unknown> {
     const res = await fetch(chain.rpcUrl, {
@@ -125,6 +282,9 @@ function createBurnerProvider(account: PrivateKeyAccount, initialChain: AvaChain
         return [account.address];
       case "eth_coinbase":
         return account.address;
+      // Answered from the definition, not by the node: callers ask this to learn
+      // where the wallet thinks it is. What the node really serves is checked
+      // before a transaction is signed.
       case "eth_chainId":
         return numberToHex(chain.id);
       case "net_version":
@@ -148,18 +308,28 @@ function createBurnerProvider(account: PrivateKeyAccount, initialChain: AvaChain
         );
       case "eth_sendTransaction": {
         const tx = (p[0] ?? {}) as Record<string, string | undefined>;
-        return wallet.sendTransaction({
-          account,
-          to: (tx.to as Address | undefined) ?? undefined,
-          value: tx.value != null ? BigInt(tx.value) : undefined,
-          data: tx.data as Hex | undefined,
-          gas: tx.gas != null ? BigInt(tx.gas) : undefined,
-          nonce: tx.nonce != null ? Number(tx.nonce) : undefined,
-          maxFeePerGas: tx.maxFeePerGas != null ? BigInt(tx.maxFeePerGas) : undefined,
-          maxPriorityFeePerGas:
-            tx.maxPriorityFeePerGas != null ? BigInt(tx.maxPriorityFeePerGas) : undefined,
-          gasPrice: tx.gasPrice != null ? BigInt(tx.gasPrice) : undefined,
-        } as never);
+        // Taken before the first await, together with the node check for the
+        // same chain: a switch while this send is under way must not move it to
+        // another chain halfway through.
+        const client = wallet;
+        await assertNodeServes();
+        try {
+          // Signed by the client's own account, which is bound to its chain.
+          return await client.sendTransaction({
+            to: (tx.to as Address | undefined) ?? undefined,
+            value: tx.value != null ? BigInt(tx.value) : undefined,
+            data: tx.data as Hex | undefined,
+            gas: tx.gas != null ? BigInt(tx.gas) : undefined,
+            nonce: tx.nonce != null ? Number(tx.nonce) : undefined,
+            maxFeePerGas: tx.maxFeePerGas != null ? BigInt(tx.maxFeePerGas) : undefined,
+            maxPriorityFeePerGas:
+              tx.maxPriorityFeePerGas != null ? BigInt(tx.maxPriorityFeePerGas) : undefined,
+            gasPrice: tx.gasPrice != null ? BigInt(tx.gasPrice) : undefined,
+          } as never);
+        } catch (error) {
+          // viem wraps what the signer throws; hand a refusal back as it was raised.
+          throw refusalIn(error) ?? error;
+        }
       }
       default:
         return forward(args.method, p);
@@ -181,12 +351,14 @@ function createBurnerProvider(account: PrivateKeyAccount, initialChain: AvaChain
     async avakitSwitchChain(next: AvaChain) {
       assertTestnet(next, "switch to");
       const changed = next.id !== chain.id;
+      // Another chain, or another node for this one, has to answer for itself.
+      // A switch to the chain the wallet is already on (ensureChain makes one
+      // before every send) keeps the answer.
+      if (changed || next.rpcUrl !== chain.rpcUrl) {
+        nodeCheck = null;
+      }
       chain = next;
-      wallet = createWalletClient({
-        account,
-        chain: toViemChain(next),
-        transport: http(next.rpcUrl),
-      });
+      wallet = walletFor(next);
       // EIP-1193: announce a chain change, not a repeat of the current chain.
       if (changed) {
         for (const cb of listeners.get("chainChanged") ?? []) {

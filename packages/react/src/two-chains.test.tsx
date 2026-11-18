@@ -37,8 +37,17 @@ interface RpcCall {
   params: unknown[];
 }
 
-/** Answer the JSON-RPC calls a transaction needs, and log where each one went. */
-function stubChainRpc(): RpcCall[] {
+/** The chain each RPC URL really serves, when it is the one its definition names. */
+const HONEST_NODES: Record<string, number> = {
+  [chain1.rpcUrl]: chain1.id,
+  [chain2.rpcUrl]: chain2.id,
+};
+
+/**
+ * Answer the JSON-RPC calls a transaction needs, and log where each one went.
+ * `served` is the chain id the node behind each RPC URL reports.
+ */
+function stubChainRpc(served: Record<string, number> = HONEST_NODES): RpcCall[] {
   const calls: RpcCall[] = [];
   const results: Record<string, unknown> = {
     eth_getTransactionCount: "0x0",
@@ -58,9 +67,13 @@ function stubChainRpc(): RpcCall[] {
         params?: unknown[];
       };
       calls.push({ url, method: body.method, params: body.params ?? [] });
+      const result =
+        body.method === "eth_chainId" && url in served
+          ? `0x${served[url]?.toString(16)}`
+          : results[body.method];
       const payload =
-        body.method in results
-          ? { jsonrpc: "2.0", id: body.id, result: results[body.method] }
+        result !== undefined
+          ? { jsonrpc: "2.0", id: body.id, result }
           : { jsonrpc: "2.0", id: body.id, error: { code: -32601, message: "not stubbed" } };
       return new Response(JSON.stringify(payload), {
         status: 200,
@@ -148,5 +161,42 @@ describe("burner wallet across two chains", () => {
     expect(parseTransaction(broadcast[0]?.params[0] as Hex).chainId).toBe(chain2.id);
     // Nothing was sent to, or asked of, the first chain.
     expect(calls.every((call) => call.url === chain2.rpcUrl)).toBe(true);
+    // The burner asked the second chain's node which chain it serves, once,
+    // before anything else.
+    expect(calls[0]?.method).toBe("eth_chainId");
+    expect(calls.filter((call) => call.method === "eth_chainId")).toHaveLength(1);
+  });
+
+  // The second chain says "testnet: true, id 1002", but its RPC URL leads to the
+  // C-Chain mainnet. The temporary wallet must not transact there, and the app
+  // must be able to tell the user why: viem wraps the wallet's refusal in "An
+  // unknown RPC error occurred.", and "switch your wallet" would be no help.
+  it("sends nothing, and says why, when the second chain's RPC is really a mainnet", async () => {
+    const calls = stubChainRpc({ ...HONEST_NODES, [chain2.rpcUrl]: 43114 });
+    render(
+      <AvaKitProvider
+        chains={[chain1, chain2]}
+        adapters={[burnerAdapter({ chain: chain1, persist: false })]}
+      >
+        <TwoChainDemo />
+      </AvaKitProvider>,
+    );
+
+    fireEvent.click(screen.getByText("connect"));
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("connected");
+    });
+
+    fireEvent.click(screen.getByText("send on chain 2"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("result").textContent).not.toBe("idle");
+    });
+    expect(screen.getByTestId("result").textContent).toBe(
+      "error: Nothing was signed or sent: icm2 is defined as chain 1002, but the node at its " +
+        "rpcUrl reports chain 43114, which is a mainnet. The temporary (burner) wallet is " +
+        "testnet-only.",
+    );
+    expect(calls.map((call) => call.method)).toEqual(["eth_chainId"]);
   });
 });
