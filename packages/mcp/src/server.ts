@@ -6,15 +6,24 @@
  *   • list_templates   — available templates
  *   • read_chain       — balance / tx receipt / contract view
  *   • estimate_gas     — gas and rough cost of a call
- *   • deploy_contract  — deploy compiled bytecode (testnet-first; mainnet is double-gated)
+ *   • deploy_contract  — deploy a compiled contract (testnet-first; mainnet is double-gated)
+ *   • write_contract   — send a state-changing contract call, e.g. mint
+ *   • wallet_status    — which wallet would sign, and its balance
  *   • get_context      — AvaKit + Avalanche coding context
  *
- * See docs/09-spec-mcp.md. Guardrails: private keys only ever come from the
- * AVAKIT_DEPLOYER_KEY env var and are never logged; a mainnet deploy needs both
- * the caller's `confirm: true` and the operator's AVAKIT_ALLOW_MAINNET=1 in the
- * server environment; and scaffold_app only writes inside the server's working
- * directory (or AVAKIT_MCP_ROOT). The environment gates are the ones a
- * prompt-injected tool call cannot open. Each is documented in README.md.
+ * See docs/09-spec-mcp.md. Guardrails, each documented in README.md:
+ *
+ *   • On Fuji the signing tools need no key: they use a session test wallet that
+ *     exists only in this process's memory, signs for Fuji only and never sends
+ *     value (wallet.ts). A key of the user's own comes only from the
+ *     AVAKIT_DEPLOYER_KEY env var. Neither is ever logged or returned.
+ *   • A mainnet transaction needs the user's own key, the caller's
+ *     `confirm: true` and the operator's AVAKIT_ALLOW_MAINNET=1 in the server
+ *     environment.
+ *   • scaffold_app only writes, and artifactPath only reads, inside the server's
+ *     working directory (or AVAKIT_MCP_ROOT).
+ *
+ * The environment gates are the ones a prompt-injected tool call cannot open.
  *
  * This module only builds the server; `index.ts` is the entry that puts it on
  * stdio. Keeping the two apart is what lets the tools be tested in-process.
@@ -28,23 +37,32 @@ import {
   getBalance,
   getPublicClient,
   getTransactionReceipt,
+  isMainnet,
   readContract,
-  toViemChain,
 } from "@avakit/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { listTemplates, scaffoldApp } from "create-avalanche-app/api";
-import { type Abi, type Address, createWalletClient, type Hex, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { type Abi, type Address, formatEther, type Hex, isAddress } from "viem";
 import { z } from "zod";
-import { deployOutcome } from "./deploy.js";
+import { normalizeAbi } from "./abi.js";
+import { deployableBytecode, deployHint, findArtifacts, readArtifact } from "./artifact.js";
+import { deployContract } from "./deploy.js";
+import { reasonOf, ToolError } from "./errors.js";
 import {
+  ADDRESS_RE,
   assertMainnetAllowed,
   BYTECODE_RE,
   MAX_ABI_ITEMS,
   MAX_ARGS,
   MAX_BYTECODE_LEN,
+  mainnetOpenedByOperator,
   resolveScaffoldTarget,
+  resolveWorkspace,
 } from "./guards.js";
+import { BUILDER_HUB_FAUCET_URL, resolveSigner, walletFor } from "./wallet.js";
+import { writeContract } from "./write.js";
+
+type ChainSlug = "fuji" | "c-chain";
 
 function chainFrom(id: string | undefined): AvaChain {
   return id === "c-chain" ? cChain : fuji;
@@ -58,6 +76,16 @@ function text(body: string, isError = false) {
   return { content: [{ type: "text" as const, text: body }], isError };
 }
 
+/**
+ * What a failed signing tool returns. A `ToolError` and a refused gate were
+ * written to be read as they are; anything else is an accident, and gets the
+ * tool's name in front and one line of the library's reason — never its dump.
+ */
+function failed(tool: string, error: unknown) {
+  if (error instanceof ToolError) return text(error.message, true);
+  return text(`${tool} failed: ${reasonOf(error)}`, true);
+}
+
 // Read the version from package.json at runtime (single source of truth — it
 // can never drift from the published version). dist/index.js ships next to
 // package.json, so `../package.json` resolves in the published tarball.
@@ -66,6 +94,47 @@ const VERSION = (
     version: string;
   }
 ).version;
+
+/** Longest path accepted as `artifactPath`. */
+const MAX_PATH_LENGTH = 4096;
+
+const chainInput = z.enum(["fuji", "c-chain"]).default("fuji");
+
+const confirmInput = z
+  .boolean()
+  .optional()
+  .describe(
+    "Required on mainnet (c-chain), together with AVAKIT_ALLOW_MAINNET=1 in the server environment. Not needed on Fuji.",
+  );
+
+const artifactPathInput = z
+  .string()
+  .min(1)
+  .max(MAX_PATH_LENGTH)
+  .optional()
+  .describe(
+    "Path to the contract's artifact file, relative to the server's working directory: one of the `artifacts` scaffold_app returned (e.g. my-app/lib/nft-artifact.ts), or a Foundry/Hardhat JSON artifact with abi and bytecode. Must be inside the working directory.",
+  );
+
+/**
+ * Hints for clients that ask a person before a tool runs. The signing tools
+ * change state outside this machine (a chain), and never undo anything.
+ */
+const READ_ONLY = { readOnlyHint: true } as const;
+const SENDS_TRANSACTION = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
+
+const SIGNING =
+  "On the Fuji testnet (the default) no key is needed: when AVAKIT_DEPLOYER_KEY is not set, the " +
+  "server signs with a temporary session test wallet that exists only in its memory, works on Fuji " +
+  "only, and is funded from the AvaKit faucet when it cannot pay. Mainnet (c-chain) needs all three " +
+  "of: your own key in AVAKIT_DEPLOYER_KEY, confirm:true in this call AND AVAKIT_ALLOW_MAINNET=1 in " +
+  "the server's environment, which only the person running the server can set — without it a " +
+  "mainnet call is refused even with confirm:true.";
 
 /**
  * The server with every tool registered, not yet connected to anything.
@@ -80,6 +149,7 @@ server.registerTool(
     title: "List templates",
     description: "List the Avalanche dapp templates available to scaffold_app.",
     inputSchema: z.object({}).strict(),
+    annotations: READ_ONLY,
   },
   async () => text(toJson(listTemplates())),
 );
@@ -89,7 +159,7 @@ server.registerTool(
   {
     title: "Scaffold an Avalanche dapp",
     description:
-      "Create a new Avalanche dapp from a template (minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge). Wraps create-avalanche-app. Returns the created files and next steps. Each template supports only the chains list_templates shows for it — most are Fuji-only — and any other chain is refused. The project is created inside the server's working directory (or AVAKIT_MCP_ROOT, when the server was started with it); a directory outside it is refused.",
+      "Create a new Avalanche dapp from a template (minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge). Wraps create-avalanche-app. Returns the created files, next steps, and `artifacts`: the paths of the project's compiled contracts, which deploy_contract and write_contract take as artifactPath — nothing has to be read or copied to deploy and call them. Each template supports only the chains list_templates shows for it — most are Fuji-only — and any other chain is refused. The project is created inside the server's working directory (or AVAKIT_MCP_ROOT, when the server was started with it); a directory outside it is refused.",
     inputSchema: z
       .object({
         name: z.string().describe("Project directory name, e.g. my-avax-app"),
@@ -125,6 +195,7 @@ server.registerTool(
           ),
       })
       .strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   },
   async ({ name, template, chain, directory, local }) => {
     // Validate before touching the filesystem — an AI agent may pass whatever a
@@ -159,6 +230,10 @@ server.registerTool(
       return text(e instanceof Error ? e.message : String(e), true);
     }
     const setup = listTemplates().find((t) => t.id === template)?.setup;
+    // The contracts the project can deploy, as paths the signing tools accept:
+    // an agent goes from here to a deployed contract without opening a file.
+    const artifacts = findArtifacts(targetDir, files, resolveWorkspace().root);
+    const [first] = artifacts;
     const nextSteps = [
       `cd ${name}`,
       "pnpm install",
@@ -167,8 +242,25 @@ server.registerTool(
       // deployment needs a client id (cp .env.example .env.local).
       ...(setup ? [`pnpm run ${setup}  # start the local Avalanche network (run once)`] : []),
       "pnpm dev",
+      ...(first
+        ? [
+            setup
+              ? // Its app talks to a network on this machine, which the signing
+                // tools cannot reach: they know Fuji and the C-Chain.
+                `This template's app deploys its contract from the browser, to the local network that \`pnpm run ${setup}\` starts. deploy_contract and write_contract reach Fuji and the C-Chain only.`
+              : deployHint(first),
+          ]
+        : []),
     ];
-    return text(toJson({ path: targetDir, filesCreated: files.length, files, nextSteps }));
+    return text(
+      toJson({
+        path: targetDir,
+        filesCreated: files.length,
+        files,
+        artifacts: artifacts.map((artifact) => artifact.path),
+        nextSteps,
+      }),
+    );
   },
 );
 
@@ -177,7 +269,7 @@ server.registerTool(
   {
     title: "Read Avalanche chain data",
     description:
-      "Read a native AVAX balance, a transaction receipt, or a contract view/pure function over RPC.",
+      "Read a native AVAX balance, a transaction receipt, or a contract view/pure function over RPC. No key needed. To change state (for example to mint) use write_contract.",
     inputSchema: z
       .object({
         action: z.enum(["balance", "txReceipt", "contractRead"]),
@@ -193,6 +285,7 @@ server.registerTool(
         args: z.array(z.any()).max(MAX_ARGS).optional(),
       })
       .strict(),
+    annotations: READ_ONLY,
   },
   async ({ action, chain, address, hash, abi, functionName, args }) => {
     const c = chainFrom(chain);
@@ -237,6 +330,7 @@ server.registerTool(
         value: z.string().optional().describe("Native value in wei (decimal string)"),
       })
       .strict(),
+    annotations: READ_ONLY,
   },
   async ({ chain, to, from, data, value }) => {
     const c = chainFrom(chain);
@@ -267,74 +361,223 @@ server.registerTool(
   },
 );
 
+/** An ABI from a tool call: inline, or out of the artifact file a path names. Exactly one. */
+function abiFrom(
+  tool: string,
+  { abi, artifactPath }: { abi?: unknown[]; artifactPath?: string },
+): Abi {
+  if (abi && artifactPath) {
+    throw new ToolError(`${tool} takes the ABI as artifactPath or as abi, not both.`);
+  }
+  if (artifactPath) return readArtifact(artifactPath).abi;
+  if (abi) return normalizeAbi(abi);
+  throw new ToolError(
+    `${tool} needs the contract's ABI: pass artifactPath (the artifact file, e.g. one of the ` +
+      "`artifacts` scaffold_app returned) or abi (the JSON ABI, or just the signature of the " +
+      'function, e.g. ["function mint() returns (uint256)"]).',
+  );
+}
+
 server.registerTool(
   "deploy_contract",
   {
     title: "Deploy a contract",
     description:
-      "Deploy compiled bytecode to Avalanche using a deployer key from the AVAKIT_DEPLOYER_KEY env var. Fuji testnet by default. Mainnet (c-chain) needs two approvals: confirm:true in this call AND AVAKIT_ALLOW_MAINNET=1 in the server's environment, which only the person running the server can set — without it a mainnet deploy is refused even with confirm:true. A deployment that reverts is returned as an error.",
+      "Deploy a compiled contract to Avalanche and return its address, once the transaction has succeeded and there is code at that address. Pass the contract either as artifactPath (a file: one of the `artifacts` scaffold_app returned, or a Foundry/Hardhat JSON artifact) or as abi + bytecode — exactly one of the two; artifactPath means no bytecode has to be copied into the call. " +
+      `${SIGNING} ` +
+      "A deployment that reverts is returned as an error. The result says which wallet signed. To call the deployed contract — for example to mint — use write_contract.",
     inputSchema: z
       .object({
-        abi: z.array(z.any()).max(MAX_ABI_ITEMS),
+        artifactPath: artifactPathInput,
+        abi: z
+          .array(z.any())
+          .max(MAX_ABI_ITEMS)
+          .optional()
+          .describe(
+            'With bytecode, instead of artifactPath: the JSON ABI, or signatures such as ["constructor(address owner)"].',
+          ),
         bytecode: z
           .string()
           .regex(BYTECODE_RE, "bytecode must be 0x-prefixed hex")
           .max(MAX_BYTECODE_LEN)
-          .describe("Creation bytecode (0x-prefixed)"),
-        args: z.array(z.any()).max(MAX_ARGS).optional(),
-        chain: z.enum(["fuji", "c-chain"]).default("fuji"),
-        confirm: z
-          .boolean()
           .optional()
-          .describe(
-            "Required to deploy to mainnet, together with AVAKIT_ALLOW_MAINNET=1 in the server environment",
-          ),
+          .describe("With abi, instead of artifactPath: the creation bytecode (0x-prefixed)."),
+        args: z
+          .array(z.any())
+          .max(MAX_ARGS)
+          .optional()
+          .describe("Constructor arguments, in order. Pass large integers as decimal strings."),
+        chain: chainInput,
+        confirm: confirmInput,
       })
       .strict(),
+    annotations: SENDS_TRANSACTION,
   },
-  async ({ abi, bytecode, args, chain, confirm }) => {
+  async ({ artifactPath, abi, bytecode, args, chain, confirm }) => {
     const c = chainFrom(chain);
     try {
       assertMainnetAllowed(c, confirm);
     } catch (e) {
       return text(e instanceof Error ? e.message : String(e), true);
     }
-    const key = process.env.AVAKIT_DEPLOYER_KEY;
-    if (!key) {
-      return text(
-        "No deployer key found. Set AVAKIT_DEPLOYER_KEY to a 0x private key (use a throwaway testnet key — never a key holding real funds).",
-        true,
-      );
+    try {
+      let contract: { abi: Abi; bytecode: Hex };
+      if (artifactPath) {
+        if (abi || bytecode) {
+          throw new ToolError(
+            "deploy_contract takes the contract as artifactPath, or as abi and bytecode — not both.",
+          );
+        }
+        const artifact = readArtifact(artifactPath);
+        contract = { abi: artifact.abi, bytecode: deployableBytecode(artifact, artifactPath) };
+      } else if (abi && bytecode) {
+        contract = {
+          abi: normalizeAbi(abi),
+          bytecode: (bytecode.startsWith("0x") ? bytecode : `0x${bytecode}`) as Hex,
+        };
+      } else {
+        throw new ToolError(
+          "deploy_contract needs the contract: pass artifactPath (the artifact file, e.g. one of the " +
+            "`artifacts` scaffold_app returned), or both abi and bytecode.",
+        );
+      }
+      return text(toJson(await deployContract(c, resolveSigner(c), { ...contract, args })));
+    } catch (e) {
+      // "deploy failed", as this tool has always said for the unexpected.
+      return failed("deploy", e);
+    }
+  },
+);
+
+server.registerTool(
+  "write_contract",
+  {
+    title: "Call a contract (state-changing)",
+    description:
+      'Send a state-changing contract call — for example mint — and return once it has succeeded on chain. The call is simulated first: if it would revert, the revert reason is returned and nothing is sent. Give the ABI as artifactPath (the file deploy_contract took) or as abi, which can be just the function\'s signature, e.g. ["function mint() returns (uint256)"] — exactly one of the two. ' +
+      `${SIGNING} ` +
+      "The result says which wallet signed. To read state use read_chain.",
+    inputSchema: z
+      .object({
+        address: z
+          .string()
+          .regex(ADDRESS_RE, "address must be 0x followed by 40 hex characters")
+          .refine((value) => !ADDRESS_RE.test(value) || isAddress(value), {
+            message:
+              "address must be all lowercase or carry a valid EIP-55 checksum; this capitalisation is neither, so a character may be mistyped",
+          })
+          .describe("The contract's address, e.g. the one deploy_contract returned."),
+        functionName: z
+          .string()
+          .min(1)
+          .max(500)
+          .describe(
+            'The function to call, e.g. "mint". To pick between overloads, the full signature, e.g. "safeTransferFrom(address,address,uint256)".',
+          ),
+        abi: z
+          .array(z.any())
+          .max(MAX_ABI_ITEMS)
+          .optional()
+          .describe(
+            'Instead of artifactPath: the JSON ABI, or signatures such as ["function mint() returns (uint256)"].',
+          ),
+        artifactPath: artifactPathInput,
+        args: z
+          .array(z.any())
+          .max(MAX_ARGS)
+          .optional()
+          .describe("The function's arguments, in order. Pass large integers as decimal strings."),
+        value: z
+          .string()
+          .regex(/^\d{1,78}$/, "value must be a whole number of wei, as a decimal string")
+          .optional()
+          .describe(
+            "Wei to send with a payable call (decimal string). Only with your own key (AVAKIT_DEPLOYER_KEY) on Fuji: the session test wallet never sends value, and value is refused on mainnet.",
+          ),
+        chain: chainInput,
+        confirm: confirmInput,
+      })
+      .strict(),
+    annotations: SENDS_TRANSACTION,
+  },
+  async ({ address, functionName, abi, artifactPath, args, value, chain, confirm }) => {
+    const c = chainFrom(chain);
+    try {
+      assertMainnetAllowed(c, confirm, "send");
+    } catch (e) {
+      return text(e instanceof Error ? e.message : String(e), true);
     }
     try {
-      const account = privateKeyToAccount(key as Hex);
-      const viemChain = toViemChain(c);
-      const wallet = createWalletClient({ account, chain: viemChain, transport: http(c.rpcUrl) });
-      const publicClient = getPublicClient(c);
-      // Fail early with a clear message if the deployer can't pay for the
-      // deploy, instead of letting the tx fail deep in viem. (audit A10)
-      const balance = await getBalance(account.address, c);
-      if (balance === 0n) {
+      const result = await writeContract(c, resolveSigner(c), {
+        address: address as Address,
+        abi: abiFrom("write_contract", { abi, artifactPath }),
+        functionName,
+        args,
+        value: value ? BigInt(value) : undefined,
+      });
+      return text(toJson(result));
+    } catch (e) {
+      return failed("write_contract", e);
+    }
+  },
+);
+
+server.registerTool(
+  "wallet_status",
+  {
+    title: "Wallet status",
+    description:
+      'Show the wallet deploy_contract and write_contract would sign with on a chain, where it comes from ("session": the temporary Fuji test wallet; "env": your key in AVAKIT_DEPLOYER_KEY; "none": nothing to sign with), and its balance. Read-only: it sends nothing and never asks the faucet for funds. A session wallet with a zero balance is normal before its first transaction — the signing tools fund it when it cannot pay. On mainnet (c-chain) there is a wallet only when AVAKIT_DEPLOYER_KEY is set.',
+    inputSchema: z.object({ chain: chainInput }).strict(),
+    annotations: READ_ONLY,
+  },
+  async ({ chain }) => {
+    const c = chainFrom(chain);
+    const slug: ChainSlug = chain;
+    // A wallet is one of three things a mainnet call needs. Say where the others stand.
+    const gates = isMainnet(c)
+      ? `A call on ${c.name} also needs confirm:true and AVAKIT_ALLOW_MAINNET=1 in the server ` +
+        `environment, which is ${mainnetOpenedByOperator() ? "set" : "not set"}.`
+      : "";
+    try {
+      const wallet = walletFor(c);
+      if (wallet.source === "none") {
         return text(
-          `Deployer ${account.address} has no ${c.nativeCurrency.symbol} on ${c.name}. ` +
-            `Fund it${c.faucetUrl ? ` via ${c.faucetUrl}` : ""} before deploying.`,
+          toJson({
+            address: null,
+            source: "none",
+            chain: slug,
+            balanceWei: null,
+            balanceAvax: null,
+            note: gates ? `${wallet.why} ${gates}` : wallet.why,
+          }),
+        );
+      }
+      let wei: bigint;
+      try {
+        wei = await getBalance(wallet.address, c);
+      } catch (e) {
+        return text(
+          `The wallet on ${c.name} is ${wallet.address} (source: ${wallet.source}), but its balance could not be read: ${reasonOf(e)}`,
           true,
         );
       }
-      const bc = bytecode.startsWith("0x") ? (bytecode as Hex) : (`0x${bytecode}` as Hex);
-      const txHash = await wallet.deployContract({
-        abi: abi as Abi,
-        bytecode: bc,
-        args,
-        account,
-        chain: viemChain,
-      } as never);
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-      // A mined transaction is not a deployed contract: check that it succeeded.
-      const outcome = deployOutcome(receipt, txHash, c);
-      return outcome.ok ? text(toJson(outcome.result)) : text(outcome.message, true);
+      const note =
+        wallet.source === "session"
+          ? "A temporary Fuji test wallet that lives only until the server stops. A zero balance is normal before its first transaction: deploy_contract and write_contract ask the AvaKit faucet for test AVAX when it cannot pay."
+          : gates;
+      return text(
+        toJson({
+          address: wallet.address,
+          source: wallet.source,
+          chain: slug,
+          balanceWei: wei,
+          balanceAvax: formatEther(wei),
+          ...(note ? { note } : {}),
+        }),
+      );
     } catch (e) {
-      return text(`deploy failed: ${e instanceof Error ? e.message : String(e)}`, true);
+      return failed("wallet_status", e);
     }
   },
 );
@@ -347,6 +590,13 @@ AvaKit is an open-source, AI-native Avalanche developer toolkit.
 - \`scaffold_app\` (this MCP) or \`npm create avalanche-app@latest\`
 - Templates: minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge
 - Each app ships shadcn/ui (black & white + dark/light), a wallet chooser (zero-setup burner + social login + injected), and CLAUDE.md/llms.txt/.cursor rules.
+
+## Deploying and calling contracts from this MCP server
+- Fuji testnet (the default): no key is needed. Without \`AVAKIT_DEPLOYER_KEY\`, \`deploy_contract\` and \`write_contract\` sign with a temporary session test wallet — created in the server's memory, Fuji only, gone when the server stops — and fund it from the AvaKit faucet when it cannot pay. \`wallet_status\` shows it.
+- Three calls, no file to read or copy: \`scaffold_app\` (its result lists \`artifacts\`) → \`deploy_contract({ artifactPath })\` → \`write_contract({ address, artifactPath, functionName: "mint" })\`.
+- Minting, like every other state-changing call, is done with \`write_contract\`. Reading is \`read_chain\`.
+- Mainnet (\`chain: "c-chain"\`) needs all three: your own key in \`AVAKIT_DEPLOYER_KEY\`, \`confirm: true\` in the call, and \`AVAKIT_ALLOW_MAINNET=1\` in the server's environment. The session test wallet is never used on mainnet.
+- If the faucet refuses (rate limit, empty), there are two ways forward: your own funded Fuji key in \`AVAKIT_DEPLOYER_KEY\`, or test AVAX from ${BUILDER_HUB_FAUCET_URL} (free Builder Hub sign-in).
 
 ## @avakit/react
 - \`<AvaKitProvider chains={[...]} adapters={[...]}>\`, \`<ConnectAvalanche />\`
@@ -365,17 +615,18 @@ AvaKit is an open-source, AI-native Avalanche developer toolkit.
 ## Docs
 - Avalanche Builder Hub: https://build.avax.network/llms.txt
 - Web3Auth dashboard: https://dashboard.web3auth.io
-- Fuji faucet: https://core.app/tools/testnet-faucet`;
+- Fuji faucet (free Builder Hub sign-in): ${BUILDER_HUB_FAUCET_URL}`;
 
 server.registerTool(
   "get_context",
   {
     title: "Get AvaKit context",
     description:
-      "Return AvaKit + Avalanche context for coding: the API surface, conventions, and doc links.",
+      "Return AvaKit + Avalanche context for coding: the API surface, conventions, doc links, and how deploying and minting work from this server (no key needed on Fuji; what mainnet needs).",
     inputSchema: z
       .object({ topic: z.string().optional().describe("Optional focus topic") })
       .strict(),
+    annotations: READ_ONLY,
   },
   async ({ topic }) =>
     text(topic ? `${AVAKIT_CONTEXT}\n\n(Requested focus: ${topic})` : AVAKIT_CONTEXT),

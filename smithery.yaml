@@ -1,11 +1,14 @@
 # Smithery listing for @avakit/mcp. Must live at the repo root.
 # The server itself is packages/mcp; it's published to npm, so Smithery just runs it.
 #
-# A Smithery install is testnet-only. Mainnet deploys need AVAKIT_ALLOW_MAINNET=1 in
-# the server's environment as well as confirm:true in the tool call (see
-# packages/mcp/README.md), and this listing deliberately offers no option that sets
-# it: opening the mainnet gate should be a choice made by someone running the server
-# themselves, not a checkbox in a hosted form.
+# A Smithery install is testnet-only. With nothing filled in it can already deploy
+# and send contract calls on Fuji: the server signs with a session test wallet that
+# exists only in its memory, works on Fuji only, and is funded by the AvaKit faucet
+# (see "Zero setup on Fuji" in packages/mcp/README.md). Mainnet needs
+# AVAKIT_ALLOW_MAINNET=1 in the server's environment as well as the user's own key
+# and confirm:true in the tool call, and this listing deliberately offers no option
+# that sets it: opening the mainnet gate should be a choice made by someone running
+# the server themselves, not a checkbox in a hosted form.
 #
 # It does offer the projects directory (AVAKIT_MCP_ROOT). scaffold_app only creates
 # projects inside the directory the server was started in, and refuses when that is
@@ -20,13 +23,14 @@ startCommand:
     properties:
       avakitDeployerKey:
         type: string
-        title: Deploy key (optional)
+        title: Your own deploy key (optional)
         description: >-
-          A funded Fuji private key. Only deploy_contract needs it — scaffolding,
-          reading chain state, and gas estimates all work without one. Use a
-          throwaway testnet key, never a key holding real funds. Installed this
-          way the server deploys to the Fuji testnet only; mainnet deploys stay
-          refused.
+          Leave it empty to start with no setup: deploy_contract and
+          write_contract then sign on the Fuji testnet with a temporary test
+          wallet that lives only in the server's memory. Fill it in to sign with
+          a funded Fuji key of your own instead. Use a throwaway testnet key,
+          never a key holding real funds. Installed this way the server works on
+          the Fuji testnet only; mainnet stays refused.
       projectsDirectory:
         type: string
         title: Projects directory (optional)
@@ -35,11 +39,18 @@ startCommand:
           it empty when your client starts the server inside a project folder, as
           Claude Code and Cursor do. Set it for a client that does not, such as
           Claude Desktop.
+      disableTestWallet:
+        type: boolean
+        title: Turn the temporary test wallet off (optional)
+        description: >-
+          Tick this to make the server sign with your own deploy key only. With
+          no key filled in, deploy_contract and write_contract are then refused.
   commandFunction: |-
     (config) => {
       const env = {};
       if (config.avakitDeployerKey) env.AVAKIT_DEPLOYER_KEY = config.avakitDeployerKey;
       if (config.projectsDirectory) env.AVAKIT_MCP_ROOT = config.projectsDirectory;
+      if (config.disableTestWallet) env.AVAKIT_TEST_WALLET = '0';
       return { command: 'npx', args: ['-y', '@avakit/mcp'], env };
     }
   exampleConfig: {}

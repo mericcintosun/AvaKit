@@ -3,7 +3,15 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { cChain, fuji } from "@avakit/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { assertMainnetAllowed, BYTECODE_RE, resolveScaffoldTarget } from "./guards.js";
+import {
+  ADDRESS_RE,
+  assertMainnetAllowed,
+  BYTECODE_RE,
+  insideWorkspace,
+  mainnetOpenedByOperator,
+  resolveScaffoldTarget,
+  resolveWorkspace,
+} from "./guards.js";
 
 describe("assertMainnetAllowed", () => {
   const original = process.env.AVAKIT_ALLOW_MAINNET;
@@ -33,6 +41,35 @@ describe("assertMainnetAllowed", () => {
     process.env.AVAKIT_ALLOW_MAINNET = "1";
     expect(() => assertMainnetAllowed(cChain, true)).not.toThrow();
   });
+
+  it("holds a contract call to the same two gates as a deploy, and words the refusal for it", () => {
+    delete process.env.AVAKIT_ALLOW_MAINNET;
+    expect(() => assertMainnetAllowed(fuji, undefined, "send")).not.toThrow();
+    expect(() => assertMainnetAllowed(cChain, undefined, "send")).toThrow(
+      "Refusing to send a transaction on Avalanche C-Chain (mainnet) without confirm:true.",
+    );
+    expect(() => assertMainnetAllowed(cChain, true, "send")).toThrow(
+      "Refusing to send a transaction on Avalanche C-Chain (mainnet): set AVAKIT_ALLOW_MAINNET=1 in the " +
+        "server environment to allow mainnet transactions. This out-of-band gate cannot be set by a tool caller.",
+    );
+    process.env.AVAKIT_ALLOW_MAINNET = "1";
+    expect(() => assertMainnetAllowed(cChain, false, "send")).toThrow(/without confirm:true/);
+    expect(() => assertMainnetAllowed(cChain, true, "send")).not.toThrow();
+
+    // The wording a deploy has always been refused with is unchanged.
+    delete process.env.AVAKIT_ALLOW_MAINNET;
+    expect(() => assertMainnetAllowed(cChain, true)).toThrow(
+      "Refusing to deploy to Avalanche C-Chain (mainnet): set AVAKIT_ALLOW_MAINNET=1 in the " +
+        "server environment to allow mainnet deploys. This out-of-band gate cannot be set by a tool caller.",
+    );
+  });
+
+  it("opens the environment's half of the gate for exactly one value", () => {
+    expect(mainnetOpenedByOperator({ AVAKIT_ALLOW_MAINNET: "1" })).toBe(true);
+    for (const value of [undefined, "", "0", "true", "yes", " 1", "01"]) {
+      expect(mainnetOpenedByOperator({ AVAKIT_ALLOW_MAINNET: value }), String(value)).toBe(false);
+    }
+  });
 });
 
 describe("BYTECODE_RE", () => {
@@ -44,6 +81,55 @@ describe("BYTECODE_RE", () => {
   it("rejects empty, non-hex, and whitespace", () => {
     for (const bad of ["", "0x", "0xzz", "hello", "0x60 60", "0x60\n"]) {
       expect(BYTECODE_RE.test(bad), bad).toBe(false);
+    }
+  });
+});
+
+describe("ADDRESS_RE", () => {
+  it("accepts twenty bytes of hex and nothing else", () => {
+    expect(ADDRESS_RE.test(`0x${"aB".repeat(20)}`)).toBe(true);
+    for (const bad of ["", "0x", `0x${"ab".repeat(19)}`, `0x${"ab".repeat(21)}`, "ab".repeat(20)]) {
+      expect(ADDRESS_RE.test(bad), bad).toBe(false);
+    }
+    expect(ADDRESS_RE.test(`0x${"zz".repeat(20)}`)).toBe(false);
+    expect(ADDRESS_RE.test(`0x${"ab".repeat(20)}\n`)).toBe(false);
+  });
+});
+
+describe("the workspace", () => {
+  let base: string;
+  beforeEach(() => {
+    base = realpathSync(mkdtempSync(path.join(tmpdir(), "avakit-mcp-workspace-")));
+    mkdirSync(path.join(base, "work"));
+    mkdirSync(path.join(base, "elsewhere"));
+  });
+  afterEach(() => rmSync(base, { recursive: true, force: true }));
+
+  it("is the working directory, or the directory AVAKIT_MCP_ROOT names", () => {
+    const cwd = path.join(base, "work");
+    expect(resolveWorkspace(cwd, {})).toEqual({ root: cwd, realRoot: cwd, unconstrained: false });
+    // Relative to the working directory when it is not absolute.
+    expect(resolveWorkspace(cwd, { AVAKIT_MCP_ROOT: "../elsewhere" }).root).toBe(
+      path.join(base, "elsewhere"),
+    );
+    expect(resolveWorkspace(cwd, { AVAKIT_MCP_ROOT: " " }).root).toBe(cwd);
+  });
+
+  it("constrains nothing when it is the filesystem root, unless the environment says so on purpose", () => {
+    const fsRoot = path.parse(base).root;
+    expect(resolveWorkspace(fsRoot, {}).unconstrained).toBe(true);
+    expect(resolveWorkspace(fsRoot, { AVAKIT_MCP_ROOT: fsRoot }).unconstrained).toBe(false);
+    expect(resolveWorkspace(fsRoot, { AVAKIT_MCP_ROOT: base }).unconstrained).toBe(false);
+  });
+
+  it("tells what is inside it from what is not, and gives back the real path", () => {
+    const workspace = resolveWorkspace(path.join(base, "work"), {});
+    expect(insideWorkspace(workspace, path.join(base, "work", "a", "b.json"))).toBe(
+      path.join(base, "work", "a", "b.json"),
+    );
+    expect(insideWorkspace(workspace, path.join(base, "work"))).toBe(path.join(base, "work"));
+    for (const outside of [base, path.join(base, "elsewhere"), path.join(base, "work-other")]) {
+      expect(insideWorkspace(workspace, outside), outside).toBeUndefined();
     }
   });
 });

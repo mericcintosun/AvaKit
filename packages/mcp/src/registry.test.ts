@@ -62,33 +62,60 @@ describe("what the listing says the server does", () => {
   });
   afterEach(() => mcp.close());
 
-  /** The first word of each item in "scaffold a dapp, deploy a contract, and read …". */
-  const actions = (enumeration: string) =>
-    enumeration
-      .split(/,|\band\b/)
+  /**
+   * The actions a sentence claims: the first word of each item in "scaffold a
+   * dapp, deploy contracts and send contract calls (for example mint), …", and
+   * each example a bracket gives.
+   */
+  const actions = (enumeration: string) => {
+    const examples = [...enumeration.matchAll(/\(for example ([^)]*)\)/g)].flatMap(
+      (match) => match[1]?.split(/,|\bor\b|\band\b/) ?? [],
+    );
+    const items = enumeration.replace(/\([^)]*\)/g, " ").split(/,|\band\b/);
+    return [...items, ...examples]
       .map((item) => item.trim().split(/\s+/)[0]?.toLowerCase() ?? "")
       .filter((word) => word !== "");
+  };
+
+  /** What a listing calls something a tool does under another name: both are write_contract. */
+  const MEANS: Record<string, string> = { send: "write", mint: "write" };
 
   it("only advertises actions that a tool performs", async () => {
-    // Both texts used to promise "mint", which no tool has ever done. Each
-    // action they name must be the verb of a real tool (scaffold_app → scaffold).
+    // Both texts once promised "mint" when no tool could do it. Each action they
+    // name must be the verb of a real tool (scaffold_app → scaffold), or one of
+    // the words above for what write_contract does.
     const { tools } = await mcp.client.listTools();
     const verbs = tools.map((tool) => tool.name.split("_")[0]);
 
     const claims = {
-      "server.json description": listing.description.split(":")[1]?.replace(/\.$/, ""),
+      "server.json description": listing.description.replace(/\.$/, ""),
       "REGISTRIES.md": read("REGISTRIES.md").match(/Ours\s+acts — ([^.]+)\./)?.[1],
     };
     for (const [where, enumeration] of Object.entries(claims)) {
       // If a text was reworded and no longer parses, update this test with it.
       expect(enumeration, `${where}: no list of actions found`).toBeTruthy();
-      for (const action of actions(enumeration ?? "")) {
-        expect(verbs, `${where} claims "${action}"`).toContain(action);
+      const claimed = actions(enumeration ?? "");
+      expect(claimed.length, where).toBeGreaterThanOrEqual(3);
+      for (const action of claimed) {
+        expect(verbs, `${where} claims "${action}"`).toContain(MEANS[action] ?? action);
       }
+      // What this release added, said the way it was agreed.
+      expect(enumeration, where).toMatch(
+        /deploy contracts and send contract calls \(for example mint\) on\s+the Fuji testnet/,
+      );
     }
-    expect(actions("scaffold a dapp, deploy a contract, mint, and read chain state")).toContain(
-      "mint",
+    // The words for write_contract are only as good as the tool.
+    expect(tools.map((tool) => tool.name)).toContain("write_contract");
+
+    // And the reading above does catch a promise with nothing behind it.
+    const empty = actions(
+      "scaffold a dapp, bridge tokens (for example swap), and read chain state",
     );
+    expect(empty).toEqual(["scaffold", "bridge", "read", "swap"]);
+    expect(empty.filter((action) => !verbs.includes(MEANS[action] ?? action))).toEqual([
+      "bridge",
+      "swap",
+    ]);
   });
 });
 
@@ -97,23 +124,45 @@ describe("smithery.yaml, the Smithery listing", () => {
   // The function between `commandFunction: |-` and the next key at its level.
   const source = yaml.match(/^ {2}commandFunction: \|-\n((?: {4}.*\n)+)/m)?.[1] ?? "";
   // Through JSON, so the result is plain data from this realm.
-  const start = (config: Record<string, string>): unknown =>
+  const start = (config: Record<string, string | boolean>): unknown =>
     JSON.parse(JSON.stringify(runInNewContext(`(${source})`)(config)));
 
   it("starts the published package and sets nothing unless asked", () => {
+    // Nothing set is a working install: the session test wallet signs on Fuji.
     expect(start({})).toEqual({ command: "npx", args: ["-y", pkg.name], env: {} });
+    expect(start({ disableTestWallet: false })).toEqual({
+      command: "npx",
+      args: ["-y", pkg.name],
+      env: {},
+    });
   });
 
   it("hands each option to the server under the variable the server reads", () => {
     const options = [...yaml.matchAll(/^ {6}([A-Za-z]+):$/gm)].map((match) => match[1]);
-    expect(options).toEqual(["avakitDeployerKey", "projectsDirectory"]);
+    expect(options).toEqual(["avakitDeployerKey", "projectsDirectory", "disableTestWallet"]);
     expect(
-      start({ avakitDeployerKey: "<deploy key>", projectsDirectory: "/home/you/code" }),
+      start({
+        avakitDeployerKey: "<deploy key>",
+        projectsDirectory: "/home/you/code",
+        disableTestWallet: true,
+      }),
     ).toEqual({
       command: "npx",
       args: ["-y", pkg.name],
-      env: { AVAKIT_DEPLOYER_KEY: "<deploy key>", AVAKIT_MCP_ROOT: "/home/you/code" },
+      env: {
+        AVAKIT_DEPLOYER_KEY: "<deploy key>",
+        AVAKIT_MCP_ROOT: "/home/you/code",
+        AVAKIT_TEST_WALLET: "0",
+      },
     });
+  });
+
+  it("says that a key is optional now, in the words the server uses", () => {
+    // The key's description used to read "Only deploy_contract needs it", from
+    // when nothing could be deployed without one.
+    expect(yaml).not.toContain("Only deploy_contract needs it");
+    expect(yaml).toContain("Leave it empty to start with no setup");
+    expect(yaml).toContain("Fuji testnet only; mainnet stays refused");
   });
 
   it("offers no way to open the mainnet gate", () => {

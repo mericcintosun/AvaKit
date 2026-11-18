@@ -1,12 +1,15 @@
 # Listing `@avakit/mcp` on the MCP registries
 
-Why this matters: the official Avalanche MCP surface is **docs-retrieval only**. Ours
-acts — scaffold, deploy, estimate gas, read chain. Being findable in the places
+Why this matters: Avalanche's official MCP server is **read-only** — it looks things up
+and never signs. Ours
+acts — scaffold a dapp, deploy contracts and send contract calls (for example mint) on
+the Fuji testnet, estimate gas, and read chain state. Being findable in the places
 agents look is the whole point (see `docs/strategy/execution-plan.md`, W5).
 
-Describe only what the tools do. The listing once promised "mint", which no tool has
-ever done. `src/registry.test.ts` now checks that every action named in the sentence
-above, and in `server.json`'s description, is the verb of a real tool.
+Describe only what the tools do. The listing once promised "mint" when no tool could
+do it; it says so again now that `write_contract` can. `src/registry.test.ts` checks
+that every action named in the sentence above, and in `server.json`'s description, is
+something a real tool does — so the next promise cannot get ahead of the code either.
 
 ## Status
 
@@ -97,10 +100,12 @@ is `deleted`. If you ever rename again, check the search before assuming it work
 These need a human with an account; nothing else is blocking them.
 
 - **Smithery** — `smithery.yaml` (repo root) is already in the shape Smithery expects:
-  stdio, `npx -y @avakit/mcp`, and two optional settings: `avakitDeployerKey` and
-  `projectsDirectory` (which becomes `AVAKIT_MCP_ROOT`). It offers nothing that opens the
-  mainnet gate, on purpose. Sign in at [smithery.ai](https://smithery.ai) with GitHub,
-  connect this repo, and it reads that file.
+  stdio, `npx -y @avakit/mcp`, and three optional settings: `avakitDeployerKey`,
+  `projectsDirectory` (which becomes `AVAKIT_MCP_ROOT`) and `disableTestWallet` (which
+  becomes `AVAKIT_TEST_WALLET=0`). With none of them set, an install deploys and mints on
+  Fuji with the session test wallet. It offers nothing that opens the mainnet gate, on
+  purpose. Sign in at [smithery.ai](https://smithery.ai) with GitHub, connect this repo,
+  and it reads that file.
 - **mcp.so** — submit the repo + `npx -y @avakit/mcp`.
 - **Glama** — [glama.ai](https://glama.ai/mcp) crawls public repos on its own, so the
   server may appear without any action; the useful step is **claiming** it so it leaves
