@@ -34,6 +34,7 @@ import { assertSafeProjectName, listTemplates, scaffoldApp } from "create-avalan
 import { type Abi, type Address, createWalletClient, type Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { z } from "zod";
+import { deployOutcome } from "./deploy.js";
 import {
   assertMainnetAllowed,
   BYTECODE_RE,
@@ -295,16 +296,9 @@ server.registerTool(
         chain: viemChain,
       } as never);
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-      if (!receipt.contractAddress) {
-        return text("Deployment did not return a contract address.", true);
-      }
-      return text(
-        toJson({
-          address: receipt.contractAddress,
-          txHash,
-          explorerUrl: `${c.explorerUrl}/address/${receipt.contractAddress}`,
-        }),
-      );
+      // A mined transaction is not a deployed contract: check that it succeeded.
+      const outcome = deployOutcome(receipt, txHash, c);
+      return outcome.ok ? text(toJson(outcome.result)) : text(outcome.message, true);
     } catch (e) {
       return text(`deploy failed: ${e instanceof Error ? e.message : String(e)}`, true);
     }
