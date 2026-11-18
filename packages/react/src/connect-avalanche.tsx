@@ -1,9 +1,10 @@
 "use client";
 
+import { isMainnet } from "@avakit/core";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Loader2, LogOut, Sparkles, Wallet } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { useAvaKit } from "./provider.js";
+import { BURNER_ADAPTER_ID, useAvaKit } from "./provider.js";
 import { Button } from "./ui.js";
 import { cn, shortenAddress } from "./utils.js";
 
@@ -48,16 +49,21 @@ export interface ConnectAvalancheProps {
  *
  * If a "burner" adapter is present, it becomes the front-and-center zero-setup
  * option so a new user can transact immediately, with real wallets offered as the
- * "already have a wallet?" upgrade.
+ * "already have a wallet?" upgrade. The burner is testnet-only, so on a mainnet
+ * chain it is not offered at all.
  */
 export function ConnectAvalanche({ label = "Connect wallet", className }: ConnectAvalancheProps) {
-  const { status, address, adapters, activeAdapterId, error, connect, disconnect } = useAvaKit();
+  const { status, address, adapters, activeAdapterId, chain, error, connect, disconnect } =
+    useAvaKit();
   const [open, setOpen] = useState(false);
 
   // Split the burner (zero-config) path from real wallets so the dialog can lead
   // with "start instantly" and present the rest as the bring-your-own upgrade.
-  const burner = adapters.find((a) => a.id === "burner");
-  const others = adapters.filter((a) => a.id !== "burner");
+  // On a mainnet the burner is left out: its key sits in localStorage in the
+  // clear, and the provider would refuse the connection anyway.
+  const burnerConfigured = adapters.some((a) => a.id === BURNER_ADAPTER_ID);
+  const burner = isMainnet(chain) ? undefined : adapters.find((a) => a.id === BURNER_ADAPTER_ID);
+  const others = adapters.filter((a) => a.id !== BURNER_ADAPTER_ID);
 
   // Close the picker once a connection lands.
   useEffect(() => {
@@ -172,6 +178,13 @@ export function ConnectAvalanche({ label = "Connect wallet", className }: Connec
                 );
               })}
             </div>
+          ) : null}
+
+          {burnerConfigured && !burner && others.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              The temporary wallet is testnet-only, so it is not offered on {chain.name}. Configure
+              a real wallet adapter to connect here.
+            </p>
           ) : null}
 
           {error ? <p className="text-muted-foreground text-sm">{error.message}</p> : null}
