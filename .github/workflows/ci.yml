@@ -106,12 +106,17 @@ jobs:
       - name: Scaffold + typecheck + build "${{ matrix.template }}"
         run: bash scripts/smoke-template.sh "${{ matrix.template }}" "$RUNNER_TEMP/smoke"
 
-  # Compile and test the Solidity the templates ship, and verify the shipped
-  # lib/*-artifact.ts files still match the .sol sources (they are hand-copied
-  # from forge output, so nothing else guards against silent drift).
-  # See contracts-ci/README.md. Foundry is pinned to a stable release so local
-  # and CI builds emit identical bytecode (solc itself is pinned in the
-  # foundry.toml files).
+  # Compile and test the Solidity the repo ships, and verify that every bytecode
+  # artifact generated from it still matches its source: each template's
+  # lib/*-artifact.ts, the messenger bytecode Studio deploys, the contract the
+  # website's /new page deploys and the example app's artifact. The artifacts
+  # live away from their sources, so nothing else guards against silent drift.
+  # The sync step also fails when templates that share a contract no longer ship
+  # identical copies, or when any foundry.toml compiles with different settings
+  # than contracts-ci: the tested and the shipped bytecode must come from the
+  # same compiler. See contracts-ci/README.md. Foundry is pinned to a stable
+  # release so local and CI builds emit identical bytecode (the compiler itself
+  # is pinned in the foundry.toml files).
   contracts:
     name: Contracts · forge test · artifact parity
     runs-on: ubuntu-latest
@@ -129,7 +134,7 @@ jobs:
         with:
           version: v1.7.1
 
-      - name: Sync template contracts (copy-identity check)
+      - name: Sync template contracts (copy identity · compiler settings)
         working-directory: contracts-ci
         run: node scripts/sync.mjs
 
@@ -137,7 +142,7 @@ jobs:
         working-directory: contracts-ci
         run: forge test -vvv
 
-      - name: Artifact parity (lib/*-artifact.ts vs source)
+      - name: Artifact parity (every shipped artifact vs its source)
         working-directory: contracts-ci
         run: node scripts/check-artifacts.mjs
 
