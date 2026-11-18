@@ -8,6 +8,7 @@
 - [scripts/l1-fuji.sh](scripts/l1-fuji.sh): `FUJI_KEY=<key> pnpm l1:fuji` — create a separate sovereign PoA config (`<name>fuji`, production defaults, owned by the Fuji key) and deploy it to the Fuji testnet (advanced). Never deploys the local dev config, never overwrites a config, safe to re-run.
 - [l1.config.json](l1.config.json): your chain (name, token, evmChainId, rpcUrl, blockchainIdHex, faucetAccount).
 - [lib/l1.ts](lib/l1.ts): config → AvaKit chain (`defineChain`) + `isConfigured`.
+- [lib/deployed-contract.ts](lib/deployed-contract.ts): `useDeployedContract(name, chain)` — remembers the deployed demo token per chain instance (chain id + RPC URL) and only uses it once `eth_getCode` confirms bytecode, so an address from before a network reset is dropped.
 - [components/demo.tsx](components/demo.tsx): the dashboard/explorer — polls RPC for blocks/txs/gas/balance, deploys + mints the demo token.
 - [contracts/src/AvaKitToken.sol](contracts/src/AvaKitToken.sol) + [lib/token-artifact.ts](lib/token-artifact.ts): bundled ERC-20 for browser deploy.
 - [CLAUDE.md](CLAUDE.md): agent guide — the flow, an explainer for every L1 config decision, the EWOQ warning, and the Fuji graduation path.

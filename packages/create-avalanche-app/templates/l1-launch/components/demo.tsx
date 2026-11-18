@@ -1,21 +1,26 @@
 "use client";
 
 import { deployContract, ensureChain, getPublicClient, getWalletClient } from "@avakit/core";
-import { humanizeError,
+import {
   Button,
   ConnectAvalanche,
+  humanizeError,
   shortenAddress,
   useAvaAccount,
   useAvaKit,
 } from "@avakit/react";
 import { Blocks, Check, Copy, Moon, Rocket, Sun, Wallet } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { type Address, type Hash, formatEther, formatUnits } from "viem";
+import { useDeployedContract } from "@/lib/deployed-contract";
 import { chain, isConfigured, l1 } from "@/lib/l1";
 import { abi, bytecode } from "@/lib/token-artifact";
 
-const CONTRACT_KEY = "l1-launch:token";
+// Where the deployed demo token is remembered in localStorage. The address is
+// stored per chain instance and re-verified on load, so one left over from
+// before a network reset is never used (see lib/deployed-contract.ts).
+const TOKEN_STORAGE_KEY = "l1-launch:token";
 const MAX_BLOCKS = 8;
 
 type BlockRow = { number: bigint; hash: Hash; txCount: number; timestamp: bigint };
@@ -47,15 +52,19 @@ function Dashboard() {
   const [txs, setTxs] = useState<TxRow[]>([]);
   const [online, setOnline] = useState(true);
 
-  const [token, setToken] = useState<Address | null>(null);
+  const deployedToken = useDeployedContract(TOKEN_STORAGE_KEY, chain);
+  const token = deployedToken.address;
   const [busy, setBusy] = useState<null | "deploy" | "mint">(null);
   const [error, setError] = useState<string | null>(null);
 
+  // A token that could not be verified because the chain was down is checked
+  // again as soon as the chain answers (e.g. after `avalanche network start`).
+  const { status: tokenStatus, recheck: recheckToken, remember: rememberToken } = deployedToken;
+  const wasOnline = useRef(online);
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(CONTRACT_KEY);
-    if (saved) setToken(saved as Address);
-  }, []);
+    if (online && !wasOnline.current && tokenStatus === "unreachable") recheckToken();
+    wasOnline.current = online;
+  }, [online, tokenStatus, recheckToken]);
 
   // Live block explorer: poll the L1's RPC for height, gas, the latest blocks,
   // and the transactions inside them. All read-only — no wallet needed.
@@ -132,14 +141,13 @@ function Dashboard() {
         provider,
         account: address,
       });
-      window.localStorage.setItem(CONTRACT_KEY, deployed);
-      setToken(deployed);
+      rememberToken(deployed);
     } catch (e) {
       setError(humanizeError(e));
     } finally {
       setBusy(null);
     }
-  }, [provider, address]);
+  }, [provider, address, rememberToken]);
 
   const mint = useCallback(async () => {
     if (!provider || !address || !token) return;
@@ -220,6 +228,29 @@ function Dashboard() {
               <p className="text-muted-foreground text-xs">
                 Each action is a real transaction — watch it appear below.
               </p>
+              {/* Forgets this token (it stays on-chain) so a new one can be
+                  deployed, e.g. after editing the contract. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground self-start"
+                onClick={deployedToken.forget}
+                disabled={busy !== null}
+              >
+                Deploy a new one
+              </Button>
+            </>
+          ) : tokenStatus === "checking" ? (
+            <p className="text-muted-foreground text-sm">Looking for your demo token on the chain…</p>
+          ) : tokenStatus === "unreachable" ? (
+            <>
+              <p className="text-muted-foreground text-sm">
+                Your chain is not answering, so the demo token could not be checked. Start the
+                network, then try again.
+              </p>
+              <Button variant="outline" size="sm" onClick={recheckToken}>
+                Try again
+              </Button>
             </>
           ) : (
             <>

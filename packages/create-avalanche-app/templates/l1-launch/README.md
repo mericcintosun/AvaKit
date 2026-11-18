@@ -28,6 +28,10 @@ avalanche network clean    # wipe (new blockchain ID — re-run pnpm l1)
 CLEAN=1 pnpm l1            # wipe + rebuild in one step (use if a stale network blocks the deploy)
 ```
 
+A wipe creates a brand-new chain, so the demo token you deployed is gone. The app notices on its own
+— it only uses a remembered address while the chain still has code there — and offers **Deploy demo
+token** again.
+
 ## What you get
 
 - **Your own chain** — a real Subnet-EVM L1 running locally (no test AVAX, no faucet, no always-on node).

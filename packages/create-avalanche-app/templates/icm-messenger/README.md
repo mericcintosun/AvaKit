@@ -56,6 +56,10 @@ avalanche network clean    # wipe (new blockchain IDs — re-run pnpm devnet)
 CLEAN=1 pnpm devnet        # wipe + rebuild in one step (use if a stale network blocks the deploy)
 ```
 
+A wipe creates brand-new chains (same chainIds, new blockchain IDs), so the messengers you deployed
+are gone. The app notices on its own — it only uses a remembered address while the chain still has
+code there — and offers **Deploy messenger** again; deploy and link once more.
+
 ## Stack
 
 Next.js 16 · React 19 · `@avakit/react` · `@avakit/core` · viem · shadcn/ui · Foundry · avalanche-cli

@@ -24,6 +24,11 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 - `lib/messenger-artifact.ts` — the compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - `icm.config.json` — the two local chains (RPC URL + **hex blockchain ID**). Written by `pnpm devnet`.
 - `lib/devnet.ts` — turns that config into AvaKit chains + helpers.
+- `lib/deployed-contract.ts` — `useDeployedContract(name, chain)`: remembers each chain's deployed
+  messenger in `localStorage`, keyed by chain id **and RPC URL**, and only hands the address to the
+  UI after `eth_getCode` confirms bytecode. A devnet reset reuses chainIds 1001/1002 but creates
+  new chains, so old addresses are dropped and the cards go back to "Deploy messenger". Never read
+  a contract address straight from `localStorage`.
 - `app/providers.tsx` — `<AvaKitProvider chains={[chain1, chain2]}>` with the injected wallet.
 - `components/demo.tsx` — the **Devnet Studio**: live chain cards (block height + ICM status), deploy on both chains, send, and watch the message land on the other chain. When the devnet isn't up yet it shows a copy-command setup panel (`pnpm devnet`) — it never runs shell itself.
 - `scripts/devnet.sh` — the one-command local ICM devnet.

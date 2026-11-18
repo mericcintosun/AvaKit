@@ -8,9 +8,10 @@ import {
   readContract,
 } from "@avakit/core";
 import type { AvaChain } from "@avakit/core/chains";
-import { humanizeError,
+import {
   Button,
   ConnectAvalanche,
+  humanizeError,
   shortenAddress,
   useAvaAccount,
   useAvaChain,
@@ -18,25 +19,29 @@ import { humanizeError,
 } from "@avakit/react";
 import { ArrowRight, Check, Copy, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
+import { type DeployedContract, useDeployedContract } from "@/lib/deployed-contract";
 import { blockchainIdOf, chain1, chain2, icm, isConfigured } from "@/lib/devnet";
 import { abi, bytecode } from "@/lib/messenger-artifact";
 
-const STORAGE_KEY = "icm-messenger:addresses";
+// Where each chain's deployed messenger is remembered in localStorage. The
+// address is stored per chain instance and re-verified on load, so one left
+// over from before a devnet reset is never used (see lib/deployed-contract.ts).
+const MESSENGER_STORAGE_KEY = "icm-messenger:messenger";
 const CHAINS: [AvaChain, AvaChain] = [chain1, chain2];
 
-type AddrMap = Record<number, Address>;
 type ChainStatus = { online: boolean; block: bigint; icmReady: boolean };
 type Inbox = { message: string; count: bigint };
 
-function loadAddrs(): AddrMap {
-  if (typeof window === "undefined") return {};
-  try {
-    return JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}") as AddrMap;
-  } catch {
-    return {};
-  }
+/** Re-verify a remembered contract when its chain comes back after being unreachable. */
+function useRecheckWhenOnline(contract: DeployedContract, online: boolean) {
+  const { status, recheck } = contract;
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && !wasOnline.current && status === "unreachable") recheck();
+    wasOnline.current = online;
+  }, [online, status, recheck]);
 }
 
 export function Demo() {
@@ -44,7 +49,10 @@ export function Demo() {
   const { provider } = useAvaKit();
   const { setChain } = useAvaChain();
 
-  const [addrs, setAddrs] = useState<AddrMap>({});
+  const messenger1 = useDeployedContract(MESSENGER_STORAGE_KEY, chain1);
+  const messenger2 = useDeployedContract(MESSENGER_STORAGE_KEY, chain2);
+  const addr1 = messenger1.address;
+  const addr2 = messenger2.address;
   const [status, setStatus] = useState<Record<number, ChainStatus>>({});
   const [inbox, setInbox] = useState<Record<number, Inbox>>({});
   const [linked, setLinked] = useState<Record<number, boolean>>({});
@@ -55,20 +63,14 @@ export function Demo() {
   const [error, setError] = useState<string | null>(null);
 
   const destination = source.id === chain1.id ? chain2 : chain1;
-  const bothDeployed = Boolean(addrs[chain1.id] && addrs[chain2.id]);
+  const messengerOf = (chain: AvaChain) => (chain.id === chain1.id ? messenger1 : messenger2);
+  const bothDeployed = Boolean(addr1 && addr2);
   const bothLinked = Boolean(linked[chain1.id] && linked[chain2.id]);
 
-  useEffect(() => {
-    setAddrs(loadAddrs());
-  }, []);
-
-  const setAddr = useCallback((chainId: number, addr: Address) => {
-    setAddrs((prev) => {
-      const next = { ...prev, [chainId]: addr };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  // A messenger that could not be verified because its chain was down is
+  // checked again as soon as the chain answers (e.g. after `avalanche network start`).
+  useRecheckWhenOnline(messenger1, status[chain1.id]?.online ?? false);
+  useRecheckWhenOnline(messenger2, status[chain2.id]?.online ?? false);
 
   // Live poll: chain liveness (block height), ICM readiness (Teleporter has
   // code), each deployed messenger's inbox, and whether it trusts the other
@@ -76,6 +78,7 @@ export function Demo() {
   useEffect(() => {
     if (!isConfigured) return;
     let active = true;
+    const deployed: Record<number, Address | null> = { [chain1.id]: addr1, [chain2.id]: addr2 };
     async function poll() {
       const nextStatus: Record<number, ChainStatus> = {};
       const nextInbox: Record<number, Inbox> = {};
@@ -92,10 +95,10 @@ export function Demo() {
           } catch {
             nextStatus[chain.id] = { online: false, block: 0n, icmReady: false };
           }
-          const messenger = loadAddrs()[chain.id];
+          const messenger = deployed[chain.id];
           if (messenger) {
             const other = chain.id === chain1.id ? chain2 : chain1;
-            const otherMessenger = loadAddrs()[other.id];
+            const otherMessenger = deployed[other.id];
             try {
               const [message, count, peer] = await Promise.all([
                 readContract(chain, { address: messenger, abi, functionName: "lastMessage" }),
@@ -113,7 +116,7 @@ export function Demo() {
                   (peer as string).toLowerCase() === otherMessenger.toLowerCase(),
               );
             } catch {
-              // messenger not ready
+              // the chain did not answer this round; the next poll tries again
             }
           }
         }),
@@ -130,13 +133,15 @@ export function Demo() {
       active = false;
       clearInterval(timer);
     };
-  }, [isConfigured]);
+  }, [addr1, addr2]);
 
   // Clear the in-flight banner once the destination inbox shows the message.
   useEffect(() => {
     if (inFlight && inbox[destination.id]?.message === inFlight) setInFlight(null);
   }, [inFlight, inbox, destination.id]);
 
+  const remember1 = messenger1.remember;
+  const remember2 = messenger2.remember;
   const deployOn = useCallback(
     async (chain: AvaChain) => {
       if (!provider || !address) return;
@@ -154,14 +159,14 @@ export function Demo() {
           provider,
           account: address,
         });
-        setAddr(chain.id, deployed);
+        (chain.id === chain1.id ? remember1 : remember2)(deployed);
       } catch (e) {
         setError(humanizeError(e));
       } finally {
         setBusy(null);
       }
     },
-    [provider, address, setAddr, setChain],
+    [provider, address, remember1, remember2, setChain],
   );
 
   // Register each messenger as the other one's trusted remote — one
@@ -169,8 +174,6 @@ export function Demo() {
   // is not registered, so sending only works after this step.
   const linkChains = useCallback(async () => {
     if (!provider || !address) return;
-    const addr1 = addrs[chain1.id];
-    const addr2 = addrs[chain2.id];
     if (!addr1 || !addr2) return;
     setBusy("link");
     setError(null);
@@ -197,12 +200,12 @@ export function Demo() {
     } finally {
       setBusy(null);
     }
-  }, [provider, address, addrs, linked, setChain]);
+  }, [provider, address, addr1, addr2, linked, setChain]);
 
   const sendMessage = useCallback(async () => {
     if (!provider || !address) return;
-    const from = addrs[source.id];
-    const to = addrs[destination.id];
+    const from = source.id === chain1.id ? addr1 : addr2;
+    const to = destination.id === chain1.id ? addr1 : addr2;
     if (!from || !to) return;
     setBusy("send");
     setError(null);
@@ -223,7 +226,7 @@ export function Demo() {
     } finally {
       setBusy(null);
     }
-  }, [provider, address, addrs, source, destination, text, setChain]);
+  }, [provider, address, addr1, addr2, source, destination, text, setChain]);
 
   if (!isConfigured) {
     return (
@@ -249,12 +252,13 @@ export function Demo() {
             key={chain.id}
             chain={chain}
             status={status[chain.id]}
-            messenger={addrs[chain.id]}
+            messenger={messengerOf(chain)}
             inbox={inbox[chain.id]}
             linked={linked[chain.id]}
             isDestination={inFlight != null && chain.id === destination.id}
             busy={busy === `deploy:${chain.id}`}
             canDeploy={isConnected && !!address}
+            locked={busy !== null}
             onDeploy={() => deployOn(chain)}
           />
         ))}
@@ -334,19 +338,23 @@ function ChainCard({
   isDestination,
   busy,
   canDeploy,
+  locked,
   onDeploy,
 }: {
   chain: AvaChain;
   status?: ChainStatus;
-  messenger?: Address;
+  messenger: DeployedContract;
   inbox?: Inbox;
   linked?: boolean;
   isDestination: boolean;
   busy: boolean;
   canDeploy: boolean;
+  /** True while a transaction is in progress, so the messenger cannot be swapped under it. */
+  locked: boolean;
   onDeploy: () => void;
 }) {
   const online = status?.online ?? false;
+  const address = messenger.address;
   return (
     <div
       className={`flex flex-col gap-3 rounded-xl border p-5 transition-colors ${
@@ -370,21 +378,43 @@ function ChainCard({
           value={status?.icmReady ? "✓ Teleporter ready" : "—"}
           mono
         />
-        {messenger ? (
-          <Row label="Messenger" value={shortenAddress(messenger, 6)} mono />
-        ) : null}
-        {messenger ? (
-          <Row label="Peer" value={linked ? "✓ trusted" : "not linked"} mono />
-        ) : null}
+        {address ? <Row label="Messenger" value={shortenAddress(address, 6)} mono /> : null}
+        {address ? <Row label="Peer" value={linked ? "✓ trusted" : "not linked"} mono /> : null}
       </div>
 
-      {messenger ? (
-        <div className="bg-muted/50 rounded-lg p-3">
-          <p className="text-muted-foreground text-xs">Last received</p>
-          <p className="truncate text-sm">{inbox?.message || "—"}</p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            {inbox?.count ? `${inbox.count} total` : "0 total"}
+      {address ? (
+        <>
+          <div className="bg-muted/50 rounded-lg p-3">
+            <p className="text-muted-foreground text-xs">Last received</p>
+            <p className="truncate text-sm">{inbox?.message || "—"}</p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {inbox?.count ? `${inbox.count} total` : "0 total"}
+            </p>
+          </div>
+          {/* Forgets this messenger (it stays on-chain) so a new one can be
+              deployed, e.g. after editing the contract. The new one has to be
+              linked again. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground self-start"
+            onClick={messenger.forget}
+            disabled={locked}
+          >
+            Deploy a new one
+          </Button>
+        </>
+      ) : messenger.status === "checking" ? (
+        <p className="text-muted-foreground text-xs">Looking for your deployed messenger…</p>
+      ) : messenger.status === "unreachable" ? (
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-muted-foreground text-xs">
+            This chain is not answering, so your messenger could not be checked. Start the devnet,
+            then try again.
           </p>
+          <Button variant="outline" size="sm" onClick={messenger.recheck}>
+            Try again
+          </Button>
         </div>
       ) : (
         <Button onClick={onDeploy} disabled={busy || !canDeploy} size="sm">

@@ -22,6 +22,11 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   the local dev config and never overwrites an existing one.
 - `l1.config.json` — your chain: `name`, `token`, `evmChainId`, `rpcUrl`, `blockchainIdHex`, and (local only) the pre-funded `faucetAccount`. Written by the scripts.
 - `lib/l1.ts` — turns that config into an AvaKit chain (`defineChain`) + `isConfigured`.
+- `lib/deployed-contract.ts` — `useDeployedContract(name, chain)`: remembers the deployed demo token
+  in `localStorage`, keyed by chain id **and RPC URL**, and only hands the address to the UI after
+  `eth_getCode` confirms bytecode. After a network reset (or a switch to Fuji) the old address is
+  dropped and the card goes back to "Deploy demo token". Never read a contract address straight
+  from `localStorage`.
 - `components/demo.tsx` — the dashboard/explorer: polls the RPC for height, gas, the latest blocks and their transactions; deploys the demo ERC-20; mints.
 - `contracts/src/AvaKitToken.sol` + `lib/token-artifact.ts` — a minimal self-contained ERC-20 (browser deploy, no Foundry at runtime).
 - `app/providers.tsx` — `<AvaKitProvider chains={[chain]}>` with the injected wallet.
