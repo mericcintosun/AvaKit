@@ -35,7 +35,10 @@ export async function ensureChain(provider: EIP1193Provider, chain: AvaChain): P
             chainName: chain.name,
             nativeCurrency: chain.nativeCurrency,
             rpcUrls: [chain.rpcUrl],
-            blockExplorerUrls: [chain.explorerUrl],
+            // A fresh L1 has no explorer yet (defineChain allows a blank URL).
+            // EIP-3085 makes the field optional, and wallets reject an empty
+            // string in it — so leave it out rather than send [""].
+            ...(chain.explorerUrl ? { blockExplorerUrls: [chain.explorerUrl] } : {}),
           },
         ],
       });

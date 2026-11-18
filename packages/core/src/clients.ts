@@ -25,9 +25,12 @@ export function toViemChain(chain: AvaChain): Chain {
     rpcUrls: {
       default: { http: [chain.rpcUrl] },
     },
-    blockExplorers: {
-      default: { name: "Explorer", url: chain.explorerUrl },
-    },
+    // No explorer (a fresh L1) means no `blockExplorers` at all: an entry with an
+    // empty URL would reach the wallet as `blockExplorerUrls: [""]` through
+    // viem's addChain, which wallets reject.
+    ...(chain.explorerUrl
+      ? { blockExplorers: { default: { name: "Explorer", url: chain.explorerUrl } } }
+      : {}),
     testnet: chain.testnet,
   };
 }
