@@ -1,6 +1,7 @@
 // A tripwire for the one property of .github/workflows/release.yml that must
 // not be lost quietly: nothing is versioned or published before lint,
-// typecheck and the tests have passed in the same job.
+// typecheck, the tests, the changeset check and the MCP install smoke test
+// have passed in the same job.
 //
 // The file is read as text, not parsed — the repo has no YAML dependency, and
 // the release job is a flat list of named steps. If you restructure the
@@ -29,10 +30,18 @@ function stepWith(pattern) {
   return found[0];
 }
 
-test("release.yml runs lint, typecheck and the tests before changesets/action", () => {
+test("release.yml runs lint, typecheck, the tests and the package checks before changesets/action", () => {
   const publish = stepWith(/^ +uses: changesets\/action@/m);
 
-  for (const command of ["pnpm lint", "pnpm typecheck", "pnpm test"]) {
+  for (const command of [
+    "pnpm lint",
+    "pnpm typecheck",
+    "pnpm test",
+    // A core release must take the MCP server (which bundles core) with it.
+    "node scripts/check-changesets.mjs",
+    // The packed MCP server has to install and start, not only pass its tests.
+    'bash scripts/smoke-mcp.sh "\\$RUNNER_TEMP/smoke-mcp"',
+  ]) {
     const gate = stepWith(new RegExp(`^ +run: ${command}$`, "m"));
     assert.ok(gate < publish, `\`${command}\` must run before the changesets/action step`);
     // A step that may fail or be skipped does not stop a red tree.

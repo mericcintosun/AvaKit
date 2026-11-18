@@ -69,6 +69,21 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # @avakit/mcp carries @avakit/core inside its bundle, so Changesets does not
+      # bump the server when core is released. This fails when a pending changeset
+      # bumps core and none bumps the server, before the version PR is opened with
+      # the server left behind. With no pending changesets (the publish run) it
+      # passes.
+      - name: Changesets · a bundled package is released with the package that contains it
+        run: node scripts/check-changesets.mjs
+
+      # The tarball itself. The tests above run the source; this packs the server,
+      # installs it with an empty npm cache and drives the installed binary, which
+      # is what catches a package that is green in the workspace and does not
+      # start on a user's machine.
+      - name: Smoke · the packed MCP server installs and starts
+        run: bash scripts/smoke-mcp.sh "$RUNNER_TEMP/smoke-mcp"
+
       # When changesets exist on main, opens/updates a "Version Packages" PR.
       # When that PR is merged (versions bumped, changesets consumed), publishes.
       #
