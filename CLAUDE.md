@@ -21,9 +21,9 @@ These come from the project owner and override convenience. Full text in `docs/1
 
 ## Tech decisions (see docs/04-adr.md)
 
-- Default wallet: **Web3Auth** (social login). Opt-in: AvaCloud WaaS, Injected (Core/MetaMask).
+- Wallets: every scaffold wires several adapters; there is no per-scaffold choice (the `--wallet` flag is gone). All eight templates wire the **burner** (a temporary in-browser testnet wallet — the zero-setup option the connect dialog leads with) and **injected** (Core/MetaMask); the five Fuji templates add **Web3Auth** social login (`@avakit/core/web3auth`). **Coinbase Smart Wallet** (`@avakit/core/coinbase`) is an opt-in adapter that no template wires. There is **no AvaCloud WaaS adapter**: ADR-001 planned one and it was never built.
 - Monorepo: **pnpm workspaces + Turborepo + Changesets**.
-- Frontend: **Next.js (App Router) + React + wagmi + viem + Tailwind + shadcn/ui** (+ Framer Motion/GSAP).
+- Frontend: **Next.js (App Router) + React + viem + Tailwind + shadcn/ui** (+ Framer Motion/GSAP). **No wagmi** (ADR-011) — the one exception is the `eerc-token` template, whose eERC SDK requires wagmi 2.x.
 - Contracts: **Foundry** (primary), Hardhat optional.
 - MCP: `@modelcontextprotocol/sdk` (stdio).
 - License: **MIT**. Chains: **testnet-first (Fuji)**, mainnet opt-in + confirm.
@@ -35,9 +35,12 @@ These come from the project owner and override convenience. Full text in `docs/1
 - Keep `@avakit/core` framework-agnostic (viem only, no React). React-specific code lives in `@avakit/react`.
 - No circular dependencies; dependency direction is core ← react ← cli ← mcp.
 
-## Where things live (planned)
+## Where things live
 
-- `packages/core`, `packages/react`, `packages/mcp`, `packages/create-avalanche-app`
-- `templates/*` — scaffolder templates (each with a `manifest.json` + `CLAUDE.md`/`llms.txt`)
+- `packages/core`, `packages/react`, `packages/mcp`, `packages/studio`, `packages/create-avalanche-app` — the five published packages
+- `packages/create-avalanche-app/templates/*` — the eight scaffolder templates (each with a `manifest.json` + `CLAUDE.md`/`llms.txt`). There is no top-level `templates/` directory.
+- `apps/web` — the avakit.dev website (private, not published)
 - `examples/*` — live demo dapps
+- `services/*` — the faucet and telemetry Cloudflare Workers (standalone npm projects, outside the pnpm workspace)
+- `contracts-ci/` — Foundry tests and the artifact check for the Solidity the repo ships
 - `docs/*` — planning & spec docs (read these before implementing)
