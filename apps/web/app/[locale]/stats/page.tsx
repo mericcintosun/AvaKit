@@ -6,17 +6,25 @@ import { StatTile } from "@/components/stats/stat-tile";
 import { TemplateBars } from "@/components/stats/template-bars";
 import { Card } from "@/components/ui/card";
 import { pageMetadata } from "@/lib/metadata";
-import { compact, GITHUB_REPO, getStats, NPM_PACKAGES, zeroFillDays } from "@/lib/stats";
+import {
+  compact,
+  GITHUB_REPO,
+  getStats,
+  NPM_PACKAGES,
+  OTHER_TEMPLATE,
+  zeroFillDays,
+} from "@/lib/stats";
 
 export const metadata: Metadata = pageMetadata({
   route: "/stats",
   title: "Stats",
   description:
-    "How much AvaKit actually gets used: npm downloads, GitHub stars, and anonymous scaffold counts. Updated continuously.",
+    "How much AvaKit actually gets used: npm downloads, GitHub stars, and anonymous scaffold counts, refreshed through the day.",
 });
 
-// Matches the collector's own 5-minute edge cache. Without this the page would
-// be baked at build time and the numbers would be frozen until the next deploy.
+// Matches the collector's own five-minute memo of the aggregate (it computes
+// the numbers at most that often). Without this the page would be baked at
+// build time and the numbers would be frozen until the next deploy.
 export const revalidate = 300;
 
 const DAYS = 30;
@@ -44,9 +52,15 @@ function Section({
 export default async function StatsPage() {
   const { npm, github, telemetry } = await getStats();
 
+  // Most-picked first, with the collector's "other" bucket (template ids it
+  // does not recognise) always last: it is a remainder, not a contender.
   const byTemplate = Object.entries(telemetry?.scaffolds.byTemplate ?? {})
     .map(([template, n]) => ({ template, n }))
-    .sort((a, b) => b.n - a.n);
+    .sort(
+      (a, b) =>
+        Number(a.template === OTHER_TEMPLATE) - Number(b.template === OTHER_TEMPLATE) || b.n - a.n,
+    );
+  const hasOther = byTemplate.some((row) => row.template === OTHER_TEMPLATE);
 
   const days = telemetry ? zeroFillDays(telemetry.scaffolds.byDay, DAYS, new Date()) : [];
   const hasScaffolds = (telemetry?.scaffolds.succeeded ?? 0) > 0;
@@ -56,8 +70,8 @@ export default async function StatsPage() {
       <div className="flex flex-col gap-3">
         <h1 className="text-primary text-3xl font-semibold tracking-tight">Stats</h1>
         <p className="text-muted-foreground text-lg text-balance">
-          How much AvaKit actually gets used. Every number here is live, and every one of them is
-          checkable.
+          How much AvaKit actually gets used. The npm and GitHub numbers come from those services
+          and can be checked there; the scaffold and install counts are the project's own.
         </p>
       </div>
 
@@ -85,10 +99,19 @@ export default async function StatsPage() {
         <StatTile
           label="Unique installs"
           value={telemetry ? compact(telemetry.installs) : null}
-          hint="People, not runs"
+          hint="Distinct anonymous ids, not runs"
           source="the collector"
         />
       </div>
+
+      <p className="text-muted-foreground -mt-4 text-sm leading-relaxed">
+        The scaffold and install counts leave out CI runs and anyone who opted out, and they are
+        kept by the project itself, not by a third party:{" "}
+        <Link href="/docs/telemetry" className="text-foreground underline underline-offset-4">
+          how they are collected
+        </Link>
+        .
+      </p>
 
       {telemetry && hasScaffolds ? (
         <Section
@@ -102,7 +125,11 @@ export default async function StatsPage() {
       {byTemplate.length > 0 ? (
         <Section
           title="Templates"
-          subtitle="Which starter people actually pick, since we started counting."
+          subtitle={
+            hasOther
+              ? "Which starter people actually pick, since we started counting. Other is every scaffold whose template name the collector did not recognise."
+              : "Which starter people actually pick, since we started counting."
+          }
         >
           <TemplateBars data={byTemplate} />
         </Section>
@@ -188,8 +215,9 @@ export default async function StatsPage() {
             self-reported by the CLI
           </Link>
           , which is off in CI and easy to opt out of — so they're a floor, and a determined person
-          could inflate them. We publish both kinds side by side precisely because neither is
-          trustworthy alone: one is independent but blunt, the other is specific but spoofable.
+          could inflate them. They also cannot tell the maintainer's own runs from anyone else's. We
+          publish both kinds side by side precisely because neither is trustworthy alone: one is
+          independent but blunt, the other is specific but spoofable.
         </p>
         {telemetry ? (
           <p className="text-xs">

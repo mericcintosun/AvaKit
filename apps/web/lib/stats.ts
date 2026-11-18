@@ -23,10 +23,21 @@ export const NPM_PACKAGES = [
 
 export const GITHUB_REPO = "mericcintosun/AvaKit";
 
-/** Mirrors the collector's 5-minute edge cache (services/telemetry). */
+/**
+ * As long as the collector itself serves one computed aggregate: it memoises
+ * the numbers for five minutes inside the Worker and its Durable Object
+ * (services/telemetry). That is a memo in the collector, not an edge cache.
+ */
 const TELEMETRY_REVALIDATE = 300;
 /** npm's download counts only move once a day; GitHub stars aren't urgent. */
 const SLOW_REVALIDATE = 3600;
+
+/**
+ * The key the collector files a scaffold under when it does not recognise the
+ * template id (see services/telemetry/src/templates.js). It is a bucket, not a
+ * template, so the page labels it "Other" and lists it last.
+ */
+export const OTHER_TEMPLATE = "other";
 
 export interface NpmStats {
   /** Downloads in the last 30 days, summed across all packages. */

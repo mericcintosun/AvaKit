@@ -20,7 +20,10 @@ export default function TelemetryDocs() {
       />
 
       <H2>Turn it off</H2>
-      <P>Any one of these is enough, and they persist:</P>
+      <P>
+        Any one of these is enough. The flag is remembered for later runs; an environment variable
+        applies wherever it is set:
+      </P>
       <CodeBlock
         code={`export AVAKIT_TELEMETRY_DISABLED=1      # or DO_NOT_TRACK=1
 npm create avalanche-app@latest my-app -- --no-telemetry`}
@@ -37,8 +40,8 @@ npm create avalanche-app@latest my-app -- --no-telemetry`}
         AvaKit is asking the Avalanche ecosystem — Team1 grants, infraBUIDL(AI), Retro9000 — to back
         it, and every one of those asks the same question: does anyone actually use this? npm's
         download count is public but it cannot tell a human from a CI mirror, and it cannot say
-        which template anyone picked. Roughly a hundred anonymous counters answer both, and they
-        also tell us which templates to keep building.
+        which template anyone picked. A small set of anonymous counters answers both, and they also
+        tell us which templates to keep building.
       </P>
 
       <H2>What is sent</H2>
@@ -80,9 +83,10 @@ npm create avalanche-app@latest my-app -- --no-telemetry`}
       </UL>
       <Note>
         Rate limiting needs to tell callers apart, so the collector keys off{" "}
-        <C>SHA-256(secret salt + your IP + today's date)</C>. That row is deleted the next day and
-        cannot be walked back to an IP without the salt. Your <C>anonymousId</C> is hashed the same
-        way, so even the random id never lands in the database.
+        <C>SHA-256(secret salt + your network address + today's date)</C>, where the network address
+        is your IPv4 address or, for IPv6, only its /64 prefix. That row is deleted the next day and
+        cannot be walked back to an address without the salt. Your <C>anonymousId</C> is hashed with
+        the same salt, so even the random id never lands in the database.
       </Note>
 
       <H2>It cannot break your scaffold</H2>
@@ -94,7 +98,7 @@ npm create avalanche-app@latest my-app -- --no-telemetry`}
 
       <H2>Check for yourself</H2>
       <P>
-        Don't take our word for any of this. The client is about 200 lines in{" "}
+        Don't take our word for any of this. The client is a single file,{" "}
         <A href="https://github.com/mericcintosun/AvaKit/blob/main/packages/create-avalanche-app/src/telemetry.ts">
           <C>src/telemetry.ts</C>
         </A>
@@ -118,6 +122,11 @@ npm create avalanche-app@latest my-app -- --no-telemetry`}
         determined person could inflate it. We publish it next to the npm download count for exactly
         that reason: one is spoofable and specific, the other is independent and blunt. Treat both
         as evidence, not as audited figures.
+      </P>
+      <P>
+        The counters also cannot tell the maintainer's runs from anyone else's. A scaffold on a
+        machine of ours is counted like yours unless that machine has opted out, so while usage is
+        small, some of the total is our own testing.
       </P>
 
       <NextLinks
