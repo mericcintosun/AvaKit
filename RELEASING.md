@@ -27,6 +27,12 @@ exchange is also what produces the **provenance attestation** on each tarball
    ```
    Commit the generated `.changeset/*.md` and merge to `main`.
 
+   A changeset that releases `@avakit/core` needs one for `@avakit/mcp` as well. The
+   server carries core inside its bundle (its only runtime dependency is
+   `create-avalanche-app`), so Changesets no longer bumps it when core changes, and a
+   core fix would otherwise never reach agent users. `node scripts/check-changesets.mjs`
+   fails CI and the release job when the server's changeset is missing.
+
 2. **The bot opens a PR.** The workflow sees a pending changeset and opens/updates a
    **"chore: version packages"** PR (branch `changeset-release/main`) that applies the
    bumps and rewrites the changelogs. Nothing is published yet. The PR is produced by
@@ -58,6 +64,9 @@ exchange is also what produces the **provenance attestation** on each tarball
      (`.github/workflows/e2e-fuji.yml`) runs the same script daily and on demand
      (**Run workflow**, with the version to test) on fresh Linux, macOS and Windows
      runners; see [`CONTRIBUTING.md`](./CONTRIBUTING.md#end-to-end-run-on-fuji).
+   - `npm_config_cache="$(mktemp -d)" npx -y @avakit/mcp --version` downloads the
+     published server into an empty cache, the way a client's first start does, and
+     should print the new version within a few seconds.
 
 5. **Republish the MCP Registry listing by hand.** See the next section.
 
@@ -80,8 +89,12 @@ exchange is also what produces the **provenance attestation** on each tarball
 ## Nothing is published from a red tree
 
 Before it opens the version PR or publishes, the release job runs `pnpm lint`,
-`pnpm typecheck` and `pnpm test` on the commit it is about to release, and stops if
-any of them fails. Releases rely on that gate, because nothing else covers them:
+`pnpm typecheck`, `pnpm test`, the changeset check (`node scripts/check-changesets.mjs`)
+and the MCP install smoke test (`scripts/smoke-mcp.sh`, which packs the server,
+installs it with an empty npm cache and drives the installed binary) on the commit it
+is about to release, and stops if any of them fails. `scripts/workflows.test.mjs`
+fails when one of these steps goes missing from `release.yml` or comes after the
+publish step. Releases rely on that gate, because nothing else covers them:
 
 - `ci.yml` runs on the same push, but as a separate workflow that the release job
   does not wait for.

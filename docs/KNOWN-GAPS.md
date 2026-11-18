@@ -73,9 +73,6 @@ the detail where there is any.
   deploy → mint through the MCP server on Fuji (see item 6). Connecting a wallet
   and clicking Deploy and Mint in a scaffolded app, and the Google sign-in of the
   social login (item 1), are still checked by hand only.
-- **`contracts-ci/scripts/guards.test.mjs` is not run in CI.** The `contracts` job
-  runs `sync.mjs`, `forge test` and `check-artifacts.mjs`; the test file that
-  proves those two scripts still catch what they are for is a manual step.
 
 **Dependencies**
 
@@ -452,10 +449,10 @@ F4. **Source/artifact duplication — the drift it warned about already happened
    file nobody listed, `--write` regenerates instead of comparing, and `sync.mjs`
    also fails on a `foundry.toml` whose compiler settings differ from the
    harness's or sit outside `[profile.default]`.
+   `contracts-ci/scripts/guards.test.mjs`, which proves the two scripts still catch
+   what they are for, runs in the `contracts` CI job.
    **Still open:** the three upstream entries of `ictt-artifacts.json` have no
-   source in this repository and are not checked, and
-   `contracts-ci/scripts/guards.test.mjs`, which tests the two scripts, is not run
-   in CI (see "Open on 2026-11-18").
+   source in this repository and are not checked.
 
 F5. **Setup templates need external tooling and only run locally.** `icm-messenger`,
    `l1-launch`, `token-bridge` require `avalanche-cli` and ship

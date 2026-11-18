@@ -39,9 +39,10 @@ pnpm --filter @avakit/web dev      # run the avakit.dev site locally
 Before opening a PR, make sure `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` all pass. That is the main CI job (`.github/workflows/ci.yml`). CI also runs:
 
 - the [template smoke test](#template-smoke-test) for all eight templates;
+- the [MCP install smoke test](#mcp-install-smoke-test);
 - the [contract tests and the artifact check](#contracts-and-bytecode-artifacts);
 - the tests of the two Workers under `services/`, which are standalone npm projects outside the pnpm workspace: `cd services/faucet && npm ci && npm test` (likewise `services/telemetry`; Node 22.15 or newer);
-- the checks on the repo's own scripts: `node --test scripts/*.test.mjs` and `node scripts/check-template-deps.mjs`.
+- the checks on the repo's own scripts: `node --test scripts/*.test.mjs`, `node scripts/check-template-deps.mjs` and `node scripts/check-changesets.mjs` (see [Changesets](#changesets-versioning)).
 
 A second workflow, `.github/workflows/e2e-fuji.yml`, is not part of a pull request's checks: it runs the [end-to-end script](#end-to-end-run-on-fuji) against the packages published on npm, daily and on demand.
 
@@ -62,7 +63,7 @@ examples/               live demo dapps (private)
 services/               faucet + telemetry Cloudflare Workers (standalone npm projects, not in the workspace)
 contracts-ci/           Foundry harness: contract tests + artifact check (repo-only)
 docs/                   planning, PRD, architecture, ADRs, specs, security review
-scripts/                repo scripts (template smoke test, end-to-end Fuji run, template dependency check) and their tests
+scripts/                repo scripts (template and MCP smoke tests, end-to-end Fuji run, template dependency and changeset checks) and their tests
 ```
 
 Templates live in `packages/create-avalanche-app/templates/`. Keep the dependency direction one-way: **core ← react ← cli ← mcp**. No circular dependencies, and never import React into `@avakit/core`.
@@ -90,6 +91,18 @@ Templates that need `avalanche-cli` at runtime (`icm-messenger`, `l1-launch`, `t
 Without a second argument the app is built in a temporary directory that is removed when the script exits. To keep the app and look at it, pass a directory (`scripts/smoke-template.sh nft-mint /tmp/smoke`) or set `SMOKE_KEEP=1`.
 
 The script switches the scaffolder's telemetry off, so a smoke run is never counted as usage. When you run the built CLI by hand from this repo (`node packages/create-avalanche-app/dist/index.js …`), set `AVAKIT_TELEMETRY_DISABLED=1` yourself: a contributor trying out a change is not adoption, and without it the run is counted on [avakit.dev/stats](https://avakit.dev/stats). The variable also works in front of `pnpm test` and any other `turbo` command: `turbo.json` passes it (and `DO_NOT_TRACK`, `AVAKIT_TELEMETRY_URL` and `AVAKIT_CONFIG_DIR`) through to the tasks, which Turborepo's strict environment would otherwise drop.
+
+## MCP install smoke test
+
+`@avakit/mcp` is published as one bundled file: viem, zod, the MCP SDK and `@avakit/core` are inside `dist/index.js`, and `create-avalanche-app` is its only runtime dependency. An MCP client gives a server a fixed time to connect (30 seconds in Claude Code), and on an empty npm cache the unbundled server once took longer than that to download. The package's own tests run the source; this script checks the tarball:
+
+```bash
+AVAKIT_TELEMETRY_DISABLED=1 bash scripts/smoke-mcp.sh
+```
+
+It packs `create-avalanche-app` and `@avakit/mcp`, installs both with npm into an empty project with an empty npm cache, fails if viem, zod, the MCP SDK or `@avakit/core` were installed next to the server, runs the installed `avakit-mcp --version`, and drives the installed server over stdio (initialize, tools/list, list_templates, scaffold_app). It prints what a first start costs: packages installed, size on disk, install and start time. It contacts the npm registry only; the one call that would read a balance runs with `fetch` stubbed. CI runs it on every change, and the release job runs it before anything is published.
+
+The build fails on purpose when the bundle would break at run time (a bare import or a `require` left for run time) or when a bundled package has a missing or non-permissive licence; it writes `dist/THIRD_PARTY_LICENSES.txt` from what it bundled. After a dependency update, rebuild `@avakit/mcp` and run this script.
 
 ## End-to-end run on Fuji
 
@@ -143,7 +156,7 @@ Commit the regenerated artifacts together with the source change: CI (the `contr
 
 Not covered: the other three entries of `token-bridge`'s `lib/ictt-artifacts.json` (`ERC20TokenHome`, `ERC20TokenRemote`, `TeleporterRegistry`) are builds of `ava-labs/icm-contracts`, whose sources are not in this repository. The script names them as upstream and leaves them alone, also under `--write`.
 
-When you change either script, run its tests as well: `node --test scripts/guards.test.mjs` from `contracts-ci` (it needs `forge`). Each test breaks one thing in a temporary copy and expects the script to fail on it. CI does not run this file yet, so it is a manual step.
+When you change either script, run its tests as well: `node --test scripts/guards.test.mjs` from `contracts-ci` (it needs `forge`). Each test breaks one thing in a temporary copy and expects the script to fail on it. CI runs it as well, as the last step of the `contracts` job.
 
 Use the Foundry release CI pins (`version:` in `.github/workflows/ci.yml`; `foundryup --install <that version>`), because the check compares bytecode byte for byte. More in [`contracts-ci/README.md`](contracts-ci/README.md).
 
@@ -155,7 +168,9 @@ This repo uses [Changesets](https://github.com/changesets/changesets). If your c
 pnpm changeset       # describe the change + pick patch / minor / major
 ```
 
-Commit the generated file in `.changeset/` with your PR. The release flow is automated:
+Commit the generated file in `.changeset/` with your PR. A change to `@avakit/core` needs a changeset for `@avakit/mcp` too: the server bundles core, so it is not bumped with it automatically, and `node scripts/check-changesets.mjs` fails CI when that changeset is missing.
+
+The release flow is automated:
 
 1. You open a PR that includes a changeset.
 2. After it merges to `main`, the Release workflow opens (or updates) a **"Version Packages"** PR that applies the version bumps and updates changelogs.

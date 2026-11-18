@@ -129,6 +129,7 @@ The server has eight tools: `list_templates`, `scaffold_app`, `read_chain`, `est
 - **Fuji needs no key.** When `AVAKIT_DEPLOYER_KEY` is not set, `deploy_contract` and `write_contract` sign with a session test wallet: a key generated in the server's memory, never written to disk, logged or returned, that signs for Fuji only, never sends AVAX with a transaction, and is gone when the server stops. The server asks the shared faucet to fund it when it cannot pay. `AVAKIT_TEST_WALLET=0` turns it off, and `AVAKIT_DEPLOYER_KEY` replaces it with your own key.
 - **Mainnet needs three things:** your own key in `AVAKIT_DEPLOYER_KEY`, `confirm: true` in the tool call, and `AVAKIT_ALLOW_MAINNET=1` in the server's environment, which a tool call cannot set.
 - **Files stay in one folder.** `scaffold_app` creates projects, and `artifactPath` reads contract artifacts, only inside the server's working directory or the directory named by `AVAKIT_MCP_ROOT`. A server started in the filesystem root (as Claude Desktop does on macOS) refuses to scaffold until `AVAKIT_MCP_ROOT` is set.
+- **The first start is a download.** `npx` fetches the server the first time a client starts it. It is published as one bundled file whose only dependency is the scaffolder, which comes to a few seconds on an empty npm cache. A client waits a fixed time for a server to connect (30 seconds in Claude Code), so on a slow network run `npx -y @avakit/mcp --version` once before adding it.
 
 The full reference is the [`@avakit/mcp` README](packages/mcp/README.md).
 
