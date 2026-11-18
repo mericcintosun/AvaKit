@@ -22,10 +22,15 @@ export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, serverSnapshot);
 }
 
-/** The `md` breakpoint (>= 768px), from which the heavy media sections are shown. */
-export const DESKTOP_QUERY = "(min-width: 768px)";
+/**
+ * The `md` breakpoint, from which the heavy media sections are shown. Written
+ * in rem exactly as Tailwind compiles `md:` (768px at the default font size),
+ * so this and the `hidden md:block` on those sections switch at the same width
+ * whatever font size the visitor's browser is set to.
+ */
+export const DESKTOP_QUERY = "(min-width: 48rem)";
 
-/** True from the `md` breakpoint up (>= 768px), where the heavy media is shown. */
+/** True from the `md` breakpoint up, where the heavy media is shown. */
 export function useIsDesktop(): boolean {
   return useMediaQuery(DESKTOP_QUERY);
 }
