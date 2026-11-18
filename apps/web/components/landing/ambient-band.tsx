@@ -64,14 +64,16 @@ export function AmbientBand() {
     const video = videoRef.current;
     if (!video) return;
     if (!playing) {
-      // A still: the poster before any playback, the paused frame after. Show
-      // it in full, unless the loop is about to start and fade itself in.
-      if (!wantsPlayback) video.style.opacity = "1";
+      // A still — the poster before any playback, the paused frame after — is
+      // shown in full.
+      video.style.opacity = "1";
       return;
     }
-    // Resuming from a visible still? Hold it at full opacity through the
-    // opening fade window so playback doesn't dip to black first.
-    let hold = video.style.opacity === "1";
+    // Playback always (re)starts from such a still, so hold full opacity
+    // through the opening fade window instead of dipping to black first. The
+    // poster is the clip's first frame, which makes the very first start
+    // seamless; every later pass through the loop boundary fades as described.
+    let hold = true;
     let raf = 0;
     const tick = () => {
       const duration = video.duration;
@@ -86,7 +88,7 @@ export function AmbientBand() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, wantsPlayback]);
+  }, [playing]);
 
   return (
     <section
@@ -107,7 +109,6 @@ export function AmbientBand() {
           preload="none"
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
-          style={{ opacity: 0 }}
           className="absolute inset-0 h-full w-full object-cover invert"
         />
         <div className="from-background/60 via-background/40 to-background/70 absolute inset-0 bg-gradient-to-b" />
