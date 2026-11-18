@@ -152,7 +152,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Send a cross-chain message",
       description:
-        "Send a string from one running L1's messenger to another's over Interchain Messaging.",
+        "Send a string from one running L1's messenger to another's over Interchain Messaging. Returns the transaction hash and receivedBefore, the destination's delivery count just before the send: the relayer delivers within seconds, after which icm_state reports a higher messagesReceived for the destination.",
       inputSchema: {
         from: z.string().describe("Source L1 name, e.g. chain1"),
         to: z.string().describe("Destination L1 name, e.g. chain2 (must differ from `from`)"),
