@@ -9,10 +9,18 @@ AvaKit deals with wallets and on-chain deployments, so we take security seriousl
   generation, storage, and signing live inside the wallet provider — AvaKit's browser
   code only uses a signing interface and never sees a seed phrase or private key.
   **The burner adapter is the deliberate exception — see below.**
-- **No secrets in code or logs.** Client IDs, RPC keys, and similar values are read
-  from environment variables and are never written to logs or tool output.
-- **Mainnet is opt-in.** Deploys default to the Fuji testnet. Mainnet deploys require
-  explicit confirmation and a balance check.
+- **No secrets in code or logs.** Secrets — deploy keys, RPC and API keys — are read
+  from environment variables and are never written to logs or tool output. (The
+  Web3Auth client ID bundled in the scaffolded templates is not a secret: a client ID
+  is a public identifier that reaches every browser anyway, and this demo one only
+  allows localhost origins, so social login works with zero setup. Set
+  `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` to use your own.)
+- **Mainnet is opt-in.** Deploys default to the Fuji testnet, and a mainnet deploy is
+  refused until it is confirmed explicitly. `deployContract()` in `@avakit/core` (and
+  `useAvaDeploy()` in `@avakit/react`) throws unless the caller passes
+  `confirmMainnet: true`. `@avakit/mcp`'s `deploy_contract` needs `confirm: true` in
+  the tool call **and** `AVAKIT_ALLOW_MAINNET=1` in the server's environment — see
+  [Local developer tooling](#local-developer-tooling).
 
 ## The burner wallet holds a key in the browser
 
@@ -41,8 +49,13 @@ by design and is scoped to local/testnet use:
   is Avalanche's well-known **public** development key. It is pre-funded only on local
   devnets, is documented as local-only, and is never a real secret.
 - **`@avakit/mcp`'s `deploy_contract`** signs with a key supplied via the
-  `AVAKIT_DEPLOYER_KEY` environment variable. It is never logged, and mainnet deploys
-  require explicit confirmation.
+  `AVAKIT_DEPLOYER_KEY` environment variable. It is never logged, and the tool refuses
+  to deploy with a key that has no balance. A mainnet deploy needs **two** independent
+  approvals: `confirm: true` in the tool call **and** `AVAKIT_ALLOW_MAINNET=1` in the
+  environment the MCP server runs in. `confirm: true` alone is refused, on purpose: an
+  AI agent can be talked into passing it by a prompt-injected instruction, but it
+  cannot change the server's environment, so a malicious prompt on its own can never
+  spend real funds. Leave `AVAKIT_ALLOW_MAINNET` unset for everyday testnet work.
 - **`@avakit/studio`** runs a local control center that can drive `avalanche-cli`,
   `forge`, and `cast`. It is a tool you launch yourself from your own terminal, and is
   hardened accordingly: it binds `127.0.0.1` only, validates the `Host` header
