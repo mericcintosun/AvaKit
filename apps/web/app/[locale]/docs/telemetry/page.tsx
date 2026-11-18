@@ -47,15 +47,18 @@ npm create avalanche-app@latest my-app -- --no-telemetry`}
   "event": "scaffold",
   "anonymousId": "6f1d1b1e-0b3a-4c2f-9c5e-1a2b3c4d5e6f",
   "template": "nft-mint",
-  "wallet": "injected",
   "chain": "fuji",
   "pm": "pnpm",
   "ok": true,
-  "cliVersion": "0.3.0",
+  "cliVersion": "0.4.1",
   "platform": "darwin",
   "nodeMajor": "22"
 }`}
       />
+      <P>
+        A scaffold that fails sends the same body with <C>"ok": false</C> and one extra field, the
+        coarse <C>errorKind</C> described below.
+      </P>
       <P>
         <C>anonymousId</C> is a random UUID generated on your machine the first time you run the CLI
         and stored in <C>~/.config/avakit/config.json</C>. Nothing about your machine, your network,
