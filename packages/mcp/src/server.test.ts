@@ -297,8 +297,8 @@ describe("scaffold_app", () => {
     expect(created.artifacts).toEqual(["my-first-dapp/lib/nft-artifact.ts"]);
     expect(created.nextSteps).toEqual([
       "cd my-first-dapp",
-      "pnpm install",
-      "pnpm dev",
+      "npm install",
+      "npm run dev",
       "From this MCP server, with no key to set up on the Fuji testnet: " +
         'deploy_contract({ artifactPath: "my-first-dapp/lib/nft-artifact.ts" }), then call it with ' +
         'write_contract({ address, artifactPath: "my-first-dapp/lib/nft-artifact.ts", functionName: "mint" }). ' +
@@ -337,7 +337,7 @@ describe("scaffold_app", () => {
       const created = result.json<Scaffolded>();
       expect(created.artifacts, template).toEqual([]);
       expect(created.nextSteps.join("\n"), template).not.toContain("deploy_contract");
-      expect(created.nextSteps.at(-1), template).toBe("pnpm dev");
+      expect(created.nextSteps.at(-1), template).toBe("npm run dev");
     }
   });
 
@@ -349,11 +349,30 @@ describe("scaffold_app", () => {
     expect(created.artifacts).toEqual(["messenger/lib/messenger-artifact.ts"]);
     expect(created.nextSteps).toEqual([
       "cd messenger",
-      "pnpm install",
-      "pnpm run devnet  # start the local Avalanche network (run once)",
-      "pnpm dev",
+      "npm install",
+      "npm run devnet  # start the local Avalanche network (run once)",
+      "npm run dev",
       "This template's app deploys its contract from the browser, to the local network that " +
-        "`pnpm run devnet` starts. deploy_contract and write_contract reach Fuji and the C-Chain only.",
+        "`npm run devnet` starts. deploy_contract and write_contract reach Fuji and the C-Chain only.",
+    ]);
+  });
+
+  it("gives the next steps with npm, and with pnpm only for an app linked into the monorepo", async () => {
+    // A client starts the server with npx, so npm is the one package manager
+    // the machine is known to have. Someone without pnpm was told `pnpm install`.
+    const plain = await mcp.call("scaffold_app", { name: "plain", template: "minimal" });
+    expect(plain.json<Scaffolded>().nextSteps).toEqual(["cd plain", "npm install", "npm run dev"]);
+
+    // workspace:* ranges only resolve with pnpm, inside the AvaKit repository.
+    const linked = await mcp.call("scaffold_app", {
+      name: "linked",
+      template: "minimal",
+      local: true,
+    });
+    expect(linked.json<Scaffolded>().nextSteps).toEqual([
+      "cd linked",
+      "pnpm install",
+      "pnpm run dev",
     ]);
   });
 

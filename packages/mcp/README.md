@@ -98,7 +98,7 @@ That is three attempts at most, ten seconds each, with a randomised pause betwee
 | --- | --- |
 | `scaffold_app` | Create an Avalanche dapp from any of the 8 templates (`list_templates` returns the current set). The result lists `artifacts`, the paths of the project's compiled contracts |
 | `list_templates` | List available templates, with the chains each one supports |
-| `read_chain` | Read a balance, a transaction receipt, or a contract view function |
+| `read_chain` | Read a balance, a transaction receipt, or a contract view function, given as `artifactPath` or as `abi` like `write_contract` |
 | `deploy_contract` | Deploy a compiled contract, given as `artifactPath` or as `abi` + `bytecode`. No key needed on Fuji; mainnet needs your own key, `confirm: true` **and** `AVAKIT_ALLOW_MAINNET=1` in the server's environment |
 | `write_contract` | Send a state-changing contract call — mint, transfer, approve — after simulating it. Signs the way `deploy_contract` does |
 | `wallet_status` | Show which wallet would sign on a chain, where it comes from, and its balance. Sends nothing |
@@ -154,6 +154,20 @@ Returns `{ txHash, status: "success", blockNumber, explorerUrl, signer: { addres
 The call is simulated first. If it would revert, the revert reason comes back as an error and nothing is sent — no transaction, no gas. A view function is refused with a pointer to `read_chain`, and an address with no contract at it is refused too: a call to an empty account is mined and "succeeds" having done nothing.
 
 Pass integers that do not fit a JSON number (anything from about 9 × 10¹⁵ up — most token amounts) as decimal strings: `"1000000000000000000"`. A JSON number that has already lost digits is refused, not encoded.
+
+### `read_chain`
+
+| Argument | |
+| --- | --- |
+| `action` | `"balance"`, `"txReceipt"` or `"contractRead"` |
+| `address` | The account for `balance`, the contract for `contractRead` |
+| `hash` | The transaction for `txReceipt` |
+| `functionName` | For `contractRead`: a view or pure function, for example `"ownerOf"`. To pick between overloads, the full signature |
+| `abi` or `artifactPath` | For `contractRead`: the ABI, exactly one of the two, in the same forms as `write_contract` |
+| `args` | The function's arguments, in order |
+| `chain` | `"fuji"` (default) or `"c-chain"` |
+
+Needs no key and sends nothing. A contract that `scaffold_app` created can be read with the artifact path it returned, or with one signature: `{ "action": "contractRead", "address": "0x…", "abi": ["function ownerOf(uint256 tokenId) view returns (address)"], "functionName": "ownerOf", "args": [1] }`. A state-changing function is refused with a pointer to `write_contract`.
 
 ### `wallet_status`
 

@@ -140,6 +140,13 @@ export function writeFunctions(abi: Abi): AbiFunction[] {
   );
 }
 
+/** The view and pure functions of an ABI, in the ABI's order. */
+export function readFunctions(abi: Abi): AbiFunction[] {
+  return abi.filter(
+    (item): item is AbiFunction => item.type === "function" && !isStateChanging(item),
+  );
+}
+
 function listed(functions: readonly AbiFunction[]): string {
   const shown = functions.slice(0, MAX_LISTED).map(describeFunction).join(", ");
   return functions.length > MAX_LISTED
@@ -254,6 +261,64 @@ export interface SelectedFunction {
   args: unknown[];
 }
 
+/** Which half of an ABI a tool works with: what it sends, or what it reads. */
+type FunctionKind = "write" | "read";
+
+/**
+ * The one function of the wanted kind that a call means, with its arguments
+ * ready to encode — or an error that says which functions there are.
+ */
+function select(
+  abi: Abi,
+  functionName: string,
+  args: readonly unknown[],
+  kind: FunctionKind,
+): SelectedFunction {
+  const wanted = functionName.trim();
+  const functions = abi.filter((item): item is AbiFunction => item.type === "function");
+  const signature = wanted.includes("(") ? canonical(wanted) : undefined;
+  const named = functions.filter((item) =>
+    signature ? toFunctionSignature(item) === signature : item.name === wanted,
+  );
+  const offered = kind === "write" ? writeFunctions(abi) : readFunctions(abi);
+  const offeredAs = kind === "write" ? "state-changing" : "read-only";
+  if (named.length === 0) {
+    throw new ToolError(
+      `No function "${wanted.slice(0, 200)}" in the ABI. ` +
+        (offered.length > 0
+          ? `Its ${offeredAs} functions: ${listed(offered)}.`
+          : `It has no ${offeredAs} functions at all.`),
+    );
+  }
+  const fitting = named.filter((item) => item.inputs.length === args.length);
+  if (fitting.length === 0) {
+    throw new ToolError(
+      `"${named[0]?.name}" does not take ${count(args.length, "argument")}. ` +
+        `Its form${named.length === 1 ? " is" : "s are"} ${listed(named)}; pass the values as args, in that order.`,
+    );
+  }
+  const matching = fitting.filter((item) => isStateChanging(item) === (kind === "write"));
+  if (matching.length === 0) {
+    throw new ToolError(
+      kind === "write"
+        ? `"${fitting[0]?.name}" is a read-only (view) function, so there is nothing to send. ` +
+            `Read it with read_chain: { action: "contractRead", address, abi, functionName: "${fitting[0]?.name}" }.`
+        : `"${fitting[0]?.name}" changes state, so read_chain does not call it: a read would show ` +
+            "what the call returns without anything happening on chain. " +
+            `Send it with write_contract: { address, functionName: "${fitting[0]?.name}" } and the same ABI.`,
+    );
+  }
+  const [item] = matching;
+  if (!item || matching.length > 1) {
+    throw new ToolError(
+      `"${matching[0]?.name}" has ${matching.length} forms that take ${count(args.length, "argument")}: ` +
+        `${listed(matching)}. Pass functionName as the full signature of the one you mean, ` +
+        `for example "${matching[0] ? toFunctionSignature(matching[0]) : wanted}".`,
+    );
+  }
+  return { item, args: coerceArgs(item.inputs, args) };
+}
+
 /**
  * The one state-changing function a call means, with its arguments ready to
  * encode — or an error that says which functions there are.
@@ -266,42 +331,18 @@ export function selectFunction(
   functionName: string,
   args: readonly unknown[] = [],
 ): SelectedFunction {
-  const wanted = functionName.trim();
-  const functions = abi.filter((item): item is AbiFunction => item.type === "function");
-  const signature = wanted.includes("(") ? canonical(wanted) : undefined;
-  const named = functions.filter((item) =>
-    signature ? toFunctionSignature(item) === signature : item.name === wanted,
-  );
-  if (named.length === 0) {
-    const writable = writeFunctions(abi);
-    throw new ToolError(
-      `No function "${wanted.slice(0, 200)}" in the ABI. ` +
-        (writable.length > 0
-          ? `Its state-changing functions: ${listed(writable)}.`
-          : "It has no state-changing functions at all."),
-    );
-  }
-  const fitting = named.filter((item) => item.inputs.length === args.length);
-  if (fitting.length === 0) {
-    throw new ToolError(
-      `"${named[0]?.name}" does not take ${count(args.length, "argument")}. ` +
-        `Its form${named.length === 1 ? " is" : "s are"} ${listed(named)}; pass the values as args, in that order.`,
-    );
-  }
-  const writable = fitting.filter(isStateChanging);
-  if (writable.length === 0) {
-    throw new ToolError(
-      `"${fitting[0]?.name}" is a read-only (view) function, so there is nothing to send. ` +
-        `Read it with read_chain: { action: "contractRead", address, abi, functionName: "${fitting[0]?.name}" }.`,
-    );
-  }
-  const [item] = writable;
-  if (!item || writable.length > 1) {
-    throw new ToolError(
-      `"${writable[0]?.name}" has ${writable.length} forms that take ${count(args.length, "argument")}: ` +
-        `${listed(writable)}. Pass functionName as the full signature of the one you mean, ` +
-        `for example "${writable[0] ? toFunctionSignature(writable[0]) : wanted}".`,
-    );
-  }
-  return { item, args: coerceArgs(item.inputs, args) };
+  return select(abi, functionName, args, "write");
+}
+
+/**
+ * The one read-only (view or pure) function a read means, with its arguments
+ * ready to encode. The same rules as `selectFunction`, for the other half of
+ * the ABI: a state-changing function is refused, with the tool that sends it.
+ */
+export function selectReadFunction(
+  abi: Abi,
+  functionName: string,
+  args: readonly unknown[] = [],
+): SelectedFunction {
+  return select(abi, functionName, args, "read");
 }

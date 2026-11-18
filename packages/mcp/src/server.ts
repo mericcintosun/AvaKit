@@ -44,7 +44,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { listTemplates, scaffoldApp } from "create-avalanche-app/api";
 import { type Abi, type Address, formatEther, type Hex, isAddress } from "viem";
 import { z } from "zod";
-import { normalizeAbi } from "./abi.js";
+import { normalizeAbi, selectReadFunction } from "./abi.js";
 import { deployableBytecode, deployHint, findArtifacts, readArtifact } from "./artifact.js";
 import { deployContract } from "./deploy.js";
 import { reasonOf, ToolError } from "./errors.js";
@@ -226,20 +226,26 @@ server.registerTool(
     // an agent goes from here to a deployed contract without opening a file.
     const artifacts = findArtifacts(targetDir, files, resolveWorkspace().root);
     const [first] = artifacts;
+    // npm, because it is the one package manager every machine that can run
+    // this server has: a client starts the server with npx, which is npm's.
+    // The apps install with pnpm, yarn and bun as well. An app linked with
+    // `local` resolves workspace:* ranges, which only pnpm inside the AvaKit
+    // monorepo can install.
+    const [install, run] = local ? ["pnpm install", "pnpm run"] : ["npm install", "npm run"];
     const nextSteps = [
       `cd ${name}`,
-      "pnpm install",
+      install,
       // Every scaffold ships burner + injected + social login. Social login
       // works out of the box on localhost via a bundled demo key; only your own
       // deployment needs a client id (cp .env.example .env.local).
-      ...(setup ? [`pnpm run ${setup}  # start the local Avalanche network (run once)`] : []),
-      "pnpm dev",
+      ...(setup ? [`${run} ${setup}  # start the local Avalanche network (run once)`] : []),
+      `${run} dev`,
       ...(first
         ? [
             setup
               ? // Its app talks to a network on this machine, which the signing
                 // tools cannot reach: they know Fuji and the C-Chain.
-                `This template's app deploys its contract from the browser, to the local network that \`pnpm run ${setup}\` starts. deploy_contract and write_contract reach Fuji and the C-Chain only.`
+                `This template's app deploys its contract from the browser, to the local network that \`${run} ${setup}\` starts. deploy_contract and write_contract reach Fuji and the C-Chain only.`
               : deployHint(first),
           ]
         : []),
@@ -261,7 +267,7 @@ server.registerTool(
   {
     title: "Read Avalanche chain data",
     description:
-      "Read a native AVAX balance, a transaction receipt, or a contract view/pure function over RPC. No key needed. To change state (for example to mint) use write_contract.",
+      "Read a native AVAX balance, a transaction receipt, or a contract view/pure function over RPC. No key needed. For contractRead pass the contract's ABI the same way write_contract takes it: as artifactPath (one of the `artifacts` scaffold_app returned) or as abi (the JSON ABI, or just the function's signature). To change state (for example to mint) use write_contract.",
     inputSchema: z
       .object({
         action: z.enum(["balance", "txReceipt", "contractRead"]),
@@ -272,14 +278,27 @@ server.registerTool(
           .array(z.any())
           .max(MAX_ABI_ITEMS)
           .optional()
-          .describe("Contract ABI for contractRead"),
-        functionName: z.string().optional().describe("View function for contractRead"),
-        args: z.array(z.any()).max(MAX_ARGS).optional(),
+          .describe(
+            'For contractRead, instead of artifactPath: the JSON ABI, or signatures such as ["function ownerOf(uint256 tokenId) view returns (address)"].',
+          ),
+        artifactPath: artifactPathInput,
+        functionName: z
+          .string()
+          .max(500)
+          .optional()
+          .describe(
+            'For contractRead: the view or pure function to read, e.g. "ownerOf". To pick between overloads, the full signature, e.g. "balanceOf(address,uint256)".',
+          ),
+        args: z
+          .array(z.any())
+          .max(MAX_ARGS)
+          .optional()
+          .describe("The function's arguments, in order. Pass large integers as decimal strings."),
       })
       .strict(),
     annotations: READ_ONLY,
   },
-  async ({ action, chain, address, hash, abi, functionName, args }) => {
+  async ({ action, chain, address, hash, abi, artifactPath, functionName, args }) => {
     const c = chainFrom(chain);
     try {
       if (action === "balance") {
@@ -291,18 +310,34 @@ server.registerTool(
         if (!hash) return text("txReceipt requires 'hash'.", true);
         return text(toJson(await getTransactionReceipt(hash as Hex, c)));
       }
-      if (!address || !abi || !functionName) {
-        return text("contractRead requires 'address', 'abi', and 'functionName'.", true);
+      if (!address || !functionName) {
+        return text(
+          "contractRead requires 'address', 'functionName' and the contract's ABI (artifactPath or abi).",
+          true,
+        );
       }
+      if (!ADDRESS_RE.test(address)) {
+        return text(
+          "contractRead: 'address' must be a 0x-prefixed, 40-hex-character address.",
+          true,
+        );
+      }
+      // The same ABI forms and the same function selection as write_contract,
+      // so what scaffold_app returned can be read as well as called.
+      const { item, args: callArgs } = selectReadFunction(
+        abiFrom("read_chain", { abi, artifactPath }),
+        functionName,
+        args,
+      );
       const result = await readContract(c, {
         address: address as Address,
-        abi: abi as Abi,
-        functionName: functionName as never,
-        args,
+        abi: [item],
+        functionName: item.name as never,
+        args: callArgs,
       });
       return text(toJson(result));
     } catch (e) {
-      return text(`read_chain failed: ${e instanceof Error ? e.message : String(e)}`, true);
+      return failed("read_chain", e);
     }
   },
 );
