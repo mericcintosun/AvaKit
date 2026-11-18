@@ -28,9 +28,11 @@ node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the sour
   contracts themselves.
 - **`scripts/check-artifacts.mjs`** rebuilds every contract and fails if a
   shipped artifact no longer matches the source it is generated from: each
-  template's `lib/*-artifact.ts`, and the messenger bytecode Studio deploys
+  template's `lib/*-artifact.ts`, the messenger bytecode Studio deploys
   (`packages/studio/src/messenger-artifact.ts`, where the `*_SIG` constants
-  Studio calls the contract with are checked against its ABI too).
+  Studio calls the contract with are checked against its ABI too), and the
+  contract the website's `/new` page deploys (`apps/web/lib/nft-artifact.ts`,
+  which has to be the `nft-mint` template's).
 
 `examples/web3auth-demo` ships a different, simpler `AvaKitNFT` on purpose; it
 is an example app, not a template, and is not covered here.

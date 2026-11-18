@@ -4,9 +4,10 @@
 //
 // The artifacts are generated files that live away from their source: each
 // template bundles one (lib/*-artifact.ts) so a scaffolded app can deploy from
-// the browser with no Foundry at runtime, and Studio deploys the icm-messenger
-// contract with `cast`. Nothing else guards against a source and the bytecode
-// shipped for it silently drifting apart.
+// the browser with no Foundry at runtime, Studio deploys the icm-messenger
+// contract with `cast`, and the website's /new page deploys the nft-mint
+// contract. Nothing else guards against a source and the bytecode shipped for
+// it silently drifting apart.
 //
 // Each artifact is compared with a build of the Foundry project that owns its
 // source. Every one of those projects carries the compiler settings of
@@ -72,6 +73,12 @@ const ARTIFACTS = [
     bytecode: "MESSENGER_BYTECODE",
     abi: false,
   },
+  // The website's /new page deploys the contract the nft-mint template ships.
+  {
+    source: `${TEMPLATES}/nft-mint/contracts`,
+    contract: "AvaKitNFT",
+    file: "apps/web/lib/nft-artifact.ts",
+  },
 ];
 
 const ABI_LITERAL = /(export const abi = )(\[[\s\S]*?\])( as const)/;
@@ -116,6 +123,16 @@ function castSignatures(abi) {
   return signatures;
 }
 
+/** Whether `literal` is JSON for `value`. Anything that is not JSON at all (a
+ * reformatted literal, say) simply counts as different. */
+function sameJson(literal, value) {
+  try {
+    return JSON.stringify(JSON.parse(literal)) === JSON.stringify(value);
+  } catch {
+    return false;
+  }
+}
+
 /** The artifact's text with its abi + bytecode replaced by the build's. */
 function regenerate({ bytecode = "bytecode", abi = true }, built, text) {
   let next = text.replace(
@@ -144,13 +161,10 @@ function drift({ bytecode = "bytecode", abi = true }, built, text) {
   }
 
   if (abi) {
-    let shipped;
-    try {
-      shipped = JSON.stringify(JSON.parse(text.match(ABI_LITERAL)?.[2]));
-    } catch {
-      problems.push({ text: "the file needs an `export const abi = [...] as const` in JSON" });
-    }
-    if (shipped !== undefined && shipped !== JSON.stringify(built.abi)) {
+    const literal = text.match(ABI_LITERAL)?.[2];
+    if (literal === undefined) {
+      problems.push({ text: "the file needs an `export const abi = [...] as const`" });
+    } else if (!sameJson(literal, built.abi)) {
       problems.push({ text: "abi differs from the build", stale: true });
     }
   } else {
