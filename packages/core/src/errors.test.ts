@@ -46,4 +46,13 @@ describe("errors", () => {
   it("WalletNotAvailableError references the adapter id", () => {
     expect(new WalletNotAvailableError("web3auth").message).toContain("web3auth");
   });
+
+  it("WalletNotAvailableError advises a browser wallet unless given a specific hint", () => {
+    expect(new WalletNotAvailableError("injected").message).toContain("Install a browser wallet");
+
+    const cause = new Error("Cannot find package");
+    const specific = new WalletNotAvailableError("coinbase", "Install the SDK.", { cause });
+    expect(specific.message).toBe('No wallet available for adapter "coinbase". Install the SDK.');
+    expect(specific.cause).toBe(cause);
+  });
 });

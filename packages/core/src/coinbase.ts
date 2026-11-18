@@ -13,9 +13,10 @@ import { ensureChain } from "./network.js";
  * alongside the burner (temporary) wallet as a keepable, self-custodial option.
  *
  * `@coinbase/wallet-sdk` is an optional peer dependency — only apps that use this
- * adapter install it. It lives behind the `@avakit/core/coinbase` subpath so the
- * main `@avakit/core` entry never pulls it in. Gasless on Avalanche needs your
- * own paymaster (Coinbase's built-in sponsorship is Base-only).
+ * adapter install it (`npm install @coinbase/wallet-sdk`). It lives behind the
+ * `@avakit/core/coinbase` subpath so the main `@avakit/core` entry never pulls
+ * it in. Gasless on Avalanche needs your own paymaster (Coinbase's built-in
+ * sponsorship is Base-only).
  */
 
 export interface CoinbaseAdapterOptions {
@@ -37,32 +38,56 @@ interface CoinbaseModule {
   createCoinbaseWalletSDK(options: Record<string, unknown>): CoinbaseSdk;
 }
 
+function reason(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
 /** A passkey-based Coinbase Smart Wallet (ERC-4337). Needs `@coinbase/wallet-sdk`. */
 export function coinbaseAdapter(options: CoinbaseAdapterOptions = {}): WalletAdapter {
   let provider: EIP1193Provider | null = null;
 
   async function ensureProvider(): Promise<EIP1193Provider> {
     if (provider) return provider;
-    // Everything here is wrapped: the optional dep may be missing, and the SDK
-    // touches browser globals at construction, so a server/non-browser caller
-    // gets a typed WalletNotAvailableError instead of a raw ReferenceError.
+
+    let mod: CoinbaseModule;
     try {
-      // Non-literal specifier: the optional dep is resolved at runtime only, so
-      // apps that don't use this adapter never need it installed or bundled.
-      const spec: string = "@coinbase/wallet-sdk";
-      const mod = (await import(spec)) as unknown as CoinbaseModule;
+      // The specifier must stay a string literal. Bundlers (webpack, Vite,
+      // Turbopack) only follow a dynamic import they can read statically, and a
+      // browser cannot resolve a bare specifier on its own, so a computed one
+      // leaves the SDK out of the app and makes every connect fail. Apps that
+      // never import `@avakit/core/coinbase` never reach this file, so they
+      // still do not need the SDK installed.
+      mod = (await import("@coinbase/wallet-sdk")) as unknown as CoinbaseModule;
+    } catch (cause) {
+      throw new WalletNotAvailableError(
+        "coinbase",
+        'The passkey wallet needs the optional "@coinbase/wallet-sdk" package, which could ' +
+          `not be loaded (${reason(cause)}). Install it with: npm install @coinbase/wallet-sdk`,
+        { cause },
+      );
+    }
+
+    // The SDK touches browser globals when it is constructed, so a server or
+    // other non-browser caller fails here. That is not "no wallet available":
+    // report it as a typed connection error that keeps the real reason, never
+    // as a raw ReferenceError.
+    let created: EIP1193Provider | null;
+    try {
       const sdk = mod.createCoinbaseWalletSDK({
         appName: options.appName ?? "AvaKit app",
         appChainIds: (options.chains ?? []).map((c) => c.id),
         preference: { options: options.preference ?? "smartWalletOnly" },
       });
-      provider = sdk.getProvider();
-    } catch {
-      throw new WalletNotAvailableError("coinbase");
+      created = sdk.getProvider();
+    } catch (cause) {
+      throw new WalletConnectionError(`Coinbase Smart Wallet could not start: ${reason(cause)}`, {
+        cause,
+      });
     }
-    if (!provider) {
-      throw new WalletNotAvailableError("coinbase");
+    if (!created) {
+      throw new WalletConnectionError("Coinbase Smart Wallet returned no provider.");
     }
+    provider = created;
     return provider;
   }
 

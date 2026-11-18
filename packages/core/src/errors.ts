@@ -9,9 +9,20 @@ export class AvaKitError extends Error {
 
 export class WalletNotAvailableError extends AvaKitError {
   override name = "WalletNotAvailableError";
-  constructor(adapterId: string) {
+  /**
+   * @param adapterId The adapter that cannot be used.
+   * @param hint What to do about it. Defaults to the advice for a missing
+   *   browser wallet; adapters with a different cause (for example an optional
+   *   SDK that is not installed) pass their own.
+   * @param options Standard error options, e.g. `{ cause }`.
+   */
+  constructor(adapterId: string, hint?: string, options?: ErrorOptions) {
     super(
-      `No wallet available for adapter "${adapterId}". Install a browser wallet (e.g. Core or MetaMask), or configure a social-login adapter.`,
+      `No wallet available for adapter "${adapterId}". ${
+        hint ??
+        "Install a browser wallet (e.g. Core or MetaMask), or configure a social-login adapter."
+      }`,
+      options,
     );
   }
 }
