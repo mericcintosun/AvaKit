@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as devnet from "./devnet.js";
 import { InputError } from "./errors.js";
 import {
   ensureFujiKey,
@@ -17,6 +18,7 @@ import {
   type Sandbox,
   startFakeRpc,
 } from "./testing/sandbox.js";
+import * as shared from "./validators.js";
 
 let sandbox: Sandbox;
 beforeEach(() => {
@@ -55,6 +57,24 @@ describe("isValidAmount", () => {
     ]) {
       expect(isValidAmount(bad), JSON.stringify(bad)).toBe(false);
     }
+  });
+
+  it("validates with the shared rules the dashboard's wizard applies too", () => {
+    // One set of functions (validators.ts): the wizard gates its buttons on
+    // these very ones, so the page and the server cannot disagree.
+    expect(isValidAmount).toBe(shared.isValidAmount);
+    expect(devnet.isValidL1Name).toBe(shared.isValidL1Name);
+    expect(devnet.isValidChainId).toBe(shared.isValidChainId);
+    expect(devnet.isValidToken).toBe(shared.isValidToken);
+    // What the gatekeeper typed into the wizard: refused here, so refused there.
+    expect(
+      prepareFujiAction("deploy", { name: "myfujil1", chainId: "0123", token: "FUJ" }),
+    ).toEqual({ error: "invalid deploy parameters" });
+    expect(
+      prepareFujiAction("deploy", { name: "myfujil1", chainId: "4242", token: "TOOLONGTOKEN" }),
+    ).toEqual({ error: "invalid deploy parameters" });
+    expect(shared.isValidChainId("0123")).toBe(false);
+    expect(shared.isValidToken("TOOLONGTOKEN")).toBe(false);
   });
 
   it("isFujiAction knows transfer and deploy", () => {

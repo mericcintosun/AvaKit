@@ -11,6 +11,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { subnetsDir } from "./paths.js";
 import { type RunHandle, runSteps, type Step } from "./steps.js";
+import { isValidChainId, isValidL1Name, isValidToken } from "./validators.js";
 
 const LOCAL = "Local Network";
 
@@ -116,21 +117,10 @@ export interface L1Params {
   token: string;
 }
 
-// Strict, whitelist-only validators. Even though we spawn with an argument
-// ARRAY (never a shell), we still constrain these so a value can never be read
-// as a flag or path. They are the ONLY request-derived values that reach an
-// avalanche-cli argument; callers (server/MCP) reject anything that fails them.
-export function isValidL1Name(v: string): boolean {
-  return /^[a-z][a-z0-9]{1,31}$/.test(v);
-}
-export function isValidToken(v: string): boolean {
-  return /^[A-Z][A-Z0-9]{0,7}$/.test(v);
-}
-export function isValidChainId(v: string): boolean {
-  if (!/^[1-9][0-9]{0,9}$/.test(v)) return false;
-  const n = Number(v);
-  return n >= 1 && n <= 4294967295;
-}
+// Strict, whitelist-only validators (validators.ts, shared with the dashboard).
+// They are the ONLY request-derived values that reach an avalanche-cli
+// argument; callers (server/MCP) reject anything that fails them.
+export { isValidChainId, isValidL1Name, isValidToken };
 export function isValidL1Params(p: Partial<L1Params>): p is L1Params {
   return (
     typeof p.name === "string" &&

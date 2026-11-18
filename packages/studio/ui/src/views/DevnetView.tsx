@@ -11,6 +11,7 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { cancelWarning, consoleLines, LOST_NOTE, startFailureNotice } from "../lib/run-messages";
 import { shortHex } from "../lib/utils";
+import { isValidChainId, isValidL1Name, isValidToken } from "../lib/validators";
 import { useRun } from "../run";
 
 function L1Card({ l1 }: { l1: L1Info }) {
@@ -102,9 +103,10 @@ export function DevnetView({
   const { run, log, busy, lost, start, cancel, dismiss } = useRun();
   const [form, setForm] = useState({ name: "mychain", chainId: "9999", token: "MYL1" });
 
-  const nameOk = /^[a-z][a-z0-9]{1,31}$/.test(form.name);
-  const chainIdOk = /^[1-9][0-9]{0,9}$/.test(form.chainId) && Number(form.chainId) <= 4294967295;
-  const tokenOk = /^[A-Z][A-Z0-9]{0,7}$/.test(form.token);
+  // The server's own rules (shared code, not a copy of its regular expressions).
+  const nameOk = isValidL1Name(form.name);
+  const chainIdOk = isValidChainId(form.chainId);
+  const tokenOk = isValidToken(form.token);
   const formOk = nameOk && chainIdOk && tokenOk;
 
   // This view's own run (the one whose console is shown here), if any.

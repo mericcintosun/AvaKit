@@ -5,17 +5,18 @@
  * Same security posture as devnet.ts: spawn avalanche-cli with argument ARRAYS
  * (never a shell string); the only request-derived values are the L1
  * name / chain id / token / amount, each strictly whitelist-validated before it
- * can reach argv. Reuses the validators from devnet.ts.
+ * can reach argv (validators.ts — the wizard in the dashboard applies the same
+ * functions before it lets a step go ahead).
  */
 
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { privateKeyToAccount } from "viem/accounts";
-import { isValidChainId, isValidL1Name, isValidToken } from "./devnet.js";
 import { InputError } from "./errors.js";
 import { keyDir, subnetsDir } from "./paths.js";
 import type { Step } from "./steps.js";
+import { isValidAmount, isValidChainId, isValidL1Name, isValidToken } from "./validators.js";
 
 const FUJI_C_RPC = "https://api.avax-test.network/ext/bc/C/rpc";
 const FUJI = "Fuji";
@@ -168,10 +169,7 @@ export function isFujiAction(v: string): v is FujiAction {
   return v === "transfer" || v === "deploy";
 }
 
-/** A positive decimal amount string, e.g. "0.3". */
-export function isValidAmount(v: string): boolean {
-  return /^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,9})?$/.test(v) && Number(v) > 0 && Number(v) <= 1000;
-}
+export { isValidAmount };
 
 function transferSteps(name: string, amount: string): Step[] {
   return [

@@ -9,7 +9,14 @@ import { Dot } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import type { FujiWizard } from "../hooks/useFujiWizard";
-import { FUJI_STEPS, type FujiStep } from "../lib/fuji-wizard";
+import {
+  canEditFujiField,
+  checkFujiForm,
+  FUJI_STEPS,
+  type FujiForm,
+  type FujiStep,
+  fujiFormProblems,
+} from "../lib/fuji-wizard";
 import { cancelWarning, consoleLines, LOST_NOTE, startFailureNotice } from "../lib/run-messages";
 import { useRun } from "../run";
 
@@ -36,11 +43,10 @@ export function FujiView({
   const { state, edit } = wizard;
   const { form, step, address, cBalance, balanceError, l1 } = state;
 
-  const nameOk = /^[a-z][a-z0-9]{1,31}$/.test(form.name);
-  const amountOk =
-    /^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,9})?$/.test(form.amount) && Number(form.amount) > 0;
-  const chainIdOk = /^[1-9][0-9]{0,9}$/.test(form.chainId) && Number(form.chainId) <= 4294967295;
-  const tokenOk = /^[A-Z][A-Z0-9]{0,7}$/.test(form.token);
+  // The server's own rules (shared code, not a copy): nothing moves on — and no
+  // testnet AVAX is transferred — with a value a later step would refuse.
+  const valid = checkFujiForm(form);
+  const problems = fujiFormProblems(form);
   const funded = Number(cBalance) >= MIN_FUND;
 
   // This view's own run (a transfer or a deploy), if that is what is on screen.
@@ -97,7 +103,10 @@ export function FujiView({
   }, [l1, form, toast]);
 
   const stepIndex = FUJI_STEPS.indexOf(step);
-  const locked = step !== "fund";
+  const pastFunding = step !== "fund";
+  // A value stays editable until the action that uses it has run, so a deploy
+  // the server refused can be corrected here instead of starting over.
+  const locked = (field: keyof FujiForm) => busy || !canEditFujiField(step, field);
 
   return (
     <div className="flex flex-col gap-4">
@@ -140,7 +149,7 @@ export function FujiView({
             {STEP_LABEL[s]}
           </div>
         ))}
-        {locked && !busy && (
+        {pastFunding && !busy && (
           <Button size="sm" variant="ghost" onClick={startOver} className="ml-auto">
             <RotateCcw className="size-3.5" /> Start over
           </Button>
@@ -153,32 +162,38 @@ export function FujiView({
           <Field
             label="L1 name"
             value={form.name}
-            ok={nameOk}
+            ok={valid.name}
             onChange={(v) => edit("name", v)}
-            disabled={locked}
+            disabled={locked("name")}
           />
           <Field
             label="Chain ID"
             value={form.chainId}
-            ok={chainIdOk}
+            ok={valid.chainId}
             onChange={(v) => edit("chainId", v)}
-            disabled={locked}
+            disabled={locked("chainId")}
           />
           <Field
             label="Token"
             value={form.token}
-            ok={tokenOk}
+            ok={valid.token}
             onChange={(v) => edit("token", v.toUpperCase())}
-            disabled={locked}
+            disabled={locked("token")}
           />
           <Field
             label="P-Chain amount"
             value={form.amount}
-            ok={amountOk}
+            ok={valid.amount}
             onChange={(v) => edit("amount", v)}
-            disabled={locked}
+            disabled={locked("amount")}
           />
         </div>
+        {problems.length > 0 && step !== "live" && (
+          <p className="text-muted-foreground mt-2 text-xs">
+            Fix the highlighted {problems.length > 1 ? "values" : "value"} to continue —{" "}
+            {problems.join(" · ")}.
+          </p>
+        )}
       </Card>
 
       <BusyElsewhere view="fuji" navigate={navigate} />
@@ -196,7 +211,7 @@ export function FujiView({
               <Button
                 size="sm"
                 className="mt-3"
-                disabled={wizard.creatingKey || !hasCli || !nameOk}
+                disabled={wizard.creatingKey || !hasCli || !valid.name}
                 onClick={wizard.createKey}
               >
                 {wizard.creatingKey ? "Creating…" : "Create key"}
@@ -237,7 +252,8 @@ export function FujiView({
                     )
                   )}
                 </span>
-                <Button size="sm" disabled={!funded} onClick={wizard.next}>
+                {/* Funded AND a configuration every later step will accept. */}
+                <Button size="sm" disabled={!funded || !valid.ok} onClick={wizard.next}>
                   Next
                 </Button>
               </div>
@@ -256,7 +272,7 @@ export function FujiView({
           <Button
             size="sm"
             className="mt-3"
-            disabled={busy || !hasCli || !amountOk}
+            disabled={busy || !hasCli || !valid.ok}
             onClick={() => launch("transfer")}
           >
             {running === "transfer" ? "Transferring…" : "Transfer C→P"}
@@ -275,7 +291,7 @@ export function FujiView({
           <Button
             size="sm"
             className="mt-3"
-            disabled={busy || !hasCli}
+            disabled={busy || !hasCli || !valid.name || !valid.chainId || !valid.token}
             onClick={() => launch("deploy")}
           >
             <Rocket className="size-4" />
@@ -399,8 +415,9 @@ function Field({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
+        aria-invalid={!ok}
         className={`bg-background rounded-lg border px-3 py-1.5 font-mono text-sm outline-none disabled:opacity-50 ${
-          value && !ok ? "border-destructive" : ""
+          ok ? "" : "border-destructive"
         }`}
       />
     </label>

@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
+import * as serverRules from "../../../src/validators";
 import {
+  canEditFujiField,
+  checkFujiForm,
+  type FujiForm,
+  type FujiStep,
   type FujiWizardAction,
   type FujiWizardState,
+  fujiFormProblems,
   fujiWizardReducer,
   initialFujiWizard,
   stepForRun,
 } from "./fuji-wizard";
 import type { RunInfo } from "./run-store";
+import * as wizardRules from "./validators";
 
 const ADDRESS_A = "0x00000000000000000000000000000000000000aa";
 const ADDRESS_B = "0x00000000000000000000000000000000000000bb";
@@ -114,15 +121,110 @@ describe("Fuji wizard: the key always belongs to the current name", () => {
     expect(recovered).toMatchObject({ cBalance: "2.5000", balanceError: null });
   });
 
-  it("locks the configuration once funding is done", () => {
+  it("fixes the name (the key's name) once funding is done", () => {
     const moved = reduce(funded, { type: "funded" });
     expect(moved.step).toBe("transfer");
     expect(reduce(moved, { type: "edit", field: "name", value: "other" })).toEqual(moved);
-    expect(reduce(moved, { type: "edit", field: "amount", value: "9" })).toEqual(moved);
   });
 
   it("does not move past funding without a key", () => {
     expect(reduce(initialFujiWizard, { type: "funded" }).step).toBe("fund");
+  });
+});
+
+describe("Fuji wizard: a configuration the server would refuse", () => {
+  const edit = (field: keyof FujiForm, value: string): FujiWizardAction => ({
+    type: "edit",
+    field,
+    value,
+  });
+
+  it("applies the server's own rules, not a copy of them", () => {
+    // The functions the server validates a request with (src/validators.ts;
+    // the server's side of this is checked in src/fuji.test.ts) …
+    expect(wizardRules.isValidL1Name).toBe(serverRules.isValidL1Name);
+    expect(wizardRules.isValidChainId).toBe(serverRules.isValidChainId);
+    expect(wizardRules.isValidToken).toBe(serverRules.isValidToken);
+    expect(wizardRules.isValidAmount).toBe(serverRules.isValidAmount);
+
+    // … so the wizard refuses exactly what the deploy or the transfer would.
+    const form = initialFujiWizard.form;
+    expect(checkFujiForm(form)).toEqual({
+      name: true,
+      chainId: true,
+      token: true,
+      amount: true,
+      ok: true,
+    });
+    expect(checkFujiForm({ ...form, chainId: "0123" })).toMatchObject({
+      chainId: false,
+      ok: false,
+    });
+    expect(checkFujiForm({ ...form, token: "TOOLONGTOKEN" })).toMatchObject({
+      token: false,
+      ok: false,
+    });
+    expect(checkFujiForm({ ...form, name: "My-L1" })).toMatchObject({ name: false, ok: false });
+    // More than the server lets through in one transfer (the page used to accept it).
+    expect(checkFujiForm({ ...form, amount: "1001" })).toMatchObject({ amount: false, ok: false });
+    expect(checkFujiForm({ ...form, amount: "" })).toMatchObject({ amount: false, ok: false });
+  });
+
+  it("names the rule behind each refused value", () => {
+    expect(fujiFormProblems(initialFujiWizard.form)).toEqual([]);
+    const problems = fujiFormProblems({
+      name: "myfujil1",
+      chainId: "0123",
+      token: "TOOLONGTOKEN",
+      amount: "0.3",
+    });
+    expect(problems).toHaveLength(2);
+    expect(problems[0]).toMatch(/^chain ID: /);
+    expect(problems[1]).toMatch(/^token: /);
+  });
+
+  it("does not move past funding — towards the transfer — with an invalid chain ID, token or amount", () => {
+    for (const [field, value] of [
+      ["chainId", "0123"],
+      ["token", "TOOLONGTOKEN"],
+      ["amount", "1001"],
+    ] as const) {
+      const invalid = reduce(funded, edit(field, value));
+      expect(reduce(invalid, { type: "funded" }).step, field).toBe("fund");
+      // Corrected, it moves on.
+      const fixed = reduce(invalid, edit(field, initialFujiWizard.form[field]));
+      expect(reduce(fixed, { type: "funded" }).step, field).toBe("transfer");
+    }
+  });
+
+  it("keeps a value editable until the action that uses it has run", () => {
+    const editable = (step: FujiStep) =>
+      (["name", "amount", "chainId", "token"] as const).filter((f) => canEditFujiField(step, f));
+    expect(editable("fund")).toEqual(["name", "amount", "chainId", "token"]);
+    expect(editable("transfer")).toEqual(["amount", "chainId", "token"]);
+    expect(editable("deploy")).toEqual(["chainId", "token"]);
+    expect(editable("live")).toEqual([]);
+  });
+
+  it("lets a refused deploy be corrected on the deploy step, without starting over", () => {
+    // Funded, transferred: on the deploy step, where the server refuses the request.
+    const atDeploy = reduce(funded, { type: "funded" }, { type: "run", run: done() });
+    expect(atDeploy.step).toBe("deploy");
+
+    const corrected = reduce(atDeploy, edit("chainId", "4242"), edit("token", "NEW"));
+    expect(corrected).toMatchObject({
+      step: "deploy",
+      form: { name: "myfujil1", chainId: "4242", token: "NEW", amount: "0.3" },
+      // Still the same funded key: nothing to fund or transfer again.
+      address: ADDRESS_A,
+    });
+    // What the transfer already used is history.
+    expect(reduce(corrected, edit("amount", "9"), edit("name", "other"))).toEqual(corrected);
+
+    // Once the L1 is live, nothing is.
+    const live = reduce(corrected, { type: "run", run: done({ id: 2, action: "deploy" }) });
+    expect(live.step).toBe("live");
+    expect(reduce(live, edit("chainId", "1"), edit("token", "X"))).toEqual(live);
   });
 });
 

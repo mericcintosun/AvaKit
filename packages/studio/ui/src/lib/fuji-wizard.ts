@@ -6,6 +6,7 @@
  */
 
 import type { RunInfo } from "./run-store";
+import { isValidAmount, isValidChainId, isValidL1Name, isValidToken } from "./validators";
 
 export type FujiStep = "fund" | "transfer" | "deploy" | "live";
 export const FUJI_STEPS: FujiStep[] = ["fund", "transfer", "deploy", "live"];
@@ -15,6 +16,61 @@ export interface FujiForm {
   chainId: string;
   token: string;
   amount: string;
+}
+
+/** Which of the form's values the server would accept; `ok` when all four are. */
+export interface FujiFormCheck {
+  name: boolean;
+  chainId: boolean;
+  token: boolean;
+  amount: boolean;
+  ok: boolean;
+}
+
+/**
+ * Check the whole configuration against the server's rules. The wizard only
+ * moves on (and only spends testnet AVAX on the C→P transfer) when all four
+ * values pass: a chain ID or token the deploy would refuse must be caught
+ * before the transfer, not after it.
+ */
+export function checkFujiForm(form: FujiForm): FujiFormCheck {
+  const name = isValidL1Name(form.name);
+  const chainId = isValidChainId(form.chainId);
+  const token = isValidToken(form.token);
+  const amount = isValidAmount(form.amount);
+  return { name, chainId, token, amount, ok: name && chainId && token && amount };
+}
+
+const RULES: [keyof FujiForm, string][] = [
+  ["name", "name: 2–32 lowercase letters or digits, starting with a letter"],
+  ["chainId", "chain ID: a whole number from 1 to 4294967295"],
+  ["token", "token: 1–8 upper-case letters or digits, starting with a letter"],
+  ["amount", "amount: more than 0 and at most 1000 AVAX"],
+];
+
+/** The rule behind every value the server would refuse (empty when all four pass). */
+export function fujiFormProblems(form: FujiForm): string[] {
+  const check = checkFujiForm(form);
+  return RULES.filter(([field]) => !check[field]).map(([, rule]) => rule);
+}
+
+/**
+ * The last step in which each value can still be changed: until the action
+ * that uses it has run. The name is the key's name, so it is fixed once the
+ * key is funded (Start over to change it); the amount is fixed by the
+ * transfer; the chain ID and token are only used by the deploy, so a deploy
+ * the server refused can be corrected on the spot — no second transfer.
+ */
+const EDITABLE_THROUGH: Record<keyof FujiForm, FujiStep> = {
+  name: "fund",
+  amount: "transfer",
+  chainId: "deploy",
+  token: "deploy",
+};
+
+/** Whether `field` can still be edited on `step` (never while an action is in flight). */
+export function canEditFujiField(step: FujiStep, field: keyof FujiForm): boolean {
+  return FUJI_STEPS.indexOf(step) <= FUJI_STEPS.indexOf(EDITABLE_THROUGH[field]);
 }
 
 export interface FujiBalance {
@@ -86,8 +142,9 @@ export function fujiWizardReducer(
 ): FujiWizardState {
   switch (action.type) {
     case "edit": {
-      // The configuration is fixed once the wizard has moved past funding.
-      if (state.step !== "fund" || state.form[action.field] === action.value) return state;
+      // A value is fixed once the action that uses it has run.
+      if (!canEditFujiField(state.step, action.field)) return state;
+      if (state.form[action.field] === action.value) return state;
       const form = { ...state.form, [action.field]: action.value };
       if (action.field !== "name") return { ...state, form };
       // A different name is a different key: forget the old key's address and balance.
@@ -107,7 +164,10 @@ export function fujiWizardReducer(
     }
 
     case "funded":
-      return state.step === "fund" && state.address ? { ...state, step: "transfer" } : state;
+      // Not with a configuration the server would refuse later on.
+      return state.step === "fund" && state.address && checkFujiForm(state.form).ok
+        ? { ...state, step: "transfer" }
+        : state;
 
     case "run": {
       const { run } = action;
