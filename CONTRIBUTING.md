@@ -58,14 +58,25 @@ Templates live in `packages/create-avalanche-app/templates/`. Keep the dependenc
 
 ## Template smoke test
 
-A template smoke test scaffolds one template into a throwaway directory and verifies it installs, type-checks, and production-builds — the same flow a user gets from `npm create avalanche-app`. Build the scaffolder first, then run the script with a template id:
+A template smoke test scaffolds one template into a throwaway directory and verifies it installs, type-checks, and production-builds — the same flow a user gets from `npm create avalanche-app`. Build `@avakit/core`, `@avakit/react` and the scaffolder first (the script needs all three), then run it with a template id:
 
 ```bash
-pnpm --filter create-avalanche-app build
+pnpm --filter "@avakit/core" --filter "@avakit/react" --filter create-avalanche-app build
 scripts/smoke-template.sh nft-mint
 ```
 
-Valid ids: `minimal`, `nft-mint`, `token-gated-app`, `erc20-token`, `icm-messenger`, `eerc-token`, `l1-launch`, `token-bridge`. The scaffolded app resolves `@avakit/*` from the npm registry, so the smoke test does **not** exercise unpublished `@avakit/*` changes (those are covered by the package build/typecheck jobs). Templates that need `avalanche-cli` at runtime are only scaffold + typecheck + build tested; their devnet/L1 scripts are not run. CI runs this matrix in `.github/workflows/ci.yml`.
+Valid ids: `minimal`, `nft-mint`, `token-gated-app`, `erc20-token`, `icm-messenger`, `eerc-token`, `l1-launch`, `token-bridge`. CI runs all eight as a matrix in `.github/workflows/ci.yml`.
+
+The script resolves `@avakit/*` in one of two ways:
+
+- **Default — this checkout.** It packs your local `@avakit/core` and `@avakit/react` and pins the scaffolded app to those tarballs, so unpublished changes **are** exercised: a template that needs a new core feature is verified before that feature is released.
+- **`SMOKE_USE_NPM=1` — the npm registry.** It installs the published versions the scaffolder pins instead. Run it after a release to check that those pins really resolve.
+
+Templates that need `avalanche-cli` at runtime (`icm-messenger`, `l1-launch`, `token-bridge`) are only scaffold + typecheck + build tested; their devnet/L1 scripts are not run.
+
+Without a second argument the app is built in a temporary directory that is removed when the script exits. To keep the app and look at it, pass a directory (`scripts/smoke-template.sh nft-mint /tmp/smoke`) or set `SMOKE_KEEP=1`.
+
+The script switches the scaffolder's telemetry off, so a smoke run is never counted as usage. When you run the built CLI by hand from this repo (`node packages/create-avalanche-app/dist/index.js …`), set `AVAKIT_TELEMETRY_DISABLED=1` yourself: a contributor trying out a change is not adoption, and without it the run is counted on [avakit.dev/stats](https://avakit.dev/stats).
 
 ## Changesets (versioning)
 
