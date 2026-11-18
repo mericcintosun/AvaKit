@@ -1,0 +1,238 @@
+import { createPublicClient, defineChain, http, keccak256 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+
+/** Testnet allowlist — chainId → RPC. Anything not listed is refused. */
+export const CHAINS = {
+  43113: { name: "Avalanche Fuji", rpc: "https://api.avax-test.network/ext/bc/C/rpc" },
+};
+export const DEFAULT_CHAIN_ID = 43113;
+
+/** The faucet account cannot cover a drip right now. */
+export class FaucetEmptyError extends Error {
+  name = "FaucetEmptyError";
+}
+
+/** The Worker is set up wrong. `message` never carries a secret and may be shown to a caller. */
+export class FaucetConfigError extends Error {
+  name = "FaucetConfigError";
+}
+
+/**
+ * How long a nonce we used may go uncounted by the node before we stop
+ * believing in it. Fuji produces a block every second or two, so a transaction
+ * that is still missing from `eth_getTransactionCount` after this was dropped.
+ */
+export const NONCE_SETTLE_MS = 15_000;
+
+/** Attempts at one drip before giving up on finding a free nonce. */
+export const MAX_SEND_ATTEMPTS = 4;
+
+/** What geth (and Avalanche's coreth) says when a nonce is already spoken for. */
+const NONCE_TAKEN = /nonce too low|replacement transaction underpriced/;
+/** …and when it already holds this exact signed transaction. */
+const ALREADY_KNOWN = /already known|transaction already imported/;
+const INSUFFICIENT_FUNDS = /insufficient funds|exceeds transaction sender account balance/;
+
+/**
+ * The faucet account and an RPC client for an allowlisted chain, or null for
+ * any other chain. Throws FaucetConfigError if the key is unusable.
+ */
+export function connect(chainId, env) {
+  if (!Object.hasOwn(CHAINS, chainId)) return null;
+  const cfg = CHAINS[chainId];
+  const rpcUrl = env.FAUCET_FUJI_RPC || cfg.rpc;
+  const chain = defineChain({
+    id: chainId,
+    name: cfg.name,
+    nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
+    rpcUrls: { default: { http: [rpcUrl] } },
+  });
+
+  let account;
+  try {
+    account = privateKeyToAccount(env.AVAKIT_FAUCET_KEY);
+  } catch {
+    // Deliberately not rethrown or logged: the cause may quote the value.
+    throw new FaucetConfigError("Faucet key is not a valid private key.");
+  }
+
+  return { account, rpcUrl, client: createPublicClient({ chain, transport: http(rpcUrl) }) };
+}
+
+/**
+ * Sends drips from one account, one at a time.
+ *
+ * Every transaction from an account needs the next nonce, and two requests that
+ * ask the node for it at the same moment get the same answer — the second
+ * transaction is then rejected (or silently replaced). So broadcasts go through
+ * a queue: the nonce is read, signed and sent before the next one is read. This
+ * only holds because a single Durable Object owns the account.
+ */
+export class DripSender {
+  #client;
+  #account;
+  /** Tail of the send queue. */
+  #queue = Promise.resolve();
+  /** nonce → when we last saw it used, for nonces the node has not counted yet. */
+  #used = new Map();
+
+  constructor({ client, account }) {
+    this.#client = client;
+    this.#account = account;
+  }
+
+  /**
+   * Everything a drip needs except its nonce: fees, the gas limit, and proof the
+   * balance covers it. None of that depends on the queue, so concurrent
+   * requests prepare in parallel and only the broadcast is serialised.
+   *
+   * Throws FaucetEmptyError if the account cannot pay for the drip.
+   */
+  async prepare({ to, value }) {
+    let balance;
+    let request;
+    try {
+      [balance, request] = await Promise.all([
+        this.#client.getBalance({ address: this.#account.address }),
+        this.#client.prepareTransactionRequest({
+          account: this.#account,
+          to,
+          value,
+          parameters: ["chainId", "fees", "gas", "type"],
+        }),
+      ]);
+    } catch (e) {
+      // Estimating gas for a transfer the account cannot afford fails this way.
+      if (INSUFFICIENT_FUNDS.test(nodeSaid(e))) throw new FaucetEmptyError();
+      throw e;
+    }
+
+    // A node that fills the transaction in itself also names its own chain. If
+    // that is not the allowlisted one, the RPC override points somewhere else.
+    const chainId = this.#client.chain.id;
+    if (request.chainId !== chainId) {
+      throw new FaucetConfigError(
+        `The faucet's RPC answers for chain ${request.chainId}, not ${chainId}.`,
+      );
+    }
+
+    const fee = request.gas * (request.maxFeePerGas ?? request.gasPrice ?? 0n);
+    if (balance < value + fee) throw new FaucetEmptyError();
+    return request;
+  }
+
+  /** Sign and send a prepared drip. Resolves to the transaction hash. */
+  broadcast(request) {
+    const sent = this.#queue.then(() => this.#broadcast(request));
+    // A failed send must not poison the queue for the drips behind it.
+    this.#queue = sent.catch(() => {});
+    return sent;
+  }
+
+  async #broadcast(request) {
+    // The chain id is set here, last, from the allowlist — never from anything
+    // an RPC returned — so the key cannot sign for a chain with real funds.
+    const chainId = this.#client.chain.id;
+    let nonce = await this.#nextNonce();
+
+    for (let attempt = 1; ; attempt += 1) {
+      const serializedTransaction = await this.#account.signTransaction({
+        ...request,
+        chainId,
+        nonce,
+      });
+      try {
+        await this.#client.sendRawTransaction({ serializedTransaction });
+      } catch (e) {
+        const said = nodeSaid(e);
+        if (INSUFFICIENT_FUNDS.test(said)) throw new FaucetEmptyError();
+
+        if (NONCE_TAKEN.test(said) && attempt < MAX_SEND_ATTEMPTS) {
+          // Something already holds this nonce — an earlier drip the node we
+          // asked had not counted yet, or another user of the key. Move past it.
+          this.#used.set(nonce, Date.now());
+          nonce = Math.max(nonce + 1, await this.#nextNonce());
+          continue;
+        }
+
+        // "already known" means the node holds this exact transaction, so it is
+        // sent. Anything else is a real failure.
+        if (!ALREADY_KNOWN.test(said)) throw e;
+      }
+
+      this.#used.set(nonce, Date.now());
+      return keccak256(serializedTransaction);
+    }
+  }
+
+  /**
+   * The nonce for the next transaction.
+   *
+   * Normally that is the node's pending count. But the public RPC is a pool of
+   * nodes, and the one answering may not have heard of a drip another accepted
+   * a moment ago — so nonces we used within NONCE_SETTLE_MS are skipped. One
+   * the node still has not counted after that was dropped, and is used again
+   * so the transactions behind it are not stuck forever.
+   */
+  async #nextNonce() {
+    const count = await this.#client.getTransactionCount({
+      address: this.#account.address,
+      blockTag: "pending",
+    });
+    for (const nonce of this.#used.keys()) {
+      if (nonce < count) this.#used.delete(nonce);
+    }
+
+    const now = Date.now();
+    let nonce = count;
+    while (now - (this.#used.get(nonce) ?? Number.NEGATIVE_INFINITY) < NONCE_SETTLE_MS) {
+      nonce += 1;
+    }
+    return nonce;
+  }
+}
+
+/** The node's own words for why a request failed, lower-cased ("" if it said nothing). */
+function nodeSaid(error) {
+  for (let e = error; e; e = e.cause) {
+    if (typeof e.details === "string" && e.details) return e.details.toLowerCase();
+  }
+  return "";
+}
+
+/**
+ * A log-safe summary of an error. viem prints the RPC URL in its messages and
+ * that URL may carry a provider API key, so it is stripped from everything.
+ */
+export function describeError(error, rpcUrl) {
+  if (!(error instanceof Error)) return { error: "unknown" };
+
+  const secrets = new Set();
+  if (rpcUrl) {
+    secrets.add(rpcUrl);
+    try {
+      const url = new URL(rpcUrl);
+      const parts = [
+        ...url.pathname.split("/"),
+        ...url.searchParams.values(),
+        url.username,
+        url.password,
+      ];
+      // A key is long; "ext", "bc" and "rpc" are not.
+      for (const part of parts) if (part.length >= 16) secrets.add(part);
+    } catch {
+      // Not a URL: there is nothing more to take apart.
+    }
+  }
+  const redact = (text) => {
+    let safe = String(text);
+    for (const secret of secrets) safe = safe.replaceAll(secret, "[redacted]");
+    return safe;
+  };
+
+  return {
+    error: error.name,
+    detail: redact(error.shortMessage ?? error.message),
+    ...(typeof error.details === "string" && error.details ? { node: redact(error.details) } : {}),
+  };
+}
