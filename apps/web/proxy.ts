@@ -1,6 +1,9 @@
 import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
 
+// Locale routing: English is served at "/", Turkish under "/tr". Next.js 16
+// calls this file convention `proxy` (formerly `middleware`); next-intl still
+// names its factory after the old one.
 export default createMiddleware(routing);
 
 export const config = {
