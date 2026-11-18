@@ -85,7 +85,7 @@ export function DifferentiationSection() {
             </Table>
           </div>
         </Reveal>
-        <p className="text-muted-foreground/70 mt-3 text-xs leading-relaxed">{d.note}</p>
+        <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{d.note}</p>
       </Container>
     </Section>
   );

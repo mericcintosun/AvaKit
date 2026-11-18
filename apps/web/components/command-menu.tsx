@@ -62,7 +62,8 @@ export function CommandMenu() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search docs, packages, templates…" />
+      {/* This filters the short list of pages below; it is not a content search. */}
+      <CommandInput placeholder="Jump to a page…" />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         {groups.map((group, i) => (

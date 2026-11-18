@@ -258,7 +258,7 @@ export function TemplatesSection() {
                   <span className="font-medium">{t.title}</span>
                   <span className="text-muted-foreground text-sm text-pretty">{t.description}</span>
                 </div>
-                <code className="text-muted-foreground/70 mt-auto pt-2 font-mono text-xs">
+                <code className="text-muted-foreground mt-auto pt-2 font-mono text-xs">
                   --template {t.id}
                 </code>
               </Link>
