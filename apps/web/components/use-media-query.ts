@@ -22,9 +22,12 @@ export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, serverSnapshot);
 }
 
+/** The `md` breakpoint (>= 768px), from which the heavy media sections are shown. */
+export const DESKTOP_QUERY = "(min-width: 768px)";
+
 /** True from the `md` breakpoint up (>= 768px), where the heavy media is shown. */
 export function useIsDesktop(): boolean {
-  return useMediaQuery("(min-width: 768px)");
+  return useMediaQuery(DESKTOP_QUERY);
 }
 
 /** True when the visitor asked their OS or browser to reduce motion. */

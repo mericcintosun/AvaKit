@@ -101,7 +101,8 @@ export function AmbientBand() {
         <video
           ref={videoRef}
           src={isDesktop && load ? "/illustration1-web.mp4" : undefined}
-          poster="/illustration1-poster.jpg"
+          // The band is hidden below md, where a poster would still be fetched.
+          poster={isDesktop ? "/illustration1-poster.jpg" : undefined}
           muted
           loop
           playsInline

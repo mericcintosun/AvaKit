@@ -4,10 +4,13 @@ import { type MotionValue, motion, useInView, useScroll, useTransform } from "fr
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { useDataSaver } from "@/components/use-data-saver";
-import { useIsDesktop, usePrefersReducedMotion } from "@/components/use-media-query";
+import { DESKTOP_QUERY, useIsDesktop, usePrefersReducedMotion } from "@/components/use-media-query";
 import { cn } from "@/lib/utils";
 
 const captionClass = "absolute flex max-w-3xl flex-col items-center gap-4 px-6 text-center";
+
+/** A 1x1 transparent GIF: an image source that costs no request. */
+const EMPTY_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 
 /**
  * Latches true on the visitor's first deliberate input: a real pointer move, a
@@ -74,7 +77,9 @@ export interface ScrollVideoProps {
   captions?: ReactNode[];
   /** Extra classes for the section wrapper. */
   className?: string;
-  /** Override the <video> classes (e.g. to crop a baked-in watermark). */
+  /** Override the <video> classes (e.g. to crop a baked-in watermark). The
+   * poster is laid out with the same classes, directly under the video, so
+   * they have to keep the two absolutely positioned. */
   videoClassName?: string;
   /** Desktop-only by default (avoids shipping a heavy video to phones). */
   desktopOnly?: boolean;
@@ -121,6 +126,9 @@ export function ScrollVideo({
     if (scrub && !dataSaver && nearView && interacted) setLoad(true);
   }, [scrub, dataSaver, nearView, interacted]);
   const active = scrub && load;
+
+  // Whether the video element has a decoded frame of the clip to show.
+  const [hasFrame, setHasFrame] = useState(false);
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -179,22 +187,41 @@ export function ScrollVideo({
           shift the video up by the header's height. `dark` scopes the tokens:
           this surface (and the captions on it) stays dark in both themes. */}
       <div className="dark bg-background sticky top-14 h-[calc(100dvh-3.5rem)] w-full overflow-hidden">
+        {poster ? (
+          // The poster is an image under the video rather than the video's own
+          // `poster` attribute: a browser downloads that attribute even while
+          // the section is `display: none` (desktopOnly, below md), whereas a
+          // source scoped to the breakpoint is only fetched where it shows.
+          <picture>
+            {desktopOnly ? <source media={DESKTOP_QUERY} srcSet={poster} /> : null}
+            <img
+              src={desktopOnly ? EMPTY_IMAGE : poster}
+              alt=""
+              className={cn(videoClassName, "pointer-events-none select-none")}
+            />
+          </picture>
+        ) : null}
         <video
           ref={videoRef}
           src={active ? src : undefined}
-          poster={poster}
           muted
           playsInline
           // Scrubbing seeks all over the clip, so once it is wanted it has to
           // be buffered whole; `active` is what holds the request back.
           preload="auto"
-          // Nudge to the first frame on load so the poster doesn't visibly swap
-          // to a different frame on the first scroll.
           onLoadedData={() => {
+            // Nudge to the first frame on load so the poster doesn't visibly
+            // swap to a different frame on the first scroll.
             const v = videoRef.current;
             if (v && v.currentTime === 0) v.currentTime = 0.01;
+            setHasFrame(true);
           }}
-          className={videoClassName}
+          // A new `src` empties the element until that clip has loaded.
+          onEmptied={() => setHasFrame(false)}
+          // With no frame to show the video stays out of the picture, so the
+          // poster under it is what is seen, whatever a browser paints for an
+          // empty video; once it has one it covers the poster.
+          className={cn(videoClassName, !hasFrame && "invisible")}
         />
         <div className="from-background/50 via-background/25 to-background/60 pointer-events-none absolute inset-0 bg-gradient-to-b" />
         <div className="bg-background/10 pointer-events-none absolute inset-0" />
