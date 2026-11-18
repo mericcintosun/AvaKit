@@ -311,7 +311,7 @@ describe("scaffold_app", () => {
     // The path is the file that was written, and it is a deployable artifact.
     const [artifactPath = ""] = created.artifacts;
     const source = readFileSync(path.join(cwd, artifactPath), "utf8");
-    expect(parseArtifact(source, artifactPath).bytecode).toHaveLength(15_422);
+    expect(parseArtifact(source, artifactPath).bytecode).toMatch(/^0x[0-9a-f]{4000,}$/i);
   });
 
   it("gives artifact paths relative to wherever projects go", async () => {

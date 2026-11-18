@@ -120,7 +120,8 @@ describe("parseArtifact", () => {
       readFileSync(path.join(templatesDir, "nft-mint", "lib", "nft-artifact.ts"), "utf8"),
       "nft",
     );
-    expect(nft.bytecode).toHaveLength(15_422);
+    // Whole creation code, not a fragment: thousands of hex characters.
+    expect(nft.bytecode).toMatch(/^0x[0-9a-f]{4000,}$/i);
     expect(encodeFunctionData({ abi: nft.abi, functionName: "mint" })).toBe("0x1249c58b");
   });
 

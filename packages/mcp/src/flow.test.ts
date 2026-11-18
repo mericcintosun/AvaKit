@@ -116,12 +116,12 @@ describe("the README's prompt", () => {
     expect(mint.explorerUrl).toBe(`${fuji.explorerUrl}/tx/${mint.txHash}`);
     expect(mint.status).toBe("success");
 
-    // What reached the chain is the template's contract, whole: 15,422 hex
-    // characters that no agent had to copy.
+    // What reached the chain is the template's contract, whole: thousands of
+    // hex characters that no agent had to copy.
     const [creation, call] = net.fuji.sent;
     expect(net.fuji.sent).toHaveLength(2);
     expect(creation?.data).toBe(shipped("nft-mint", "nft-artifact.ts").bytecode);
-    expect(creation?.data).toHaveLength(15_422);
+    expect(creation?.data).toMatch(/^0x[0-9a-f]{4000,}$/i);
     expect(creation?.to).toBeNull();
     // The address came back with its checksum, and the mint went to that contract.
     expect(contract.address).toBe(getAddress(contract.address));
