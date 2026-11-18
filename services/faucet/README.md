@@ -72,7 +72,7 @@ for people; branch on `code`:
 | 404 | `not_found` | Not one of the two endpoints |
 | 429 | `address_limited`, `ip_limited` | Over a limit: the address was funded in the last 24 hours, or the client has had its 20 drips this hour or 10 failed attempts in five minutes. `Retry-After` says how many seconds until it clears |
 | 502 | `drip_failed` | The RPC or the chain refused the transaction. No drip was charged to the caller's limits; retry shortly (it does count as a failed attempt) |
-| 503 | `faucet_empty`, `faucet_busy`, `turnstile_unavailable` | Out of funds, too many drips in flight (over all, or from this client; `Retry-After` is a few seconds), or Cloudflare's verification is unreachable |
+| 503 | `faucet_empty`, `faucet_busy`, `turnstile_unavailable` | Out of funds, too many drips in flight (over all, from this client, or one to this very address; `Retry-After` is a few seconds), or Cloudflare's verification is unreachable |
 | 500 | `misconfigured`, `internal` | The Worker's own setup (key, drip amount) or a bug |
 
 A failed drip never returns the upstream error. viem's messages include the RPC
@@ -91,6 +91,9 @@ URL and the raw request, so the detail goes to the Worker log instead
   parallel requests cannot all read the counter before any of them writes it.
 - A drip only counts if its transaction goes out. If the send fails, the
   address and the client both get their allowance back.
+- While a drip to an address is still being sent, a second request for that
+  address gets `503 faucet_busy` with `Retry-After: 3`, not the 24-hour
+  refusal: only once the transaction is out has the address been funded.
 - A send that gets no answer (an HTTP error from the RPC, a timeout) is not
   taken for a failure. The faucet signed the transaction, so it looks it up by
   its hash for about two seconds: if the node has it, the drip counts and the

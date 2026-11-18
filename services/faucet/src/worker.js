@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { isAddress, parseEther } from "viem";
 import { clientKey } from "./ip.js";
-import { DripLimits, FAILURE_WINDOW_MS, IP_WINDOW_MS } from "./limits.js";
+import { BUSY_RETRY_S, DripLimits, FAILURE_WINDOW_MS, IP_WINDOW_MS } from "./limits.js";
 import {
   CHAINS,
   connect,
@@ -71,7 +71,6 @@ const MAX_ACTIVE_DRIPS = 64;
  * single client can take more than an eighth of the slots.
  */
 const MAX_ACTIVE_PER_CLIENT = 8;
-const BUSY_RETRY_S = 3;
 
 function cors(env) {
   return {

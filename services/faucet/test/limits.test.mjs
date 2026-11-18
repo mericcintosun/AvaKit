@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   ADDRESS_WINDOW_MS,
+  BUSY_RETRY_S,
   DripLimits,
   FAILURE_MAX,
   FAILURE_WINDOW_MS,
@@ -48,15 +49,29 @@ describe("the per-address limit", () => {
     assert.ok("id" in limits.reserve({ address: who, client: CLIENT }, T0 + ADDRESS_WINDOW_MS));
   });
 
-  it("refuses a second request while the first is still being sent", () => {
+  it("asks a second request to come back in a moment while the first is still being sent", () => {
     const limits = new DripLimits(memorySql());
     const who = address();
+    const busy = { code: "faucet_busy", retryAfter: BUSY_RETRY_S };
 
-    limits.reserve({ address: who, client: CLIENT }, T0);
-    assert.equal(
-      limits.reserve({ address: who, client: CLIENT }, T0).refused.code,
-      "address_limited",
-    );
+    // Not the 24-hour refusal: nobody knows yet whether this drip will go out.
+    const first = limits.reserve({ address: who, client: CLIENT }, T0);
+    assert.deepEqual(limits.refusal({ address: who, client: CLIENT }, T0), busy);
+    assert.deepEqual(limits.reserve({ address: who, client: "198.51.100.7" }, T0), {
+      refused: busy,
+    });
+
+    // It fails: the address is free again.
+    limits.release(first.id);
+    assert.equal(limits.refusal({ address: who, client: CLIENT }, T0), null);
+
+    // It goes out: now the address has been funded.
+    const second = limits.reserve({ address: who, client: CLIENT }, T0);
+    limits.settle(second.id);
+    assert.deepEqual(limits.refusal({ address: who, client: CLIENT }, T0), {
+      code: "address_limited",
+      retryAfter: 24 * 60 * 60,
+    });
   });
 });
 

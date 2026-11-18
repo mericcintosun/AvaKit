@@ -10,6 +10,9 @@ export const IP_WINDOW_MS = 60 * 60 * 1000;
 // generating addresses), so it caps a single client at IP_MAX * drip per hour.
 export const IP_MAX = 20;
 
+/** What a caller who only has to come back in a moment is told to wait, in seconds. */
+export const BUSY_RETRY_S = 3;
+
 /**
  * Failed attempts: at most FAILURE_MAX per client in any rolling five minutes.
  *
@@ -35,6 +38,10 @@ export const FAILURE_MAX = 10;
  *   reserve() → it exists and already counts against both limits
  *   settle()  → the transaction went out; it keeps counting for its windows
  *   release() → the send failed; it is deleted and both allowances come back
+ *
+ * Until one of the two happens nobody knows whether the address will have been
+ * funded, so a second request for it is asked to come back in a moment
+ * (`faucet_busy`) rather than in 24 hours.
  *
  * Every drip keeps its own timestamp, so the per-IP limit is a true rolling
  * window: a hit stops counting exactly IP_WINDOW_MS after it was made, whatever
@@ -101,18 +108,21 @@ export class DripLimits {
    * Why a drip to `address` from `client` would be refused right now, or null
    * if it would be allowed. Reads only.
    *
-   * @returns {{ code: "address_limited" | "ip_limited", retryAfter: number } | null}
+   * @returns {{ code: "address_limited" | "ip_limited" | "faucet_busy", retryAfter: number } | null}
    *   `retryAfter` is in seconds.
    */
   refusal({ address, client }, now = Date.now()) {
     const funded = this.#sql
       .exec(
-        "SELECT MAX(at) AS at FROM drips WHERE address = ? AND at > ?",
+        "SELECT MAX(at) AS at, MAX(settled) AS settled FROM drips WHERE address = ? AND at > ?",
         address,
         now - ADDRESS_WINDOW_MS,
       )
       .one();
     if (funded.at !== null) {
+      // A drip to this address is being sent right now. If it fails the
+      // address is free again at once, so the day-long wait would be wrong.
+      if (!funded.settled) return { code: "faucet_busy", retryAfter: BUSY_RETRY_S };
       return {
         code: "address_limited",
         retryAfter: seconds(funded.at + ADDRESS_WINDOW_MS - now),

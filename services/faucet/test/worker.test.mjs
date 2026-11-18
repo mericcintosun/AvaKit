@@ -223,6 +223,36 @@ describe("rate limits", () => {
     assert.ok(retryAfter > 86_000 && retryAfter <= 86_400, `retry-after was ${retryAfter}`);
     assert.equal(chain.accepted.length, 1);
   });
+
+  it("asks a second request to wait a moment while the address's drip is still being sent", async () => {
+    // It used to get the 24-hour refusal — for a drip that then failed, which
+    // left the address free again at once and the caller with a wrong wait.
+    const address = someAddress();
+    chain.delay = (method) => (method === "eth_sendRawTransaction" ? 500 : 0);
+    chain.fail("eth_sendRawTransaction", { error: { code: -32000, message: "boom" } });
+
+    const first = fund({ address });
+    await sleep(200);
+    const second = await fund({ address });
+
+    assert.equal(second.status, 503);
+    assert.deepEqual(second.body, {
+      error: "The faucet is busy. Try again in a few seconds.",
+      code: "faucet_busy",
+    });
+    assert.equal(second.headers.get("retry-after"), "3");
+
+    // The first one fails, so the address can be funded straight away…
+    assert.equal((await first).status, 502);
+    const third = fund({ address });
+    await sleep(200);
+    assert.equal((await fund({ address })).status, 503);
+    // …and only once a drip has gone out does the day-long limit apply.
+    assert.equal((await third).status, 200);
+    const fourth = await fund({ address });
+    assert.equal(fourth.status, 429);
+    assert.equal(fourth.body.code, "address_limited");
+  });
 });
 
 describe("concurrent drips", () => {
