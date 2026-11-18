@@ -24,7 +24,7 @@ import { Card } from "@/components/ui/card";
    Full-screen scroll-snap slides with animated content. 8 slides.
 
    The deck is dark whatever the site theme is: its root is forced `dark`, so
-   every colour below resolves from the dark design tokens in globals.css and
+   every color below resolves from the dark design tokens in globals.css and
    none is hardcoded here. */
 
 const fade = {

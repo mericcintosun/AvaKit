@@ -7,7 +7,7 @@ import { ImageResponse } from "next/og";
 const LOGO_ASPECT = 582 / 653;
 
 /**
- * The AvaKit mark centred on a square white field, as a PNG of exactly
+ * The AvaKit mark centered on a square white field, as a PNG of exactly
  * `size` × `size` pixels, the same treatment app/apple-icon.tsx gives the touch
  * icon (the logo art is black on transparent).
  *
