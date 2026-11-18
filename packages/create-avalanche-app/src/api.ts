@@ -11,7 +11,7 @@ import { scaffold } from "./scaffold.js";
 
 /** Web3Auth Modal SDK version. Added to every app — templates always wire the
  * social-login adapter (see the addDependency call below). */
-const WEB3AUTH_MODAL_VERSION = "11.2.0";
+const WEB3AUTH_MODAL_VERSION = "11.4.3";
 
 /**
  * The `@avakit/core` and `@avakit/react` versions stamped into a scaffolded app's
