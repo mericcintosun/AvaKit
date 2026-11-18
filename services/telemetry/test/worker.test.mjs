@@ -243,6 +243,42 @@ describe("GET /stats", () => {
 
     assert.equal((await stats(elsewhere)).scaffolds.succeeded, 2);
   });
+
+  it("stamps and expires the aggregate itself when the object's answer has no date", async (t) => {
+    // Mid-deploy, a Worker on this code can reach a Durable Object still on the
+    // previous code, whose stats() carried no `updatedAt`. The stats page
+    // parses that field, so it must be there, and the copy must still lapse.
+    const tick = clock(t);
+    const previous = {
+      calls: 0,
+      idFromName: (name) => name,
+      get: () => ({
+        async stats() {
+          previous.calls += 1;
+          return {
+            scaffolds: { total: 0, succeeded: 0, last30d: 0, byTemplate: {}, byDay: [] },
+            failures: {},
+            installs: 0,
+            firstDay: null,
+          };
+        },
+      }),
+    };
+    const collector = await loadWorker({
+      env: { TELEMETRY_SALT: "test-salt", COUNTERS: previous },
+    });
+
+    const first = await stats(collector);
+    assert.equal(first.updatedAt, new Date(T0).toISOString());
+    assert.equal(first.cacheControl, "public, max-age=300");
+
+    tick(STATS_TTL - 1);
+    await stats(collector);
+    assert.equal(previous.calls, 1);
+    tick(1);
+    assert.equal((await stats(collector)).updatedAt, new Date(T0 + STATS_TTL).toISOString());
+    assert.equal(previous.calls, 2);
+  });
 });
 
 describe("the daily cap", () => {

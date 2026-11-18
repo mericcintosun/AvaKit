@@ -307,9 +307,16 @@ let statsCopy = null;
 async function publicStats(env, now) {
   if (!statsCopy || now >= statsCopy.until) {
     const stats = await counters(env).stats();
+    // While a deploy rolls out, this Worker can briefly be talking to an object
+    // still running the previous code, which did not stamp its answer. The page
+    // parses `updatedAt`, so it is never left out.
+    const readAt = Date.parse(stats.updatedAt);
+    const stamped = Number.isFinite(readAt)
+      ? stats
+      : { ...stats, updatedAt: new Date(now).toISOString() };
     statsCopy = {
-      text: JSON.stringify(stats),
-      until: Date.parse(stats.updatedAt) + STATS_TTL_MS,
+      text: JSON.stringify(stamped),
+      until: (Number.isFinite(readAt) ? readAt : now) + STATS_TTL_MS,
     };
   }
   return statsCopy;
