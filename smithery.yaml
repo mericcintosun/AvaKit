@@ -1,5 +1,11 @@
 # Smithery listing for @avakit/mcp. Must live at the repo root.
 # The server itself is packages/mcp; it's published to npm, so Smithery just runs it.
+#
+# A Smithery install is testnet-only. Mainnet deploys need AVAKIT_ALLOW_MAINNET=1 in
+# the server's environment as well as confirm:true in the tool call (see
+# packages/mcp/README.md), and this listing deliberately offers no option that sets
+# it: opening the mainnet gate should be a choice made by someone running the server
+# themselves, not a checkbox in a hosted form.
 startCommand:
   type: stdio
   configSchema:
@@ -12,7 +18,9 @@ startCommand:
         description: >-
           A funded Fuji private key. Only deploy_contract needs it — scaffolding,
           reading chain state, and gas estimates all work without one. Use a
-          throwaway testnet key, never a key holding real funds.
+          throwaway testnet key, never a key holding real funds. Installed this
+          way the server deploys to the Fuji testnet only; mainnet deploys stay
+          refused.
   commandFunction: |-
     (config) => ({
       command: 'npx',

@@ -6,12 +6,15 @@
  *   • list_templates   — available templates
  *   • read_chain       — balance / tx receipt / contract view
  *   • estimate_gas     — gas and rough cost of a call
- *   • deploy_contract  — deploy compiled bytecode (testnet-first, mainnet needs confirm)
+ *   • deploy_contract  — deploy compiled bytecode (testnet-first; mainnet is double-gated)
  *   • get_context      — AvaKit + Avalanche coding context
  *
  * See docs/09-spec-mcp.md. Guardrails: private keys only ever come from the
- * AVAKIT_DEPLOYER_KEY env var, are never logged, and mainnet deploys require
- * explicit confirmation.
+ * AVAKIT_DEPLOYER_KEY env var and are never logged; a mainnet deploy needs both
+ * the caller's `confirm: true` and the operator's AVAKIT_ALLOW_MAINNET=1 in the
+ * server environment; and scaffold_app only writes inside the server's working
+ * directory (or AVAKIT_MCP_ROOT). The environment gates are the ones a
+ * prompt-injected tool call cannot open. Each is documented in README.md.
  *
  * This module only builds the server; `index.ts` is the entry that puts it on
  * stdio. Keeping the two apart is what lets the tools be tested in-process.
@@ -259,7 +262,7 @@ server.registerTool(
   {
     title: "Deploy a contract",
     description:
-      "Deploy compiled bytecode to Avalanche using a deployer key from the AVAKIT_DEPLOYER_KEY env var. Fuji testnet by default; mainnet (c-chain) requires confirm:true.",
+      "Deploy compiled bytecode to Avalanche using a deployer key from the AVAKIT_DEPLOYER_KEY env var. Fuji testnet by default. Mainnet (c-chain) needs two approvals: confirm:true in this call AND AVAKIT_ALLOW_MAINNET=1 in the server's environment, which only the person running the server can set — without it a mainnet deploy is refused even with confirm:true. A deployment that reverts is returned as an error.",
     inputSchema: z
       .object({
         abi: z.array(z.any()).max(MAX_ABI_ITEMS),
@@ -270,7 +273,12 @@ server.registerTool(
           .describe("Creation bytecode (0x-prefixed)"),
         args: z.array(z.any()).max(MAX_ARGS).optional(),
         chain: z.enum(["fuji", "c-chain"]).default("fuji"),
-        confirm: z.boolean().optional().describe("Required to deploy to mainnet"),
+        confirm: z
+          .boolean()
+          .optional()
+          .describe(
+            "Required to deploy to mainnet, together with AVAKIT_ALLOW_MAINNET=1 in the server environment",
+          ),
       })
       .strict(),
   },

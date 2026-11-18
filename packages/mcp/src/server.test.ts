@@ -47,6 +47,43 @@ describe("the tool surface", () => {
     const result = await mcp.call("list_templates", { unexpected: true });
     expect(result.isError).toBe(true);
   });
+
+  it("tells the model about both mainnet gates, so a refusal is not a surprise", async () => {
+    // The description used to say confirm:true was the requirement, while the
+    // server also demanded an environment variable the description never named.
+    const { tools } = await mcp.client.listTools();
+    const deploy = tools.find((tool) => tool.name === "deploy_contract");
+    expect(deploy?.description).toContain("confirm:true");
+    expect(deploy?.description).toContain("AVAKIT_ALLOW_MAINNET=1");
+  });
+});
+
+describe("the documentation", () => {
+  const read = (file: string) => readFileSync(new URL(file, import.meta.url), "utf8");
+
+  it("covers every environment variable the server reads", () => {
+    // AVAKIT_ALLOW_MAINNET shipped documented nowhere but the changelog. Any
+    // variable the source reads (`process.env.AVAKIT_X`, or a name kept in a
+    // string constant) now has to appear in the README too.
+    const source = ["server.ts", "guards.ts", "deploy.ts", "index.ts"]
+      .map((file) => read(`./${file}`))
+      .join("\n");
+    const reads = source.matchAll(/(?:process\.env\.|["'])(AVAKIT_[A-Z][A-Z_]*[A-Z])\b/g);
+    const variables = [...new Set([...reads].map((match) => match[1]))].sort();
+    expect(variables).toEqual(["AVAKIT_ALLOW_MAINNET", "AVAKIT_DEPLOYER_KEY", "AVAKIT_MCP_ROOT"]);
+
+    const readme = read("../README.md");
+    for (const variable of variables) {
+      expect(readme, variable).toContain(`\`${variable}\``);
+    }
+  });
+
+  it("says that mainnet needs the environment gate as well as confirm", () => {
+    const readme = read("../README.md");
+    expect(readme).toContain("`confirm: true` **and** `AVAKIT_ALLOW_MAINNET=1`");
+    // The two sentences that used to present confirm as the whole requirement.
+    expect(readme).not.toMatch(/requires? (an explicit )?`confirm: true`/i);
+  });
 });
 
 describe("list_templates", () => {

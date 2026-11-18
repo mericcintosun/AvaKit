@@ -28,7 +28,7 @@ Works with Claude Code, Cursor, and Claude Desktop.
 | `scaffold_app` | Create an Avalanche dapp from any of the 8 templates (`list_templates` returns the current set) |
 | `list_templates` | List available templates, with the chains each one supports |
 | `read_chain` | Read a balance, a transaction receipt, or a contract view function |
-| `deploy_contract` | Deploy compiled bytecode (Fuji by default; mainnet requires `confirm: true`) |
+| `deploy_contract` | Deploy compiled bytecode (Fuji by default; mainnet needs `confirm: true` **and** `AVAKIT_ALLOW_MAINNET=1` in the server's environment) |
 | `estimate_gas` | Estimate gas for a call before you send it |
 | `get_context` | AvaKit + Avalanche coding context and doc links |
 
@@ -65,6 +65,48 @@ the server can set it; a tool caller cannot.
 
 ## Deploy key
 
-`deploy_contract` signs with a private key from the `AVAKIT_DEPLOYER_KEY` environment variable. Use a **throwaway testnet key** — never a key holding real funds. Mainnet deploys require an explicit `confirm: true`.
+`deploy_contract` signs with a private key from the `AVAKIT_DEPLOYER_KEY` environment variable. Use a **throwaway testnet key** — never a key holding real funds. The tool refuses up front when that key has no balance, and it reports a deployment whose transaction reverted as an error rather than as a deployed contract.
+
+## Mainnet deploys
+
+Deploys go to Fuji unless a call asks for `chain: "c-chain"`. A mainnet deploy needs **two**
+independent approvals, and is refused unless both are present:
+
+1. `confirm: true` in the tool call, and
+2. `AVAKIT_ALLOW_MAINNET=1` in the environment the server runs in.
+
+`confirm: true` alone is not enough, on purpose. An agent can be talked into passing it by a
+prompt-injected instruction, but it cannot change the environment of the server process — so a
+malicious prompt on its own can never spend real funds. The refusal names the variable, so you
+will see what is missing.
+
+```json
+{
+  "mcpServers": {
+    "avakit": {
+      "command": "npx",
+      "args": ["-y", "@avakit/mcp"],
+      "env": {
+        "AVAKIT_DEPLOYER_KEY": "<the key to deploy with>",
+        "AVAKIT_ALLOW_MAINNET": "1"
+      }
+    }
+  }
+}
+```
+
+Leave `AVAKIT_ALLOW_MAINNET` unset for everyday testnet work, and set it only alongside a key you
+are prepared to spend from.
+
+## Environment variables
+
+All optional, and all read from the environment of the server process — none of them can be set by
+a tool call.
+
+| Variable | What it does |
+| --- | --- |
+| `AVAKIT_DEPLOYER_KEY` | The private key `deploy_contract` signs with. Without it the tool refuses; the other tools need no key. |
+| `AVAKIT_ALLOW_MAINNET` | Set to `1` to allow mainnet deploys (which also need `confirm: true`). Unset, the server is testnet-only. |
+| `AVAKIT_MCP_ROOT` | The directory `scaffold_app` creates projects in, instead of the server's working directory. |
 
 MIT © AvaKit contributors
