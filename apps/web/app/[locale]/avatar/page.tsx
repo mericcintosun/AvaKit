@@ -3,8 +3,9 @@
 import { motion } from "framer-motion";
 import { Box, Gem, Hand, MousePointer2, Rotate3d, Sparkles } from "lucide-react";
 import type * as React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { usePrefersReducedMotion } from "@/components/use-media-query";
 import { Link } from "@/i18n/navigation";
 
 /* AvaKit 3D mascots — a standalone showcase page for the two branded assets:
@@ -13,12 +14,17 @@ import { Link } from "@/i18n/navigation";
    page, so there is no external CDN at runtime. The root is forced `dark` so all
    colors resolve from the design tokens in globals.css (Ember Crimson =
    --primary / --brand) — no colors are hardcoded here. Each model ships a baked,
-   seamless 6s idle clip. */
+   seamless 6s idle clip, which plays by itself unless the visitor asked their
+   system to reduce motion; then the model holds its first frame and still
+   orbits when dragged. */
 
 // <model-viewer> is a custom element; cast the tag so JSX/TS accept its attrs.
 const ModelViewer = "model-viewer" as unknown as React.FC<
   React.HTMLAttributes<HTMLElement> & Record<string, unknown>
 >;
+
+/** The part of the <model-viewer> element this page calls once it is defined. */
+type ModelViewerElement = HTMLElement & { play?: () => void; pause?: () => void };
 
 const ASSETS = [
   {
@@ -104,8 +110,21 @@ const embedSnippet = (a: Asset) => `<model-viewer
 
 export default function AvatarPage() {
   const ready = useModelViewer();
+  const reducedMotion = usePrefersReducedMotion();
+  const viewer = useRef<ModelViewerElement | null>(null);
   const [active, setActive] = useState<Asset>(ASSETS[0]);
   const [copied, setCopied] = useState(false);
+
+  // `autoplay` below only decides whether the clip starts when a model loads.
+  // Turning it off does not stop a clip that is already running, so a visitor
+  // who switches "reduce motion" on (or off) while the page is open is followed
+  // here. The methods exist once the element is defined; before that there is
+  // nothing playing to stop.
+  useEffect(() => {
+    if (!ready) return;
+    if (reducedMotion) viewer.current?.pause?.();
+    else viewer.current?.play?.();
+  }, [ready, reducedMotion]);
 
   const copy = async () => {
     try {
@@ -149,13 +168,18 @@ export default function AvatarPage() {
                 a property for as that property, not as an attribute. `autoplay`
                 and `exposure` are such props, so they need real values: the
                 attribute spelling `autoplay=""` would be assigned as a falsy
-                string and the second mascot would never start its idle loop. */}
+                string and the second mascot would never start its idle loop.
+
+                The idle loop is decoration, so it is left out for a visitor
+                who prefers reduced motion (the hook reads false until the page
+                has hydrated, which is before the viewer is loaded). */}
             <ModelViewer
+              ref={viewer}
               key={active.key}
               src={active.src}
               poster={active.poster}
               alt={active.alt}
-              autoplay
+              autoplay={!reducedMotion}
               animation-name={active.clip}
               camera-controls=""
               touch-action="pan-y"
