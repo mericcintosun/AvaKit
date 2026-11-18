@@ -31,7 +31,8 @@ export default function CliDocs() {
       <P>Every generated app ships with:</P>
       <UL>
         <li>
-          A social-login wallet via <C>@avakit/react</C> (plus injected wallets)
+          Three ways in via <C>@avakit/react</C>: a zero-setup temporary wallet, social login, and
+          injected wallets (there is no wallet choice at scaffold time)
         </li>
         <li>shadcn/ui with dark/light wired from day one</li>
         <li>Deploy-ready contracts (where applicable) with bundled bytecode</li>

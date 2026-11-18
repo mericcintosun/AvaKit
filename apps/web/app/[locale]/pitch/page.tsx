@@ -235,8 +235,8 @@ export default function PitchDeckPage() {
           <R i={3}>
             <pre className="overflow-x-auto rounded-xl border border-white/10 bg-black/60 p-5 font-mono text-sm text-white/80">
               {`$ npm create avalanche-app@latest my-app
-✓ template · nft-mint   ✓ wallet · social login
-✓ created 16 files      ✓ deployed on Fuji  (tx 0x9a1f…8e090)`}
+✓ template · nft-mint   ✓ network · Fuji testnet
+✓ created 19 files      ✓ deployed on Fuji  (tx 0x9a1f…8e090)`}
             </pre>
           </R>
         </div>
