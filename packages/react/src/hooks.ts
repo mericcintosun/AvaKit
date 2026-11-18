@@ -3,16 +3,14 @@
 import {
   type DeployResult,
   deployContract,
-  type FaucetResult,
   type FoundryArtifact,
   getBalance,
   getWalletClient,
   readContract,
-  requestFaucet,
 } from "@avakit/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Abi, Address, Hex } from "viem";
-import { useAvaKit } from "./provider.js";
+import { useAvaKit, useFaucetContext } from "./provider.js";
 
 /** Current account + connection status. */
 export function useAvaAccount() {
@@ -247,51 +245,42 @@ export function useSendTransaction() {
   };
 }
 
-export type FaucetStatus = "idle" | "funding" | "success" | "error";
+export type { FaucetStatus } from "./provider.js";
 
 /**
- * Request testnet funds for the connected account from the app's AvaKit faucet
- * (set `faucetUrl` on `<AvaKitProvider>`). `enabled` is false when no faucet is
- * configured, so UIs can hide the button.
+ * Testnet funds from the app's faucet (set `faucetUrl` on `<AvaKitProvider>`).
+ *
+ * The state is kept in the provider and shared by every caller of this hook.
+ * It reports the automatic drip a burner wallet gets when it connects exactly
+ * as it reports a manual `fund()`, so one component can show "funding…",
+ * "funded" or "the faucet refused: …" for either:
+ *
+ * - `status`: `"idle"`, `"funding"`, `"success"` (the faucet sent a drip;
+ *   `result` holds its transaction hash) or `"error"`.
+ * - `error`: why the last request failed. From the faucet it is a
+ *   `FaucetError` (@avakit/core) with a `code`, `retryable` and, when the
+ *   faucet said so, `retryAfterMs`. A failure that may be temporary has
+ *   already been retried a bounded number of times before it lands here.
+ * - `fund(address?)`: ask the faucet by hand, for the connected account or
+ *   another address: the manual retry after an error. Rejects with that error
+ *   as well as recording it. Called while a request for the same address is
+ *   in flight, it joins that request instead of sending a second one.
+ * - `reset()`: back to `"idle"`, for example to dismiss an error.
+ * - `enabled`: false when no faucet is configured or the active chain is a
+ *   mainnet, so UIs can hide the button.
+ *
+ * The state belongs to the connected account on the active chain: when either
+ * changes it reads `"idle"` again.
  */
 export function useFaucet() {
-  const { chain, address, faucetUrl } = useAvaKit();
-  const [status, setStatus] = useState<FaucetStatus>("idle");
-  const [result, setResult] = useState<FaucetResult | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fund = useCallback(
-    async (target?: Address): Promise<FaucetResult> => {
-      const to = target ?? address;
-      if (!faucetUrl) {
-        throw new Error("No faucetUrl configured on AvaKitProvider.");
-      }
-      if (!to) {
-        throw new Error("Connect a wallet (or pass an address) before requesting funds.");
-      }
-      setStatus("funding");
-      setError(null);
-      try {
-        const res = await requestFaucet({ url: faucetUrl, address: to, chainId: chain.id });
-        setResult(res);
-        setStatus("success");
-        return res;
-      } catch (e) {
-        const err = e instanceof Error ? e : new Error(String(e));
-        setError(err);
-        setStatus("error");
-        throw err;
-      }
-    },
-    [faucetUrl, address, chain.id],
-  );
-
+  const { status, result, error, enabled, fund, reset } = useFaucetContext();
   return {
     fund,
+    reset,
     status,
     result,
     error,
     isFunding: status === "funding",
-    enabled: Boolean(faucetUrl),
+    enabled,
   };
 }

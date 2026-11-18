@@ -42,7 +42,7 @@ To add social login, install `@web3auth/modal` and pass `web3authAdapter({ clien
 
 ## API
 
-- Components: `<AvaKitProvider chains adapters dataApiKey? faucetUrl? autoConnect?>` · `<ConnectAvalanche />` · `<TransactionButton to value>`
+- Components: `<AvaKitProvider chains adapters dataApiKey? faucetUrl? faucetToken? autoConnect?>` · `<ConnectAvalanche />` · `<TransactionButton to value>`
 - Wallet/tx hooks: `useAvaKit`, `useAvaAccount`, `useAvaChain`, `useBalance`, `useContract`, `useAvaDeploy`, `useSendTransaction`, `useFaucet`
 - Data hooks (AvaCloud Data API, no indexer): `useTokenBalances`, `useNfts`, `useTxHistory`
 - Helpers: `humanizeError`, `shortenAddress`, `cn`, `Button`, `buttonVariants`
@@ -59,6 +59,61 @@ const { tokens, hasMore, fetchMore, isFetchingMore } = useTokenBalances(undefine
 - **The burner wallet is testnet-only.** `burnerAdapter()` keeps a throwaway key in `localStorage` in the clear. While the active chain is a mainnet, `<AvaKitProvider>` refuses to connect it and disconnects an active one, and `<ConnectAvalanche />` does not offer it. See the [`@avakit/core` README](https://www.npmjs.com/package/@avakit/core).
 - **Mainnet deploys are opt-in.** `useAvaDeploy().deploy(artifact, args, { confirmMainnet: true })`. The account's balance is checked against the estimated cost before anything is sent.
 - **A deploy counts only when the contract exists.** `useAvaDeploy()` reports `success` once the deployment transaction has succeeded and the contract's code has been read back from the chain. A reverted deployment, or one that left no code at the new address, ends in `error` with a `DeployFailedError`.
+
+## Test funds
+
+Give `<AvaKitProvider>` a `faucetUrl` and a burner wallet is funded when it connects, so a first transaction needs no trip to a faucet page:
+
+```tsx
+import { AVAKIT_FAUCET_URL, burnerAdapter } from "@avakit/core";
+import { fuji } from "@avakit/core/chains";
+
+const adapters = useMemo(() => [burnerAdapter()], []);
+
+<AvaKitProvider chains={[fuji]} adapters={adapters} faucetUrl={AVAKIT_FAUCET_URL}>
+  {children}
+</AvaKitProvider>
+```
+
+`AVAKIT_FAUCET_URL` is AvaKit's shared Fuji faucet (one small drip per address per day): fine for a first run, and something to replace with your own deployment of [`services/faucet`](https://github.com/mericcintosun/AvaKit/tree/main/services/faucet) for anything serious. Without a `faucetUrl` nothing is ever requested.
+
+The automatic drip is for the burner wallet only, on a testnet only, and once per address. The balance is read first and a wallet that already holds funds is left alone, so reloading the page neither spends a drip nor shows a "funded recently" error.
+
+`useFaucet()` reports what the faucet is doing. Its state lives in the provider, so it shows the automatic drip exactly as it shows a manual `fund()`, in every component that reads it:
+
+```tsx
+import { useFaucet } from "@avakit/react";
+
+function TestFunds() {
+  const { status, error, fund, enabled } = useFaucet();
+  const request = () => void fund().catch(() => {}); // the failure is in `error`
+
+  if (!enabled) return null; // no faucet configured, or the chain is a mainnet
+  if (status === "funding") return <p>Funding your wallet…</p>;
+  if (status === "success") return <p>Funded.</p>;
+  if (status === "error") {
+    return (
+      <p>
+        The faucet refused: {error?.message} <button onClick={request}>Try again</button>
+      </p>
+    );
+  }
+  return <button onClick={request}>Get test AVAX</button>;
+}
+```
+
+- `status` is `"idle"`, `"funding"`, `"success"` or `"error"`; `isFunding`, `result` (the drip's `txHash` and `amount`) and `error` go with it, and `reset()` returns to `"idle"`.
+- `"success"` means the faucet sent the drip. The balance follows once that transaction is mined, so refetch it (`useBalance().refetch()`).
+- A failure that may be temporary (the faucet is busy, could not send, or did not answer) is retried a bounded number of times before `status` becomes `"error"`; a refusal (rate limit, empty faucet, bad request) is reported at once. Nothing retries forever.
+- `error` from the faucet is a `FaucetError` (`@avakit/core`): `code` is `"rate_limited"`, `"empty"`, `"invalid"`, `"unavailable"` or `"network"`, `retryable` says whether trying again may help, and `retryAfterMs` how long the faucet asked to wait, when it said.
+- `fund(address?)` asks by hand, for the connected account or another address. Called while a request for the same address is in flight, it joins that request rather than sending a second one.
+- The state describes the connected account on the active chain, and reads `"idle"` again when either changes. On a mainnet `enabled` is false and `fund()` refuses without sending anything.
+
+If your faucet asks for a Cloudflare Turnstile token, pass `faucetToken`. It is called before every request, each retry included, because a token can be used only once:
+
+```tsx
+<AvaKitProvider faucetUrl={faucetUrl} faucetToken={() => getTurnstileToken()} …>
+```
 
 ## Server Components
 
