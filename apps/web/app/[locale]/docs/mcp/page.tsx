@@ -225,8 +225,10 @@ export default function McpDocs() {
         matters on mainnet. A field marked <C>?</C> is optional. Every result is JSON, and a failure
         is returned as a tool error with the reason in plain text.
       </P>
+      {/* Three columns of prose do not fit a phone: keep the table wide enough
+          to read and let its wrapper scroll sideways. */}
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-muted/50">
             <tr>
               <th className="px-4 py-2 text-left font-medium">Tool</th>

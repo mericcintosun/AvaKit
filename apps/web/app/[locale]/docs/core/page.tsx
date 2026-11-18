@@ -44,6 +44,12 @@ const myL1 = defineChain({
   testnet: true,
 });`}
       />
+      <P>
+        The built-in chains link to the Builder Hub explorer (<C>fuji.explorerUrl</C>,{" "}
+        <C>cChain.explorerUrl</C>). AvaKit builds explorer links by appending{" "}
+        <C>/tx/&lt;hash&gt;</C> or <C>/address/&lt;address&gt;</C> to <C>explorerUrl</C>, and leaves
+        them out for a chain whose <C>explorerUrl</C> is empty, such as a fresh L1.
+      </P>
 
       <H2>Wallet adapters</H2>
       <P>
