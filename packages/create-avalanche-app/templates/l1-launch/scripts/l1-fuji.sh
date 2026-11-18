@@ -32,13 +32,15 @@ Deploy your L1 to Fuji — what you need first (one-time):
        avalanche key create mykey            # creates a key
        # fund its C-Chain address from the Builder Hub faucet:
        #   https://build.avax.network/console/primary-network/faucet
-       # then move funds to the P-Chain:
-       avalanche key transfer --key mykey --amount 2 --sender-blockchain c --receiver-blockchain p
+       # then move funds to the P-Chain (the deploy spends from there; keep a
+       # little on the C-Chain for the transfer fee):
+       avalanche key transfer --key mykey --fuji --c-chain-sender --p-chain-receiver --amount 1
 
   2. Budget ~1-2 test AVAX PER validator — an L1 validator pays a continuous
      P-Chain fee (~1 AVAX ≈ 1 month). When the balance hits zero the validator
-     goes inactive and your L1 STOPS. Top up with:
-       avalanche blockchain addValidator / IncreaseL1ValidatorBalance
+     goes inactive and your L1 STOPS. Check it and top it up with:
+       avalanche validator getBalance --fuji --l1 <name>
+       avalanche validator increaseBalance --fuji --l1 <name> --key mykey --balance 1
 
   3. A bootstrap validator node that STAYS RUNNING. Your machine can be it
      (--use-local-machine below), but if this process exits, block production
