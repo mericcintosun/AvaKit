@@ -28,6 +28,10 @@ contract AvaKitNFT {
     mapping(uint256 => address) public getApproved;
     mapping(address => mapping(address => bool)) public isApprovedForAll;
 
+    /// @dev tokenId => the seed its art is drawn from. Written once, at mint,
+    ///      and never again — see `tokenURI`.
+    mapping(uint256 => uint256) private _artSeeds;
+
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
@@ -53,6 +57,11 @@ contract AvaKitNFT {
     function mint() external returns (uint256 tokenId) {
         tokenId = ++totalSupply;
         _owners[tokenId] = msg.sender;
+        // The art is decided here, once, from who minted the token — not
+        // recomputed from whoever holds it later.
+        _artSeeds[tokenId] = uint256(
+            keccak256(abi.encodePacked(tokenId, msg.sender, block.chainid))
+        );
         unchecked {
             balanceOf[msg.sender] += 1;
         }
@@ -126,10 +135,14 @@ contract AvaKitNFT {
     /// @dev On randomness: this is deliberately NOT Chainlink VRF. VRF buys
     ///      *unpredictability*, which matters when someone can profit by
     ///      re-rolling. Here the token is a free memento with no market, so what
-    ///      we actually need is *variety* — and keccak over (tokenId, owner,
+    ///      we actually need is *variety* — and keccak over (tokenId, minter,
     ///      chainid) gives that instantly, for free, with zero dependencies. If
     ///      you fork this into something with real rarity value, that is when you
     ///      reach for VRF.
+    /// @dev The seed is stored at mint rather than derived from the current
+    ///      owner, so a token keeps its art when it changes hands. Metadata that
+    ///      moved with the owner would leave wallets and marketplaces, which
+    ///      cache `tokenURI`, showing art the token no longer has.
     /// @dev Three data-URI rules this has to respect, each easy to get wrong:
     ///      (1) a raw `#` starts a URI fragment and would truncate the JSON, so
     ///      `#` is percent-encoded — and `%` is an escape prefix, so colours are
@@ -137,10 +150,9 @@ contract AvaKitNFT {
     ///      JSON string, so its attributes use single quotes; (3) no `"` anywhere
     ///      inside the SVG.
     function tokenURI(uint256 tokenId) external view returns (string memory) {
-        uint256 seed = uint256(
-            keccak256(abi.encodePacked(tokenId, ownerOf(tokenId), block.chainid))
-        );
-        (string memory accent, string memory paletteName, string memory muzzle) = _palette(seed);
+        ownerOf(tokenId); // reverts for a nonexistent token
+        (string memory accent, string memory paletteName, string memory muzzle) =
+            _palette(_artSeeds[tokenId]);
 
         string memory art = string.concat(
             "<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600' viewBox='0 0 600 600'>",

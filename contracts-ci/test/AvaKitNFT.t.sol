@@ -299,10 +299,48 @@ contract AvaKitNFTTest is TestBase {
         vm.prank(ALICE);
         uint256 b = nft.mint();
 
-        // Different (tokenId, owner) seeds may share a palette (6 palettes),
+        // Different (tokenId, minter) seeds may share a palette (6 palettes),
         // but the card always carries the zero-padded token number.
         assertTrue(_contains(nft.tokenURI(a), "%23001"), "card number #001");
         assertTrue(_contains(nft.tokenURI(b), "%23002"), "card number #002");
+    }
+
+    function test_TokenUriIsUnchangedByTransfers() public {
+        // The art is decided at mint. Twelve tokens, two hops each: art seeded
+        // on the current owner would have to land on the same one of six
+        // palettes 24 times in a row to get through this unnoticed.
+        uint256 count = 12;
+        bytes32[] memory minted = new bytes32[](count);
+        for (uint256 i = 0; i < count; i++) {
+            vm.prank(ALICE);
+            uint256 id = nft.mint();
+            minted[i] = keccak256(bytes(nft.tokenURI(id)));
+        }
+
+        for (uint256 i = 0; i < count; i++) {
+            uint256 id = i + 1;
+
+            vm.prank(ALICE);
+            nft.transferFrom(ALICE, BOB, id);
+            assertEq(
+                keccak256(bytes(nft.tokenURI(id))),
+                minted[i],
+                "tokenURI changed on transfer"
+            );
+
+            vm.prank(BOB);
+            nft.safeTransferFrom(BOB, CAROL, id);
+            assertEq(
+                keccak256(bytes(nft.tokenURI(id))),
+                minted[i],
+                "tokenURI changed on the second transfer"
+            );
+        }
+    }
+
+    function test_TokenUriRevertsForNonexistentToken() public {
+        vm.expectRevert(bytes("AvaKitNFT: nonexistent token"));
+        nft.tokenURI(999);
     }
 
     // ---- helpers ----
