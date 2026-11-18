@@ -31,10 +31,13 @@ export function DifferentiationSection() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[220px]">Capability</TableHead>
+                  <TableHead scope="col" className="min-w-[220px]">
+                    Capability
+                  </TableHead>
                   {d.columns.map((col, i) => (
                     <TableHead
                       key={col}
+                      scope="col"
                       className={cn(
                         "min-w-[110px] text-center",
                         i === 0 && "text-foreground font-semibold",
@@ -48,18 +51,31 @@ export function DifferentiationSection() {
               <TableBody>
                 {d.rows.map((row) => (
                   <TableRow key={row.label}>
-                    <TableCell className="text-muted-foreground align-middle">
+                    {/* A row header, so a screen reader announces the capability
+                        with each answer ("thirdweb, Open-source & free: Yes"). */}
+                    <th
+                      scope="row"
+                      className="text-muted-foreground p-4 text-left align-middle font-normal"
+                    >
                       {row.label}
-                    </TableCell>
+                    </th>
                     {d.columns.map((col, i) => (
                       <TableCell
                         key={`${row.label}-${col}`}
                         className={cn("text-center", i === 0 && "bg-primary/5")}
                       >
+                        {/* The icons are aria-hidden (lucide's default), so the
+                            answer itself is spelled out for assistive tech. */}
                         {row.cells[i] ? (
-                          <Check className="text-primary mx-auto size-4" />
+                          <>
+                            <Check className="text-primary mx-auto size-4" />
+                            <span className="sr-only">Yes</span>
+                          </>
                         ) : (
-                          <Minus className="text-muted-foreground/40 mx-auto size-4" />
+                          <>
+                            <Minus className="text-muted-foreground/40 mx-auto size-4" />
+                            <span className="sr-only">No</span>
+                          </>
                         )}
                       </TableCell>
                     ))}
