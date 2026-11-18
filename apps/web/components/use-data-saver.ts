@@ -23,8 +23,9 @@ function subscribe(onChange: () => void) {
 function getSnapshot(): boolean {
   const connection = getConnection();
   if (!connection) return false;
-  // "4g" is the API's top bucket; anything below it is rated at roughly
-  // 0.7 Mbps or worse, where a multi-megabyte clip takes minutes.
+  // "4g" is the API's top bucket. Anything below it means the browser has
+  // measured a slow link (about 0.7 Mbps down or 270 ms round trips, or worse),
+  // where a multi-megabyte clip takes minutes.
   const slow = connection.effectiveType !== undefined && connection.effectiveType !== "4g";
   return connection.saveData === true || slow;
 }
