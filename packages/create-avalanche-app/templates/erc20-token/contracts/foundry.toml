@@ -5,7 +5,7 @@ libs = ["lib"]
 # Pinned so `forge build` reproduces the bytecode bundled in
 # lib/token-artifact.ts byte for byte. If you change any of these, regenerate
 # that file: the app deploys the bundled bytecode, not this source.
-# cancun is the EVM version Avalanche runs (since the Etna upgrade).
+# cancun is the EVM version Avalanche has supported since the Etna upgrade.
 solc_version = "0.8.28"
 evm_version = "cancun"
 optimizer = true

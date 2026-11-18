@@ -19,8 +19,8 @@ libs = []
 solc_version = "0.8.28"
 # Spelled out rather than left to Foundry's default, which moves with every
 # release (and is then clamped to what the pinned solc supports): the target is
-# part of the bytecode's metadata hash. cancun is what Avalanche has run since
-# the Etna upgrade.
+# part of the bytecode's metadata hash. cancun is what Avalanche has supported
+# since the Etna upgrade.
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200

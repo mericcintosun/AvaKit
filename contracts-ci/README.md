@@ -59,7 +59,7 @@ and it compiles with the same pinned settings.
 
 Foundry pinned to the same stable version locally and in CI (see
 `.github/workflows/ci.yml`). The compiler is pinned in `foundry.toml`: solc
-version, EVM version (`cancun`, what Avalanche has run since the Etna upgrade)
+version, EVM version (`cancun`, supported on Avalanche since the Etna upgrade)
 and optimizer settings. Each of them is part of the metadata hash at the end
 of the bytecode, so the EVM version is spelled out instead of left to Foundry's
 default, which changes between releases.
