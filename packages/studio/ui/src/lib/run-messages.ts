@@ -68,9 +68,12 @@ export function startFailureNotice(error: unknown): Notice {
   if (error instanceof RunBusyError) {
     return {
       title: "Another action is running",
-      description: `“${runLabel(error.run)}” has not finished yet — its output is shown in ${
-        error.run.kind === "fuji" ? "Launch on Fuji" : "Devnet"
-      }.`,
+      description: error.run
+        ? `“${runLabel(error.run)}” has not finished yet — its output is shown in ${
+            error.run.kind === "fuji" ? "Launch on Fuji" : "Devnet"
+          }.`
+        : // It belongs to another Studio process; the server's words name it.
+          error.message,
       variant: "info",
     };
   }

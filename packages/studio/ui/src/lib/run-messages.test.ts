@@ -94,6 +94,14 @@ describe("run messages", () => {
       description: "“Spin up ICM devnet” has not finished yet — its output is shown in Devnet.",
       variant: "info",
     });
+    // An action of another Studio process has no console here: the server's words stand.
+    const elsewhere =
+      "Another action (devnet start) is still running in another Studio process (pid 4242) — wait for it to finish, then retry.";
+    expect(startFailureNotice(new RunBusyError(null, elsewhere))).toEqual({
+      title: "Another action is running",
+      description: elsewhere,
+      variant: "info",
+    });
     expect(startFailureNotice(new Error("invalid L1"))).toEqual({
       title: "Could not start",
       description: "invalid L1",

@@ -1,7 +1,10 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import http, { type IncomingHttpHeaders } from "node:http";
 import path from "node:path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createMcpServer } from "./mcp.js";
 import type { RunInfo } from "./runs.js";
 import { parseTarget, type StudioServer, safeFile, safeTokenEqual, startServer } from "./server.js";
 import { createSandbox, type Sandbox } from "./testing/sandbox.js";
@@ -647,5 +650,64 @@ describe("avalanche-cli actions", () => {
     expect(stream.events.filter((e) => e.event === "done")).toHaveLength(1);
     await new Promise((r) => setTimeout(r, 100));
     expect((await api("/api/health")).status).toBe(200);
+  });
+
+  it("shares the one-at-a-time rule with the MCP face", async () => {
+    // The dashboard and `avakit-studio mcp` are two faces of one Studio. Each
+    // used to keep its own lock, so the two could run avalanche-cli at once.
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createMcpServer().connect(serverSide);
+    const agent = new Client({ name: "studio-test", version: "0.0.0" });
+    await agent.connect(clientSide);
+    const tool = async (name: string) => {
+      const result = (await agent.callTool({ name, arguments: {} })) as {
+        content: { text: string }[];
+        isError?: boolean;
+      };
+      return {
+        text: result.content.map((c) => c.text).join("\n"),
+        isError: Boolean(result.isError),
+      };
+    };
+
+    try {
+      // The dashboard's action is in flight: the agent's is refused, unspawned.
+      slowAvalanche();
+      await api("/api/run", { body: { kind: "devnet", action: "start" } });
+      const refused = await tool("devnet_stop");
+      expect(refused.isError).toBe(true);
+      expect(refused.text).toMatch(/^Another action \(devnet start\) is still running/);
+      release();
+      await runDone();
+      expect(sandbox.calls("avalanche")).toEqual([["network", "start"]]);
+
+      // The agent's action is in flight: the dashboard's is refused, unspawned.
+      sandbox.stub(
+        "avalanche",
+        'async () => { await new Promise((r) => setTimeout(r, 600)); return { out: "ok\\n" }; }',
+      );
+      const stopping = tool("devnet_stop");
+      await waitFor(
+        () => sandbox.calls("avalanche"),
+        (calls) => calls.length === 2,
+      );
+      const reply = await api("/api/run", { body: { kind: "devnet", action: "start" } });
+      expect(reply.status).toBe(409);
+      expect(reply.json().run).toBeNull();
+      expect(reply.json().error).toMatch(/^Another action \(devnet stop\) is still running/);
+      expect((await stopping).isError).toBe(false);
+      expect(sandbox.calls("avalanche")).toEqual([
+        ["network", "start"],
+        ["network", "stop"],
+      ]);
+
+      // Free again for both.
+      expect((await api("/api/run", { body: { kind: "devnet", action: "start" } })).status).toBe(
+        200,
+      );
+      await runDone();
+    } finally {
+      await agent.close();
+    }
   });
 });

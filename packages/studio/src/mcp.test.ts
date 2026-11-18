@@ -188,7 +188,10 @@ describe("MCP tools", () => {
     const [first, second] = await Promise.all([call("devnet_start"), call("devnet_stop")]);
     expect(first.isError).toBe(false);
     expect(second.isError).toBe(true);
-    expect(second.text).toMatch(/another devnet action \(start\) is still running/);
+    // Word for word what the dashboard answers (apart from its "or cancel it").
+    expect(second.text).toBe(
+      "Another action (devnet start) is still running — wait for it to finish, then retry.",
+    );
     expect(sandbox.calls("avalanche")).toEqual([["network", "start"]]);
 
     // Free again once the first has finished.

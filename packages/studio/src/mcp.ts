@@ -19,6 +19,7 @@ import {
 } from "./devnet.js";
 import { deployMessengers, getIcmState, MAX_MESSAGE_BYTES, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
+import { acquireActionLock, busyMessage, type LockAttempt } from "./lock.js";
 import { VERSION } from "./version.js";
 
 function toJson(value: unknown): string {
@@ -34,21 +35,22 @@ export function createMcpServer(): McpServer {
   const server = new McpServer({ name: "avakit-studio", version: VERSION });
 
   // One avalanche-cli action at a time: an agent may call tools in parallel, and
-  // concurrent runs against the same local network corrupt each other.
-  let running: DevnetAction | null = null;
+  // concurrent runs against the same local network corrupt each other. The lock
+  // is the file the dashboard's run manager takes too, so the rule holds across
+  // both faces of Studio, with the same refusal.
   async function devnetAction(action: DevnetAction, tail: number, params?: L1Params) {
-    if (running) {
-      return text(
-        `another devnet action (${running}) is still running — wait for it to finish, then retry`,
-        true,
-      );
+    let lock: LockAttempt;
+    try {
+      lock = acquireActionLock(`devnet ${action}`);
+    } catch (e) {
+      return text(e instanceof Error ? e.message : String(e), true);
     }
-    running = action;
+    if (!lock.acquired) return text(busyMessage(lock.holder), true);
     try {
       const { exitCode, log } = await runDevnetActionAsync(action, params);
       return text(toJson({ exitCode, tail: log.slice(-tail) }), exitCode !== 0);
     } finally {
-      running = null;
+      lock.release();
     }
   }
 

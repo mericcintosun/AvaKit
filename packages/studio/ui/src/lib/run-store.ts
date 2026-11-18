@@ -42,8 +42,12 @@ export type StartRunRequest =
 
 export type StartRunResult =
   | { started: true; run: RunInfo }
-  /** Refused: `run` is the action that is still in flight. */
-  | { started: false; run: RunInfo; error: string };
+  /**
+   * Refused: `run` is the action that is still in flight — or null when that
+   * action belongs to another Studio process (the MCP face, a second
+   * dashboard), which this one cannot follow. `error` says which either way.
+   */
+  | { started: false; run: RunInfo | null; error: string };
 
 export interface RunStreamHandlers {
   /** First event of every (re)connection: the run and everything it printed so far. */
@@ -71,10 +75,13 @@ export interface RunView {
   lost: boolean;
 }
 
-/** Thrown by start() when another action already holds the lock. */
+/**
+ * Thrown by start() when another action already holds the lock. `run` is that
+ * action, or null when it runs in another Studio process (the message names it).
+ */
 export class RunBusyError extends Error {
-  readonly run: RunInfo;
-  constructor(run: RunInfo, message: string) {
+  readonly run: RunInfo | null;
+  constructor(run: RunInfo | null, message: string) {
     super(message);
     this.name = "RunBusyError";
     this.run = run;
@@ -204,6 +211,8 @@ export function createRunStore(backend: RunBackend): RunStore {
     async start(request) {
       const result = await backend.startRun(request);
       if (!result.started) {
+        // Held by another Studio process: there is no run here to show.
+        if (!result.run) throw new RunBusyError(null, result.error);
         // Another action holds the lock (another tab started it): show that one.
         if (!stream || view.run?.id !== result.run.id) {
           set({ run: result.run, log: [], lost: false });

@@ -69,9 +69,10 @@ export const runBackend: RunBackend = {
       body: JSON.stringify(request),
     });
     if (res.status === 409) {
-      // Another action is in flight; the server says which.
-      const body = (await res.json()) as { error: string; run: RunInfo };
-      return { started: false, run: body.run, error: body.error };
+      // Another action is in flight; the server says which. `run` is null when
+      // it belongs to another Studio process (the MCP face, a second dashboard).
+      const body = (await res.json()) as { error: string; run: RunInfo | null };
+      return { started: false, run: body.run ?? null, error: body.error };
     }
     return { started: true, run: (await parse<{ run: RunInfo }>(res)).run };
   },

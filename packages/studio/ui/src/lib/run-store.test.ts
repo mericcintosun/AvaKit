@@ -213,6 +213,25 @@ describe("run store", () => {
     expect(server.streams).toHaveLength(1);
   });
 
+  it("has no run to follow when the action in the way belongs to another Studio process", async () => {
+    const server = fakeServer();
+    const reason =
+      "Another action (devnet start) is still running in another Studio process (pid 4242) — wait for it to finish, then retry.";
+    const backend: RunBackend = {
+      ...server.backend,
+      startRun: async () => ({ started: false, run: null, error: reason }),
+    };
+    const store = createRunStore(backend);
+
+    const failure = await store.start({ kind: "devnet", action: "stop" }).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(RunBusyError);
+    expect((failure as RunBusyError).run).toBeNull();
+    expect((failure as RunBusyError).message).toBe(reason);
+    // Nothing of this server's to show, and no stream to open.
+    expect(store.getSnapshot()).toEqual({ run: null, log: [], lost: false });
+    expect(server.streams).toHaveLength(0);
+  });
+
   it("propagates a rejected start and leaves the view alone", async () => {
     const server = fakeServer();
     const backend: RunBackend = {

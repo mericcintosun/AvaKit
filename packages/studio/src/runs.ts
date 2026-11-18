@@ -3,9 +3,12 @@
  * tab that started it. A run keeps going when its tab navigates away, reloads
  * or closes; any tab can (re)attach to its log, and a second action is refused
  * while one is in flight, because concurrent avalanche-cli runs against the
- * same local network (or the same Fuji deploy) corrupt each other.
+ * same local network (or the same Fuji deploy) corrupt each other. That holds
+ * across Studio processes too (the MCP face, a second dashboard): every run
+ * takes the action lock file for as long as it is in flight (see lock.ts).
  */
 
+import { acquireActionLock, actionLockFile, type LockHolder } from "./lock.js";
 import type { RunHandle } from "./steps.js";
 
 export type RunKind = "devnet" | "fuji";
@@ -47,7 +50,12 @@ export type StartResult =
   /** The action was started (it may already have finished, if it failed at once). */
   | { started: true; run: RunInfo }
   /** Refused: `run` is the action still in flight. */
-  | { started: false; run: RunInfo };
+  | { started: false; run: RunInfo }
+  /**
+   * Refused: another Studio process holds the action lock. `holder` says which
+   * one and for what; it is null while the lock is only just changing hands.
+   */
+  | { started: false; run: null; holder: LockHolder | null };
 
 export interface RunManager {
   /** The run in flight, or the last finished one until it is dismissed or replaced. */
@@ -73,6 +81,8 @@ interface Entry {
   subscribers: Set<RunSubscriber>;
   handle: RunHandle | null;
   cancelRequested: boolean;
+  /** Gives the action lock back; called once, when the run is done. */
+  release: () => void;
 }
 
 /** A caller's copy of a run: changing it never changes the run itself. */
@@ -80,7 +90,12 @@ function copy(info: RunInfo): RunInfo {
   return { ...info, params: { ...info.params } };
 }
 
-export function createRunManager(): RunManager {
+export function createRunManager(
+  opts: {
+    /** The action lock file to use instead of Studio's own (used by tests). */
+    lockFile?: string;
+  } = {},
+): RunManager {
   let nextId = 1;
   let entry: Entry | null = null;
 
@@ -103,6 +118,9 @@ export function createRunManager(): RunManager {
     e.info.exitCode = exitCode;
     e.info.cancelled = e.cancelRequested;
     e.info.finishedAt = Date.now();
+    // However it ended — finished, failed, cancelled, never started — the
+    // next action, here or in another Studio process, may go ahead.
+    e.release();
     const subscribers = [...e.subscribers];
     e.subscribers.clear();
     for (const s of subscribers) {
@@ -119,6 +137,11 @@ export function createRunManager(): RunManager {
 
     start(spec, launch) {
       if (entry?.info.status === "running") return { started: false, run: copy(entry.info) };
+      const lock = acquireActionLock(
+        `${spec.kind} ${spec.action}`,
+        opts.lockFile ?? actionLockFile(),
+      );
+      if (!lock.acquired) return { started: false, run: null, holder: lock.holder };
       const e: Entry = {
         info: {
           id: nextId++,
@@ -135,6 +158,7 @@ export function createRunManager(): RunManager {
         subscribers: new Set(),
         handle: null,
         cancelRequested: false,
+        release: lock.release,
       };
       entry = e;
       try {

@@ -15,7 +15,7 @@ It starts a small server on `127.0.0.1`, opens your browser, and gives you six v
 - **Data** — balances, NFTs, and transactions for any Fuji or C-Chain address (AvaCloud Data API, no indexer).
 - **Environment** — the tools and project detected on this machine.
 
-avalanche-cli actions run **one at a time** and belong to the Studio server, not to the browser tab: an action keeps running if you switch views, reload, or close the tab, and the page picks its log up again when you come back. Use **Cancel** on the console to stop one.
+avalanche-cli actions run **one at a time** and belong to the Studio server, not to the browser tab: an action keeps running if you switch views, reload, or close the tab, and the page picks its log up again when you come back. Use **Cancel** on the console to stop one. The one-at-a-time rule holds across every Studio process on the machine: the dashboard and the MCP server share a lock file (`~/.avakit-studio/action.lock`, removed when the action ends), so an agent's action and a click in the dashboard never run at once — the second one is refused with "Another action (…) is still running".
 
 Options: `--port <n>` (default: a free port), `--no-open` (don't open the browser).
 

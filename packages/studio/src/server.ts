@@ -28,6 +28,7 @@ import {
 } from "./fuji.js";
 import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
+import { busyMessage } from "./lock.js";
 import { createRunManager, type RunManager, type StartResult } from "./runs.js";
 import { runSteps } from "./steps.js";
 
@@ -279,10 +280,18 @@ export async function startServer(opts: {
     if (pathname === "/api/run" && method === "POST") {
       const result = startRun(runs, await readJsonBody(req));
       if (!result.started) {
-        sendJson(res, 409, {
-          error: `Another action (${result.run.kind} ${result.run.action}) is still running — wait for it to finish, or cancel it.`,
-          run: result.run,
-        });
+        // Refused by this server's own run (`run`), or by one that belongs to
+        // another Studio process — the MCP face, a second dashboard (`holder`).
+        sendJson(
+          res,
+          409,
+          result.run
+            ? {
+                error: busyMessage({ action: `${result.run.kind} ${result.run.action}` }, true),
+                run: result.run,
+              }
+            : { error: busyMessage(result.holder), run: null, holder: result.holder },
+        );
         return;
       }
       sendJson(res, 200, { run: result.run });

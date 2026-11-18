@@ -1,5 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { releaseAllLocks } from "./lock.js";
 import { createRunManager, type Launch, MAX_LOG_LINES, type RunInfo } from "./runs.js";
+
+// The action lock is a file. Every test gets its own, in a temporary directory:
+// the real one (~/.avakit-studio/action.lock) is never touched.
+let dir: string;
+let lockFile: string;
+beforeEach(() => {
+  dir = mkdtempSync(path.join(tmpdir(), "avakit-studio-runs-"));
+  lockFile = path.join(dir, "action.lock");
+});
+afterEach(() => {
+  releaseAllLocks(); // most tests leave their run in flight
+  rmSync(dir, { recursive: true, force: true });
+});
+
+/** A run manager on this test's lock file; two of them stand for two Studio processes. */
+const manager = () => createRunManager({ lockFile });
 
 /** A launch whose output and end the test controls by hand. */
 function manual() {
@@ -27,7 +47,7 @@ const spec = { kind: "devnet" as const, action: "create-icm" };
 
 describe("run manager", () => {
   it("starts a run and reports it as the current one", () => {
-    const runs = createRunManager();
+    const runs = manager();
     expect(runs.current()).toBeNull();
     const m = manual();
     const started = runs.start({ ...spec, params: { name: "mychain" } }, m.launch);
@@ -46,7 +66,7 @@ describe("run manager", () => {
   });
 
   it("refuses a second action while one is in flight, and never launches it", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const first = manual();
     runs.start(spec, first.launch);
 
@@ -63,11 +83,11 @@ describe("run manager", () => {
     first.done(0);
     const third = runs.start({ kind: "fuji", action: "deploy" }, manual().launch);
     expect(third.started).toBe(true);
-    expect(third.run.id).toBe(2);
+    expect(third.run?.id).toBe(2);
   });
 
   it("replays the log to a late subscriber, then streams live lines and the end", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const m = manual();
     runs.start(spec, m.launch);
     m.line("one");
@@ -88,7 +108,7 @@ describe("run manager", () => {
   });
 
   it("keeps running when every subscriber has gone away", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const m = manual();
     runs.start(spec, m.launch);
     const lines: string[] = [];
@@ -107,7 +127,7 @@ describe("run manager", () => {
   });
 
   it("keeps a finished run (with its log) until it is dismissed", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const m = manual();
     runs.start(spec, m.launch);
     m.line("output");
@@ -123,14 +143,14 @@ describe("run manager", () => {
   });
 
   it("does not dismiss a run that is still in flight", () => {
-    const runs = createRunManager();
+    const runs = manager();
     runs.start(spec, manual().launch);
     expect(runs.dismiss()).toBe(false);
     expect(runs.current()?.status).toBe("running");
   });
 
   it("cancel signals the action once and marks the run cancelled when it ends", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const m = manual();
     runs.start(spec, m.launch);
     runs.cancel();
@@ -144,7 +164,7 @@ describe("run manager", () => {
   });
 
   it("ignores output and a second end after the run is done", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const m = manual();
     runs.start(spec, m.launch);
     m.done(1);
@@ -155,7 +175,7 @@ describe("run manager", () => {
   });
 
   it("handles an action that fails before it even starts", () => {
-    const runs = createRunManager();
+    const runs = manager();
     // Finishes synchronously, inside launch.
     const sync = runs.start(spec, (onLine, onDone) => {
       onLine("✖ invalid parameters");
@@ -176,7 +196,7 @@ describe("run manager", () => {
   });
 
   it("a subscriber that throws cannot break the run or the other subscribers", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const m = manual();
     runs.start(spec, m.launch);
     const lines: string[] = [];
@@ -196,7 +216,7 @@ describe("run manager", () => {
   });
 
   it("keeps only the tail of a very long log", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const m = manual();
     runs.start(spec, m.launch);
     for (let i = 0; i < MAX_LOG_LINES + 25; i++) m.line(`line ${i}`);
@@ -206,9 +226,91 @@ describe("run manager", () => {
     expect(log.at(-1)).toBe(`line ${MAX_LOG_LINES + 24}`);
   });
 
+  it("holds the action lock file for exactly as long as the run is in flight", () => {
+    const runs = manager();
+    const m = manual();
+    expect(existsSync(lockFile)).toBe(false);
+    runs.start({ kind: "fuji", action: "deploy" }, m.launch);
+    expect(JSON.parse(readFileSync(lockFile, "utf8"))).toMatchObject({
+      pid: process.pid,
+      action: "fuji deploy",
+    });
+    m.line("still going");
+    expect(existsSync(lockFile)).toBe(true);
+    m.done(0);
+    expect(existsSync(lockFile)).toBe(false);
+  });
+
+  it("refuses an action while another Studio process's is in flight, and never launches it", () => {
+    // Two managers on one lock file: the dashboard and the MCP face, say.
+    const dashboard = manager();
+    const other = manager();
+    const first = manual();
+    expect(dashboard.start(spec, first.launch).started).toBe(true);
+
+    let launched = false;
+    const refused = other.start({ kind: "devnet", action: "stop" }, () => {
+      launched = true;
+      return { cancel: () => {} };
+    });
+    expect(refused).toMatchObject({
+      started: false,
+      run: null,
+      holder: { pid: process.pid, action: "devnet create-icm" },
+    });
+    expect(launched).toBe(false);
+    // The refused manager has no run of its own to show.
+    expect(other.current()).toBeNull();
+
+    // Once the first is done, the other may go — and now the first must wait.
+    first.done(0);
+    const second = manual();
+    expect(other.start({ kind: "devnet", action: "stop" }, second.launch).started).toBe(true);
+    expect(dashboard.start(spec, manual().launch)).toMatchObject({
+      started: false,
+      run: null,
+      holder: { action: "devnet stop" },
+    });
+    second.done(0);
+    expect(dashboard.start(spec, manual().launch).started).toBe(true);
+  });
+
+  it("gives the lock back when the run is cancelled, fails, or never starts", () => {
+    const runs = manager();
+    const other = manager();
+    const free = () => {
+      const m = manual();
+      const result = other.start(spec, m.launch);
+      m.done(0);
+      return result.started;
+    };
+
+    // Cancelled: held until the process has really exited, then free.
+    const cancelled = manual();
+    runs.start(spec, cancelled.launch);
+    runs.cancel();
+    expect(free()).toBe(false);
+    cancelled.done(143);
+    expect(free()).toBe(true);
+
+    // Failed.
+    const failed = manual();
+    runs.start(spec, failed.launch);
+    failed.done(1);
+    expect(free()).toBe(true);
+
+    // Never started: the launch itself threw.
+    runs.start(spec, () => {
+      throw new Error("no such action");
+    });
+    expect(free()).toBe(true);
+    expect(existsSync(lockFile)).toBe(false);
+  });
+
   it("hands out copies, so a caller cannot change the run from outside", () => {
-    const runs = createRunManager();
+    const runs = manager();
     const started = runs.start({ ...spec, params: { name: "a" } }, manual().launch);
+    if (!started.started) throw new Error("the run was refused");
     started.run.status = "done";
     started.run.params.name = "changed";
     expect(runs.current()).toMatchObject({ status: "running", params: { name: "a" } });
