@@ -15,6 +15,34 @@ const RENAME_SEGMENT: Record<string, string> = {
 /** Template-only files that must NOT be copied into the generated project. */
 const TEMPLATE_ONLY = new Set(["manifest.json"]);
 
+/**
+ * What tools leave behind when they are run inside a template directory: an
+ * install, a Next.js build, Turborepo. Never part of a template, at any depth.
+ */
+const BUILD_OUTPUT = new Set(["node_modules", ".next", ".turbo"]);
+
+/**
+ * What `forge build` and `forge script --broadcast` leave behind. Skipped only
+ * directly under a `contracts` directory: anywhere else `out`, `cache` and
+ * `broadcast` are ordinary names (an `/out` route, a `lib/cache` module).
+ */
+const FOUNDRY_OUTPUT = new Set(["out", "cache", "broadcast"]);
+
+/**
+ * Whether an entry in a template directory is something a tool or a developer
+ * left there, rather than part of the template.
+ *
+ * The published package never contains these (.npmignore, and a clean checkout
+ * in CI), but a scaffold from a working checkout copied them all: megabytes of
+ * compiler output, and a local `.env`, which can hold a key. Templates ship
+ * their example as `env.example`, so a dotted env file is never one of ours.
+ */
+function isLeftBehind(name: string, inContracts: boolean): boolean {
+  if (BUILD_OUTPUT.has(name)) return true;
+  if (inContracts && FOUNDRY_OUTPUT.has(name)) return true;
+  return name === ".env" || (name.startsWith(".env.") && name !== ".env.example");
+}
+
 export interface ScaffoldOptions {
   templateDir: string;
   targetDir: string;
@@ -22,13 +50,23 @@ export interface ScaffoldOptions {
   replacements: Record<string, string>;
 }
 
-async function walk(dir: string): Promise<string[]> {
+/**
+ * Every file under `dir`, except what tools leave behind (see `isLeftBehind`).
+ *
+ * @param inContracts Whether `dir` is itself a directory named `contracts`.
+ *   False for the template's root, whatever the template is called.
+ */
+async function walk(dir: string, inContracts = false): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = await Promise.all(
-    entries.map((entry) => {
-      const full = path.join(dir, entry.name);
-      return entry.isDirectory() ? walk(full) : Promise.resolve([full]);
-    }),
+    entries
+      .filter((entry) => !isLeftBehind(entry.name, inContracts))
+      .map((entry) => {
+        const full = path.join(dir, entry.name);
+        return entry.isDirectory()
+          ? walk(full, entry.name === "contracts")
+          : Promise.resolve([full]);
+      }),
   );
   return files.flat();
 }
