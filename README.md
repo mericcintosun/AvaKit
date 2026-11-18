@@ -69,7 +69,9 @@ npm create avalanche-app@latest my-app -- --template nft-mint
 | `l1-launch` | Launch your own Avalanche L1 with one command, then explore it in a built-in dashboard |
 | `token-bridge` | Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer (ICTT) |
 
-Every template ships with a social-login wallet, shadcn/ui (black & white, dark/light), and AI context files.
+Every template ships with a wallet chooser (a zero-setup temporary wallet and Core/MetaMask, plus social login in the five Fuji templates), shadcn/ui (black & white, dark/light), and AI context files.
+
+**Testnet by default, mainnet only on purpose.** The templates target the Fuji testnet (`icm-messenger`, `l1-launch` and `token-bridge` run on a local devnet). Only `minimal` can also be scaffolded for C-Chain mainnet (`--chain c-chain`); the scaffolder refuses that chain for every other template. Every mainnet deploy is an explicit, guarded step: `deployContract()` and `useAvaDeploy()` refuse a mainnet chain unless you pass `confirmMainnet: true`, and the MCP server's `deploy_contract` needs `confirm: true` plus `AVAKIT_ALLOW_MAINNET=1` in its own environment. Details in the [scaffolder README](packages/create-avalanche-app/README.md) and [SECURITY.md](SECURITY.md).
 
 ## Use it in an existing app
 
@@ -121,6 +123,8 @@ packages/
   create-avalanche-app/ scaffolder + 8 templates
 apps/web/               the avakit.dev site (EN + TR)
 examples/               live demo dapps (hello-avax, web3auth-demo)
+services/               faucet + telemetry Cloudflare Workers
+contracts-ci/           Foundry tests + artifact check for the shipped contracts
 docs/                   planning, PRD, architecture, ADRs, specs, security review
 ```
 
