@@ -9,6 +9,12 @@ const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Next.js 16.4 guesses the route of a link it has not prefetched from the
+  // routes it already knows. English pages are served without a prefix by a
+  // rewrite ("/stats" is really "/en/stats"), so the guess takes the footer's
+  // "/stats" and "/avatar" for "/[locale]": the home page then asks them for a
+  // segment they do not have (a 404 in the console) and refetches them in a loop.
+  experimental: { optimisticRouting: false },
   // Pin the workspace root so Next doesn't pick up an unrelated lockfile elsewhere.
   turbopack: {
     root: path.join(dirname, "..", ".."),
