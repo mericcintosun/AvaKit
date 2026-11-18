@@ -5,7 +5,7 @@
  * built binary. `index.ts` is the thin entry that feeds it the real process.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
 import {
@@ -132,6 +132,16 @@ function resolveDefaults(
   return resolved;
 }
 
+/** Why nothing can be scaffolded into `targetDir` (shown as `name`), or null when it is free. */
+function occupied(name: string, targetDir: string): string | null {
+  if (!existsSync(targetDir)) return null;
+  if (!statSync(targetDir).isDirectory()) return `"${name}" already exists and is not a directory.`;
+  if (readdirSync(targetDir).length > 0) {
+    return `Directory "${name}" already exists and is not empty.`;
+  }
+  return null;
+}
+
 /**
  * Why `name` cannot be the project directory, or null when it can. The one rule
  * for a name wherever it comes from: the command line, the wizard's prompt, or
@@ -143,11 +153,7 @@ export function projectNameProblem(name: string, cwd: string): string | null {
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
   }
-  const targetDir = path.resolve(cwd, name);
-  if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
-    return `Directory "${name}" already exists and is not empty.`;
-  }
-  return null;
+  return occupied(name, path.resolve(cwd, name));
 }
 
 /**
@@ -228,10 +234,11 @@ async function main(ctx: CliContext): Promise<number> {
     const r = defaults;
     const targetDir = path.resolve(cwd, r.projectName);
     const choices = { template: r.template, chain: r.chain, pm: r.pm };
-    if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
+    const taken = occupied(r.projectName, targetDir);
+    if (taken) {
       telemetry.record({ ...choices, ok: false, errorKind: "dir-exists" });
       await telemetry.flush();
-      ctx.stderr.write(pc.red(`\nDirectory "${r.projectName}" already exists and is not empty.\n`));
+      ctx.stderr.write(pc.red(`\n${taken}\n`));
       return 1;
     }
     try {
@@ -317,9 +324,10 @@ async function main(ctx: CliContext): Promise<number> {
     scaffold: async (a) => {
       const choices = { template: a.template, chain: a.chain, pm: a.pm };
       const targetDir = path.resolve(cwd, a.projectName);
-      if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
+      const taken = occupied(a.projectName, targetDir);
+      if (taken) {
         telemetry.record({ ...choices, ok: false, errorKind: "dir-exists" });
-        throw new Error(`Directory "${a.projectName}" already exists and is not empty.`);
+        throw new Error(taken);
       }
       try {
         const { files } = await scaffoldApp({

@@ -62,6 +62,11 @@ describe("projectNameProblem", () => {
       'Directory "taken" already exists and is not empty.',
     );
   });
+
+  it("reports a name that is already a file, instead of throwing", () => {
+    writeFileSync(path.join(cwd, "notes"), "keep me");
+    expect(projectNameProblem("notes", cwd)).toBe('"notes" already exists and is not a directory.');
+  });
 });
 
 describe("create-avalanche-app (interactive)", () => {
@@ -223,6 +228,14 @@ describe("create-avalanche-app (non-interactive)", () => {
     const again = await invoke(["app", "--yes", "--no-install"]);
     expect(again.code).toBe(1);
     expect(again.stderr).toContain('Directory "app" already exists and is not empty.');
+  });
+
+  it("refuses a name that is already a file", async () => {
+    writeFileSync(path.join(cwd, "notes"), "keep me");
+    const result = await invoke(["notes", "--yes", "--no-install"]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('"notes" already exists and is not a directory.');
+    expect(readFileSync(path.join(cwd, "notes"), "utf8")).toBe("keep me");
   });
 });
 

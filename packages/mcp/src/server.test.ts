@@ -185,6 +185,14 @@ describe("scaffold_app", () => {
     expect(readdirSync(path.join(cwd, "taken"))).toEqual(["notes.txt"]);
   });
 
+  it("refuses a name that is already a file", async () => {
+    writeFileSync(path.join(cwd, "notes"), "keep me");
+    const result = await mcp.call("scaffold_app", { name: "notes" });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("already exists and is not a directory");
+    expect(readFileSync(path.join(cwd, "notes"), "utf8")).toBe("keep me");
+  });
+
   it("refuses a chain the template does not support, naming the ones it does", async () => {
     for (const template of ["nft-mint", "eerc-token", "icm-messenger"]) {
       const result = await mcp.call("scaffold_app", {

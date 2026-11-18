@@ -20,7 +20,7 @@
  * stdio. Keeping the two apart is what lets the tools be tested in-process.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import {
   type AvaChain,
   cChain,
@@ -131,8 +131,13 @@ server.registerTool(
     } catch (e) {
       return text(e instanceof Error ? e.message : String(e), true);
     }
-    if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
-      return text(`Directory "${targetDir}" already exists and is not empty.`, true);
+    if (existsSync(targetDir)) {
+      if (!statSync(targetDir).isDirectory()) {
+        return text(`"${targetDir}" already exists and is not a directory.`, true);
+      }
+      if (readdirSync(targetDir).length > 0) {
+        return text(`Directory "${targetDir}" already exists and is not empty.`, true);
+      }
     }
     let files: string[];
     try {
