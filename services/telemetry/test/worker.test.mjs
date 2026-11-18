@@ -2,44 +2,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { describe, it } from "node:test";
 import { TEMPLATES } from "../src/templates.js";
+import { clock, MINUTE, SECOND, STATS_TTL, scaffold, stats, T0 } from "./helpers/collector.mjs";
 import { loadWorker } from "./helpers/runtime.mjs";
-
-const T0 = Date.UTC(2026, 10, 18, 9, 0, 0);
-const SECOND = 1000;
-const MINUTE = 60 * SECOND;
-const STATS_TTL = 5 * MINUTE;
-
-/** Freeze the clock at T0; `tick(ms)` moves it. */
-function clock(t) {
-  t.mock.timers.enable({ apis: ["Date"], now: T0 });
-  return (ms) => t.mock.timers.tick(ms);
-}
-
-/** POST one scaffold event, successful and from a new machine unless told otherwise. */
-function scaffold(collector, { ip = "203.0.113.9", ...fields } = {}) {
-  return collector.fetch("/e", {
-    method: "POST",
-    headers: { "content-type": "application/json", "cf-connecting-ip": ip },
-    body: JSON.stringify({
-      event: "scaffold",
-      anonymousId: randomUUID(),
-      template: "minimal",
-      chain: "fuji",
-      pm: "pnpm",
-      ok: true,
-      cliVersion: "0.2.1",
-      platform: "darwin",
-      nodeMajor: "24",
-      ...fields,
-    }),
-  });
-}
-
-async function stats(collector) {
-  const response = await collector.fetch("/stats");
-  assert.equal(response.status, 200);
-  return { cacheControl: response.headers.get("cache-control"), ...(await response.json()) };
-}
 
 const sum = (counts) => Object.values(counts).reduce((total, n) => total + n, 0);
 
