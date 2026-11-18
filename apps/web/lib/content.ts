@@ -42,7 +42,7 @@ const CREATE_COMMAND = "npm create avalanche-app@latest";
  *
  *   find packages/create-avalanche-app/templates/nft-mint -type f ! -name manifest.json | wc -l
  */
-export const NFT_MINT_FILE_COUNT = 20;
+export const NFT_MINT_FILE_COUNT = 21;
 
 // The landing plays a muted, silent preview of the walkthrough (public/
 // avakittutorial.mp4). This is the full, narrated version on YouTube — set the
