@@ -1,27 +1,22 @@
 "use client";
 
-import { burnerAdapter, getPublicClient } from "@avakit/core";
+import { burnerAdapter, FaucetError, getPublicClient, requestFaucet } from "@avakit/core";
 import { fuji } from "@avakit/core/chains";
-import {
-  AvaKitProvider,
-  useAvaDeploy,
-  useAvaKit,
-  useBalance,
-  useContract,
-  useFaucet,
-} from "@avakit/react";
+import { AvaKitProvider, useAvaDeploy, useAvaKit, useBalance, useContract } from "@avakit/react";
 import { motion } from "framer-motion";
 import {
   Check,
   Coins,
+  Copy,
   ExternalLink,
   Loader2,
   Rocket,
+  RotateCw,
   Share2,
   Sparkles,
   Wallet,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Address, formatEther, type Hex } from "viem";
 
 import { Button } from "@/components/ui/button";
@@ -38,12 +33,37 @@ import { abi, bytecode } from "@/lib/nft-artifact";
 
 /** AvaKit-hosted faucet that drips Fuji AVAX (see services/faucet). */
 const FAUCET_URL = process.env.NEXT_PUBLIC_AVAKIT_FAUCET_URL;
+/** The public Fuji faucet: the way forward whenever ours can't fund the wallet. */
+const PUBLIC_FAUCET_URL = fuji.faucetUrl ?? "https://core.app/tools/testnet-faucet/";
+/** A faucet that takes the request and then stalls is a failure, not a wait. */
+const FAUCET_TIMEOUT_MS = 20_000;
+/** A drip lands within seconds. Past this, stop implying it is on its way. */
+const DRIP_SLOW_MS = 30_000;
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
 type StepState = "todo" | "active" | "done";
 
+/** Where the faucet drip for the current wallet stands. */
+type Drip =
+  | { state: "idle" }
+  | { state: "requesting" }
+  | { state: "sent"; txHash: Hex | null }
+  | { state: "failed"; reason: string };
+
 function short(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+/** Why a drip failed, as one sentence the visitor can act on. */
+function dripFailure(e: unknown) {
+  // requestFaucet throws a FaucetError that carries the HTTP status when the
+  // faucet answered with a refusal (empty, rate-limited, …) and no status when
+  // it never answered at all (offline, blocked, timed out).
+  if (e instanceof FaucetError && e.status !== undefined) {
+    const reason = (e.message.split("\n")[0] ?? e.message).slice(0, 160);
+    return `Our faucet couldn't fund this wallet: ${reason}`;
+  }
+  return "Our faucet didn't answer.";
 }
 
 /** Pre-filled post. Same voice as the launch calendar: lowercase, human, one 🔺. */
@@ -118,10 +138,59 @@ function ExplorerLink({ href, label }: { href: string; label: string }) {
   );
 }
 
+/** The way forward when our faucet can't fund the wallet, or isn't configured. */
+function FundManually({
+  address,
+  onRetry,
+  children,
+}: {
+  address: Address;
+  onRetry?: () => void;
+  children: React.ReactNode;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard blocked: the address is on the page in full and selectable.
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p role="alert" className="text-foreground text-sm">
+        {children}
+      </p>
+      <p className="text-muted-foreground text-sm">
+        You can fund this wallet yourself. Send it test AVAX from the public faucet and this page
+        carries on by itself as soon as it lands:
+      </p>
+      <code className="bg-foreground/10 w-fit rounded px-2 py-1 font-mono text-xs break-all">
+        {address}
+      </code>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {onRetry ? (
+          <Button size="sm" onClick={onRetry}>
+            <RotateCw className="size-4" /> Try our faucet again
+          </Button>
+        ) : null}
+        <Button size="sm" variant="outline" onClick={copy}>
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+          {copied ? "Copied" : "Copy address"}
+        </Button>
+        <ExplorerLink href={PUBLIC_FAUCET_URL} label="Open the public Fuji faucet" />
+      </div>
+    </div>
+  );
+}
+
 function Flow() {
-  const { status, connect, address } = useAvaKit();
+  const { status, connect, address, error: walletError } = useAvaKit();
   const { data: balance, refetch: refetchBalance } = useBalance();
-  const faucet = useFaucet();
   const { deploy, status: deployStatus } = useAvaDeploy();
 
   const [contractAddress, setContractAddress] = useState<Address | null>(null);
@@ -131,7 +200,10 @@ function Flow() {
   const [minting, setMinting] = useState(false);
   const [started, setStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [drip, setDrip] = useState<Drip>({ state: "idle" });
+  const [dripSlow, setDripSlow] = useState(false);
   const connectTried = useRef(false);
+  const drippedFor = useRef<Address | null>(null);
 
   const contract = useContract({ address: contractAddress ?? ZERO, abi });
 
@@ -155,6 +227,45 @@ function Flow() {
     const id = setInterval(() => void refetchBalance(), 2500);
     return () => clearInterval(id);
   }, [address, funded, refetchBalance]);
+
+  // This page asks the faucet itself instead of handing `faucetUrl` to
+  // <AvaKitProvider>: the provider's auto-fund swallows a refusal and never
+  // retries, which would leave the visitor on a spinner with no reason and no
+  // way forward. Here every outcome ends in a state the step below can render.
+  const requestDrip = useCallback(async (to: Address) => {
+    if (!FAUCET_URL) return;
+    drippedFor.current = to;
+    setDripSlow(false);
+    setDrip({ state: "requesting" });
+    try {
+      const result = await requestFaucet({
+        url: FAUCET_URL,
+        address: to,
+        chainId: fuji.id,
+        signal: AbortSignal.timeout(FAUCET_TIMEOUT_MS),
+      });
+      setDrip({ state: "sent", txHash: result.txHash ?? null });
+    } catch (e) {
+      setDrip({ state: "failed", reason: dripFailure(e) });
+    }
+  }, []);
+
+  // One automatic request per wallet, and only once the wallet is known to be
+  // empty: the burner persists in this browser, so a returning visitor may still
+  // hold test AVAX and has no use for another drip.
+  useEffect(() => {
+    if (!address || balance !== 0n || drippedFor.current === address) return;
+    void requestDrip(address);
+  }, [address, balance, requestDrip]);
+
+  // Each step toward a funded wallet normally takes a second or two. When one
+  // of them hangs (the balance can't be read, or a drip that was sent never
+  // shows up), say so and offer the way out rather than spinning forever.
+  useEffect(() => {
+    if (!FAUCET_URL || !address || funded || drip.state === "failed") return;
+    const id = setTimeout(() => setDripSlow(true), DRIP_SLOW_MS);
+    return () => clearTimeout(id);
+  }, [address, funded, drip.state]);
 
   async function onDeploy() {
     setError(null);
@@ -236,6 +347,15 @@ function Flow() {
             {short(address)}{" "}
             <span className="text-muted-foreground/70">· temporary, in this browser</span>
           </p>
+        ) : walletError ? (
+          <div className="flex flex-col items-start gap-2">
+            <p role="alert" className="text-foreground text-sm">
+              Couldn&apos;t create the wallet: {walletError.message}
+            </p>
+            <Button size="sm" onClick={() => void connect("burner")}>
+              <RotateCw className="size-4" /> Try again
+            </Button>
+          </div>
         ) : (
           <p className="text-muted-foreground flex items-center gap-2 text-sm">
             <Loader2 className="size-3.5 animate-spin" /> creating one for you…
@@ -248,27 +368,40 @@ function Flow() {
           <p className="text-muted-foreground text-sm">
             {formatEther(balance ?? 0n).slice(0, 8)} AVAX on Fuji testnet
           </p>
-        ) : address ? (
-          faucet.enabled ? (
-            <p className="text-muted-foreground flex items-center gap-2 text-sm">
-              <Loader2 className="size-3.5 animate-spin" /> dripping test AVAX…
-            </p>
-          ) : (
-            // No AvaKit faucet configured for this deployment — stay honest and
-            // hand the visitor the official one rather than pretending.
-            <div className="flex flex-col gap-2">
-              <p className="text-muted-foreground text-sm">
-                This demo has no faucet configured yet. Grab test AVAX for{" "}
-                <span className="font-mono">{address ? short(address) : ""}</span>:
-              </p>
-              <ExplorerLink
-                href="https://core.app/tools/testnet-faucet/"
-                label="Open the Fuji faucet"
-              />
-            </div>
-          )
-        ) : (
+        ) : !address ? (
           <p className="text-muted-foreground text-sm">waiting for the wallet…</p>
+        ) : !FAUCET_URL ? (
+          // No AvaKit faucet configured for this deployment — stay honest and
+          // hand the visitor the official one rather than pretending.
+          <FundManually address={address}>This demo has no faucet configured yet.</FundManually>
+        ) : drip.state === "failed" ? (
+          <FundManually address={address} onRetry={() => void requestDrip(address)}>
+            {drip.reason}
+          </FundManually>
+        ) : dripSlow ? (
+          <FundManually address={address} onRetry={() => void requestDrip(address)}>
+            {drip.state === "sent" ? (
+              <>
+                Our faucet sent the test AVAX, but it hasn&apos;t arrived yet.
+                {drip.txHash ? (
+                  <>
+                    {" "}
+                    <ExplorerLink
+                      href={`${fuji.explorerUrl}/tx/${drip.txHash}`}
+                      label="See the faucet's transaction"
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : (
+              "Funding this wallet is taking longer than it should."
+            )}
+          </FundManually>
+        ) : (
+          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+            <Loader2 className="size-3.5 animate-spin" />
+            {drip.state === "idle" ? "checking the wallet…" : "dripping test AVAX…"}
+          </p>
         )}
       </Step>
 
@@ -403,11 +536,10 @@ export function LiveDemo() {
         </p>
       </motion.div>
 
-      <AvaKitProvider
-        chains={[fuji]}
-        adapters={adapters}
-        {...(FAUCET_URL ? { faucetUrl: FAUCET_URL } : {})}
-      >
+      {/* No `faucetUrl` here on purpose: <Flow> requests the drip itself so that
+          a refusal reaches the visitor (see requestDrip). Passing it as well
+          would make the provider send a second, silent request for the wallet. */}
+      <AvaKitProvider chains={[fuji]} adapters={adapters}>
         <Flow />
       </AvaKitProvider>
     </main>
