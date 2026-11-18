@@ -59,6 +59,36 @@ and mint the first NFT. Give me the explorer links.`;
 
 const OFFICIAL_FAUCET = "https://build.avax.network/console/primary-network/faucet";
 
+// What the tools that write take and return, for the "Inputs and results"
+// table. These names are the package's contract: an agent (and the end-to-end
+// test) calls the tools by them, so check packages/mcp/src before changing one.
+const SIGNATURES: { tool: string; takes: string; returns: string }[] = [
+  {
+    tool: "scaffold_app",
+    takes: "name, template?, chain?, directory?",
+    returns:
+      "The created files, plus artifacts (the paths of the project's contract artifacts, ready to pass as artifactPath) and nextSteps.",
+  },
+  {
+    tool: "deploy_contract",
+    takes: "artifactPath, or abi + bytecode; args?, chain?, confirm?",
+    returns:
+      "address, txHash, explorerUrl and signer, once the transaction has succeeded and code has been read back from the address.",
+  },
+  {
+    tool: "write_contract",
+    takes: "address, functionName, args?, and artifactPath or abi; chain?, confirm?",
+    returns:
+      "txHash, status, blockNumber, explorerUrl and signer, once the call has succeeded on chain. It is simulated first: a call that would revert comes back as an error and nothing is sent.",
+  },
+  {
+    tool: "wallet_status",
+    takes: "chain?",
+    returns:
+      'address, source ("session", "env" or "none"), chain, balanceWei and balanceAvax. Read-only: it never asks the faucet for funds.',
+  },
+];
+
 // Every variable the server reads. None of them can be set by a tool call.
 const ENVIRONMENT: { name: string; does: string }[] = [
   {
@@ -189,6 +219,37 @@ export default function McpDocs() {
         <C>["function mint() returns (uint256)"]</C>.
       </P>
 
+      <H2>Inputs and results</H2>
+      <P>
+        <C>chain</C> is <C>"fuji"</C> (the default) or <C>"c-chain"</C>, and <C>confirm</C> only
+        matters on mainnet. A field marked <C>?</C> is optional. Every result is JSON, and a failure
+        is returned as a tool error with the reason in plain text.
+      </P>
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium">Tool</th>
+              <th className="px-4 py-2 text-left font-medium">Takes</th>
+              <th className="px-4 py-2 text-left font-medium">Returns</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SIGNATURES.map((row) => (
+              <tr key={row.tool} className="border-t">
+                <td className="px-4 py-2 align-top">
+                  <code className="font-mono text-xs">{row.tool}</code>
+                </td>
+                <td className="px-4 py-2 align-top">
+                  <code className="font-mono text-xs">{row.takes}</code>
+                </td>
+                <td className="text-muted-foreground px-4 py-2">{row.returns}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <Note>
         Tool inputs are validated with strict schemas — unknown parameters are rejected rather than
         silently ignored, so a mistyped field (e.g. <C>network</C> instead of <C>chain</C>) fails
@@ -241,9 +302,9 @@ export default function McpDocs() {
       <H2>Using your own key</H2>
       <P>
         Set <C>AVAKIT_DEPLOYER_KEY</C> in the server's environment and the signing tools use it
-        instead of the session wallet. Use a <strong>throwaway testnet key</strong> — never one
-        holding real funds. The key is read from the environment only: it is not a tool argument,
-        and it is never logged or returned.
+        instead of the session wallet. For Fuji, use a <strong>throwaway testnet key</strong>, never
+        one that holds real funds. The key is read from the environment only: it is not a tool
+        argument, and it is never logged or returned.
       </P>
 
       <H2>Mainnet</H2>
