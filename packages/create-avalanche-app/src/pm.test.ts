@@ -209,4 +209,12 @@ describe("outputTail", () => {
     expect(outputTail("")).toBe("");
     expect(outputTail("\n\n")).toBe("");
   });
+
+  it("cuts an overlong line short", () => {
+    const tail = outputTail(`short\n${"x".repeat(5000)}`);
+    const [first, second] = tail.split("\n");
+    expect(first).toBe("short");
+    expect(second).toHaveLength(200);
+    expect(second?.endsWith("…")).toBe(true);
+  });
 });

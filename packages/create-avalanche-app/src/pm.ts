@@ -159,11 +159,16 @@ export function runPackageManager(
 /** How much of a quiet command's output to keep for the failure message. */
 const OUTPUT_TAIL_CHARS = 4096;
 const OUTPUT_TAIL_LINES = 4;
+const OUTPUT_LINE_CHARS = 200;
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes is the point.
 const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 
-/** The last few non-empty lines of a command's output, without colour codes. */
+/**
+ * The last few non-empty lines of a command's output, without colour codes and
+ * with overlong lines cut short — enough to say what went wrong, never enough
+ * to flood the screen.
+ */
 export function outputTail(raw: string): string {
   return raw
     .replace(ANSI, "")
@@ -171,6 +176,9 @@ export function outputTail(raw: string): string {
     .map((line) => line.trimEnd())
     .filter((line) => line.trim() !== "")
     .slice(-OUTPUT_TAIL_LINES)
+    .map((line) =>
+      line.length > OUTPUT_LINE_CHARS ? `${line.slice(0, OUTPUT_LINE_CHARS - 1)}…` : line,
+    )
     .join("\n");
 }
 
