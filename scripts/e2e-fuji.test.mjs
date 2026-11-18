@@ -47,6 +47,7 @@ import {
 } from "./e2e-fuji.mjs";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "e2e-fuji.mjs");
+const workflows = join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows");
 // The stand-ins for npm and npx are shell scripts.
 const skip = process.platform === "win32";
 
@@ -1157,4 +1158,126 @@ test("--keep leaves the working directory with the app in it", { skip }, async (
   const kept = join(run.fake.temp, run.leftovers[0]);
   assert.ok(run.stdout.includes(`Kept: ${kept}`));
   assert.ok(existsSync(join(kept, "e2e-nft-mint", "package.json")));
+});
+
+// ── The workflow that runs it ────────────────────────────────────────────────
+//
+// .github/workflows/e2e-fuji.yml is read as text, not parsed: the repo has no
+// YAML dependency, and the job is a flat list of steps.
+
+/** A workflow file, with line endings normalised so a CRLF checkout reads the same. */
+const workflow = (name) => readFileSync(join(workflows, name), "utf8").replace(/\r\n/g, "\n");
+/** The file without its comments, which talk about the very things it must not do. */
+const code = (text) =>
+  text
+    .split("\n")
+    .filter((line) => !/^\s*#/.test(line))
+    .join("\n");
+
+test("the workflow uses Node.js and npm only, holds no secret and retries nothing", () => {
+  const e2e = code(workflow("e2e-fuji.yml"));
+
+  assert.match(e2e, /^permissions:\n {2}contents: read\n/m);
+  assert.doesNotMatch(e2e, /secrets\./);
+  assert.doesNotMatch(e2e, /\b(?:pnpm|yarn|bun|foundry|forge)\b/i);
+  // No dependency cache: a leg starts from nothing every time.
+  assert.doesNotMatch(e2e, /^\s*cache:/m);
+  assert.match(e2e, /^ {10}package-manager-cache: false$/m);
+  // A red leg stays red: nothing lets a failure pass or runs the script again.
+  assert.doesNotMatch(e2e, /continue-on-error|retry|max-attempts/i);
+  assert.match(e2e, /^ {6}fail-fast: false$/m);
+  assert.match(e2e, /^ {2}workflow_dispatch:\n {4}inputs:\n {6}version:/m);
+  assert.match(e2e, /^ {2}schedule:\n(?: *\n)* {4}- cron: /m);
+});
+
+test("the workflow pins its actions to the commits ci.yml uses", () => {
+  const pins = (text) =>
+    new Map(
+      [...text.matchAll(/^\s*uses: ([\w./-]+)@(\S+)(?: +# *(\S+))?$/gm)].map((match) => [
+        match[1],
+        `${match[2]} # ${match[3]}`,
+      ]),
+    );
+  const e2e = pins(workflow("e2e-fuji.yml"));
+  const ci = pins(workflow("ci.yml"));
+  assert.deepEqual([...e2e.keys()].sort(), [
+    "actions/checkout",
+    "actions/setup-node",
+    "actions/upload-artifact",
+  ]);
+  for (const action of ["actions/checkout", "actions/setup-node"]) {
+    assert.equal(e2e.get(action), ci.get(action), action);
+  }
+  // Every one of them by full commit, with the version it stands for.
+  for (const [action, pin] of e2e) assert.match(pin, /^[0-9a-f]{40} # v\d+\.\d+\.\d+$/, action);
+});
+
+test("the workflow runs the chain on one leg only, and never puts an input on a command line", () => {
+  const e2e = code(workflow("e2e-fuji.yml"));
+
+  const legs = [...e2e.matchAll(/- os: (\S+)\n\s+node: (\d+)\n\s+chain: (true|false)/g)].map(
+    (match) => `${match[1]} node ${match[2]} chain ${match[3]}`,
+  );
+  assert.deepEqual(legs, [
+    "ubuntu-latest node 22 chain false",
+    "ubuntu-latest node 24 chain true",
+    "macos-latest node 24 chain false",
+    "windows-latest node 24 chain false",
+  ]);
+
+  // The two commands: the published packages, with the chain left out unless
+  // this is the one leg that has it.
+  const commands = [...e2e.matchAll(/^\s*(node scripts\/e2e-fuji\.mjs .*)$/gm)].map(
+    (match) => match[1],
+  );
+  assert.deepEqual(commands, [
+    'node scripts/e2e-fuji.mjs --source npm --version "$VERSION" --json e2e-summary.json',
+    'node scripts/e2e-fuji.mjs --source npm --version "$VERSION" --skip-chain --json e2e-summary.json',
+  ]);
+  assert.match(e2e, /^ {10}VERSION: \$\{\{ inputs\.version \|\| 'latest' \}\}$/m);
+
+  // No expression is expanded inside a script: what a person types into the
+  // version box reaches the shell as the value of a variable, never as text.
+  const scripts = [...e2e.matchAll(/^( +)run: \|\n((?:\1 {2}.*\n|\n)+)/gm)].map(
+    (match) => match[2],
+  );
+  assert.equal(scripts.length, 2);
+  for (const body of scripts) assert.doesNotMatch(body, /\$\{\{/);
+  assert.doesNotMatch(e2e, /^\s*run: .*\$\{\{/m);
+});
+
+test("the on-chain leg cannot pass without a minted token in its summary", { skip }, async (t) => {
+  const e2e = workflow("e2e-fuji.yml");
+  const step = e2e.slice(e2e.indexOf("- name: Check that a token was minted"));
+  assert.match(step, /^- name: Check that a token was minted\n +if: matrix\.chain\n/);
+  const inline = /node -e '\n([\s\S]*?)\n +'\n/.exec(step);
+  assert.ok(inline, "the step runs an inline Node.js script");
+
+  const dir = mkdtempSync(join(tmpdir(), "avakit-e2e-check-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const check = (summary) =>
+    new Promise((resolve) => {
+      writeFileSync(join(dir, "e2e-summary.json"), JSON.stringify(summary));
+      const child = spawn(process.execPath, ["-e", inline[1]], { cwd: dir, stdio: "ignore" });
+      child.once("close", (status) => resolve(status));
+    });
+
+  const chain = {
+    contractAddress: `0x${"ab".repeat(20)}`,
+    mintTxHash: `0x${"cd".repeat(32)}`,
+    ownerOfToken1: `0x${"ef".repeat(20)}`,
+  };
+  assert.equal(await check({ ok: true, skipChain: false, chain }), 0);
+  // Left out, cut short or failed: none of them is a minted token.
+  assert.equal(await check({ ok: true, skipChain: true, chain: null }), 1);
+  assert.equal(
+    await check({ ok: true, skipChain: false, chain: { ...chain, mintTxHash: null } }),
+    1,
+  );
+  assert.equal(
+    await check({ ok: true, skipChain: false, chain: { ...chain, ownerOfToken1: null } }),
+    1,
+  );
+  assert.equal(await check({ ok: false, skipChain: false, chain }), 1);
+  assert.equal(await check({}), 1);
 });

@@ -23,12 +23,22 @@
 #   - It does not run `npm create avalanche-app`. The scaffolder is reached
 #     through the MCP server's scaffold_app tool, not through its own CLI.
 #   - The on-chain half runs on one leg only (ubuntu-latest, Node 24), so that a
-#     run costs the shared faucet a single drip. It signs with a throwaway test
-#     wallet funded from the hosted Fuji faucet, and it fails when that faucet
-#     is empty or rate-limited or when Fuji's public RPC is down. A red on-chain
-#     leg is therefore not by itself a broken package: read the failing step's
-#     output, which the job summary carries. The other legs stop after the build.
+#     run costs the shared faucet a single drip. The other legs stop after the
+#     build. Every leg still requires the server to list all the tools of the
+#     flow, so a published version that cannot deploy or mint is red everywhere.
 #   - One template (nft-mint), one chain (Fuji). Mainnet is never touched.
+#
+# When the faucet says no
+#   The on-chain leg signs with a throwaway test wallet that the server funds
+#   from the hosted Fuji faucet, which is shared and rate-limited. When that
+#   faucet refuses or is empty, or Fuji's public RPC is down, the leg FAILS: it
+#   never passes without a mint, and nothing that signs or asks the faucet is
+#   tried a second time, neither here nor in the script, because a second
+#   request would draw on the same faucet. The reason is the first thing in the
+#   job summary ("Failed at ..."), in the tool's own words, with a note when it
+#   was the faucet. A red on-chain leg is therefore not by itself a broken
+#   package: read that line before anything else, and wait out a rate limit
+#   before running the workflow again.
 #
 # To repeat it on your own machine, with Node.js 22 or 24 and nothing else:
 #   node scripts/e2e-fuji.mjs --source npm
@@ -95,7 +105,8 @@ jobs:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
 
-      # The script appends its summary table to $GITHUB_STEP_SUMMARY.
+      # The script appends its summary to $GITHUB_STEP_SUMMARY: the table of
+      # steps and, when one failed, why. It runs once. There is no retry.
       - name: ${{ matrix.chain && 'Install, scaffold, build, deploy and mint' || 'Install, scaffold and build' }}
         env:
           VERSION: ${{ inputs.version || 'latest' }}
@@ -106,6 +117,24 @@ jobs:
           else
             node scripts/e2e-fuji.mjs --source npm --version "$VERSION" --skip-chain --json e2e-summary.json
           fi
+
+      # The leg that is named for the on-chain half is green only when a token
+      # was minted and read back: a run that left the chain out, for whatever
+      # reason, must not pass under this name.
+      - name: Check that a token was minted
+        if: matrix.chain
+        run: |
+          node -e '
+            const summary = JSON.parse(require("node:fs").readFileSync("e2e-summary.json", "utf8"));
+            const chain = summary.chain ?? {};
+            const minted = summary.ok === true && summary.skipChain === false &&
+              Boolean(chain.contractAddress && chain.mintTxHash && chain.ownerOfToken1);
+            if (!minted) {
+              console.error("::error title=AvaKit end to end::The run passed without a minted token in its summary.");
+              process.exit(1);
+            }
+            console.log("Minted: " + chain.mintTxHash + " on contract " + chain.contractAddress);
+          '
 
       - name: Upload the summary
         if: always()
