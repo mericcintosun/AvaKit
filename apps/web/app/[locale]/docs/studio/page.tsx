@@ -84,7 +84,10 @@ export default function StudioDocs() {
       <Note>
         Studio is a tool you launch yourself, so it may run local processes. It binds 127.0.0.1
         only, checks the Host header, gates every API call behind a per-session token, and runs
-        external tools with fixed argument arrays (never a shell). See <C>SECURITY.md</C>.
+        external tools through argument arrays built from validated values (never a shell). It runs
+        one avalanche-cli action at a time: the server owns the run, so it carries on when the tab
+        that started it reloads or closes, any tab can follow its log, and a second action is
+        refused until the first has finished or been cancelled. See <C>SECURITY.md</C>.
       </Note>
 
       <NextLinks
