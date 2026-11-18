@@ -5,18 +5,10 @@
 
 import { execFile } from "node:child_process";
 import { platform } from "node:os";
+import { parsePort } from "./args.js";
 import { banner, bannerColor } from "./banner.js";
 import { startServer } from "./server.js";
 import { VERSION } from "./version.js";
-
-function parsePort(argv: string[]): number | undefined {
-  const i = argv.findIndex((a) => a === "--port" || a === "-p");
-  if (i !== -1 && argv[i + 1]) {
-    const n = Number(argv[i + 1]);
-    if (Number.isInteger(n) && n > 0 && n < 65536) return n;
-  }
-  return undefined;
-}
 
 /** Best-effort: open the default browser. Never throws. */
 function openBrowser(url: string): void {
