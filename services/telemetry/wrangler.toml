@@ -20,4 +20,11 @@ new_sqlite_classes = ["Counters"]
 # row from being walked back to an IP (the v4 space is small enough to brute
 # force unsalted):
 #   npx wrangler secret put TELEMETRY_SALT
-# For `wrangler dev`, put it in .dev.vars instead (gitignored).
+#
+# TELEMETRY_ADMIN_TOKEN is an optional secret. While it is unset, POST
+# /admin/purge does not exist; set it (32 characters or more) only to take the
+# project's own test runs back out of the counts, then delete it again — see
+# "Removing test events" in README.md:
+#   npx wrangler secret put TELEMETRY_ADMIN_TOKEN
+#
+# For `wrangler dev`, put them in .dev.vars instead (gitignored).

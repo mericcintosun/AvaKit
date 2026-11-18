@@ -61,11 +61,11 @@ npm install
 npm test
 ```
 
-Needs Node 22.15 or newer. `test/worker.test.mjs` loads the Worker in plain Node
-(with a stand-in for `cloudflare:workers` and an in-memory SQLite database) so
-it can move the clock and look inside the storage; `test/workerd.test.mjs` runs
-the same Worker in local `workerd` straight from `wrangler.toml`. Neither
-touches a network.
+Needs Node 22.15 or newer. `test/worker.test.mjs` and `test/purge.test.mjs` load
+the Worker in plain Node (with a stand-in for `cloudflare:workers` and an
+in-memory SQLite database) so they can move the clock and look inside the
+storage; `test/workerd.test.mjs` runs the same Worker in local `workerd`
+straight from `wrangler.toml`. None of them touches a network.
 
 ## Adding a template
 
@@ -95,6 +95,98 @@ all (a **1042** right after deploying is propagation, not a fault), and for a fe
 seconds after a delete the old Durable Object is still being torn down and
 `/stats` answers **1101**. Both clear on their own — retry before debugging.
 
+## Removing test events
+
+The collector cannot tell a test from a real scaffold: a locally built CLI that
+runs without `AVAKIT_TELEMETRY_DISABLED=1` reports to the live collector like
+anybody else's. `POST /admin/purge` takes a day of that back out of the counts.
+
+**It is for the project's own test runs and nothing else.** Never use it on real
+usage, whatever the numbers look like — they are only worth publishing while
+nobody edits them. It can remove counts, never add them.
+
+The route does not exist (`404`) until `TELEMETRY_ADMIN_TOKEN` is set, so switch
+it on first:
+
+```bash
+cd services/telemetry
+
+# The token that opens the route: any random string of 32 characters or more
+# (`openssl rand -hex 32`). With a shorter one the route stays off. You paste it
+# here, and once more below.
+npx wrangler secret put TELEMETRY_ADMIN_TOKEN
+
+# Ships the route itself. Only needed while the deployed Worker predates it.
+npx wrangler deploy
+```
+
+Then look before deleting. Days are UTC, the same days as `byDay` in `/stats`:
+
+```bash
+URL=https://avakit-telemetry.avakit.workers.dev/admin/purge
+read -rs TOKEN   # paste the token: it is not echoed and stays out of shell history
+
+# 1. Dry run — reports what is stored for the day and deletes nothing.
+curl -sS -X POST "$URL" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "day": "2026-11-18", "dryRun": true }'
+# e.g. {"day":"2026-11-18","dryRun":true,"rows":9,"events":52,"succeeded":50}
+
+# 2. For real — once those are the test run's numbers and nothing more.
+curl -sS -X POST "$URL" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "day": "2026-11-18" }'
+# e.g. {"day":"2026-11-18","dryRun":false,"rows":9,"events":52,"succeeded":50}
+```
+
+`rows` is how many `scaffolds` rows went, `events` the sum of their counts (what
+`scaffolds.total` drops by) and `succeeded` the successful ones among them (what
+`scaffolds.succeeded`, the number on the stats page, drops by).
+
+**It removes the whole day.** The rows are aggregates with nothing in them to
+say who sent what, so a purge cannot pick the test events out of a day. That is
+what the dry run is for: if `events` is more than the test run sent, the
+difference is real usage, and it would go too.
+
+A test run also leaves an install behind (`installs` in `/stats`). To take it
+out with the day, add its id to the body of both calls:
+
+```bash
+  -d '{ "day": "2026-11-18", "installId": "<anonymousId>", "dryRun": true }'
+# e.g. {…,"install":{"found":true,"firstDay":"2026-11-18","removed":false}}
+
+  -d '{ "day": "2026-11-18", "installId": "<anonymousId>" }'
+# e.g. {…,"install":{"found":true,"firstDay":"2026-11-18","removed":true}}
+```
+
+`installId` is the `anonymousId` in the config of the CLI that ran the tests:
+`~/.config/avakit/config.json`, or `config.json` in the `AVAKIT_CONFIG_DIR` the
+run used. The install is removed only if it was **first seen on that day**. One
+seen earlier is a real install that also ran that day, and it stays. `removed`
+says what this call did, so a dry run always answers `false`: there, the install
+will go if its `firstDay` is the `day` you sent.
+
+The route answers `401` to a missing or wrong token and `400` to a body it does
+not fully understand — an unknown field, an impossible date, a `dryRun` that is
+not `true` or `false`. It deletes, so it refuses rather than guesses.
+
+Afterwards:
+
+- The purge drops the memoised aggregate, so `/stats` is recomputed at once in
+  the Durable Object and in the Worker isolate that handled the call. Other
+  isolates serve the copy they hold for up to five more minutes, and
+  avakit.dev/stats revalidates its own every five minutes on top of that. To
+  check straight away, repeat the dry run: it reads storage directly and now
+  answers `"rows":0`.
+- Every purge, dry run or not, is logged with the day and the numbers (never
+  the token or the install id); `npx wrangler tail` shows it as it happens.
+- Switch the route off again: `npx wrangler secret delete TELEMETRY_ADMIN_TOKEN`.
+
+To rehearse it, add `TELEMETRY_ADMIN_TOKEN` to `.dev.vars` and aim the same
+commands at `http://localhost:8787/admin/purge`.
+
 ## Endpoints
 
 - `POST /e` — one scaffold event. `202` if counted, `429` if the caller is over
@@ -102,6 +194,8 @@ seconds after a delete the old Durable Object is still being torn down and
   response either way.
 - `GET /stats` — the public aggregate, computed at most once every 5 minutes.
 - `GET /health` — `{ ok: true }`.
+- `POST /admin/purge` — for the maintainer, and `404` unless
+  `TELEMETRY_ADMIN_TOKEN` is set. See [Removing test events](#removing-test-events).
 
 A `cache-control` header does not make Cloudflare cache a response a Worker
 generated, so the collector does the caching itself: the Durable Object keeps
