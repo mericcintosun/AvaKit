@@ -41,12 +41,26 @@ node --test scripts/guards.test.mjs  # the two scripts above still catch what th
   (`packages/studio/src/messenger-artifact.ts`, where the `*_SIG` constants
   Studio calls the contract with are checked against its ABI too), the
   contract the website's `/new` page deploys (`apps/web/lib/nft-artifact.ts`,
-  which has to be the `nft-mint` template's), and the example app's
-  (`examples/web3auth-demo/lib/nft-artifact.ts`). It also fails on any
-  committed `*-artifact.ts` that it has not been told about, so a new
-  artifact cannot land unchecked. It builds into a temporary directory, so it
-  leaves no `out/` or `cache/` behind in a template (those folders would be
-  copied into every app scaffolded from this checkout).
+  which has to be the `nft-mint` template's), the example app's
+  (`examples/web3auth-demo/lib/nft-artifact.ts`), and the demo token the
+  `token-bridge` template deploys: the `DemoToken` entry of its
+  `lib/ictt-artifacts.json`, which has to be the `erc20-token` template's
+  `AvaKitToken`. The other three entries of that file (`ERC20TokenHome`,
+  `ERC20TokenRemote`, `TeleporterRegistry`) are builds of
+  `ava-labs/icm-contracts`, whose sources are not in this repo, so the script
+  names them as upstream and leaves them alone, also under `--write`. It
+  fails on any committed `*-artifact.ts` or `*-artifacts.json` that it has not
+  been told about, and on any entry of a JSON artifact file that is neither
+  checked nor named as upstream, so a new artifact cannot land unchecked. It
+  builds into a temporary directory, so it leaves no `out/` or `cache/` behind
+  in a template (those folders would be copied into every app scaffolded from
+  this checkout).
+- **`scripts/guards.test.mjs`** tests the two scripts themselves (Node's
+  built-in test runner, no dependencies). Each test copies the files the
+  scripts read into a temporary directory, breaks one thing there (a
+  `foundry.toml` that changes the compiler outside `[profile.default]`, a
+  stale `DemoToken`, an artifact nobody listed) and expects the script to fail
+  on it.
 
 `examples/web3auth-demo` ships a different, simpler `AvaKitNFT` on purpose. It
 is an example app, not a template, so its contract is not compiled into this

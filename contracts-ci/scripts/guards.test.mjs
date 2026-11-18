@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 import {
   cpSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -26,6 +27,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
 const TEMPLATES = "packages/create-avalanche-app/templates";
 const NFT_MINT_CONFIG = `${TEMPLATES}/nft-mint/contracts/foundry.toml`;
+const ICTT = `${TEMPLATES}/token-bridge/lib/ictt-artifacts.json`;
 
 // What a working tree may hold beside the sources: none of it is the scripts'
 // to read, and a build has to start from the sources alone.
@@ -165,4 +167,120 @@ test("sync rejects a multi-line string, whose lines would read as a table of pin
   assert.equal(status, 1, output);
   assert.match(output, /nft-mint\/contracts\/foundry\.toml: .* is not read/);
   assert.doesNotMatch(output, new RegExp(`pinned ${NFT_MINT_CONFIG}`));
+});
+
+// ---- check-artifacts.mjs: the entry of ours in a JSON artifact file ----
+
+test("check-artifacts passes on the repo as it is and checks DemoToken", (t) => {
+  const { status, output } = run(fixture(t), "check-artifacts.mjs");
+  assert.equal(status, 0, output);
+  assert.match(output, new RegExp(`ok ${ICTT} \\(DemoToken\\)`));
+});
+
+test("check-artifacts catches a stale DemoToken and --write regenerates only that entry", (t) => {
+  const root = fixture(t);
+  const shipped = readFileSync(join(root, ICTT), "utf8");
+
+  // The stale build this guards against differed from the pinned one in
+  // nothing but the metadata hash at the end of the bytecode; the abi goes
+  // stale here as well. Edited as text, so the rest of the file keeps its
+  // bytes.
+  edit(root, ICTT, (text) => {
+    const { bytecode } = JSON.parse(text).DemoToken;
+    const flipped = bytecode.at(-60) === "0" ? "1" : "0";
+    const entry = text.indexOf('"DemoToken"');
+    return (
+      text.slice(0, entry) +
+      text
+        .slice(entry)
+        .replace(bytecode, bytecode.slice(0, -60) + flipped + bytecode.slice(-59))
+        .replace('"allowance"', '"allowanse"')
+    );
+  });
+
+  const stale = run(root, "check-artifacts.mjs");
+  assert.equal(stale.status, 1, stale.output);
+  assert.match(stale.output, new RegExp(`ARTIFACT DRIFT: ${ICTT} \\(DemoToken\\)`));
+  assert.match(stale.output, /bytecode differs from the build/);
+  assert.match(stale.output, /abi differs from the build/);
+
+  const written = run(root, "check-artifacts.mjs", "--write");
+  assert.equal(written.status, 0, written.output);
+  assert.match(written.output, new RegExp(`updated ${ICTT} \\(DemoToken\\)`));
+
+  // Byte for byte what the repo ships: the entry is back, in the file's own
+  // formatting, and the upstream entries beside it were not rewritten.
+  assert.equal(readFileSync(join(root, ICTT), "utf8"), shipped);
+  assert.equal(run(root, "check-artifacts.mjs").status, 0);
+});
+
+test("check-artifacts leaves a file that is in sync untouched under --write", (t) => {
+  const root = fixture(t);
+  const shipped = readFileSync(join(root, ICTT), "utf8");
+  const { status, output } = run(root, "check-artifacts.mjs", "--write");
+  assert.equal(status, 0, output);
+  assert.doesNotMatch(output, /updated/);
+  assert.equal(readFileSync(join(root, ICTT), "utf8"), shipped);
+});
+
+test("check-artifacts --write keeps the bytes of the upstream entries in any formatting", (t) => {
+  const root = fixture(t);
+  const shipped = JSON.parse(readFileSync(join(root, ICTT), "utf8"));
+  // The whole file without the spaces it ships with, and a stale DemoToken.
+  const stale = { ...shipped, DemoToken: { ...shipped.DemoToken, bytecode: "0x00" } };
+  const compact = JSON.stringify(stale);
+  edit(root, ICTT, () => compact);
+
+  const { status, output } = run(root, "check-artifacts.mjs", "--write");
+  assert.equal(status, 0, output);
+  const regenerated = readFileSync(join(root, ICTT), "utf8");
+  const upstream = compact.slice(0, compact.indexOf('"DemoToken"'));
+  assert.ok(regenerated.startsWith(upstream), "the upstream entries were rewritten");
+  assert.deepEqual(JSON.parse(regenerated), shipped);
+});
+
+test("check-artifacts reports a missing DemoToken entry", (t) => {
+  const root = fixture(t);
+  edit(root, ICTT, (text) => {
+    const { DemoToken: _removed, ...rest } = JSON.parse(text);
+    return JSON.stringify(rest);
+  });
+  const { status, output } = run(root, "check-artifacts.mjs");
+  assert.equal(status, 1, output);
+  assert.match(output, new RegExp(`ARTIFACT DRIFT: ${ICTT} \\(DemoToken\\)`));
+});
+
+test("check-artifacts rejects an entry nobody accounts for", (t) => {
+  const root = fixture(t);
+  edit(root, ICTT, (text) => {
+    const artifacts = JSON.parse(text);
+    return JSON.stringify({ ...artifacts, AnotherToken: artifacts.DemoToken });
+  });
+  const { status, output } = run(root, "check-artifacts.mjs");
+  assert.equal(status, 1, output);
+  assert.match(output, new RegExp(`UNCHECKED ARTIFACT: ${ICTT} \\(AnotherToken\\)`));
+});
+
+test("check-artifacts rejects a tracked artifact file it has not been told about", (t) => {
+  const root = fixture(t);
+  // The script asks git which artifact files the repo tracks, so the fixture
+  // becomes a repository of its own with one more of each kind staged.
+  const unlisted = [
+    "packages/extra/lib/extra-artifacts.json",
+    "packages/extra/lib/extra-artifact.ts",
+  ];
+  mkdirSync(join(root, "packages/extra/lib"), { recursive: true });
+  for (const file of unlisted) writeFileSync(join(root, file), "");
+  for (const args of [
+    ["init", "--quiet"],
+    ["add", "--all"],
+  ]) {
+    const git = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    assert.equal(git.status, 0, git.stderr);
+  }
+
+  const { status, output } = run(root, "check-artifacts.mjs");
+  assert.equal(status, 1, output);
+  for (const file of unlisted) assert.match(output, new RegExp(`UNCHECKED ARTIFACT: ${file}\\n`));
+  assert.doesNotMatch(output, new RegExp(`UNCHECKED ARTIFACT: ${ICTT}`));
 });
