@@ -30,6 +30,7 @@
  */
 
 import { existsSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
 import {
   type AvaChain,
   cChain,
@@ -224,8 +225,12 @@ server.registerTool(
     const setup = listTemplates().find((t) => t.id === template)?.setup;
     // The contracts the project can deploy, as paths the signing tools accept:
     // an agent goes from here to a deployed contract without opening a file.
-    const artifacts = findArtifacts(targetDir, files, resolveWorkspace().root);
+    const { root } = resolveWorkspace();
+    const artifacts = findArtifacts(targetDir, files, root);
     const [first] = artifacts;
+    // From where the agent stands (the root the artifact paths are relative to),
+    // not just the project's name: with `directory` the project is deeper down.
+    const projectDir = path.relative(root, targetDir).split(path.sep).join("/");
     // npm, because it is the one package manager every machine that can run
     // this server has: a client starts the server with npx, which is npm's.
     // The apps install with pnpm, yarn and bun as well. An app linked with
@@ -233,7 +238,7 @@ server.registerTool(
     // monorepo can install.
     const [install, run] = local ? ["pnpm install", "pnpm run"] : ["npm install", "npm run"];
     const nextSteps = [
-      `cd ${name}`,
+      `cd ${/^[\w./-]+$/.test(projectDir) ? projectDir : JSON.stringify(projectDir)}`,
       install,
       // Every scaffold ships burner + injected + social login. Social login
       // works out of the box on localhost via a bundled demo key; only your own

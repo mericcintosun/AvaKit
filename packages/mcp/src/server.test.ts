@@ -321,12 +321,15 @@ describe("scaffold_app", () => {
       directory: "apps/demo",
     });
     expect(nested.json<Scaffolded>().artifacts).toEqual(["apps/demo/token/lib/token-artifact.ts"]);
+    // The first step takes the agent there from the same place, not to `token`.
+    expect(nested.json<Scaffolded>().nextSteps[0]).toBe("cd apps/demo/token");
 
     // With AVAKIT_MCP_ROOT set, that root — which is also what artifactPath is read against.
     mkdirSync(path.join(base, "projects"));
     vi.stubEnv("AVAKIT_MCP_ROOT", path.join(base, "projects"));
     const rooted = await mcp.call("scaffold_app", { name: "gated", template: "token-gated-app" });
     expect(rooted.json<Scaffolded>().artifacts).toEqual(["gated/lib/nft-artifact.ts"]);
+    expect(rooted.json<Scaffolded>().nextSteps[0]).toBe("cd gated");
     expect(existsSync(path.join(base, "projects", "gated", "lib", "nft-artifact.ts"))).toBe(true);
   });
 
