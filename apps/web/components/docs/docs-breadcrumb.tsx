@@ -1,5 +1,6 @@
 "use client";
 
+import { docsNav } from "@/components/docs/docs-nav";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,15 +14,9 @@ import {
 // "Docs" crumb.
 import { usePathname } from "@/i18n/navigation";
 
-const labels: Record<string, string> = {
-  "/docs": "Introduction",
-  "/docs/core": "@avakit/core",
-  "/docs/react": "@avakit/react",
-  "/docs/cli": "create-avalanche-app",
-  "/docs/mcp": "@avakit/mcp",
-  "/docs/studio": "@avakit/studio",
-  "/docs/telemetry": "Telemetry",
-};
+const labels: Record<string, string> = Object.fromEntries(
+  docsNav.flatMap((group) => group.items.map((item) => [item.href, item.label])),
+);
 
 export function DocsBreadcrumb() {
   const pathname = usePathname();

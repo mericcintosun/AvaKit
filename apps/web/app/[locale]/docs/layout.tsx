@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { DocsBreadcrumb } from "@/components/docs/docs-breadcrumb";
+import { DocsMobileNav } from "@/components/docs/docs-mobile-nav";
 import { DocsSidebar } from "@/components/docs/docs-sidebar";
 
 export default function DocsLayout({ children }: { children: ReactNode }) {
@@ -12,6 +13,8 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <div className="flex min-w-0 flex-col">
+        {/* Below md the sidebar column is hidden; this opens the same nav. */}
+        <DocsMobileNav />
         <DocsBreadcrumb />
         <article className="flex min-w-0 flex-col gap-4">{children}</article>
       </div>

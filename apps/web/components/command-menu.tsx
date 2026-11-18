@@ -1,19 +1,10 @@
 "use client";
 
-import {
-  Bot,
-  Boxes,
-  ChartNoAxesColumn,
-  FileText,
-  House,
-  LayoutDashboard,
-  LayoutTemplate,
-  Terminal,
-  Wallet,
-} from "lucide-react";
+import { ChartNoAxesColumn, FileText, House, LayoutTemplate } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { docsNav } from "@/components/docs/docs-nav";
 import {
   CommandDialog,
   CommandEmpty,
@@ -34,16 +25,14 @@ const groups = [
       { label: "Stats", href: "/stats", icon: ChartNoAxesColumn },
     ],
   },
-  {
-    heading: "Packages",
-    items: [
-      { label: "@avakit/core", href: "/docs/core", icon: Boxes },
-      { label: "@avakit/react", href: "/docs/react", icon: Wallet },
-      { label: "create-avalanche-app", href: "/docs/cli", icon: Terminal },
-      { label: "@avakit/mcp", href: "/docs/mcp", icon: Bot },
-      { label: "@avakit/studio", href: "/docs/studio", icon: LayoutDashboard },
-    ],
-  },
+  // Every docs page beyond the introduction (which "Documentation" above
+  // already opens), straight from the list the docs sidebar renders.
+  ...docsNav
+    .map((group) => ({
+      heading: group.title,
+      items: group.items.filter((item) => item.href !== "/docs"),
+    }))
+    .filter((group) => group.items.length > 0),
 ];
 
 export function CommandMenu() {
