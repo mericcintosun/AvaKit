@@ -26,6 +26,27 @@ npm run devnet               # icm-messenger   (or: npm run l1 / npm run bridge)
 npm run dev                  # http://localhost:3000
 ```
 
+## Requirements
+
+Node.js **22 or 24**, and a package manager: npm ships with Node.js and is all you need.
+
+| Node.js | What the CLI does |
+| --- | --- |
+| 22 or newer | Runs. 22 and 24 are the release lines AvaKit is tested on. |
+| 20.11 to 21 | Runs, after one warning line on stderr: Node.js 20 reached end-of-life in April 2026. |
+| older than 20.11 | Stops with one line that names the version it found and the one it needs, and exits with status 1. |
+
+The check is the first thing the CLI does, before it reads its arguments, so an unsupported
+Node.js gets that one line instead of a stack trace from the middle of a scaffold. The floor is
+this package's `engines.node` (`>=20.11`).
+
+"Tested on" means the
+[end-to-end workflow](https://github.com/mericcintosun/AvaKit/actions/workflows/e2e-fuji.yml):
+every day, on fresh machines with nothing but Node.js and npm (Linux with Node.js 22 and 24,
+macOS and Windows with Node.js 24), it takes the published packages from npm, scaffolds
+`nft-mint` (through `@avakit/mcp`, which uses this package's scaffolder), installs and builds the
+app, and on one machine deploys the contract to Fuji and mints.
+
 ## Templates
 
 | Template | What you get |
