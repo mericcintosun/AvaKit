@@ -16,7 +16,7 @@ export default function CoreDocs() {
     <>
       <DocHeader
         title="@avakit/core"
-        lead="The framework-agnostic kernel. Depends only on viem. AvaKit never touches private keys."
+        lead="The framework-agnostic kernel. Depends only on viem. With a real wallet, private keys never leave the wallet provider; the temporary burner wallet is the one deliberate exception."
       />
 
       <H2>Install</H2>
@@ -46,23 +46,49 @@ const myL1 = defineChain({
 
       <H2>Wallet adapters</H2>
       <P>
-        Adapters expose an EIP-1193 provider behind a common interface. <C>injectedAdapter()</C>{" "}
-        works with Core / MetaMask; <C>web3authAdapter()</C> (from <C>@avakit/core/web3auth</C>)
-        adds social login.
+        Adapters expose an EIP-1193 provider behind a common interface, so the rest of AvaKit treats
+        every wallet the same way:
       </P>
+      <UL>
+        <li>
+          <C>burnerAdapter()</C>: a temporary in-browser wallet with no setup at all, wired into
+          every template. Testnet only; read the warning below before you use it.
+        </li>
+        <li>
+          <C>injectedAdapter()</C>: Core, MetaMask, and other browser wallets.
+        </li>
+        <li>
+          <C>web3authAdapter()</C> (from <C>@avakit/core/web3auth</C>): social login.
+        </li>
+        <li>
+          <C>coinbaseAdapter()</C> (from <C>@avakit/core/coinbase</C>): a passkey smart wallet.
+        </li>
+      </UL>
       <CodeBlock
-        code={`import { injectedAdapter } from "@avakit/core";
+        code={`import { burnerAdapter, injectedAdapter } from "@avakit/core";
+import { fuji } from "@avakit/core/chains";
 import { web3authAdapter } from "@avakit/core/web3auth";
 
+const burner = burnerAdapter({ chain: fuji });
 const injected = injectedAdapter();
 const social = web3authAdapter({ clientId: process.env.WEB3AUTH_CLIENT_ID! });
 
 const { address, provider } = await social.connect();`}
       />
       <Note>
-        <C>@web3auth/modal</C> is an optional peer dependency; install it only if you use the social
-        adapter. Get a free client ID at{" "}
+        <C>@web3auth/modal</C> and <C>@coinbase/wallet-sdk</C> are optional peer dependencies;
+        install one only if you use its adapter. Get a free Web3Auth client ID at{" "}
         <A href="https://dashboard.web3auth.io">dashboard.web3auth.io</A>.
+      </Note>
+      <Note>
+        <strong>The burner wallet is the one place AvaKit itself handles a private key.</strong>{" "}
+        <C>burnerAdapter()</C> generates a throwaway key in the browser and, by default, keeps it in{" "}
+        <C>localStorage</C> in the clear (<C>avakit.burner.pk</C>), where any script running on the
+        page can read it. That is the intended trade-off for a testnet identity holding a faucet
+        drip, and nothing else: it refuses to connect on mainnet, and you should never send real
+        funds to a burner address. <C>clearBurner()</C> deletes the key, and <C>persist: false</C>{" "}
+        keeps it in memory only. With every other adapter the key is generated, stored, and used
+        inside the wallet provider, and AvaKit only ever sees a signing interface.
       </Note>
 
       <H2>Clients & network</H2>
@@ -108,7 +134,8 @@ const nfts = await listNfts("0x…", fuji);`}
           <C>fuji</C>, <C>cChain</C>, <C>defineChain</C> (from <C>/chains</C>)
         </li>
         <li>
-          <C>injectedAdapter</C>, <C>web3authAdapter</C> (from <C>/web3auth</C>)
+          <C>burnerAdapter</C>, <C>clearBurner</C>, <C>injectedAdapter</C>, <C>web3authAdapter</C>{" "}
+          (from <C>/web3auth</C>), <C>coinbaseAdapter</C> (from <C>/coinbase</C>)
         </li>
         <li>
           <C>getPublicClient</C>, <C>getWalletClient</C>, <C>toViemChain</C>, <C>ensureChain</C>

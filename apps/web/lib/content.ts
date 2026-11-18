@@ -256,7 +256,7 @@ const EN: Strings = {
     },
     {
       title: "Safe defaults",
-      body: "Testnet-first, mainnet is explicit opt-in, secrets stay in env, and keys live in the wallet provider.",
+      body: "Testnet-first, mainnet is explicit opt-in, secrets stay in env, and a real wallet's keys never leave its wallet provider.",
     },
     {
       title: "Wrap, don't rewrite",
@@ -609,7 +609,7 @@ const TR: Strings = {
     },
     {
       title: "Güvenli varsayılanlar",
-      body: "Testnet-öncelikli, mainnet açık onayla, sırlar env'de kalır, anahtarlar cüzdan sağlayıcısında yaşar.",
+      body: "Testnet-öncelikli, mainnet açık onayla, sırlar env'de kalır, gerçek bir cüzdanın anahtarları cüzdan sağlayıcısından hiç çıkmaz.",
     },
     {
       title: "Sar, yeniden yazma",
@@ -821,7 +821,7 @@ const TR: Strings = {
     items: [
       {
         q: "Kullanıcılarımın seed phrase'e ihtiyacı var mı?",
-        a: "Hayır. AvaKit varsayılan olarak Web3Auth ile sosyal giriş (Google/Apple/e-posta) kullanır. Anahtarlar HSM-destekli ve AvaKit'ten asla geçmez. Core ve MetaMask gibi tarayıcı cüzdanları da çalışır.",
+        a: "Hayır. AvaKit, Web3Auth ile sosyal giriş (Google/Apple/e-posta) sunar; bu anahtarlar HSM-desteklidir ve AvaKit'ten asla geçmez. Core ve MetaMask gibi tarayıcı cüzdanları da çalışır. Kurulumsuz demolar için geçici bir burner cüzdan da gelir; o cüzdan, bilerek, tarayıcıda tek kullanımlık bir testnet anahtarı tutar.",
       },
       {
         q: "Belirli bir cüzdana veya sağlayıcıya kilitli mi?",
