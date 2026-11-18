@@ -27,6 +27,16 @@ export default function StudioDocs() {
         The devnet, Interchain, and Fuji features shell out to <C>avalanche-cli</C> and Foundry (
         <C>forge</C> / <C>cast</C>), so install those to use them; the Data view works without them.
       </P>
+      <Note>
+        Avalanche CLI has been in maintenance mode since December 2025. The Devnet, Interchain and
+        Launch on Fuji views still drive it and were last proven end to end in July 2026; moving the
+        dashboard to the supported tooling is planned work.
+      </Note>
+      <Note>
+        Not the same thing as Studio in Ava Labs' Builder Hub Console, which is a hosted flow from a
+        prompt to deployed contracts. <C>@avakit/studio</C> is a dashboard for local devnets that
+        runs on your own machine.
+      </Note>
 
       <H2>Views</H2>
       <UL>
@@ -42,8 +52,9 @@ export default function StudioDocs() {
           watching it arrive.
         </li>
         <li>
-          <C>Launch on Fuji</C>: a guided wizard that funds a key, moves funds C to P, and deploys a
-          sovereign L1 to the Fuji testnet with your machine as its validator.
+          <C>Launch on Fuji</C>: a guided wizard that creates a key for you to fund with test AVAX,
+          moves the funds from the C-Chain to the P-Chain, and deploys a sovereign L1 to the Fuji
+          testnet with your machine as its validator.
         </li>
         <li>
           <C>Data</C>: look up balances, NFTs, and transaction history for any Fuji or C-Chain

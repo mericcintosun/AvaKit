@@ -16,7 +16,7 @@ export default function ReactDocs() {
     <>
       <DocHeader
         title="@avakit/react"
-        lead="A drop-in social-login wallet button and hooks, built on shadcn/ui."
+        lead="A drop-in wallet button with a chooser (temporary wallet, social login, browser wallet) and hooks, built on shadcn/ui."
       />
 
       <H2>Install</H2>
@@ -51,9 +51,35 @@ export function Header() {
 }`}
       />
       <P>
+        The button opens a dialog with one entry per adapter you registered. With{" "}
+        <C>burnerAdapter()</C> among them it leads with <strong>Start instantly</strong>, a
+        temporary wallet that needs no setup, and lists the others under "already have a wallet?".
+        The temporary wallet is testnet-only, so on a mainnet chain it is not offered.
+      </P>
+      <P>
         On connect, AvaKit automatically switches the wallet to the active chain (adding it if
         unknown), including embedded wallets, which default to a different network.
       </P>
+
+      <H2>Test funds for the temporary wallet</H2>
+      <P>
+        A wallet that was just created has no gas. Pass <C>faucetUrl</C> to{" "}
+        <C>&lt;AvaKitProvider&gt;</C> and the provider asks that faucet for a drip when a temporary
+        wallet connects; <C>useFaucet()</C> exposes the same request for a "fund me" button and for
+        showing why a request was refused. The scaffolded Fuji templates set this up for you with
+        AvaKit's shared faucet, and <C>services/faucet</C> in the repository is the Worker to deploy
+        when you want your own. The automatic drip only ever serves the temporary wallet, which
+        cannot connect on a mainnet chain.
+      </P>
+      <CodeBlock
+        code={`<AvaKitProvider
+  chains={[fuji]}
+  adapters={[burnerAdapter({ chain: fuji }), injectedAdapter()]}
+  faucetUrl="https://your-faucet.example/fund"
+>
+  {children}
+</AvaKitProvider>`}
+      />
 
       <H2>Hooks</H2>
       <UL>
@@ -64,7 +90,7 @@ export function Header() {
           <C>useAvaChain()</C>: <C>{"{ chain, chains, setChain }"}</C>
         </li>
         <li>
-          <C>useBalance(address?)</C>: <C>{"{ data, isLoading, refetch }"}</C>
+          <C>useBalance(address?)</C>: <C>{"{ data, isLoading, error, refetch }"}</C>
         </li>
         <li>
           <C>useContract({"{ address, abi }"})</C>: <C>{"{ read, write }"}</C>
@@ -73,7 +99,11 @@ export function Header() {
           <C>useAvaDeploy()</C>: <C>{"{ deploy, status, result, error }"}</C>
         </li>
         <li>
-          <C>useSendTransaction()</C>: <C>{"{ send, status, hash, explorerUrl, isPending }"}</C>
+          <C>useSendTransaction()</C>:{" "}
+          <C>{"{ send, reset, status, hash, error, explorerUrl, isPending }"}</C>
+        </li>
+        <li>
+          <C>useFaucet()</C>: <C>{"{ fund, status, result, error, isFunding, enabled }"}</C>
         </li>
         <li>
           <C>useTokenBalances(address?)</C>: <C>{"{ native, tokens, isLoading, refetch }"}</C>

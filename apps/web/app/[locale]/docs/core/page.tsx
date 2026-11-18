@@ -25,7 +25,7 @@ export default function CoreDocs() {
       <Note>
         <C>@avakit/core</C> is <strong>ESM-only</strong> — use <C>import</C>, not <C>require</C>. In
         a CommonJS file, load it with a dynamic <C>await import("@avakit/core")</C>. Requires Node{" "}
-        <C>&gt;= 20.11</C>.
+        <C>&gt;= 20.11</C>; AvaKit is tested on Node 22 and 24.
       </Note>
 
       <H2>Chains</H2>
@@ -82,7 +82,9 @@ const { address, provider } = await social.connect();`}
         <A href="https://dashboard.web3auth.io">dashboard.web3auth.io</A>.
       </Note>
       <Note>
-        <strong>The burner wallet is the one place AvaKit itself handles a private key.</strong>{" "}
+        <strong>
+          The burner wallet is the one place this package creates and stores a private key.
+        </strong>{" "}
         <C>burnerAdapter()</C> generates a throwaway key in the browser and, by default, keeps it in{" "}
         <C>localStorage</C> in the clear (<C>avakit.burner.pk</C>), where any script running on the
         page can read it. That is the intended trade-off for a testnet identity holding a faucet
@@ -113,6 +115,28 @@ const { address, txHash, explorerUrl } = await deployContract({
   provider,
   account: "0x…",
 });`}
+      />
+
+      <H2>Test funds</H2>
+      <P>
+        <C>requestFaucet</C> asks an AvaKit faucet (the Worker in <C>services/faucet</C>) to send
+        test AVAX to an address, and throws <C>FaucetError</C> when the faucet refuses or cannot be
+        reached. <C>AVAKIT_FAUCET_URL</C> is AvaKit's shared Fuji faucet: one small drip per address
+        per day, rate-limited, and meant for first runs only. Nothing uses it implicitly — you pass
+        the URL yourself — and anything beyond a first run should use a faucet of your own.
+      </P>
+      <CodeBlock
+        code={`import { AVAKIT_FAUCET_URL, FaucetError, requestFaucet, fuji } from "@avakit/core";
+
+try {
+  const { txHash } = await requestFaucet({
+    url: AVAKIT_FAUCET_URL,
+    address: "0x…",
+    chainId: fuji.id,
+  });
+} catch (error) {
+  if (error instanceof FaucetError) console.error(error.message);
+}`}
       />
 
       <H2>Chain data (Data API)</H2>
@@ -148,6 +172,9 @@ const nfts = await listNfts("0x…", fuji);`}
         <li>
           <C>getNativeBalance</C>, <C>listErc20Balances</C>, <C>listNfts</C>,{" "}
           <C>listTransactions</C> (AvaCloud Data API, keyless)
+        </li>
+        <li>
+          <C>requestFaucet</C>, <C>AVAKIT_FAUCET_URL</C>, <C>FaucetError</C> (test funds)
         </li>
       </UL>
 
