@@ -6,12 +6,19 @@ import { defineConfig } from "tsup";
 const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  // `index` is the client entry: src/index.ts starts with "use client", and
+  // esbuild carries an entry file's directive into its bundle. `utils` is the
+  // server-safe entry ("@avakit/react/utils") with the pure helpers and no
+  // directive; the code both share lands in a directive-free chunk.
+  entry: { index: "src/index.ts", utils: "src/utils.ts" },
   format: ["esm"],
   dts: true,
   clean: true,
   sourcemap: true,
-  treeshake: true,
+  // Keep this off. tsup's `treeshake` runs the output through Rollup, which
+  // silently strips module-level directives, so "use client" would vanish from
+  // the published entry. esbuild already drops unused code while bundling.
+  treeshake: false,
   define: { __AVAKIT_VERSION__: JSON.stringify(version) },
   external: [
     "react",

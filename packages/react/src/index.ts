@@ -1,8 +1,21 @@
+"use client";
+
 /**
  * @avakit/react
  *
  * React surface for AvaKit: <AvaKitProvider>, <ConnectAvalanche>, and hooks.
  * UI is shadcn-based (Radix + Tailwind tokens). See docs/07-spec-wallet-widget.md.
+ *
+ * The directive above must stay the first statement. This file is bundled into
+ * one module, so it is what marks the whole published entry as a Client
+ * Component boundary: everything exported here needs context, state or effects,
+ * and without it a Next.js Server Component that imports anything from
+ * "@avakit/react" crashes (createContext does not exist on the server).
+ * `scripts/check-dist.mjs` fails the build if the bundle loses it.
+ *
+ * Server Components that only want the pure helpers (`cn`, `shortenAddress`,
+ * `humanizeError`) import them from "@avakit/react/utils", which is built
+ * without the directive so they stay callable on the server.
  */
 
 // Injected at build time from package.json (single source of truth — it can
