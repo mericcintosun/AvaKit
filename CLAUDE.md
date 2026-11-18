@@ -30,7 +30,7 @@ These come from the project owner and override convenience. Full text in `docs/1
 
 ## Guardrails
 
-- Never write private keys/secrets into code or logs; use env. Key management lives in the wallet provider (HSM/enclave), never in AvaKit code — **with one deliberate exception**: `burnerAdapter()` generates a throwaway testnet key in the browser and persists it to `localStorage` in the clear. That is the zero-setup demo path only; never extend it to hold real value. See `SECURITY.md`.
+- Never write private keys/secrets into code or logs; use env. Key management lives in the wallet provider (HSM/enclave), never in AvaKit code — **with two deliberate exceptions, both throwaway and testnet-only**: `burnerAdapter()` generates a key in the browser and persists it to `localStorage` in the clear (refused on any mainnet), and `@avakit/mcp`'s session test wallet generates a key in the server's memory (never on disk, never logged, never returned) to sign Fuji transactions, and only Fuji transactions, when `AVAKIT_DEPLOYER_KEY` is not set. Those are the zero-setup paths only; never extend either to hold real value or to sign for a mainnet. See `SECURITY.md`.
 - Never deploy to mainnet without explicit confirmation + balance check.
 - Keep `@avakit/core` framework-agnostic (viem only, no React). React-specific code lives in `@avakit/react`.
 - No circular dependencies; dependency direction is core ← react ← cli ← mcp.
