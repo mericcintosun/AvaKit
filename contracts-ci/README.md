@@ -37,7 +37,9 @@ node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the sour
   which has to be the `nft-mint` template's), and the example app's
   (`examples/web3auth-demo/lib/nft-artifact.ts`). It also fails on any
   `*-artifact.ts` in the repo that it has not been told about, so a new
-  artifact cannot land unchecked.
+  artifact cannot land unchecked. It builds into a temporary directory, so it
+  leaves no `out/` or `cache/` behind in a template (those folders would be
+  copied into every app scaffolded from this checkout).
 
 `examples/web3auth-demo` ships a different, simpler `AvaKitNFT` on purpose. It
 is an example app, not a template, so its contract is not compiled into this

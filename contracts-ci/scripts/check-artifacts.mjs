@@ -19,7 +19,8 @@
 //   node scripts/check-artifacts.mjs --write   rewrite abi + bytecode in place
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -91,24 +92,31 @@ const ABI_LITERAL = /(export const abi = )(\[[\s\S]*?\])( as const)/;
 const bytecodeLiteral = (name) => new RegExp(`(export const ${name} =\\s*")(0x[0-9a-fA-F]*)(")`);
 const CAST_SIGNATURE = /export const (\w+_SIG) = "([^"]*)"/g;
 
-const builds = new Set();
+// Builds go to a throwaway directory, not to each project's own out/ and
+// cache/: a template directory is copied as it stands into every scaffolded
+// app, so this check must not leave Foundry output behind in one.
+const scratch = mkdtempSync(join(tmpdir(), "avakit-artifacts-"));
+process.on("exit", () => rmSync(scratch, { recursive: true, force: true }));
+
+const builds = new Map(); // source -> the directory its build output went to
 
 /** `forge build` a project (once) and return one contract's build output. */
 function build(source, contract) {
-  const root = join(repoRoot, source);
   if (!builds.has(source)) {
+    const dir = join(scratch, String(builds.size));
+    const out = join(dir, "out");
+    const root = join(repoRoot, source);
+    const args = ["build", "--root", root, "--out", out, "--cache-path", join(dir, "cache")];
     try {
-      execFileSync("forge", ["build", "--force", "--root", root], {
-        stdio: ["ignore", "pipe", "pipe"],
-        encoding: "utf8",
-      });
+      execFileSync("forge", args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
     } catch (error) {
       console.error(`BUILD FAIL: ${source}\n${error.stdout ?? ""}${error.stderr ?? error.message}`);
       process.exit(1);
     }
-    builds.add(source);
+    builds.set(source, out);
   }
-  return JSON.parse(readFileSync(join(root, "out", `${contract}.sol`, `${contract}.json`), "utf8"));
+  const file = join(builds.get(source), `${contract}.sol`, `${contract}.json`);
+  return JSON.parse(readFileSync(file, "utf8"));
 }
 
 /** Every way `cast` can name a function of this ABI: `name(inputs)`,
