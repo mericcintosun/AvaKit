@@ -13,9 +13,17 @@ export interface AvaChain {
   name: string;
   /** Primary JSON-RPC endpoint. */
   rpcUrl: string;
-  /** Block explorer base URL. */
+  /**
+   * Block explorer base URL, without a trailing slash. Links are built as
+   * `${explorerUrl}/tx/<hash>` and `${explorerUrl}/address/<address>`. Empty for
+   * a chain that has no explorer (a fresh L1).
+   */
   explorerUrl: string;
-  /** Faucet URL (testnets only). */
+  /**
+   * Faucet page for people (testnets only): a link to show, not an endpoint to
+   * call. `requestFaucet` takes the URL of a faucet API instead, such as
+   * `AVAKIT_FAUCET_URL`.
+   */
   faucetUrl?: string;
   /** Native currency metadata. */
   nativeCurrency: {
@@ -81,13 +89,24 @@ export function defineChain(config: AvaChain): AvaChain {
   return config;
 }
 
+// Where the links below point, checked on 2026-11-18:
+//
+// - Explorer: Avalanche's explorer now lives on Builder Hub. The former hosts
+//   (subnets-test.avax.network and subnets.avax.network) still answer, but only
+//   by redirecting twice to the bases used here, so a link built from them
+//   ended on a different site from the one it named. `/tx/<hash>` and
+//   `/address/<address>` both resolve on these bases without a redirect.
+// - Faucet: core.app/tools/testnet-faucet and faucet.avax.network both redirect
+//   to the Builder Hub faucet. It asks for a free Builder Hub sign-in; the old
+//   coupon code and mainnet-balance requirements are gone.
+
 /** Avalanche Fuji testnet (default development target). */
 export const fuji: AvaChain = defineChain({
   id: 43113,
   name: "Avalanche Fuji",
   rpcUrl: "https://api.avax-test.network/ext/bc/C/rpc",
-  explorerUrl: "https://subnets-test.avax.network/c-chain",
-  faucetUrl: "https://core.app/tools/testnet-faucet/",
+  explorerUrl: "https://build.avax.network/explorer/fuji/c-chain",
+  faucetUrl: "https://build.avax.network/console/primary-network/faucet",
   nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
   testnet: true,
 });
@@ -97,7 +116,7 @@ export const cChain: AvaChain = defineChain({
   id: 43114,
   name: "Avalanche C-Chain",
   rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
-  explorerUrl: "https://subnets.avax.network/c-chain",
+  explorerUrl: "https://build.avax.network/explorer/mainnet/c-chain",
   nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
   testnet: false,
 });

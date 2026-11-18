@@ -350,6 +350,11 @@ describe("useSendTransaction", () => {
 
     const link = await screen.findByRole("link", { name: /View on explorer/ });
     expect(link.getAttribute("href")).toBe(`${fuji.explorerUrl}/tx/${TX_HASH}`);
+    // Spelled out: the transaction page on the Builder Hub explorer, a shape
+    // checked to resolve there without a redirect.
+    expect(link.getAttribute("href")).toBe(
+      `https://build.avax.network/explorer/fuji/c-chain/tx/${TX_HASH}`,
+    );
   });
 
   // A fresh L1 has no explorer. The link used to be built anyway, as the

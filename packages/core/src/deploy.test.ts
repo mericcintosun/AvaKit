@@ -139,6 +139,11 @@ describe("deployContract result", () => {
       txHash,
       explorerUrl: `${fuji.explorerUrl}/address/${created}`,
     });
+    // Spelled out: this is the address page on the Builder Hub explorer, a shape
+    // checked to resolve there without a redirect.
+    expect(result.explorerUrl).toBe(
+      `https://build.avax.network/explorer/fuji/c-chain/address/${created}`,
+    );
   });
 
   // A creation that runs out of gas (or whose constructor reverts) is still

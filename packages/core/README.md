@@ -34,7 +34,7 @@ Chains live at `@avakit/core/chains`. The two adapters that need an extra SDK si
 
 ## What's inside
 
-- **Chains** — `fuji`, `cChain`, `defineChain` for custom L1s, `isMainnet`
+- **Chains** — `fuji`, `cChain`, `defineChain` for custom L1s, `isMainnet`; each chain carries its `explorerUrl` and, on a testnet, a `faucetUrl` (see [Explorer and faucet links](#explorer-and-faucet-links))
 - **Clients** — `getPublicClient`, `getWalletClient`, `toViemChain`
 - **Adapters** — `burnerAdapter({ chain })` (a throwaway in-browser wallet, zero setup — see the warning below) + `clearBurner()`; `injectedAdapter()` (Core / MetaMask); `web3authAdapter({ clientId })` (social login, from `@avakit/core/web3auth`); `coinbaseAdapter()` (passkey smart wallet, from `@avakit/core/coinbase`)
 - **Network** — `ensureChain(provider, chain)` (add + switch; once it resolves the wallet is on the chain, burner wallet included)
@@ -59,6 +59,17 @@ Everything defaults to the Fuji testnet. `deployContract` refuses a mainnet chai
 A chain counts as mainnet unless its definition says `testnet: true`, and always when its id is a known mainnet (`43114`). A definition that leaves the flag out is therefore treated as a mainnet, not as a testnet.
 
 `deployContract` resolves only for a contract that really exists: a deployment transaction that reverted is rejected with `DeployFailedError`.
+
+## Explorer and faucet links
+
+`explorerUrl` is a base, and links are built as `${explorerUrl}/tx/<hash>` and `${explorerUrl}/address/<address>` (that is what `deployContract` returns as `explorerUrl`). The built-in chains point straight at the Avalanche explorer on Builder Hub, so a link ends on the page it names instead of being redirected there:
+
+| Chain | `explorerUrl` |
+| --- | --- |
+| `fuji` | `https://build.avax.network/explorer/fuji/c-chain` |
+| `cChain` | `https://build.avax.network/explorer/mainnet/c-chain` |
+
+`fuji.faucetUrl` is `https://build.avax.network/console/primary-network/faucet`, the Builder Hub faucet. It is a page for people, not an API, and it asks for a free Builder Hub sign-in (the coupon code and mainnet-balance requirements of the earlier faucet are gone). A chain with no explorer or faucet, such as a fresh L1, leaves the field empty.
 
 ## The hosted faucet
 
