@@ -33,7 +33,7 @@
 #
 # The install is not quite `npx -y @avakit/mcp`: the two AvaKit tarballs come
 # from this repository instead of the registry, so their own download (about
-# 2 MB together) is not in the time. Everything else is.
+# half a megabyte together) is not in the time. Everything else is.
 #
 # Usage: scripts/smoke-mcp.sh [workdir]
 #

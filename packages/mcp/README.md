@@ -27,6 +27,22 @@ Cursor, Claude Desktop and other clients that read a JSON config:
 }
 ```
 
+## First start
+
+A client only waits so long for a server to connect — 30 seconds in Claude Code — and the first `npx -y @avakit/mcp` on a machine has to download the server before it can start it. To keep that download small, the server is published as one file with its libraries (the MCP SDK, viem, zod and `@avakit/core`) inside it, and has a single dependency: `create-avalanche-app`, which holds the templates.
+
+- **The first start** on an empty npm cache downloads 48 packages, 28 MB on disk — the server, `create-avalanche-app`, and what its interactive wizard needs. On a fast connection that took 2 to 4 seconds, and the server answered a client 0.1 to 0.2 seconds after it was started. The repository's `scripts/smoke-mcp.sh` measures this, on a real install with an empty cache, in every CI run. Up to 0.1.27 a first start downloaded about 150 packages, 122 MB, and was measured at 34 seconds on a busy machine: longer than a client waits.
+- **Every later start** downloads nothing: `npx` finds the server in npm's cache.
+- **On a slow network**, download the server before you add it to a client. In a terminal, run
+
+  ```bash
+  npx -y @avakit/mcp --version
+  ```
+
+  It downloads the same files, prints the version and exits; the client then starts the server from the cache. Do the same if a client reports that the server timed out while connecting, then reconnect it.
+
+`npx -y @avakit/mcp --help` prints a short description of the server, its tools and its environment variables. With any other argument, or none, it starts the server on standard input and output, which is what a client does.
+
 ## Zero setup on Fuji
 
 With the server added, paste this to your agent in an empty folder:
@@ -252,4 +268,8 @@ a tool call.
 | `AVAKIT_ALLOW_MAINNET` | Set to `1` to allow mainnet transactions (which also need your own key and `confirm: true`). Unset, the server is testnet-only. |
 | `AVAKIT_MCP_ROOT` | The directory `scaffold_app` creates projects in and `artifactPath` reads from, instead of the server's working directory. Needed when the server is started in the filesystem root. |
 
+## License
+
 MIT © AvaKit contributors
+
+The published `dist/index.js` contains third-party code: `@modelcontextprotocol/sdk`, `viem`, `zod` and the packages they depend on, all under permissive licences (MIT, ISC, BSD-3-Clause). `dist/THIRD_PARTY_LICENSES.txt`, shipped in the package, names every bundled package with its version, licence and licence text. The build writes it from the list of files that went into the bundle, and fails if a bundled package has no licence or one that is not on its allow-list of permissive licences.
