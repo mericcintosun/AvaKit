@@ -67,8 +67,8 @@ function readStoredKey(storageKey: string): Hex | null {
 function assertTestnet(chain: AvaChain, action: "connect on" | "switch to"): void {
   if (isMainnet(chain)) {
     throw new WalletConnectionError(
-      `The temporary (burner) wallet is testnet-only and cannot ${action} ${chain.name}. ` +
-        `Connect a real wallet (injected / social) to use mainnet.${missingTestnetFlagHint(chain)}`,
+      `${missingTestnetFlagHint(chain)}The temporary (burner) wallet is testnet-only and cannot ` +
+        `${action} ${chain.name}. Connect a real wallet (injected / social) to use mainnet.`,
     );
   }
 }

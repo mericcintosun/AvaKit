@@ -43,14 +43,22 @@ describe("errors", () => {
   });
 
   it("explains the mainnet verdict only for a chain that carries no testnet flag", () => {
-    expect(missingTestnetFlagHint({ testnet: true })).toBe("");
-    expect(missingTestnetFlagHint({ testnet: false })).toBe("");
-    expect(missingTestnetFlagHint({})).toContain("testnet: true");
-    expect(missingTestnetFlagHint({ testnet: "true" })).toContain("testnet: true");
+    expect(missingTestnetFlagHint({ name: "My L1", testnet: true })).toBe("");
+    expect(missingTestnetFlagHint({ name: "My L1", testnet: false })).toBe("");
+    expect(missingTestnetFlagHint({ name: "My L1" })).toContain("testnet: true");
+    expect(missingTestnetFlagHint({ name: "My L1", testnet: "true" })).toContain("My L1");
 
-    const refused = new MainnetConfirmationError("My L1", missingTestnetFlagHint({}));
+    const refused = new MainnetConfirmationError(
+      "My L1",
+      missingTestnetFlagHint({ name: "My L1" }),
+    );
     expect(refused.message).toContain("confirmMainnet");
     expect(refused.message).toContain("no boolean `testnet` flag");
+    // The cause comes first, so it survives UIs that only show the start of a message.
+    expect(refused.message.indexOf("no boolean")).toBeLessThan(
+      refused.message.indexOf("Refusing to deploy"),
+    );
+    expect(refused.message.slice(0, 200)).toContain("set testnet: true");
   });
 
   it("ChainMismatchError names both the expected and actual chains", () => {
