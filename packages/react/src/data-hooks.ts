@@ -50,6 +50,13 @@ function toError(e: unknown): Error {
   return e instanceof Error ? e : new Error(String(e));
 }
 
+/** How to ask for the next page of the list on screen. */
+interface NextPage {
+  target: Address;
+  chainId: number;
+  options: DataApiOptions & { pageToken: string };
+}
+
 /**
  * Shared engine of the three hooks: loads the first page for the target address
  * and chain, and appends further pages on demand. `fetchPage` and `itemsOf`
@@ -81,11 +88,24 @@ function usePagedList<TResponse extends PagedResponse, TItem>(
   const loadingMoreFor = useRef<number | null>(null);
   // Which address and chain the items on screen belong to.
   const shownFor = useRef<string | null>(null);
+  // The next page of the list on screen, updated the moment a page arrives.
+  // fetchMore reads it here rather than from the render it was created in, so
+  // calls made from one render (a "load everything" loop that awaits each one)
+  // move through the pages instead of asking for the same page again. It also
+  // carries the query the list was loaded with, so the next page is always asked
+  // for the list it continues.
+  const nextPage = useRef<NextPage | null>(null);
+
+  /** Set the cursor, for fetchMore and for what renders `hasMore`. */
+  const setNextPage = useCallback((next: NextPage | null) => {
+    nextPage.current = next;
+    setNextPageToken(next?.options.pageToken ?? null);
+  }, []);
 
   const refetch = useCallback(async () => {
     generation.current += 1;
     const current = generation.current;
-    setNextPageToken(null);
+    setNextPage(null);
     setIsFetchingMore(false);
     const key = target ? `${chainId}:${target.toLowerCase()}` : null;
     if (shownFor.current !== key) {
@@ -110,7 +130,11 @@ function usePagedList<TResponse extends PagedResponse, TItem>(
       if (current !== generation.current) return;
       setFirstPage(res);
       setItems(itemsOf(res) ?? []);
-      setNextPageToken(res.nextPageToken ?? null);
+      setNextPage(
+        res.nextPageToken
+          ? { target, chainId, options: { apiKey, pageSize, pageToken: res.nextPageToken } }
+          : null,
+      );
     } catch (e) {
       if (current !== generation.current) return;
       setError(toError(e));
@@ -119,25 +143,26 @@ function usePagedList<TResponse extends PagedResponse, TItem>(
         setIsLoading(false);
       }
     }
-  }, [target, chainId, apiKey, pageSize, fetchPage, itemsOf]);
+  }, [target, chainId, apiKey, pageSize, fetchPage, itemsOf, setNextPage]);
 
   const fetchMore = useCallback(async () => {
     const current = generation.current;
-    if (!target || !nextPageToken || loadingMoreFor.current === current) {
+    const page = nextPage.current;
+    if (!page || loadingMoreFor.current === current) {
       return;
     }
     loadingMoreFor.current = current;
     setIsFetchingMore(true);
     setError(null);
     try {
-      const res = await fetchPage(target, chainId, {
-        apiKey,
-        pageSize,
-        pageToken: nextPageToken,
-      });
+      const res = await fetchPage(page.target, page.chainId, page.options);
       if (current !== generation.current) return;
       setItems((previous) => [...previous, ...(itemsOf(res) ?? [])]);
-      setNextPageToken(res.nextPageToken ?? null);
+      setNextPage(
+        res.nextPageToken
+          ? { ...page, options: { ...page.options, pageToken: res.nextPageToken } }
+          : null,
+      );
     } catch (e) {
       if (current !== generation.current) return;
       setError(toError(e));
@@ -149,7 +174,7 @@ function usePagedList<TResponse extends PagedResponse, TItem>(
         setIsFetchingMore(false);
       }
     }
-  }, [target, chainId, apiKey, pageSize, nextPageToken, fetchPage, itemsOf]);
+  }, [fetchPage, itemsOf, setNextPage]);
 
   useEffect(() => {
     void refetch();

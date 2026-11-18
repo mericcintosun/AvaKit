@@ -280,6 +280,209 @@ describe("useTokenBalances", () => {
     expect(symbols(result.current.tokens)).toEqual(["Z"]);
   });
 
+  // fetchMore used to read the cursor from the render it was created in, so
+  // awaiting it twice from one render (a "load everything" loop) asked for the
+  // same page again and appended it twice.
+  describe("fetchMore called from one render", () => {
+    /** One token per page for `holder`: <prefix>1, <prefix>2, <prefix>3, then no more. */
+    function serveThreePages(holder: Address = HOLDER, prefix = "p") {
+      const previous = vi.mocked(listErc20Balances).getMockImplementation();
+      vi.mocked(listErc20Balances).mockImplementation(
+        async (address, chain, options?: DataApiOptions): Promise<Erc20BalancesResponse> => {
+          if (address !== holder) {
+            if (!previous) throw new Error(`no list for ${address}`);
+            return previous(address, chain, options);
+          }
+          const page = options?.pageToken ? Number(options.pageToken.slice(-1)) : 1;
+          return {
+            nativeTokenBalance: native,
+            erc20TokenBalances: [token(`${prefix}${page}`)],
+            ...(page < 3 ? { nextPageToken: `${holder}-page-${page + 1}` } : {}),
+          };
+        },
+      );
+    }
+
+    /** The cursor each request was made with, in order (undefined for a first page). */
+    const requested = () =>
+      vi
+        .mocked(listErc20Balances)
+        .mock.calls.map(([address, , options]) => [address, options?.pageToken]);
+
+    it("moves through the pages when awaited twice", async () => {
+      serveThreePages();
+      const { result } = renderHook(() => useTokenBalances(HOLDER), { wrapper });
+      await waitFor(() => {
+        expect(result.current.hasMore).toBe(true);
+      });
+
+      const stale = result.current.fetchMore;
+      await act(async () => {
+        await stale();
+        await stale();
+      });
+
+      expect(symbols(result.current.tokens)).toEqual(["p1", "p2", "p3"]);
+      expect(result.current.hasMore).toBe(false);
+      expect(result.current.nextPageToken).toBeNull();
+      // And a third call, with nothing left, asks for nothing.
+      await act(async () => {
+        await stale();
+      });
+      expect(requested()).toEqual([
+        [HOLDER, undefined],
+        [HOLDER, `${HOLDER}-page-2`],
+        [HOLDER, `${HOLDER}-page-3`],
+      ]);
+    });
+
+    it("fetches one page for two calls started together", async () => {
+      serveThreePages();
+      const { result } = renderHook(() => useTokenBalances(HOLDER), { wrapper });
+      await waitFor(() => {
+        expect(result.current.hasMore).toBe(true);
+      });
+
+      const stale = result.current.fetchMore;
+      await act(async () => {
+        await Promise.all([stale(), stale()]);
+      });
+
+      expect(symbols(result.current.tokens)).toEqual(["p1", "p2"]);
+      expect(result.current.hasMore).toBe(true);
+      expect(listErc20Balances).toHaveBeenCalledTimes(2);
+    });
+
+    it("starts again from the first page after a refetch in between", async () => {
+      serveThreePages();
+      const { result } = renderHook(() => useTokenBalances(HOLDER), { wrapper });
+      await waitFor(() => {
+        expect(result.current.hasMore).toBe(true);
+      });
+
+      const stale = result.current.fetchMore;
+      await act(async () => {
+        await stale();
+      });
+      expect(symbols(result.current.tokens)).toEqual(["p1", "p2"]);
+      await act(async () => {
+        await result.current.refetch();
+      });
+      expect(symbols(result.current.tokens)).toEqual(["p1"]);
+      await act(async () => {
+        await stale();
+      });
+
+      expect(symbols(result.current.tokens)).toEqual(["p1", "p2"]);
+      expect(requested()).toEqual([
+        [HOLDER, undefined],
+        [HOLDER, `${HOLDER}-page-2`],
+        [HOLDER, undefined],
+        [HOLDER, `${HOLDER}-page-2`],
+      ]);
+    });
+
+    it("asks for nothing while a refetch's first page is loading", async () => {
+      serveThreePages();
+      const { result } = renderHook(() => useTokenBalances(HOLDER), { wrapper });
+      await waitFor(() => {
+        expect(result.current.hasMore).toBe(true);
+      });
+      const stale = result.current.fetchMore;
+      let release: (value: Erc20BalancesResponse) => void = () => {};
+      vi.mocked(listErc20Balances).mockImplementationOnce(
+        () =>
+          new Promise<Erc20BalancesResponse>((resolve) => {
+            release = resolve;
+          }),
+      );
+
+      let pending: Promise<void> = Promise.resolve();
+      act(() => {
+        pending = result.current.refetch();
+      });
+      expect(result.current.hasMore).toBe(false);
+      await act(async () => {
+        await stale();
+      });
+      expect(requested()).toEqual([
+        [HOLDER, undefined],
+        [HOLDER, undefined],
+      ]);
+
+      await act(async () => {
+        release({
+          nativeTokenBalance: native,
+          erc20TokenBalances: [token("p1")],
+          nextPageToken: `${HOLDER}-page-2`,
+        });
+        await pending;
+      });
+      expect(symbols(result.current.tokens)).toEqual(["p1"]);
+      expect(result.current.hasMore).toBe(true);
+    });
+
+    it("drops the cursor when the address changes", async () => {
+      vi.mocked(listErc20Balances).mockImplementation(async () => ({
+        nativeTokenBalance: native,
+        erc20TokenBalances: [token("NEW")],
+      }));
+      serveThreePages(HOLDER);
+      const { result, rerender } = renderHook(({ holder }) => useTokenBalances(holder), {
+        wrapper,
+        initialProps: { holder: HOLDER },
+      });
+      await waitFor(() => {
+        expect(result.current.hasMore).toBe(true);
+      });
+      const stale = result.current.fetchMore;
+
+      rerender({ holder: OTHER_HOLDER });
+      await waitFor(() => {
+        expect(symbols(result.current.tokens)).toEqual(["NEW"]);
+      });
+      await act(async () => {
+        await stale();
+      });
+
+      // The first address's next page is neither asked for nor appended.
+      expect(symbols(result.current.tokens)).toEqual(["NEW"]);
+      expect(result.current.hasMore).toBe(false);
+      expect(requested()).toEqual([
+        [HOLDER, undefined],
+        [OTHER_HOLDER, undefined],
+      ]);
+    });
+
+    it("continues the new address's list, not the old one's, after the address changes", async () => {
+      serveThreePages(HOLDER, "old");
+      serveThreePages(OTHER_HOLDER, "new");
+      const { result, rerender } = renderHook(({ holder }) => useTokenBalances(holder), {
+        wrapper,
+        initialProps: { holder: HOLDER },
+      });
+      await waitFor(() => {
+        expect(symbols(result.current.tokens)).toEqual(["old1"]);
+      });
+      const stale = result.current.fetchMore;
+
+      rerender({ holder: OTHER_HOLDER });
+      await waitFor(() => {
+        expect(symbols(result.current.tokens)).toEqual(["new1"]);
+      });
+      await act(async () => {
+        await stale();
+      });
+
+      expect(symbols(result.current.tokens)).toEqual(["new1", "new2"]);
+      expect(requested()).toEqual([
+        [HOLDER, undefined],
+        [OTHER_HOLDER, undefined],
+        [OTHER_HOLDER, `${OTHER_HOLDER}-page-2`],
+      ]);
+    });
+  });
+
   it("stays empty, and asks for nothing, without an address", async () => {
     const { result } = renderHook(() => useTokenBalances(), { wrapper });
 
