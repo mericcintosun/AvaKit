@@ -182,24 +182,26 @@ export function StepsSection() {
         />
         <ol className="mt-12 flex flex-col">
           {c.steps.map((step, i) => (
-            <Reveal key={step.title}>
-              <li
-                className={cn(
-                  "grid gap-6 border-l pb-10 pl-8 md:grid-cols-2 md:items-center md:gap-10",
-                  i === c.steps.length - 1 && "border-l-transparent pb-0",
-                )}
-              >
-                <div className="relative flex flex-col gap-2">
-                  <span className="bg-primary text-primary-foreground absolute top-0.5 -left-11 flex size-6 items-center justify-center rounded-full font-mono text-xs">
-                    {i + 1}
-                  </span>
-                  <h3 className="font-mono text-sm font-medium tracking-wide uppercase">
-                    {step.title}
-                  </h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{step.body}</p>
-                </div>
-                <CodeBlock code={step.code} />
-              </li>
+            // The animated element is the list item itself: a wrapper <div>
+            // between <ol> and <li> would leave the list with no items.
+            <Reveal
+              as="li"
+              key={step.title}
+              className={cn(
+                "grid gap-6 border-l pb-10 pl-8 md:grid-cols-2 md:items-center md:gap-10",
+                i === c.steps.length - 1 && "border-l-transparent pb-0",
+              )}
+            >
+              <div className="relative flex flex-col gap-2">
+                <span className="bg-primary text-primary-foreground absolute top-0.5 -left-11 flex size-6 items-center justify-center rounded-full font-mono text-xs">
+                  {i + 1}
+                </span>
+                <h3 className="font-mono text-sm font-medium tracking-wide uppercase">
+                  {step.title}
+                </h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{step.body}</p>
+              </div>
+              <CodeBlock code={step.code} />
             </Reveal>
           ))}
         </ol>

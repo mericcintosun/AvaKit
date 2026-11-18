@@ -24,9 +24,20 @@ export const stagger: Variants = {
   show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
 };
 
-export function Reveal({ children, className }: { children: ReactNode; className?: string }) {
+export function Reveal({
+  children,
+  className,
+  as = "div",
+}: {
+  children: ReactNode;
+  className?: string;
+  /** Render as a list item when the parent is a list, so `<ol>` / `<ul>` keep
+   * `<li>` children instead of gaining a wrapper `<div>`. */
+  as?: "div" | "li";
+}) {
+  const Component = as === "li" ? motion.li : motion.div;
   return (
-    <motion.div
+    <Component
       className={className}
       variants={fadeUp}
       initial="hidden"
@@ -34,7 +45,7 @@ export function Reveal({ children, className }: { children: ReactNode; className
       viewport={{ once: true, margin: "-80px" }}
     >
       {children}
-    </motion.div>
+    </Component>
   );
 }
 
