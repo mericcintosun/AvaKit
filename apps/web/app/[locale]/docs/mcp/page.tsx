@@ -3,12 +3,13 @@ import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { A, C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
 import { getContent } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  route: "/docs/mcp",
   title: "@avakit/mcp",
   description: "An MCP server so Claude Code / Cursor can scaffold, deploy, and read Avalanche.",
-  alternates: { canonical: "/docs/mcp" },
-};
+});
 
 const CONFIG = `{
   "mcpServers": {

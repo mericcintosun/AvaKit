@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 
 import { CodeBlock } from "@/components/code-block";
 import { A, C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  route: "/docs/telemetry",
   title: "Telemetry",
   description:
     "create-avalanche-app counts scaffolds anonymously. What is collected, what never is, and how to turn it off.",
-  alternates: { canonical: "/docs/telemetry" },
-};
+});
 
 export default function TelemetryDocs() {
   return (

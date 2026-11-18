@@ -5,14 +5,15 @@ import { DailyColumns } from "@/components/stats/daily-columns";
 import { StatTile } from "@/components/stats/stat-tile";
 import { TemplateBars } from "@/components/stats/template-bars";
 import { Card } from "@/components/ui/card";
+import { pageMetadata } from "@/lib/metadata";
 import { compact, GITHUB_REPO, getStats, zeroFillDays } from "@/lib/stats";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  route: "/stats",
   title: "Stats",
   description:
     "How much AvaKit actually gets used: npm downloads, GitHub stars, and anonymous scaffold counts. Updated continuously.",
-  alternates: { canonical: "/stats" },
-};
+});
 
 // Matches the collector's own 5-minute edge cache. Without this the page would
 // be baked at build time and the numbers would be frozen until the next deploy.

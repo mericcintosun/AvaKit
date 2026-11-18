@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 
 import { CodeBlock } from "@/components/code-block";
 import { C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  route: "/docs/studio",
   title: "@avakit/studio",
   description:
     "A local Avalanche development dashboard: spin up L1s, send Interchain messages, inspect on-chain data, and launch an L1 on Fuji. Also an MCP server.",
-  alternates: { canonical: "/docs/studio" },
-};
+});
 
 export default function StudioDocs() {
   return (

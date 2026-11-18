@@ -3,12 +3,13 @@ import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
 import { InstallTabs } from "@/components/install-tabs";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  route: "/docs/react",
   title: "@avakit/react",
   description: "React layer for AvaKit: <ConnectAvalanche> and hooks, built on shadcn/ui.",
-  alternates: { canonical: "/docs/react" },
-};
+});
 
 export default function ReactDocs() {
   return (

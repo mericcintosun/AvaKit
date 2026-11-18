@@ -4,12 +4,13 @@ import { CodeBlock } from "@/components/code-block";
 import { A, C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
 import { Badge } from "@/components/ui/badge";
 import { getContent } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  route: "/docs/cli",
   title: "create-avalanche-app",
   description: "Scaffold a batteries-included Avalanche dapp with one command.",
-  alternates: { canonical: "/docs/cli" },
-};
+});
 
 export default function CliDocs() {
   return (

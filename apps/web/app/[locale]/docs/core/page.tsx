@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { A, C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
 import { InstallTabs } from "@/components/install-tabs";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  route: "/docs/core",
   title: "@avakit/core",
   description:
     "The framework-agnostic AvaKit kernel: chains, wallet adapters, deploy, and chain data.",
-  alternates: { canonical: "/docs/core" },
-};
+});
 
 export default function CoreDocs() {
   return (

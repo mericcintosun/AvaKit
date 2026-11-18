@@ -4,23 +4,15 @@ import { setRequestLocale } from "next-intl/server";
 import { Container } from "@/components/section";
 import { TerminalDemo } from "@/components/terminal/terminal-demo";
 import type { Locale } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ locale: Locale }>;
-}): Promise<Metadata> {
-  const { locale } = await params;
-  const path = locale === "en" ? "/terminal" : `/${locale}/terminal`;
-  return {
-    title: "Terminal",
-    description: "Watch AvaKit scaffold a social-login Avalanche dapp — live in about a minute.",
-    alternates: {
-      canonical: path,
-      languages: { en: "/terminal", tr: "/tr/terminal" },
-    },
-  };
-}
+// English only, like the demo itself: /tr/terminal canonicalizes to /terminal
+// rather than presenting an English page as the Turkish translation.
+export const metadata: Metadata = pageMetadata({
+  route: "/terminal",
+  title: "Terminal",
+  description: "Watch AvaKit scaffold a social-login Avalanche dapp — live in about a minute.",
+});
 
 export default async function TerminalPage({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;

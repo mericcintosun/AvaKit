@@ -7,6 +7,7 @@ import { CodeBlock } from "@/components/code-block";
 import { Reveal } from "@/components/motion";
 import { Badge } from "@/components/ui/badge";
 import { getContent, type Locale } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 
 export async function generateMetadata({
   params,
@@ -15,15 +16,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const c = getContent(locale);
-  const path = locale === "en" ? "/templates" : `/${locale}/templates`;
-  return {
+  return pageMetadata({
+    locale,
+    route: "/templates",
     title: c.templatesSection.eyebrow,
     description: c.templatesPage.lead,
-    alternates: {
-      canonical: path,
-      languages: { en: "/templates", tr: "/tr/templates" },
-    },
-  };
+  });
 }
 
 // White-background line art that sits seamlessly on any card in both themes.

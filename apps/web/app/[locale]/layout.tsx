@@ -13,16 +13,11 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { routing } from "@/i18n/routing";
 import { getContent, type Locale, site } from "@/lib/content";
+import { homeTitle, OG_IMAGE, withSiteName } from "@/lib/metadata";
 import "../globals.css";
 
 const DESCRIPTION =
   "Avalanche's open-source, AI-native create-next-app: scaffold a social-login dapp, deploy-ready, with agent context baked in.";
-const OG_IMAGE = {
-  url: "/og-image.png",
-  width: 1200,
-  height: 630,
-  alt: "AvaKit — zero to a live Avalanche app in 60 seconds. No install, no signup, no seed phrase, no gas.",
-};
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -64,11 +59,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const c = getContent((hasLocale(routing.locales, locale) ? locale : "en") as Locale);
-  const title = `AvaKit — ${c.site.tagline}`;
-  const path = locale === "en" ? "" : `/${locale}`;
+  const title = homeTitle(c.site.tagline);
   return {
     metadataBase: new URL(site.url),
-    title: { default: title, template: "%s — AvaKit" },
+    title: { default: title, template: withSiteName("%s") },
     description: c.site.description,
     applicationName: "AvaKit",
     keywords: [
@@ -89,11 +83,12 @@ export async function generateMetadata({
     ],
     authors: [{ name: "AvaKit contributors" }],
     creator: "AvaKit",
-    alternates: { canonical: path || "/", languages: { en: "/", tr: "/tr" } },
+    // Site-wide defaults only. Canonical, hreflang and og:url describe a single
+    // URL, and anything set here is inherited by every page below, so each page
+    // builds its own with pageMetadata() from lib/metadata.ts.
     openGraph: {
       type: "website",
       siteName: "AvaKit",
-      url: `${site.url}${path}`,
       title,
       description: c.site.description,
       locale: locale === "tr" ? "tr_TR" : "en_US",

@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { A, C, DocHeader, H2, NextLinks, Note, P, UL } from "@/components/docs/prose";
 import { site } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  route: "/docs",
   title: "Introduction",
   description:
     "Get started with AvaKit, the open-source, AI-native developer toolkit for Avalanche.",
-  alternates: { canonical: "/docs" },
-};
+});
 
 export default function DocsHome() {
   return (
