@@ -11,6 +11,13 @@
  * primary actions, focus rings, links, and highlights. Dark/light both
  * supported. Components read these tokens — they never hardcode colors, so the
  * whole brand can shift by editing this file.
+ *
+ * Contrast: the crimson is tuned so both of its jobs clear WCAG AA (4.5:1) in
+ * each theme: as the fill under --primary-foreground and as text on the page
+ * surfaces. No single crimson can sit under white text *and* read as text on
+ * near-black, so the light theme darkens the crimson under a near-white label
+ * while the dark theme keeps the brighter crimson and flips the label to
+ * near-black. Re-check both ratios before changing any of the four values.
  */
 
 :root {
@@ -25,8 +32,8 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
-  --primary: oklch(0.628 0.207 25.3); /* Ember Crimson */
-  --primary-foreground: oklch(0.985 0 0); /* near-white on crimson */
+  --primary: oklch(0.58 0.207 25.3); /* Ember Crimson */
+  --primary-foreground: oklch(0.985 0 0); /* near-white on crimson, 4.55:1 */
 
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -41,11 +48,11 @@
   --destructive-foreground: oklch(0.985 0 0);
 
   /* Brand crimson for glows/gradients; components reference var(--brand). */
-  --brand: oklch(0.628 0.207 25.3);
+  --brand: oklch(0.58 0.207 25.3);
 
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.628 0.207 25.3); /* crimson focus ring */
+  --ring: oklch(0.58 0.207 25.3); /* crimson focus ring */
 }
 
 .dark {
@@ -59,7 +66,7 @@
   --popover-foreground: oklch(0.985 0 0);
 
   --primary: oklch(0.66 0.2 25.3); /* Ember Crimson, a touch brighter to glow on black */
-  --primary-foreground: oklch(0.985 0 0); /* near-white on crimson */
+  --primary-foreground: oklch(0.145 0 0); /* near-black on crimson, 5.78:1 (white is 3.28:1) */
 
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -89,6 +96,12 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  /* Hover fill for a primary surface. It steps the crimson toward --foreground,
+     the opposite pole from --primary-foreground in both themes, so the label
+     gains contrast on hover. An alpha fade (bg-primary/90) blends toward the
+     page instead: on a white page that lightens the fill under a near-white
+     label and takes it back below AA. */
+  --color-primary-hover: color-mix(in oklab, var(--primary) 90%, var(--foreground));
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
