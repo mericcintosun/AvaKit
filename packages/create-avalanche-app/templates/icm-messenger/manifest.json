@@ -3,5 +3,6 @@
   "title": "ICM cross-chain messenger",
   "description": "Send a message between two Avalanche L1s with Interchain Messaging (local devnet)",
   "contracts": true,
-  "setup": "devnet"
+  "setup": "devnet",
+  "chains": ["fuji"]
 }

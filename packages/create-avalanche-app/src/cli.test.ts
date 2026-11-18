@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { listTemplates } from "./api.js";
 import { projectNameProblem, run } from "./cli.js";
 import { canFakeBin, FAKE_BIN_TIMEOUT_MS, type FakeBin, fakeBin } from "./testing/fake-bin.js";
 
@@ -152,6 +153,56 @@ describe("create-avalanche-app (non-interactive)", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('Invalid project name "../outside"');
     expect(existsSync(path.join(cwd, "..", "outside"))).toBe(false);
+  });
+
+  it("refuses C-Chain for a Fuji-only template, naming the chains it supports", async () => {
+    // 0.4.1 scaffolded these: an nft-mint app whose Deploy button could only
+    // ever be refused, and an eerc-token app reading a Fuji address on mainnet.
+    for (const template of ["nft-mint", "erc20-token", "token-gated-app", "eerc-token"]) {
+      const result = await invoke([
+        "app",
+        "--template",
+        template,
+        "--chain",
+        "c-chain",
+        "--yes",
+        "--no-install",
+      ]);
+      expect(result.code, template).toBe(1);
+      expect(result.stderr).toContain(
+        `Error: Template "${template}" cannot be scaffolded for chain "c-chain". It supports: fuji.`,
+      );
+      expect(result.stdout).toBe("");
+      expect(existsSync(path.join(cwd, "app"))).toBe(false);
+    }
+  });
+
+  it("refuses C-Chain for the devnet templates, which never used the flag", async () => {
+    for (const template of ["icm-messenger", "l1-launch", "token-bridge"]) {
+      const result = await invoke(["app", "-t", template, "-c", "c-chain", "-y", "--no-install"]);
+      expect(result.code, template).toBe(1);
+      expect(result.stderr).toContain(`Template "${template}" cannot be scaffolded for chain`);
+      expect(existsSync(path.join(cwd, "app"))).toBe(false);
+    }
+  });
+
+  it("still scaffolds every template for Fuji, the default", async () => {
+    for (const template of listTemplates()) {
+      const result = await invoke([
+        template.id,
+        "--template",
+        template.id,
+        "--yes",
+        "--no-install",
+      ]);
+      expect(result.code, template.id).toBe(0);
+      expect(existsSync(path.join(cwd, template.id, "package.json")), template.id).toBe(true);
+    }
+  });
+
+  it("says in --help which templates can target mainnet", async () => {
+    const help = await invoke(["--help"]);
+    expect(help.stdout).toContain("c-chain (mainnet) only with: minimal");
   });
 
   it("scaffolds the template and chain that were asked for", async () => {

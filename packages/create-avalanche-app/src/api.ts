@@ -53,33 +53,6 @@ export const templatesDir = path.join(
   "templates",
 );
 
-export interface TemplateInfo {
-  id: string;
-  title: string;
-  description: string;
-  contracts: boolean;
-  /** One-time setup command to run before `dev` (e.g. `pnpm devnet`), if any. */
-  setup?: string;
-}
-
-export function listTemplates(): TemplateInfo[] {
-  return readdirSync(templatesDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => {
-      const manifestPath = path.join(templatesDir, e.name, "manifest.json");
-      const manifest = existsSync(manifestPath)
-        ? (JSON.parse(readFileSync(manifestPath, "utf8")) as Partial<TemplateInfo>)
-        : {};
-      return {
-        id: e.name,
-        title: manifest.title ?? e.name,
-        description: manifest.description ?? "",
-        contracts: manifest.contracts ?? false,
-        ...(manifest.setup ? { setup: manifest.setup } : {}),
-      };
-    });
-}
-
 /** The chains a template can be scaffolded for. */
 export const CHAIN_IDS = ["fuji", "c-chain"] as const;
 export type ChainId = (typeof CHAIN_IDS)[number];
@@ -88,11 +61,77 @@ export function isChainId(value: unknown): value is ChainId {
   return typeof value === "string" && (CHAIN_IDS as readonly string[]).includes(value);
 }
 
+/** The `@avakit/core/chains` export each chain id stands for in a template's source. */
+const CHAIN_CONST: Record<ChainId, string> = { fuji: "fuji", "c-chain": "cChain" };
+
+export interface TemplateInfo {
+  id: string;
+  title: string;
+  description: string;
+  contracts: boolean;
+  /** One-time setup command to run before `dev` (e.g. `pnpm devnet`), if any. */
+  setup?: string;
+  /**
+   * The chains this template can be scaffolded for, from `chains` in its
+   * manifest. AvaKit is testnet-first, so a manifest that does not say is
+   * Fuji-only: a template has to opt in to mainnet, not out of it.
+   */
+  chains: ChainId[];
+}
+
+type Manifest = Partial<Omit<TemplateInfo, "id" | "chains">> & { chains?: unknown };
+
+/**
+ * @param dir The directory holding one folder per template. Defaults to the
+ *   templates shipped with this package; a parameter so it can be tested.
+ */
+export function listTemplates(dir: string = templatesDir): TemplateInfo[] {
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => {
+      const manifestPath = path.join(dir, e.name, "manifest.json");
+      const manifest: Manifest = existsSync(manifestPath)
+        ? (JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest)
+        : {};
+      // Keep only chains we know, in our order. Nothing usable listed — the key
+      // is missing, empty, or misspelt — means Fuji only: the safe direction.
+      const listed: unknown[] = Array.isArray(manifest.chains) ? manifest.chains : [];
+      const chains = CHAIN_IDS.filter((id) => listed.includes(id));
+      return {
+        id: e.name,
+        title: manifest.title ?? e.name,
+        description: manifest.description ?? "",
+        contracts: manifest.contracts ?? false,
+        ...(manifest.setup ? { setup: manifest.setup } : {}),
+        chains: chains.length > 0 ? chains : ["fuji"],
+      };
+    });
+}
+
+/**
+ * Refuse a chain the template does not list. Without this, asking for C-Chain
+ * with a template built for Fuji produced an app that could never work: its
+ * Deploy button always refused (no mainnet confirmation is wired), and
+ * `eerc-token` pointed a Fuji-only contract address at mainnet.
+ */
+export function assertChainSupported(
+  template: Pick<TemplateInfo, "id" | "chains">,
+  chain: string,
+): asserts chain is ChainId {
+  if (!(template.chains as readonly string[]).includes(chain)) {
+    throw new Error(
+      `Template "${template.id}" cannot be scaffolded for chain "${chain}". ` +
+        `It supports: ${template.chains.join(", ")}.`,
+    );
+  }
+}
+
 export interface ScaffoldAppOptions {
   projectName: string;
   /** Absolute target directory. */
   targetDir: string;
   template: string;
+  /** Default "fuji". Must be one of the template's `chains`, or scaffolding is refused. */
   chain?: ChainId;
   /** Link @avakit/* via workspace instead of npm versions (repo dev only). */
   local?: boolean;
@@ -124,20 +163,25 @@ export function assertSafeProjectName(name: string): void {
 }
 
 export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldAppResult> {
+  // Everything is checked before the first file is written.
   assertSafeProjectName(opts.projectName);
-  const templateDir = path.join(templatesDir, opts.template);
-  if (!existsSync(templateDir)) {
+  // Matched against the template list rather than joined into a path, so a
+  // value such as "../dist" can never select a directory outside templates/.
+  const templates = listTemplates();
+  const template = templates.find((t) => t.id === opts.template);
+  if (!template) {
     throw new Error(
-      `Unknown template "${opts.template}". Available: ${listTemplates()
-        .map((t) => t.id)
-        .join(", ")}`,
+      `Unknown template "${opts.template}". Available: ${templates.map((t) => t.id).join(", ")}`,
     );
   }
+  const chain: string = opts.chain ?? "fuji";
+  assertChainSupported(template, chain);
+  const templateDir = path.join(templatesDir, template.id);
 
   const local = opts.local ?? false;
   const replacements: Record<string, string> = {
     __PROJECT_NAME__: opts.projectName,
-    __CHAIN_CONST__: opts.chain === "c-chain" ? "cChain" : "fuji",
+    __CHAIN_CONST__: CHAIN_CONST[chain],
     __AVAKIT_CORE_DEP__: local ? "workspace:*" : `^${AVAKIT_CORE_VERSION}`,
     __AVAKIT_REACT_DEP__: local ? "workspace:*" : `^${AVAKIT_REACT_VERSION}`,
   };

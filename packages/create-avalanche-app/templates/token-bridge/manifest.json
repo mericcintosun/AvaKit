@@ -3,5 +3,6 @@
   "title": "Cross-chain token bridge (ICTT)",
   "description": "Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer, over a one-command local devnet",
   "contracts": false,
-  "setup": "bridge"
+  "setup": "bridge",
+  "chains": ["fuji"]
 }

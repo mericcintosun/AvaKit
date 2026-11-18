@@ -10,7 +10,14 @@
  * valid values.
  */
 
-import { assertSafeProjectName, CHAIN_IDS, type ChainId, isChainId } from "./api.js";
+import {
+  assertChainSupported,
+  assertSafeProjectName,
+  CHAIN_IDS,
+  type ChainId,
+  isChainId,
+  type TemplateInfo,
+} from "./api.js";
 import { isPackageManager, PACKAGE_MANAGERS, type PackageManager } from "./pm.js";
 
 /** The invocation itself is wrong (bad flag or value). Reported with exit code 1. */
@@ -70,13 +77,18 @@ function list(values: readonly string[]): string {
 
 /**
  * @param args The arguments after the node binary and the script path.
- * @param templateIds The templates that exist, to check `--template` against.
+ * @param templates The templates that exist, to check `--template` and its
+ *   combination with `--chain` against.
  */
-export function parseArgs(args: readonly string[], templateIds: readonly string[]): ParsedArgs {
+export function parseArgs(
+  args: readonly string[],
+  templates: readonly Pick<TemplateInfo, "id" | "chains">[],
+): ParsedArgs {
   // Asking for help or the version always works, even next to a mistyped flag.
   if (args.includes("--help") || args.includes("-h")) return { command: "help" };
   if (args.includes("--version") || args.includes("-v")) return { command: "version" };
 
+  const templateIds = templates.map((t) => t.id);
   const valid: Record<Exclude<ValueFlag, "wallet">, readonly string[]> = {
     template: templateIds,
     chain: CHAIN_IDS,
@@ -158,6 +170,22 @@ export function parseArgs(args: readonly string[], templateIds: readonly string[
       );
     }
     opts.pm = values.pm;
+  }
+
+  // Each value is fine on its own; now the pair. A template only runs on the
+  // chains its manifest lists, and most are Fuji-only.
+  const { chain } = opts;
+  if (chain !== undefined) {
+    const template = templates.find((t) => t.id === opts.template);
+    if (template) {
+      try {
+        assertChainSupported(template, chain);
+      } catch (error) {
+        throw new UsageError(error instanceof Error ? error.message : String(error));
+      }
+    } else if (!templates.some((t) => t.chains.includes(chain))) {
+      throw new UsageError(`No template can be scaffolded for chain "${chain}".`);
+    }
   }
 
   return { command: "create", options: opts };

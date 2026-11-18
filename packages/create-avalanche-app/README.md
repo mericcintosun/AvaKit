@@ -43,12 +43,46 @@ Every generated app ships **shadcn/ui** (neutral/grayscale with dark/light from 
 
 The `icm-messenger`, `l1-launch`, and `token-bridge` templates run a local devnet via `avalanche-cli`, so they need a Unix-like shell (macOS, Linux, or **WSL2** on Windows). The other five are pure Fuji and work on native Windows too.
 
+## Networks
+
+`--chain` (the "Network" step in the wizard) picks the chain the generated app is wired to. Each
+template lists the chains it supports in its `manifest.json`:
+
+| Template | `fuji` (default) | `c-chain` (mainnet) |
+| --- | :---: | :---: |
+| `minimal` | yes | yes |
+| `nft-mint` | yes | no |
+| `token-gated-app` | yes | no |
+| `erc20-token` | yes | no |
+| `eerc-token` | yes | no |
+| `icm-messenger` | yes — runs on a local devnet | no |
+| `l1-launch` | yes — runs on a local devnet | no |
+| `token-bridge` | yes — runs on a local devnet | no |
+
+Asking for a chain a template does not list is refused — by the CLI, by the wizard (which only
+offers the supported networks), and by the programmatic API that `@avakit/mcp`'s `scaffold_app`
+uses — with a message naming the chains the template does support. A template whose manifest has
+no `chains` entry is Fuji-only.
+
+AvaKit is testnet-first, so mainnet is something you opt into deliberately:
+
+- `minimal` is the only template that can be scaffolded straight onto C-Chain.
+- The templates that deploy a contract from the browser (`nft-mint`, `token-gated-app`,
+  `erc20-token`) are Fuji-only because a mainnet deploy needs an explicit confirmation that the
+  generated apps do not ask for. Build and test on Fuji; to go to mainnet, change the chain in
+  `app/providers.tsx` and pass `{ confirmMainnet: true }` as the third argument of `deploy()` once
+  you have added your own confirmation step.
+- `eerc-token` talks to an Encrypted ERC instance that exists on Fuji only.
+- `icm-messenger`, `l1-launch`, and `token-bridge` run against the local devnet their setup script
+  starts and never read `--chain`; the default (`fuji`) is the only value they accept.
+
 ## Options
 
 ```
 -t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |
                         icm-messenger | eerc-token | l1-launch | token-bridge
 -c, --chain <id>        fuji | c-chain           (default: fuji)
+                        c-chain (mainnet) only with: minimal
     --pm <manager>      pnpm | npm | yarn | bun
                         (default: the one you ran this with, else npm)
 -y, --yes               skip prompts (non-interactive)
@@ -56,6 +90,10 @@ The `icm-messenger`, `l1-launch`, and `token-bridge` templates run a local devne
     --no-telemetry      opt out of anonymous usage counting (persisted)
     --telemetry         opt back in (persisted)
 ```
+
+Anything the CLI does not recognise — a mistyped flag, an unknown template, chain or package
+manager, an unsafe project name — is an error that lists the valid values and exits with status 1.
+It is never replaced with a default.
 
 ## Telemetry
 

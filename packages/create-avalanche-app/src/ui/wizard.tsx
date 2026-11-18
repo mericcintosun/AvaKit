@@ -2,7 +2,19 @@ import { ConfirmInput, Select, Spinner, TextInput, ThemeProvider } from "@inkjs/
 import { Box, type RenderOptions, render, Text, useApp } from "ink";
 import { useEffect, useMemo, useState } from "react";
 import type { PackageManager } from "../pm.js";
+import {
+  type Answers,
+  chainLabel,
+  optionsFor,
+  restrictionNote,
+  STEP_ORDER,
+  type StepContext,
+  type StepKey,
+  type TemplateInfo,
+} from "./steps.js";
 import { C, crimsonAt, uiTheme } from "./theme.js";
+
+export type { Answers, TemplateInfo } from "./steps.js";
 
 // ── The shared AvaKit logo ────────────────────────────────────────────────
 const MOUNTAIN = [
@@ -22,27 +34,14 @@ const WORDMARK = [
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────
-export type Answers = {
-  projectName: string;
-  template: string;
-  chain: string;
-  pm: string;
-};
-export type TemplateInfo = { id: string; title: string; description: string };
-
 /** A command to optionally run for the user once scaffolding finishes. */
 export type StartCommand = { pm: PackageManager; args: string[]; cwd: string; label: string };
 
 /** How the dependency install went; `reason` and `output` explain a failure. */
 export type InstallOutcome = { ok: boolean; reason: string; output: string };
 
-export type WizardProps = {
+export type WizardProps = StepContext & {
   version: string;
-  templates: TemplateInfo[];
-  /** The package managers to offer, in display order (the first is the default). */
-  packageManagers: string[];
-  /** The manager the CLI was launched with, if known — labelled in the list. */
-  detectedPackageManager: string | null;
   presets: Partial<Answers>;
   /**
    * Why a typed project name cannot be used, or null when it can. The same rule
@@ -73,8 +72,6 @@ type AppProps = WizardProps & {
   onFinish: (result: WizardResult) => void;
 };
 
-type StepKey = keyof Answers;
-const STEP_ORDER: StepKey[] = ["projectName", "template", "chain", "pm"];
 const LABELS: Record<StepKey, string> = {
   projectName: "Project name",
   template: "Template",
@@ -122,27 +119,8 @@ function Panel({ children }: { children: React.ReactNode }) {
 
 function displayValue(templates: TemplateInfo[], key: StepKey, value: string): string {
   if (key === "template") return templates.find((t) => t.id === value)?.title ?? value;
-  if (key === "chain") return value === "c-chain" ? "C-Chain (mainnet)" : "Fuji testnet";
+  if (key === "chain") return chainLabel(value);
   return value;
-}
-
-function optionsFor(key: StepKey, props: WizardProps): { label: string; value: string }[] {
-  switch (key) {
-    case "template":
-      return props.templates.map((t) => ({ label: t.title, value: t.id }));
-    case "chain":
-      return [
-        { label: "Fuji testnet  ·  recommended", value: "fuji" },
-        { label: "C-Chain (mainnet)", value: "c-chain" },
-      ];
-    case "pm":
-      return props.packageManagers.map((m) => ({
-        label: m === props.detectedPackageManager ? `${m}  ·  detected` : m,
-        value: m,
-      }));
-    default:
-      return [];
-  }
 }
 
 // ── The wizard ──────────────────────────────────────────────────────────────
@@ -225,6 +203,8 @@ function App(props: AppProps) {
   }
 
   const answered = STEP_ORDER.filter((k) => k !== currentKey && answers[k] != null);
+  // Says why a list is shorter than usual, e.g. a Fuji-only template's networks.
+  const restriction = currentKey ? restrictionNote(currentKey, answers, props) : null;
 
   return (
     <ThemeProvider theme={uiTheme}>
@@ -277,7 +257,10 @@ function App(props: AppProps) {
                     }}
                   />
                 ) : (
-                  <Select options={optionsFor(currentKey, props)} onChange={(v) => submit(v)} />
+                  <Select
+                    options={optionsFor(currentKey, answers, props)}
+                    onChange={(v) => submit(v)}
+                  />
                 )}
               </Box>
               {nameError && currentKey === "projectName" ? (
@@ -289,6 +272,7 @@ function App(props: AppProps) {
                     : HINT}
                 </Text>
               )}
+              {restriction ? <Text color={C.dim}>{restriction}</Text> : null}
             </Box>
           </Panel>
         ) : null}

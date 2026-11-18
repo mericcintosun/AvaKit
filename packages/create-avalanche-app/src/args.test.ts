@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { type CliOptions, parseArgs, UsageError } from "./args.js";
 
-const TEMPLATES = ["minimal", "nft-mint", "icm-messenger"];
+const TEMPLATES = [
+  { id: "minimal", chains: ["fuji" as const, "c-chain" as const] },
+  { id: "nft-mint", chains: ["fuji" as const] },
+  { id: "icm-messenger", chains: ["fuji" as const] },
+];
 
 function options(...args: string[]): CliOptions {
   const parsed = parseArgs(args, TEMPLATES);
@@ -29,7 +33,7 @@ describe("parseArgs", () => {
       options(
         "my-app",
         "-t",
-        "nft-mint",
+        "minimal",
         "-c",
         "c-chain",
         "--pm",
@@ -41,7 +45,7 @@ describe("parseArgs", () => {
       ),
     ).toEqual({
       projectName: "my-app",
-      template: "nft-mint",
+      template: "minimal",
       chain: "c-chain",
       pm: "yarn",
       yes: true,
@@ -107,6 +111,34 @@ describe("parseArgs", () => {
       'Unknown chain "mainnet". Valid chains: fuji, c-chain.',
     );
     expect(usageError("-c", "C-Chain")).toContain("Valid chains: fuji, c-chain.");
+  });
+
+  it("rejects a chain the chosen template does not support, naming the ones it does", () => {
+    expect(usageError("--template", "nft-mint", "--chain", "c-chain")).toBe(
+      'Template "nft-mint" cannot be scaffolded for chain "c-chain". It supports: fuji.',
+    );
+    // The order of the flags does not matter.
+    expect(usageError("-c", "c-chain", "-t", "icm-messenger")).toContain("It supports: fuji.");
+  });
+
+  it("accepts every template with the chains it lists", () => {
+    expect(options("-t", "minimal", "-c", "c-chain")).toMatchObject({
+      template: "minimal",
+      chain: "c-chain",
+    });
+    for (const template of ["minimal", "nft-mint", "icm-messenger"]) {
+      expect(options("-t", template, "-c", "fuji")).toMatchObject({ template, chain: "fuji" });
+      expect(options("-t", template).chain).toBeUndefined();
+    }
+    // A chain alone is fine as long as some template runs on it.
+    expect(options("-c", "c-chain")).toMatchObject({ chain: "c-chain" });
+  });
+
+  it("rejects a chain that no template supports", () => {
+    const fujiOnly = [{ id: "nft-mint", chains: ["fuji" as const] }];
+    expect(() => parseArgs(["--chain", "c-chain"], fujiOnly)).toThrow(
+      'No template can be scaffolded for chain "c-chain".',
+    );
   });
 
   it("rejects an unknown package manager and lists the valid ones", () => {

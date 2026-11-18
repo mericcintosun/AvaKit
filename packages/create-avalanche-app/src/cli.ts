@@ -8,7 +8,14 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
-import { assertSafeProjectName, type ChainId, listTemplates, scaffoldApp } from "./api.js";
+import {
+  assertChainSupported,
+  assertSafeProjectName,
+  type ChainId,
+  listTemplates,
+  scaffoldApp,
+  type TemplateInfo,
+} from "./api.js";
 import { type CliOptions, parseArgs, UsageError } from "./args.js";
 import { banner, bannerColor } from "./banner.js";
 import {
@@ -48,7 +55,12 @@ export interface CliContext {
   platform: NodeJS.Platform;
 }
 
-function helpText(): string {
+function helpText(templates: readonly TemplateInfo[]): string {
+  // From the manifests, so the help cannot drift from what is actually allowed.
+  const mainnetTemplates = templates
+    .filter((t) => t.chains.includes("c-chain"))
+    .map((t) => t.id)
+    .join(", ");
   return [
     "create-avalanche-app — scaffold a batteries-included Avalanche dapp",
     "",
@@ -58,6 +70,7 @@ function helpText(): string {
     "  -t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |",
     "                          icm-messenger | eerc-token | l1-launch | token-bridge",
     "  -c, --chain <id>        fuji | c-chain        (default: fuji)",
+    `                          c-chain (mainnet) only with: ${mainnetTemplates || "no template"}`,
     `      --pm <manager>      ${PACKAGE_MANAGERS.join(" | ")}`,
     "                          (default: the one you ran this with, else npm)",
     "  -y, --yes               skip prompts (non-interactive)",
@@ -97,14 +110,26 @@ const TEMPLATE_ORDER = [
  */
 function resolveDefaults(
   opts: CliOptions,
+  templates: readonly TemplateInfo[],
   detectedPm: PackageManager | null,
 ): { projectName: string; template: string; chain: ChainId; pm: PackageManager } {
-  return {
+  const resolved = {
     projectName: opts.projectName ?? "my-avax-app",
     template: opts.template ?? "minimal",
     chain: opts.chain ?? "fuji",
     pm: opts.pm ?? detectedPm ?? DEFAULT_PACKAGE_MANAGER,
   };
+  // The defaults complete the selection, so the pair is checked once more: a
+  // default must never be how an unsupported template-and-chain gets through.
+  const template = templates.find((t) => t.id === resolved.template);
+  if (template) {
+    try {
+      assertChainSupported(template, resolved.chain);
+    } catch (error) {
+      throw new UsageError(error instanceof Error ? error.message : String(error));
+    }
+  }
+  return resolved;
 }
 
 /**
@@ -169,12 +194,9 @@ async function main(ctx: CliContext): Promise<number> {
   const templates = listTemplates().sort(
     (a, b) => TEMPLATE_ORDER.indexOf(a.id) - TEMPLATE_ORDER.indexOf(b.id),
   );
-  const parsed = parseArgs(
-    ctx.argv,
-    templates.map((t) => t.id),
-  );
+  const parsed = parseArgs(ctx.argv, templates);
   if (parsed.command === "help") {
-    ctx.stdout.write(helpText());
+    ctx.stdout.write(helpText(templates));
     return 0;
   }
   if (parsed.command === "version") {
@@ -188,19 +210,22 @@ async function main(ctx: CliContext): Promise<number> {
   const detectedPm = detectPackageManager(ctx.env.npm_config_user_agent);
   const runOptions = { env: ctx.env, platform: ctx.platform };
 
+  // The rich Ink UI needs a real terminal; anything else (CI, pipes, --yes) gets
+  // a plain, scriptable run.
+  const interactive = !opts.yes && ctx.stdinIsTTY;
+  // Resolved before anything is printed or recorded, so a selection that cannot
+  // be scaffolded fails as a plain usage error.
+  const defaults = interactive ? null : resolveDefaults(opts, templates, detectedPm);
+
   const telemetry = new Telemetry({
     cliVersion: VERSION,
     ...(opts.telemetry != null ? { flag: opts.telemetry } : {}),
   });
 
-  // The rich Ink UI needs a real terminal; anything else (CI, pipes, --yes) gets
-  // a plain, scriptable run.
-  const interactive = !opts.yes && ctx.stdinIsTTY;
-
-  if (!interactive) {
+  if (defaults) {
     ctx.stdout.write(banner(bannerColor(ctx.stdout)));
     printFirstRunNotice(telemetry, ctx.stdout);
-    const r = resolveDefaults(opts, detectedPm);
+    const r = defaults;
     const targetDir = path.resolve(cwd, r.projectName);
     const choices = { template: r.template, chain: r.chain, pm: r.pm };
     if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
@@ -273,7 +298,12 @@ async function main(ctx: CliContext): Promise<number> {
   let installFailed = false;
   const result = await runWizard({
     version: VERSION,
-    templates: templates.map((t) => ({ id: t.id, title: t.title, description: t.description })),
+    templates: templates.map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      chains: t.chains,
+    })),
     // First in the list is what a bare Enter picks.
     packageManagers: [preferredPm, ...PACKAGE_MANAGERS.filter((m) => m !== preferredPm)],
     detectedPackageManager: detectedPm,

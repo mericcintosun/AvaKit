@@ -7,8 +7,8 @@ import { fakeTerminal, KEY } from "../testing/fake-terminal.js";
 import { type InstallOutcome, runWizard, type StartCommand, type WizardProps } from "./wizard.js";
 
 const TEMPLATES = [
-  { id: "minimal", title: "Minimal", description: "" },
-  { id: "nft-mint", title: "NFT mint", description: "" },
+  { id: "minimal", title: "Minimal", description: "", chains: ["fuji", "c-chain"] },
+  { id: "nft-mint", title: "NFT mint", description: "", chains: ["fuji"] },
 ];
 
 const DEV: StartCommand = {
@@ -172,6 +172,89 @@ describe("wizard package manager step", () => {
     expect(term.frame()).toMatch(/Package manager\s+yarn/);
     term.press("n");
     await expect(done).resolves.toEqual({ outcome: "cancelled", start: null });
+  });
+});
+
+describe("wizard network step", () => {
+  /** Run the wizard up to the review screen and return the scaffold's answers. */
+  async function chooseTemplate(keys: string[]) {
+    const scaffold = vi.fn(async () => ({ created: 12 }));
+    const term = fakeTerminal();
+    const done = runWizard(
+      props({ presets: { projectName: "app", pm: "pnpm" }, scaffold, install: null }),
+      term.renderOptions,
+    );
+    await term.waitFor("Template");
+    for (const key of keys) term.press(key);
+    await term.waitFor("Network");
+    return { term, done, scaffold };
+  }
+
+  it("offers only Fuji for a Fuji-only template, and says why", async () => {
+    const { term, done, scaffold } = await chooseTemplate([KEY.down, KEY.enter]);
+    await term.waitFor("NFT mint runs on Fuji testnet only.");
+    // Mainnet used to be listed here for every template.
+    expect(term.frame()).not.toContain("C-Chain (mainnet)");
+
+    term.press(KEY.enter);
+    await term.waitFor("Create the app now?");
+    expect(term.frame()).toMatch(/Network\s+Fuji testnet/);
+    term.press("y");
+    await done;
+    expect(scaffold).toHaveBeenCalledWith({
+      projectName: "app",
+      template: "nft-mint",
+      chain: "fuji",
+      pm: "pnpm",
+    });
+  });
+
+  it("offers both networks for a template that supports mainnet", async () => {
+    const { term, done, scaffold } = await chooseTemplate([KEY.enter]);
+    await term.waitFor("C-Chain (mainnet)");
+    expect(term.frame()).toContain("Fuji testnet  ·  recommended");
+    expect(term.frame()).not.toContain("only.");
+
+    term.press(KEY.down);
+    await term.waitFor("❯ C-Chain (mainnet)");
+    term.press(KEY.enter);
+    await term.waitFor("Create the app now?");
+    expect(term.frame()).toMatch(/Network\s+C-Chain \(mainnet\)/);
+    term.press("y");
+    await done;
+    expect(scaffold).toHaveBeenCalledWith({
+      projectName: "app",
+      template: "minimal",
+      chain: "c-chain",
+      pm: "pnpm",
+    });
+  });
+
+  it("lists only the templates that run on a network given up front", async () => {
+    const scaffold = vi.fn(async () => ({ created: 12 }));
+    const term = fakeTerminal();
+    const done = runWizard(
+      props({
+        presets: { projectName: "app", chain: "c-chain", pm: "pnpm" },
+        scaffold,
+        install: null,
+      }),
+      term.renderOptions,
+    );
+    await term.waitFor("Only the templates that run on C-Chain (mainnet) are listed.");
+    expect(term.frame()).toContain("Minimal");
+    expect(term.frame()).not.toContain("NFT mint");
+
+    term.press(KEY.enter);
+    await term.waitFor("Create the app now?");
+    term.press("y");
+    await done;
+    expect(scaffold).toHaveBeenCalledWith({
+      projectName: "app",
+      template: "minimal",
+      chain: "c-chain",
+      pm: "pnpm",
+    });
   });
 });
 
