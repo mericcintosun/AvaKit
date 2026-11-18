@@ -18,7 +18,6 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
 import {
   type AvaChain,
   cChain,
@@ -30,7 +29,7 @@ import {
   toViemChain,
 } from "@avakit/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { assertSafeProjectName, listTemplates, scaffoldApp } from "create-avalanche-app/api";
+import { listTemplates, scaffoldApp } from "create-avalanche-app/api";
 import { type Abi, type Address, createWalletClient, type Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { z } from "zod";
@@ -41,6 +40,7 @@ import {
   MAX_ABI_ITEMS,
   MAX_ARGS,
   MAX_BYTECODE_LEN,
+  resolveScaffoldTarget,
 } from "./guards.js";
 
 function chainFrom(id: string | undefined): AvaChain {
@@ -86,7 +86,7 @@ server.registerTool(
   {
     title: "Scaffold an Avalanche dapp",
     description:
-      "Create a new Avalanche dapp from a template (minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge). Wraps create-avalanche-app. Returns the created files and next steps.",
+      "Create a new Avalanche dapp from a template (minimal, nft-mint, token-gated-app, erc20-token, icm-messenger, eerc-token, l1-launch, token-bridge). Wraps create-avalanche-app. Returns the created files and next steps. Each template supports only the chains list_templates shows for it — most are Fuji-only — and any other chain is refused. The project is created inside the server's working directory (or AVAKIT_MCP_ROOT, when the server was started with it); a directory outside it is refused.",
     inputSchema: z
       .object({
         name: z.string().describe("Project directory name, e.g. my-avax-app"),
@@ -102,33 +102,49 @@ server.registerTool(
             "token-bridge",
           ])
           .default("minimal"),
-        chain: z.enum(["fuji", "c-chain"]).default("fuji"),
-        directory: z.string().optional().describe("Parent directory (default: cwd)"),
+        chain: z
+          .enum(["fuji", "c-chain"])
+          .default("fuji")
+          .describe(
+            "Must be one of the template's chains (see list_templates). c-chain is mainnet.",
+          ),
+        directory: z
+          .string()
+          .optional()
+          .describe(
+            "Parent directory for the project. Must be inside the server's working directory, which is also the default.",
+          ),
         local: z.boolean().optional().describe("Link @avakit/* via workspace (repo dev only)"),
       })
       .strict(),
   },
   async ({ name, template, chain, directory, local }) => {
-    // Validate before deriving any path: `name` becomes a directory and is
-    // resolved into targetDir, so a traversal/absolute value must be rejected
-    // up front (an AI agent may pass whatever a prompt told it to).
+    // Validate before touching the filesystem — an AI agent may pass whatever a
+    // prompt told it to. `name` must be a single safe path segment and the
+    // target must stay inside the directory this server creates projects in.
+    let targetDir: string;
     try {
-      assertSafeProjectName(name);
+      targetDir = resolveScaffoldTarget(name, directory);
     } catch (e) {
       return text(e instanceof Error ? e.message : String(e), true);
     }
-    const parent = directory ? path.resolve(directory) : process.cwd();
-    const targetDir = path.resolve(parent, name);
     if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
       return text(`Directory "${targetDir}" already exists and is not empty.`, true);
     }
-    const { files } = await scaffoldApp({
-      projectName: name,
-      targetDir,
-      template,
-      chain,
-      local,
-    });
+    let files: string[];
+    try {
+      ({ files } = await scaffoldApp({
+        projectName: name,
+        targetDir,
+        template,
+        chain,
+        local,
+      }));
+    } catch (e) {
+      // Above all a chain the template does not list: scaffoldApp refuses it,
+      // before writing anything, with a message that names the supported ones.
+      return text(e instanceof Error ? e.message : String(e), true);
+    }
     const setup = listTemplates().find((t) => t.id === template)?.setup;
     const nextSteps = [
       `cd ${name}`,
