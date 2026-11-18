@@ -36,7 +36,14 @@ pnpm --filter @avakit/react test
 pnpm --filter @avakit/web dev      # run the avakit.dev site locally
 ```
 
-Before opening a PR, make sure `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` all pass — that is exactly what CI runs (`.github/workflows/ci.yml`).
+Before opening a PR, make sure `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` all pass. That is the main CI job (`.github/workflows/ci.yml`). CI also runs:
+
+- the [template smoke test](#template-smoke-test) for all eight templates;
+- the [contract tests and the artifact check](#contracts-and-bytecode-artifacts);
+- the tests of the two Workers under `services/`, which are standalone npm projects outside the pnpm workspace: `cd services/faucet && npm ci && npm test` (likewise `services/telemetry`; Node 22.15 or newer);
+- the checks on the repo's own scripts: `node --test scripts/*.test.mjs` and `node scripts/check-template-deps.mjs`.
+
+`pnpm typecheck` builds the website before it type-checks it. `tsc` reads `.next/types`, which `next build` deletes and rewrites, so `apps/web/turbo.json` orders the two instead of letting them race.
 
 ## Repository layout
 
@@ -50,11 +57,15 @@ packages/
 apps/
   web/                  @avakit/web — the avakit.dev site (private, not published)
 examples/               live demo dapps (private)
+services/               faucet + telemetry Cloudflare Workers (standalone npm projects, not in the workspace)
+contracts-ci/           Foundry harness: contract tests + artifact check (repo-only)
 docs/                   planning, PRD, architecture, ADRs, specs, security review
-scripts/                repo scripts (e.g. template smoke test)
+scripts/                repo scripts (template smoke test, template dependency check)
 ```
 
 Templates live in `packages/create-avalanche-app/templates/`. Keep the dependency direction one-way: **core ← react ← cli ← mcp**. No circular dependencies, and never import React into `@avakit/core`.
+
+The templates are standalone apps, not workspace members, and Dependabot does not update them. When you bump a dependency in one template, bump it in every template that uses it, in the same commit: `node scripts/check-template-deps.mjs` (run in CI) fails when two templates pin different versions of a dependency they share.
 
 ## Template smoke test
 
