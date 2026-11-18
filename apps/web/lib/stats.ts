@@ -59,17 +59,39 @@ export interface Stats {
   telemetry: TelemetryStats | null;
 }
 
-async function getJson<T>(url: string, revalidate: number): Promise<T | null> {
+/**
+ * How long one source may take. A source that accepts the connection and then
+ * stalls has to count as down: /stats is prerendered, so an unbounded wait here
+ * would hold `next build` until the static-generation timeout fails the deploy.
+ */
+const FETCH_TIMEOUT_MS = 5000;
+
+/** The parsed body, or null for anything that isn't a timely 2xx JSON response. */
+async function getJson(url: string, revalidate: number): Promise<unknown> {
   try {
     const response = await fetch(url, {
       headers: { accept: "application/json" },
       next: { revalidate },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) return null;
-    return (await response.json()) as T;
+    return await response.json();
   } catch {
     return null;
   }
+}
+
+// A 200 is not proof of the right payload: a mistyped URL can answer with some
+// other JSON, and the page would then print `undefined` as a number or throw on
+// it. So every source is checked field by field before it counts as an answer.
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** A count: a finite, non-negative number. */
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 async function getNpm(): Promise<NpmStats | null> {
@@ -77,11 +99,11 @@ async function getNpm(): Promise<NpmStats | null> {
   // packages, and four of ours are scoped. Five requests, cached for an hour.
   const results = await Promise.all(
     NPM_PACKAGES.map(async (name): Promise<{ name: string; downloads: number } | null> => {
-      const data = await getJson<{ downloads: number }>(
+      const data = await getJson(
         `https://api.npmjs.org/downloads/point/last-month/${name}`,
         SLOW_REVALIDATE,
       );
-      return data ? { name, downloads: data.downloads } : null;
+      return isRecord(data) && isCount(data.downloads) ? { name, downloads: data.downloads } : null;
     }),
   );
   const byPackage = results.filter((r) => r !== null);
@@ -93,12 +115,42 @@ async function getNpm(): Promise<NpmStats | null> {
 }
 
 async function getGithub(): Promise<GithubStats | null> {
-  const data = await getJson<{ stargazers_count: number; forks_count: number }>(
-    `https://api.github.com/repos/${GITHUB_REPO}`,
-    SLOW_REVALIDATE,
-  );
-  if (!data) return null;
+  const data = await getJson(`https://api.github.com/repos/${GITHUB_REPO}`, SLOW_REVALIDATE);
+  if (!isRecord(data) || !isCount(data.stargazers_count) || !isCount(data.forks_count)) {
+    return null;
+  }
   return { stars: data.stargazers_count, forks: data.forks_count };
+}
+
+/** The collector's /stats body, or null if it is anything else. */
+function parseTelemetry(data: unknown): TelemetryStats | null {
+  if (!isRecord(data) || !isRecord(data.scaffolds)) return null;
+  const { total, succeeded, last30d, byTemplate, byDay } = data.scaffolds;
+  const { installs, firstDay, updatedAt } = data;
+  if (!isCount(total) || !isCount(succeeded) || !isCount(last30d) || !isCount(installs)) {
+    return null;
+  }
+  if (!isRecord(byTemplate) || !Object.values(byTemplate).every(isCount)) return null;
+  if (
+    !Array.isArray(byDay) ||
+    !byDay.every((d) => isRecord(d) && typeof d.day === "string" && isCount(d.n))
+  ) {
+    return null;
+  }
+  if (firstDay !== null && typeof firstDay !== "string") return null;
+  if (typeof updatedAt !== "string" || Number.isNaN(Date.parse(updatedAt))) return null;
+  return {
+    scaffolds: {
+      total,
+      succeeded,
+      last30d,
+      byTemplate: byTemplate as Record<string, number>,
+      byDay: byDay as { day: string; n: number }[],
+    },
+    installs,
+    firstDay,
+    updatedAt,
+  };
 }
 
 async function getTelemetry(): Promise<TelemetryStats | null> {
@@ -107,7 +159,7 @@ async function getTelemetry(): Promise<TelemetryStats | null> {
   // the same as unreachable — the page says so rather than showing zeros.
   const url = process.env.AVAKIT_TELEMETRY_STATS_URL;
   if (!url) return null;
-  return getJson<TelemetryStats>(url, TELEMETRY_REVALIDATE);
+  return parseTelemetry(await getJson(url, TELEMETRY_REVALIDATE));
 }
 
 export async function getStats(): Promise<Stats> {
