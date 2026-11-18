@@ -41,7 +41,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 ## The flow
 
 1. `pnpm devnet` — creates + deploys two L1s locally with ICM + relayer, writes `icm.config.json`.
-2. Import the EWOQ dev key into your wallet (pre-funded on both chains).
+2. Import the EWOQ dev key into your wallet (pre-funded on both chains; `pnpm devnet` prints it).
 3. `pnpm dev`, then in the app: deploy the messenger on chain1 and chain2. The chain's
    TeleporterMessenger address is a constructor argument — the UI passes it from
    `icm.config.json`.
