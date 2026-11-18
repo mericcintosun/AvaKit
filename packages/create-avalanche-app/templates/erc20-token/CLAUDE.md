@@ -8,7 +8,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 ## Architecture
 
-- `contracts/src/AvaKitToken.sol` — a minimal, self-contained ERC-20 (name AKT, 18 decimals) with a public `mint()` demo faucet.
+- `contracts/src/AvaKitToken.sol` — a minimal, self-contained ERC-20 (name "AvaKit Token", symbol `AKT`, 18 decimals) with a public `mint()` demo faucet.
 - `lib/token-artifact.ts` — the compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - `components/demo.tsx` — deploy → mint → transfer.
 - `lib/deployed-contract.ts` — `useDeployedContract(name, chain)`: remembers the token this browser
