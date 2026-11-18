@@ -108,25 +108,32 @@ export function InterchainView() {
     return () => clearTimeout(timer);
   }, [inFlight]);
 
-  const deploy = useCallback(async () => {
-    setBusy("deploy");
-    try {
-      setIcm(await apiPost<IcmState>("/api/icm/deploy"));
-      toast({
-        title: "Messengers deployed",
-        description: "One on each L1, linked to each other. Now send a message.",
-        variant: "success",
-      });
-    } catch (e) {
-      toast({
-        title: "Deploy failed",
-        description: e instanceof Error ? e.message : String(e),
-        variant: "error",
-      });
-    } finally {
-      setBusy(null);
-    }
-  }, [toast]);
+  // Deploys what is missing and links the messengers; with nothing missing
+  // (`linkOnly`) the same call just links them.
+  const deploy = useCallback(
+    async (linkOnly = false) => {
+      setBusy("deploy");
+      try {
+        setIcm(await apiPost<IcmState>("/api/icm/deploy"));
+        toast({
+          title: linkOnly ? "Messengers linked" : "Messengers deployed",
+          description: linkOnly
+            ? "They accept each other's messages now. Send one."
+            : "One on each L1, linked to each other. Now send a message.",
+          variant: "success",
+        });
+      } catch (e) {
+        toast({
+          title: linkOnly ? "Linking failed" : "Deploy failed",
+          description: e instanceof Error ? e.message : String(e),
+          variant: "error",
+        });
+      } finally {
+        setBusy(null);
+      }
+    },
+    [toast],
+  );
 
   const send = useCallback(async () => {
     if (!from || !to) return;
@@ -164,7 +171,9 @@ export function InterchainView() {
     );
   }
 
-  if (!icm.ready) {
+  // `hasPeers`, not `ready`: two running L1s are enough to deploy messengers
+  // here; `ready` only holds once they are deployed and linked.
+  if (!icm.hasPeers) {
     return (
       <Card className="p-5">
         <p className="text-sm font-medium">No running devnet</p>
@@ -207,8 +216,34 @@ export function InterchainView() {
               that an older Studio deployed, is replaced.
             </p>
           </div>
-          <Button size="sm" disabled={busy !== null} onClick={deploy} className="self-start">
+          <Button
+            size="sm"
+            disabled={busy !== null}
+            onClick={() => void deploy()}
+            className="self-start"
+          >
             {busy === "deploy" ? "Deploying…" : deployLabel}
+          </Button>
+        </Card>
+      )}
+
+      {missing.length === 0 && !icm.ready && (
+        <Card className="flex flex-col gap-3 p-5">
+          <div>
+            <p className="text-sm font-medium">Link the messengers</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Every L1 has a messenger, but no two of them accept each other's messages yet. A send
+              links the one direction it needs by itself; linking them here does it for every pair,
+              both ways.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            disabled={busy !== null}
+            onClick={() => void deploy(true)}
+            className="self-start"
+          >
+            {busy === "deploy" ? "Linking…" : "Link messengers"}
           </Button>
         </Card>
       )}

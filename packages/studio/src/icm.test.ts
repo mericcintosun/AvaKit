@@ -113,7 +113,9 @@ describe("getIcmState", () => {
 
     const state = await getIcmState();
     expect(state.chains.map((c) => c.name)).toEqual(["chain1", "chain2"]);
-    expect(state.ready).toBe(true);
+    // Two L1s to work with — but no messenger yet, so nothing can be sent.
+    expect(state.hasPeers).toBe(true);
+    expect(state.ready).toBe(false);
     expect(state.maxMessageBytes).toBe(MAX_MESSAGE_BYTES);
     expect(state.chains[0]).toEqual({
       name: "chain1",
@@ -132,7 +134,67 @@ describe("getIcmState", () => {
     sandbox.addL1("myfujil1", { fuji: { rpcUrl: rpc.url("myfujil1"), blockchainId: id3.cb58 } });
     const state = await getIcmState();
     expect(state.ready).toBe(false);
+    expect(state.hasPeers).toBe(false);
     expect(state.chains.map((c) => c.name)).toEqual(["chain1"]);
+  });
+
+  it("is not ready while no messenger is deployed, however many L1s are running", async () => {
+    // What the release gate ran: three running chains, no icm-state.json.
+    // `ready` was true, and the very next send answered "deploy the messengers first".
+    twoChains();
+    sandbox.addL1("chain3", { local: { rpcUrl: rpc.url("chain3"), blockchainId: id3.cb58 } });
+    sandbox.fakeCast();
+    const state = await getIcmState();
+    expect(state.chains.map((c) => c.messenger)).toEqual([null, null, null]);
+    expect(state.hasPeers).toBe(true);
+    expect(state.ready).toBe(false);
+    await expect(sendIcmMessage("chain1", "chain2", "gm")).rejects.toThrow(
+      "deploy the messengers first",
+    );
+  });
+
+  it("is ready once two messengers are deployed and linked to each other", async () => {
+    twoChains();
+    rpc.setCode("chain1", SHARED);
+    rpc.setCode("chain2", SHARED);
+    sandbox.fakeCast({ deploy: { chain1: SHARED, chain2: SHARED } });
+    expect((await getIcmState()).ready).toBe(false);
+
+    expect((await deployMessengers()).ready).toBe(true);
+    expect((await getIcmState()).ready).toBe(true);
+
+    // A third L1 without a messenger changes nothing for the two that have one.
+    sandbox.addL1("chain3", { local: { rpcUrl: rpc.url("chain3"), blockchainId: id3.cb58 } });
+    const three = await getIcmState();
+    expect(three.chains.map((c) => c.messenger)).toEqual([SHARED, SHARED, null]);
+    expect(three.ready).toBe(true);
+  });
+
+  it("is not ready while the messengers are not linked in both directions", async () => {
+    // Recorded and live, but neither accepts the other's messages yet.
+    deployed();
+    sandbox.fakeCast();
+    expect((await getIcmState()).ready).toBe(false);
+
+    // A send links the one direction it needs (chain2 accepts chain1) …
+    await sendIcmMessage("chain1", "chain2", "gm");
+    expect((await getIcmState()).ready).toBe(false);
+    // … and one the other way completes the pair.
+    await sendIcmMessage("chain2", "chain1", "gm back");
+    expect((await getIcmState()).ready).toBe(true);
+  });
+
+  it("is not ready when a link cannot be read", async () => {
+    twoChains();
+    rpc.setCode("chain1", SHARED);
+    rpc.setCode("chain2", SHARED);
+    sandbox.fakeCast({ deploy: { chain1: SHARED, chain2: SHARED } });
+    expect((await deployMessengers()).ready).toBe(true);
+
+    sandbox.fakeCast({ trustedRemoteError: "Error: contract call reverted" });
+    const state = await getIcmState();
+    expect(state.chains.map((c) => c.messenger)).toEqual([SHARED, SHARED]);
+    expect(state.ready).toBe(false);
   });
 
   it("reads the last message of a live messenger", async () => {

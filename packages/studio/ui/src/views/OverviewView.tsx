@@ -1,15 +1,19 @@
 import { ArrowLeftRight, Boxes, FolderGit2, Package, Radio, Terminal } from "lucide-react";
-import type { DevnetStatus, Inventory } from "../api";
+import type { DevnetStatus, IcmState, Inventory } from "../api";
 import type { View } from "../components/Sidebar";
 import { StatCard } from "../components/StatCard";
+import { countPeers, interchainCard, interchainStage } from "../lib/interchain";
 
 export function OverviewView({
   env,
   status,
+  icm,
   navigate,
 }: {
   env: Inventory | null;
   status: DevnetStatus | null;
+  /** The server's Interchain state, or null while it is not known. */
+  icm: IcmState | null;
   navigate: (v: View) => void;
 }) {
   const tool = (name: string) => env?.tools.find((t) => t.name === name);
@@ -18,8 +22,8 @@ export function OverviewView({
   const l1s = status?.l1s ?? [];
   const running = status?.running ?? false;
   const runningCount = l1s.filter((l) => l.running).length;
-  // Same rule as the Interchain view: a message needs two running L1s that have Teleporter.
-  const icmReady = l1s.filter((l) => l.running && l.teleporterReady).length >= 2;
+  // "Ready" is the server's word (two linked messengers), never "two L1s are running".
+  const interchain = interchainCard(interchainStage(countPeers(l1s), icm));
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -56,9 +60,9 @@ export function OverviewView({
       <StatCard
         label="Interchain"
         icon={ArrowLeftRight}
-        value={icmReady ? "Ready" : "—"}
-        badge={icmReady ? { text: "live", live: true } : undefined}
-        sub={icmReady ? "send a cross-chain message" : "needs 2 running L1s"}
+        value={interchain.value}
+        badge={interchain.live ? { text: "live", live: true } : undefined}
+        sub={interchain.sub}
         onOpen={() => navigate("interchain")}
       />
       <StatCard

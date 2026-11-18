@@ -41,7 +41,7 @@ const SUCCESS: Record<string, { title: string; description: string }> = {
   "devnet:create-icm": {
     title: "Devnet is ready",
     description:
-      "Two L1s are running with ICM and a relayer. Head to Interchain to send a message.",
+      "Two L1s are running with ICM and a relayer. Head to Interchain to deploy the messengers and send a message.",
   },
   "devnet:create-l1": {
     title: "Your L1 is live",

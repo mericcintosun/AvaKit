@@ -1,12 +1,13 @@
 import { Moon, Sun } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, api, type DevnetStatus, type Inventory } from "./api";
+import { ApiError, api, type DevnetStatus, type IcmState, type Inventory } from "./api";
 import { BootSplash } from "./components/BootSplash";
 import { Sidebar, type View } from "./components/Sidebar";
 import { useToast } from "./components/toast";
 import { Dot } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { useFujiWizard } from "./hooks/useFujiWizard";
+import { countPeers } from "./lib/interchain";
 import { finishNotice, runHome, runLabel } from "./lib/run-messages";
 import { useRunStatus } from "./run";
 import { DataPanel } from "./views/DataView";
@@ -61,6 +62,7 @@ export function App() {
   const toast = useToast();
   const [env, setEnv] = useState<Inventory | null>(null);
   const [status, setStatus] = useState<DevnetStatus | null>(null);
+  const [icm, setIcm] = useState<IcmState | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
   const [staleToken, setStaleToken] = useState(false);
   const [view, setView] = useState<View>("overview");
@@ -93,6 +95,34 @@ export function App() {
     const timer = setInterval(() => void refreshStatus(), 5000);
     return () => clearInterval(timer);
   }, [refreshStatus]);
+
+  // Whether a cross-chain message can be sent is not in the devnet status (it
+  // only knows the L1s): it takes a look at the messengers, which the server
+  // does for /api/icm/state. Asked only while a view shows it, and only when
+  // there are two L1s to send between.
+  const peers = countPeers(status?.l1s ?? []);
+  const showsInterchain = view === "overview" || view === "devnet";
+  useEffect(() => {
+    if (peers < 2) setIcm(null);
+  }, [peers]);
+  useEffect(() => {
+    if (!showsInterchain || peers < 2) return;
+    let active = true;
+    const tick = async () => {
+      try {
+        const state = await api<IcmState>("/api/icm/state");
+        if (active) setIcm(state);
+      } catch {
+        /* keep last */
+      }
+    };
+    void tick();
+    const timer = setInterval(tick, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [showsInterchain, peers]);
 
   // An action ending is announced wherever the user happens to be.
   useEffect(
@@ -173,9 +203,9 @@ export function App() {
               </p>
             )
           ) : view === "overview" ? (
-            <OverviewView env={env} status={status} navigate={setView} />
+            <OverviewView env={env} status={status} icm={icm} navigate={setView} />
           ) : view === "devnet" ? (
-            <DevnetView status={status} hasCli={hasCli} navigate={setView} />
+            <DevnetView status={status} icm={icm} hasCli={hasCli} navigate={setView} />
           ) : view === "fuji" ? (
             <FujiView hasCli={hasCli} wizard={wizard} navigate={setView} />
           ) : view === "interchain" ? (

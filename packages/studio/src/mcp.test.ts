@@ -149,14 +149,47 @@ describe("MCP tools", () => {
       fuji: { rpcUrl: rpc.url("myfujil1"), blockchainId: blockchainId(3).cb58 },
     });
     sandbox.fakeCast();
-    const state = JSON.parse((await call("icm_state")).text) as {
+    interface State {
       ready: boolean;
-      chains: { name: string; messenger: string }[];
+      hasPeers: boolean;
+      chains: { name: string; messenger: string | null }[];
       maxMessageBytes: number;
-    };
-    expect(state.ready).toBe(true);
+    }
+    const state = JSON.parse((await call("icm_state")).text) as State;
     expect(state.chains.map((c) => c.name)).toEqual(["chain1", "chain2"]);
     expect(state.maxMessageBytes).toBe(256);
+    // The messengers are there but not linked yet: two L1s, not yet "ready".
+    expect(state.hasPeers).toBe(true);
+    expect(state.ready).toBe(false);
+
+    const linked = JSON.parse((await call("icm_deploy_messengers")).text) as State;
+    expect(linked.ready).toBe(true);
+    expect((JSON.parse((await call("icm_state")).text) as State).ready).toBe(true);
+  });
+
+  it("icm_state does not call a devnet without messengers ready", async () => {
+    // What an agent used to get: `ready: true`, then "deploy the messengers first".
+    sandbox.addL1("chain1", {
+      local: { rpcUrl: rpc.url("chain1"), blockchainId: blockchainId(1).cb58 },
+    });
+    sandbox.addL1("chain2", {
+      local: { rpcUrl: rpc.url("chain2"), blockchainId: blockchainId(2).cb58 },
+    });
+    sandbox.fakeCast();
+    const state = JSON.parse((await call("icm_state")).text) as {
+      ready: boolean;
+      hasPeers: boolean;
+      chains: { messenger: string | null }[];
+    };
+    expect(state.chains.map((c) => c.messenger)).toEqual([null, null]);
+    expect(state).toMatchObject({ ready: false, hasPeers: true });
+    const send = await call("icm_send", { from: "chain1", to: "chain2", message: "gm" });
+    expect(send).toEqual({ text: "deploy the messengers first", isError: true });
+
+    const tools = (await client.listTools()).tools;
+    expect(tools.find((t) => t.name === "icm_state")?.description).toMatch(
+      /`ready` is true only when two of them have a usable messenger and those messengers are linked/,
+    );
   });
 
   it("devnet_launch_l1 rejects values that are not whitelisted", async () => {

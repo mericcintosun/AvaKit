@@ -137,7 +137,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Interchain state",
       description:
-        "Report the running, ICM-ready local L1s: each one's messenger address and last received cross-chain message. A null messenger means there is none to use — never deployed, gone with a wiped devnet, or from an older Studio — until icm_deploy_messengers has run.",
+        "Report the running, ICM-ready local L1s: each one's messenger address and last received cross-chain message. `ready` is true only when two of them have a usable messenger and those messengers are linked to each other — a message can be sent right now; `hasPeers` only says that at least two such L1s are running. A null messenger means there is none to use — never deployed, gone with a wiped devnet, or from an older Studio. While `ready` is false and `hasPeers` is true, run icm_deploy_messengers: it deploys what is missing and links the messengers.",
       inputSchema: {},
     },
     async () => text(toJson(await getIcmState())),

@@ -1,7 +1,77 @@
 /**
  * Pure helpers for the Interchain view: which two chains a message travels
- * between, and whether its text can be sent at all.
+ * between, and whether its text can be sent at all — and for what the Overview
+ * card and the Devnet banner say about Interchain Messaging.
  */
+
+/**
+ * How far Interchain Messaging is, as far as the dashboard knows:
+ *  - "no-peers": fewer than two running L1s with Interchain Messaging;
+ *  - "checking": two or more, but the messengers have not been looked at yet;
+ *  - "needs-messengers": two or more, but no two of them have linked messengers;
+ *  - "ready": a message can be sent right now.
+ * Two running L1s are NOT "ready": the send is refused until the messengers
+ * are deployed, so nothing may say otherwise.
+ */
+export type InterchainStage = "no-peers" | "checking" | "needs-messengers" | "ready";
+
+/** The L1s that can take part in Interchain Messaging: running, with Teleporter. */
+export function countPeers(l1s: { running: boolean; teleporterReady: boolean }[]): number {
+  return l1s.filter((l) => l.running && l.teleporterReady).length;
+}
+
+/**
+ * `peers` comes from the devnet status; `icm` is the server's Interchain state
+ * (null until it has been fetched), whose `ready` knows about the messengers.
+ */
+export function interchainStage(peers: number, icm: { ready: boolean } | null): InterchainStage {
+  if (peers < 2) return "no-peers";
+  if (!icm) return "checking";
+  return icm.ready ? "ready" : "needs-messengers";
+}
+
+/** The Overview's Interchain card. Only "ready" is shown as live. */
+export function interchainCard(stage: InterchainStage): {
+  value: string;
+  live: boolean;
+  sub: string;
+} {
+  switch (stage) {
+    case "ready":
+      return { value: "Ready", live: true, sub: "send a cross-chain message" };
+    case "needs-messengers":
+      return { value: "Set up", live: false, sub: "deploy the messengers to send a message" };
+    case "checking":
+      return { value: "…", live: false, sub: "checking the messengers" };
+    case "no-peers":
+      return { value: "—", live: false, sub: "needs 2 running L1s" };
+  }
+}
+
+/**
+ * The Devnet view's "your devnet is live" banner: what it says about sending a
+ * message, and what its button (which opens the Interchain view) is called.
+ * Null when there are not two L1s to send between.
+ */
+export function devnetBanner(
+  stage: InterchainStage,
+  peers: number,
+): { detail: string; action: string } | null {
+  const l1s = `${peers === 2 ? "Two" : peers} L1s with a relayer`;
+  switch (stage) {
+    case "ready":
+      return { detail: `${l1s} — ready for a cross-chain message.`, action: "Send a message" };
+    case "needs-messengers":
+      return {
+        detail: `${l1s} — deploy the messengers to send a message.`,
+        action: "Deploy messengers",
+      };
+    case "checking":
+      return { detail: `${l1s}.`, action: "Open Interchain" };
+    case "no-peers":
+      return null;
+  }
+}
 
 export interface Pair {
   from: string;

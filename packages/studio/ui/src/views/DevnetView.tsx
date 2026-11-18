@@ -1,6 +1,6 @@
 import { ArrowRight, Rocket } from "lucide-react";
 import { useCallback, useState } from "react";
-import type { DevnetAction, DevnetStatus, L1Info, L1Params } from "../api";
+import type { DevnetAction, DevnetStatus, IcmState, L1Info, L1Params } from "../api";
 import { BusyElsewhere } from "../components/BusyElsewhere";
 import { Console } from "../components/Console";
 import { CopyButton } from "../components/copy-button";
@@ -9,6 +9,7 @@ import { useToast } from "../components/toast";
 import { Dot } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
+import { countPeers, devnetBanner, interchainStage } from "../lib/interchain";
 import { cancelWarning, consoleLines, LOST_NOTE, startFailureNotice } from "../lib/run-messages";
 import { shortHex } from "../lib/utils";
 import { isValidChainId, isValidL1Name, isValidToken } from "../lib/validators";
@@ -90,10 +91,13 @@ function Field({
 
 export function DevnetView({
   status,
+  icm,
   hasCli,
   navigate,
 }: {
   status: DevnetStatus | null;
+  /** The server's Interchain state, or null while it is not known. */
+  icm: IcmState | null;
   hasCli: boolean;
   navigate: (v: View) => void;
 }) {
@@ -131,23 +135,22 @@ export function DevnetView({
   );
 
   const l1s = status?.l1s ?? [];
-  const icmReady = l1s.filter((l) => l.running && l.teleporterReady).length;
-  const live = Boolean(status?.running) && icmReady >= 2;
+  // The devnet is live with two running ICM L1s; whether a message can be SENT
+  // is the server's word (two linked messengers), and the banner says which.
+  const peers = countPeers(l1s);
+  const banner = status?.running ? devnetBanner(interchainStage(peers, icm), peers) : null;
 
   return (
     <div className="flex flex-col gap-4">
-      {live && (
+      {banner && (
         <div className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
           <div className="flex items-center gap-2.5">
             <Dot state="live" />
             <p className="text-sm font-medium">Your devnet is live.</p>
-            <span className="text-muted-foreground text-sm">
-              {icmReady === 2 ? "Two" : icmReady} L1s with a relayer — ready for a cross-chain
-              message.
-            </span>
+            <span className="text-muted-foreground text-sm">{banner.detail}</span>
           </div>
           <Button size="sm" variant="outline" onClick={() => navigate("interchain")}>
-            Send a message <ArrowRight className="size-4" />
+            {banner.action} <ArrowRight className="size-4" />
           </Button>
         </div>
       )}

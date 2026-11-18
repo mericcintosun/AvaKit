@@ -96,8 +96,18 @@ export interface IcmChain {
 }
 
 export interface IcmState {
-  /** At least two L1s can exchange a message right now. */
+  /**
+   * At least two L1s can exchange a message right now: two of the listed
+   * chains each have a usable messenger, and each of those messengers accepts
+   * the other's messages (they are linked). False until the messengers are
+   * deployed — two running L1s alone are `hasPeers`, not `ready`.
+   */
   ready: boolean;
+  /**
+   * At least two running, ICM-ready L1s are listed: enough to deploy and link
+   * messengers (`deployMessengers`), after which `ready` holds.
+   */
+  hasPeers: boolean;
   /** Only the running, Teleporter-ready L1s of the local network. */
   chains: IcmChain[];
   /** The longest message `sendIcmMessage` accepts, in UTF-8 bytes. */
@@ -314,12 +324,15 @@ export async function getIcmState(): Promise<IcmState> {
   const status = await getDevnetStatus();
   const state = readState();
 
+  // The chains with a usable messenger: the ones a message can travel between.
+  const endpoints: Endpoint[] = [];
   const chains = await Promise.all(
     listPeers(status).map(async (peer): Promise<IcmChain> => {
       const messenger = await usableMessenger(peer, state);
       let lastMessage: string | null = null;
       let messagesReceived: number | null = null;
       if (messenger) {
+        endpoints.push({ ...peer, messenger });
         try {
           lastMessage = await readLastMessage(peer.rpcUrl, messenger);
           messagesReceived = await readReceived(peer.rpcUrl, messenger);
@@ -340,7 +353,38 @@ export async function getIcmState(): Promise<IcmState> {
     }),
   );
 
-  return { ready: chains.length >= 2, chains, maxMessageBytes: MAX_MESSAGE_BYTES };
+  return {
+    ready: await anyLinkedPair(endpoints),
+    hasPeers: chains.length >= 2,
+    chains,
+    maxMessageBytes: MAX_MESSAGE_BYTES,
+  };
+}
+
+/**
+ * Whether `self`'s messenger accepts messages from `other`'s (read-only). A
+ * link that cannot be read counts as missing: "ready" is only ever said of
+ * what was seen.
+ */
+async function trusts(self: Endpoint, other: Endpoint): Promise<boolean> {
+  try {
+    const remote = await castCall(self.rpcUrl, self.messenger, TRUSTED_REMOTE_SIG, [
+      other.blockchainIdHex,
+    ]);
+    return remote.toLowerCase() === other.messenger.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+/** Whether any two of the chains have messengers that accept each other's messages. */
+async function anyLinkedPair(endpoints: Endpoint[]): Promise<boolean> {
+  for (const [i, a] of endpoints.entries()) {
+    for (const b of endpoints.slice(i + 1)) {
+      if ((await trusts(a, b)) && (await trusts(b, a))) return true;
+    }
+  }
+  return false;
 }
 
 // Every transaction below is signed by the same dev key, so two at once would

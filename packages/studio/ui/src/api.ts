@@ -176,7 +176,13 @@ export interface IcmChain {
 }
 
 export interface IcmState {
+  /**
+   * A message can be sent right now: two of the chains have a usable messenger
+   * and the two are linked. Two running L1s alone are `hasPeers`.
+   */
   ready: boolean;
+  /** At least two running, ICM-ready L1s: enough to deploy and link messengers. */
+  hasPeers: boolean;
   /** Only the running, Teleporter-ready L1s of the local network. */
   chains: IcmChain[];
   /** The longest message the server accepts, in UTF-8 bytes. */

@@ -45,6 +45,10 @@ describe("run messages", () => {
       title: "Devnet is ready",
       variant: "success",
     });
+    // The L1s are up; a message still needs the messengers, and the notice says so.
+    expect(finishNotice(run({ action: "create-icm" })).description).toMatch(
+      /deploy the messengers and send a message/,
+    );
     expect(finishNotice(run({ kind: "fuji", action: "transfer" }))).toMatchObject({
       title: "Funds on the P-Chain",
       variant: "success",

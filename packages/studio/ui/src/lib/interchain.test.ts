@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  countPeers,
   DELIVERY_TIMEOUT_MS,
+  devnetBanner,
   hasArrived,
+  interchainCard,
+  interchainStage,
   messageBytes,
   messageProblem,
   overdueIn,
@@ -119,5 +123,60 @@ describe("hasArrived", () => {
       ),
     ).toBe(true);
     expect(hasArrived(sent, { lastMessage: "gm", messagesReceived: null })).toBe(true);
+  });
+});
+
+describe("what the Overview card and the Devnet banner say about Interchain", () => {
+  const l1 = (running: boolean, teleporterReady = true) => ({ running, teleporterReady });
+
+  it("counts only running L1s that have Teleporter", () => {
+    expect(countPeers([])).toBe(0);
+    expect(countPeers([l1(true), l1(true), l1(false), l1(true, false)])).toBe(2);
+  });
+
+  it("is ready only on the server's word, never because two L1s are running", () => {
+    // Three running L1s and no messenger anywhere: this used to read "Ready / LIVE".
+    expect(interchainStage(3, { ready: false })).toBe("needs-messengers");
+    expect(interchainStage(2, { ready: true })).toBe("ready");
+    // Not known yet is not ready either.
+    expect(interchainStage(2, null)).toBe("checking");
+    // Fewer than two L1s: nothing to send between, whatever an old answer said.
+    expect(interchainStage(1, { ready: true })).toBe("no-peers");
+    expect(interchainStage(0, null)).toBe("no-peers");
+  });
+
+  it("shows the Overview card as live only when a message can be sent", () => {
+    expect(interchainCard("ready")).toEqual({
+      value: "Ready",
+      live: true,
+      sub: "send a cross-chain message",
+    });
+    expect(interchainCard("needs-messengers")).toEqual({
+      value: "Set up",
+      live: false,
+      sub: "deploy the messengers to send a message",
+    });
+    expect(interchainCard("checking")).toMatchObject({ live: false });
+    expect(interchainCard("no-peers")).toEqual({
+      value: "—",
+      live: false,
+      sub: "needs 2 running L1s",
+    });
+    for (const stage of ["needs-messengers", "checking", "no-peers"] as const) {
+      expect(interchainCard(stage).value, stage).not.toBe("Ready");
+    }
+  });
+
+  it("words the Devnet banner by what is still to do", () => {
+    expect(devnetBanner("ready", 2)).toEqual({
+      detail: "Two L1s with a relayer — ready for a cross-chain message.",
+      action: "Send a message",
+    });
+    expect(devnetBanner("needs-messengers", 3)).toEqual({
+      detail: "3 L1s with a relayer — deploy the messengers to send a message.",
+      action: "Deploy messengers",
+    });
+    expect(devnetBanner("checking", 2)?.detail).toBe("Two L1s with a relayer.");
+    expect(devnetBanner("no-peers", 1)).toBeNull();
   });
 });
