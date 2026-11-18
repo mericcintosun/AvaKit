@@ -38,15 +38,19 @@ const COMMAND = "npm create avalanche-app@latest";
 type Tone = "muted" | "ok" | "brand";
 
 // The simulated scaffolder run, revealed line by line after the command types.
+// It follows the real wizard in packages/create-avalanche-app/src/ui/wizard.tsx:
+// the same four questions with the same labels and displayed values, then the
+// result lines it prints. Keep the two in step — in particular the file count,
+// which is what the nft-mint template scaffolds today.
 const OUTPUT: { text: string; tone: Tone; icon: string }[] = [
   { icon: "◇", text: "Project name › my-app", tone: "muted" },
-  { icon: "◇", text: "Template › nft-mint", tone: "muted" },
-  { icon: "◇", text: "Wallet › Social login (Google)", tone: "muted" },
-  { icon: "◇", text: "Network › Fuji", tone: "muted" },
-  { icon: "✓", text: "Signed in with Google — no seed phrase", tone: "ok" },
-  { icon: "✓", text: "Contract deployed from the browser", tone: "ok" },
-  { icon: "✓", text: "Minted on Avalanche Fuji", tone: "ok" },
-  { icon: "▲", text: "Live in about a minute.", tone: "brand" },
+  { icon: "◇", text: "Template › NFT mint", tone: "muted" },
+  { icon: "◇", text: "Network › Fuji testnet", tone: "muted" },
+  { icon: "◇", text: "Package manager › pnpm", tone: "muted" },
+  { icon: "✓", text: "Created 19 files", tone: "ok" },
+  { icon: "✓", text: "Dependencies installed", tone: "ok" },
+  { icon: "▲", text: "Your Avalanche dapp is ready.", tone: "brand" },
+  { icon: "$", text: "cd my-app && pnpm run dev", tone: "muted" },
 ];
 
 const toneClass: Record<Tone, string> = {
