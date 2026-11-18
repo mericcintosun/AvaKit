@@ -29,7 +29,7 @@
  * stdio. Keeping the two apart is what lets the tools be tested in-process.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import {
   type AvaChain,
   cChain,
@@ -59,6 +59,7 @@ import {
   resolveScaffoldTarget,
   resolveWorkspace,
 } from "./guards.js";
+import { VERSION } from "./version.js";
 import { resolveSigner, walletFor } from "./wallet.js";
 import { writeContract } from "./write.js";
 
@@ -85,15 +86,6 @@ function failed(tool: string, error: unknown) {
   if (error instanceof ToolError) return text(error.message, true);
   return text(`${tool} failed: ${reasonOf(error)}`, true);
 }
-
-// Read the version from package.json at runtime (single source of truth — it
-// can never drift from the published version). dist/index.js ships next to
-// package.json, so `../package.json` resolves in the published tarball.
-const VERSION = (
-  JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
-    version: string;
-  }
-).version;
 
 /** Longest path accepted as `artifactPath`. */
 const MAX_PATH_LENGTH = 4096;
