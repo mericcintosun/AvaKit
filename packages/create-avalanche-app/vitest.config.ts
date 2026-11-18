@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
     environment: "node",
+    // Several tests start real child processes or drive the terminal wizard key
+    // by key; on a busy CI runner those can take seconds, not milliseconds.
+    testTimeout: 20_000,
     env: {
       AVAKIT_TELEMETRY_DISABLED: "1",
       AVAKIT_CONFIG_DIR: fileURLToPath(

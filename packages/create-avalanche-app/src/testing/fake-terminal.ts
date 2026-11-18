@@ -95,7 +95,9 @@ export function fakeTerminal(): FakeTerminal {
     },
     frame,
     press: (input) => stdin.send(input),
-    waitFor: async (text, timeoutMs = 5000) => {
+    // Below the suite's test timeout, so a wait that never ends fails with the
+    // last frame in the message rather than as a bare timeout.
+    waitFor: async (text, timeoutMs = 10_000) => {
       const deadline = Date.now() + timeoutMs;
       while (!frame().includes(text)) {
         if (Date.now() > deadline) {
