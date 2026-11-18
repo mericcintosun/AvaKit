@@ -6,7 +6,7 @@ Thanks for your interest in AvaKit — the open-source, AI-native Avalanche deve
 
 - **Node.js `>= 20.11`** (see `.nvmrc` — the repo targets Node 24 in CI).
 - **pnpm `>= 10`** — run `corepack enable` to get the version pinned in `package.json` (`pnpm@10.20.0`).
-- **Foundry** (optional) — only needed if you work on contract templates or recompile bundled bytecode. Install with `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
+- **Foundry** (optional) — only needed if you work on contract templates or regenerate bundled bytecode (see [Contracts and bytecode artifacts](#contracts-and-bytecode-artifacts)). Install with `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
 - **avalanche-cli** (optional) — only needed to run the templates that spin up a local devnet or L1 (`icm-messenger`, `l1-launch`, `token-bridge`). See the [Avalanche CLI docs](https://docs.avax.network/tooling/cli-guides/install-avalanche-cli).
 
 ## Getting started
@@ -77,6 +77,18 @@ Templates that need `avalanche-cli` at runtime (`icm-messenger`, `l1-launch`, `t
 Without a second argument the app is built in a temporary directory that is removed when the script exits. To keep the app and look at it, pass a directory (`scripts/smoke-template.sh nft-mint /tmp/smoke`) or set `SMOKE_KEEP=1`.
 
 The script switches the scaffolder's telemetry off, so a smoke run is never counted as usage. When you run the built CLI by hand from this repo (`node packages/create-avalanche-app/dist/index.js …`), set `AVAKIT_TELEMETRY_DISABLED=1` yourself: a contributor trying out a change is not adoption, and without it the run is counted on [avakit.dev/stats](https://avakit.dev/stats).
+
+## Contracts and bytecode artifacts
+
+The Solidity the repo ships lives in the templates (`packages/create-avalanche-app/templates/*/contracts/src`; `examples/web3auth-demo` has a contract of its own). Several files carry bytecode compiled from it, so that an app can deploy without Foundry: each template's `lib/*-artifact.ts`, and the artifacts Studio, the website and the example app use. Those artifacts are **generated — never copy an abi or bytecode into one by hand.** After you edit a contract (in every template that ships a copy of it), regenerate and verify them from `contracts-ci`:
+
+```bash
+cd contracts-ci && node scripts/sync.mjs && forge test && node scripts/check-artifacts.mjs --write
+```
+
+`sync.mjs` checks that templates sharing a contract ship identical copies and that every `foundry.toml` compiles with the same settings, `forge test` runs the contract tests, and `check-artifacts.mjs --write` rewrites the abi and bytecode of every artifact from a fresh build. Commit the regenerated artifacts together with the source change: CI runs the same three steps without `--write` and fails on any artifact that no longer matches its source.
+
+Use the Foundry release CI pins (`version:` in `.github/workflows/ci.yml`; `foundryup --install <that version>`), because the check compares bytecode byte for byte. More in [`contracts-ci/README.md`](contracts-ci/README.md).
 
 ## Changesets (versioning)
 
