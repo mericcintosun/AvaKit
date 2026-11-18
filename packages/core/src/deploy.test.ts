@@ -95,6 +95,8 @@ describe("deployContract result", () => {
   const txHash = `0x${"ab".repeat(32)}` as const;
   // Lower-case, as a node returns it; the result must come back checksummed.
   const created = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
+  // What eth_getCode answers once the contract exists.
+  const runtimeCode = "0x60806040";
 
   /** A wallet on `chainId` that accepts the deployment and returns its hash. */
   function walletOn(chainId: number): EIP1193Provider {
@@ -128,8 +130,17 @@ describe("deployContract result", () => {
     };
   }
 
+  /** A chain on which the deployment was mined and its code can be read back. */
+  function stubDeployed(overrides: Parameters<typeof stubRpc>[0] = {}) {
+    return stubRpc({
+      eth_getTransactionReceipt: () => receipt(),
+      eth_getCode: () => runtimeCode,
+      ...overrides,
+    });
+  }
+
   it("returns the checksummed address, the hash and an explorer link", async () => {
-    stubRpc({ eth_getTransactionReceipt: () => receipt() });
+    stubDeployed();
     const provider = walletOn(fuji.id);
 
     const result = await deployContract({ artifact, chain: fuji, provider, account });
@@ -149,7 +160,7 @@ describe("deployContract result", () => {
   // A creation that runs out of gas (or whose constructor reverts) is still
   // mined, and the node still fills contractAddress on its receipt.
   it("rejects a reverted deployment even though the receipt names a contract address", async () => {
-    stubRpc({ eth_getTransactionReceipt: () => receipt({ status: "0x0" }) });
+    const calls = stubDeployed({ eth_getTransactionReceipt: () => receipt({ status: "0x0" }) });
     const provider = walletOn(fuji.id);
 
     const deployment = deployContract({ artifact, chain: fuji, provider, account });
@@ -157,15 +168,20 @@ describe("deployContract result", () => {
     await expect(deployment).rejects.toBeInstanceOf(DeployFailedError);
     await expect(deployment).rejects.toThrow(/reverted/);
     await expect(deployment).rejects.toThrow(txHash);
+    // The receipt already settled it: there is no code to go looking for.
+    expect(calls.map((call) => call.method)).toEqual(["eth_getTransactionReceipt"]);
   });
 
   it("rejects a mined transaction that created no contract", async () => {
-    stubRpc({ eth_getTransactionReceipt: () => receipt({ contractAddress: null }) });
+    const calls = stubDeployed({
+      eth_getTransactionReceipt: () => receipt({ contractAddress: null }),
+    });
     const provider = walletOn(fuji.id);
 
     await expect(
       deployContract({ artifact, chain: fuji, provider, account }),
     ).rejects.toBeInstanceOf(DeployFailedError);
+    expect(calls.map((call) => call.method)).toEqual(["eth_getTransactionReceipt"]);
   });
 
   it("returns an empty explorer link on a chain without an explorer", async () => {
@@ -177,7 +193,7 @@ describe("deployContract result", () => {
       nativeCurrency: { name: "Fresh", symbol: "FRSH", decimals: 18 },
       testnet: true,
     });
-    const calls = stubRpc({ eth_getTransactionReceipt: () => receipt() });
+    const calls = stubDeployed();
 
     const result = await deployContract({
       artifact,
@@ -188,7 +204,7 @@ describe("deployContract result", () => {
 
     expect(result.explorerUrl).toBe("");
     expect(result.address).toBe("0x5FbDB2315678afecb367f032d93F642f64180aa3");
-    // The receipt was read from the L1's own RPC.
+    // The receipt and the code were read from the L1's own RPC.
     expect(calls.length).toBeGreaterThan(0);
     expect(calls.every((call) => call.url === endpoint(freshL1.rpcUrl))).toBe(true);
   });
@@ -207,6 +223,7 @@ describe("deployContract result", () => {
         eth_estimateGas: () => `0x${gas.toString(16)}`,
         eth_gasPrice: () => `0x${gasPrice.toString(16)}`,
         eth_getTransactionReceipt: () => receipt(),
+        eth_getCode: () => runtimeCode,
         ...overrides,
       });
     }
@@ -306,10 +323,188 @@ describe("deployContract result", () => {
   });
 
   it("does not check the balance on a testnet", async () => {
-    const calls = stubRpc({ eth_getTransactionReceipt: () => receipt() });
+    const calls = stubDeployed();
 
     await deployContract({ artifact, chain: fuji, provider: walletOn(fuji.id), account });
 
-    expect(calls.map((call) => call.method)).toEqual(["eth_getTransactionReceipt"]);
+    expect(calls.map((call) => call.method)).toEqual(["eth_getTransactionReceipt", "eth_getCode"]);
+  });
+
+  // A successful receipt is half of "deployed". The other half is code at the
+  // address: a creation that returns no runtime code succeeds and leaves an
+  // empty account, which every later call would silently "work" against.
+  describe("code at the new address", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** What eth_getCode answers, read by read; the last answer repeats. "0x" is an empty account. */
+    function codeReads(...answers: Array<string | Error>) {
+      let read = 0;
+      return () => {
+        const answer = answers[Math.min(read, answers.length - 1)];
+        read += 1;
+        if (answer instanceof Error) {
+          throw { code: -32000, message: answer.message };
+        }
+        return answer;
+      };
+    }
+
+    function getCodeCalls(calls: ReturnType<typeof stubRpc>) {
+      return calls.filter((call) => call.method === "eth_getCode");
+    }
+
+    /** Start a deployment on Fuji and capture how it ends, without an unhandled rejection. */
+    function deployOn(chain: AvaChain, confirmMainnet?: boolean) {
+      return deployContract({
+        artifact,
+        chain,
+        provider: walletOn(chain.id),
+        account,
+        confirmMainnet,
+      }).then(
+        (result) => ({ result, error: null }),
+        (error: unknown) => ({ result: null, error: error as Error }),
+      );
+    }
+
+    it("reads the code at the created address before resolving", async () => {
+      const calls = stubDeployed();
+
+      const { result } = await deployOn(fuji);
+
+      expect(result?.address).toBe("0x5FbDB2315678afecb367f032d93F642f64180aa3");
+      const reads = getCodeCalls(calls);
+      expect(reads).toHaveLength(1);
+      expect(String(reads[0]?.params[0]).toLowerCase()).toBe(created);
+      expect(reads[0]?.url).toBe(endpoint(fuji.rpcUrl));
+    });
+
+    it("rejects a successful receipt that left no code behind", async () => {
+      vi.useFakeTimers();
+      const calls = stubDeployed({ eth_getCode: () => "0x" });
+
+      const outcome = deployOn(fuji);
+      await vi.advanceTimersByTimeAsync(2000);
+      const { result, error } = await outcome;
+
+      expect(result).toBeNull();
+      expect(error).toBeInstanceOf(DeployFailedError);
+      expect(error?.message).toMatch(
+        /no contract code at 0x5FbDB2315678afecb367f032d93F642f64180aa3/,
+      );
+      expect(error?.message).toContain(`${fuji.explorerUrl}/tx/${txHash}`);
+      // One read at once and four more over the two seconds: bounded, not a poll.
+      expect(getCodeCalls(calls)).toHaveLength(5);
+    });
+
+    it("gives up after two seconds, not before, and leaves nothing running", async () => {
+      vi.useFakeTimers();
+      const calls = stubDeployed({ eth_getCode: () => "0x" });
+      let settled = false;
+
+      const outcome = deployOn(fuji).then(() => {
+        settled = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(settled).toBe(false);
+      expect(getCodeCalls(calls)).toHaveLength(4);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await outcome;
+      expect(settled).toBe(true);
+      expect(getCodeCalls(calls)).toHaveLength(5);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    // A block can be accepted, and its receipt served, before the state behind
+    // it can be read. One empty read must not fail a deployment that worked.
+    it("accepts a deployment whose code shows up on a later read", async () => {
+      vi.useFakeTimers();
+      const calls = stubDeployed({ eth_getCode: codeReads("0x", "0x", runtimeCode) });
+
+      const outcome = deployOn(fuji);
+      await vi.advanceTimersByTimeAsync(2000);
+      const { result, error } = await outcome;
+
+      expect(error).toBeNull();
+      expect(result).toMatchObject({
+        address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        txHash,
+      });
+      expect(getCodeCalls(calls)).toHaveLength(3);
+    });
+
+    it("retries a read that failed, and accepts the deployment once it answers", async () => {
+      vi.useFakeTimers();
+      const calls = stubDeployed({
+        eth_getCode: codeReads(new Error("header not found"), runtimeCode),
+      });
+
+      const outcome = deployOn(fuji);
+      await vi.advanceTimersByTimeAsync(2000);
+      const { result, error } = await outcome;
+
+      expect(error).toBeNull();
+      expect(result?.txHash).toBe(txHash);
+      expect(getCodeCalls(calls)).toHaveLength(2);
+    });
+
+    it("rejects, naming the address and the cause, when the code cannot be read at all", async () => {
+      vi.useFakeTimers();
+      const calls = stubDeployed({ eth_getCode: codeReads(new Error("header not found")) });
+
+      const outcome = deployOn(fuji);
+      await vi.advanceTimersByTimeAsync(2000);
+      const { error } = await outcome;
+
+      expect(error).toBeInstanceOf(DeployFailedError);
+      expect(error?.message).toMatch(/could not be read back/);
+      expect(error?.message).toContain("0x5FbDB2315678afecb367f032d93F642f64180aa3");
+      expect(error?.message).toContain(txHash);
+      expect(error?.cause).toBeDefined();
+      expect(getCodeCalls(calls)).toHaveLength(5);
+    });
+
+    it("applies on a mainnet too", async () => {
+      vi.useFakeTimers();
+      stubDeployed({
+        eth_getBalance: () => "0xde0b6b3a7640000",
+        eth_estimateGas: () => "0x5208",
+        eth_gasPrice: () => "0x1",
+        eth_getCode: () => "0x",
+      });
+
+      const outcome = deployOn(cChain, true);
+      await vi.advanceTimersByTimeAsync(2000);
+      const { error } = await outcome;
+
+      expect(error).toBeInstanceOf(DeployFailedError);
+      expect(error?.message).toMatch(/no contract code/);
+    });
+
+    it("names no explorer in the error on a chain without one", async () => {
+      vi.useFakeTimers();
+      const freshL1 = defineChain({
+        id: 1001,
+        name: "Fresh L1",
+        rpcUrl: "http://127.0.0.1:9650/ext/bc/fresh/rpc",
+        explorerUrl: "",
+        nativeCurrency: { name: "Fresh", symbol: "FRSH", decimals: 18 },
+        testnet: true,
+      });
+      stubDeployed({ eth_getCode: () => "0x" });
+
+      const outcome = deployOn(freshL1);
+      await vi.advanceTimersByTimeAsync(2000);
+      const { error } = await outcome;
+
+      expect(error).toBeInstanceOf(DeployFailedError);
+      expect(error?.message).toMatch(/no contract code/);
+      expect(error?.message).not.toMatch(/https?:\/\//);
+      expect(error?.message).not.toContain("()");
+    });
   });
 });

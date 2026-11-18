@@ -132,7 +132,14 @@ export function useContract(params: { address: Address; abi: Abi }) {
 
 export type DeployStatus = "idle" | "deploying" | "success" | "error";
 
-/** Deploy a compiled contract from the connected wallet. */
+/**
+ * Deploy a compiled contract from the connected wallet.
+ *
+ * `status` becomes "success", and `deploy()` resolves, only once the deployment
+ * transaction has succeeded and the contract's code has been read back from the
+ * chain. A deployment that reverted or left no code ends in "error" with a
+ * `DeployFailedError`.
+ */
 export function useAvaDeploy() {
   const { chain, provider, address } = useAvaKit();
   const [status, setStatus] = useState<DeployStatus>("idle");

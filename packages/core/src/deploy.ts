@@ -53,6 +53,7 @@ export interface DeployParams {
 }
 
 export interface DeployResult {
+  /** The new contract, checksummed. Its code was read back before this was returned. */
   address: Address;
   txHash: Hex;
   /** Explorer link for the contract. Empty when the chain has no explorer. */
@@ -121,6 +122,83 @@ async function assertCanPayForDeploy(
   }
 }
 
+/**
+ * Waits between the reads of the new contract's code: one read straight away,
+ * then one after each of these. Two seconds in all, and never more reads than
+ * this list allows, so a deployment that left no code fails promptly.
+ */
+const CODE_CHECK_WAITS_MS = [200, 300, 500, 1000] as const;
+const CODE_CHECK_SECONDS = CODE_CHECK_WAITS_MS.reduce((sum, wait) => sum + wait, 0) / 1000;
+
+/**
+ * The second half of "deployed": the address has to hold code. A receipt with
+ * `status: success` is not proof of that. A creation whose bytecode returns no
+ * runtime code (a constructor that self-destructs, or runtime bytecode passed
+ * where creation bytecode belongs) succeeds and leaves an empty account behind,
+ * and every later call to it "works" while doing nothing.
+ *
+ * One empty read is not proof of the opposite either. The read can run ahead of
+ * the state it asks about: a load-balanced RPC may answer from a node that has
+ * not caught up with the one that served the receipt, and since Avalanche's
+ * Helicon upgrade a block is accepted before it has been executed. So an empty
+ * or failed read is repeated for about two seconds before the deployment is
+ * given up on.
+ */
+async function assertCodeAt(
+  publicClient: PublicClient,
+  chain: AvaChain,
+  address: Address,
+  txHash: Hex,
+): Promise<void> {
+  let reads = 0;
+  // Why the most recent read did not find code: it threw, or (undefined) the
+  // node answered that the account is empty.
+  let failure: unknown;
+  for (;;) {
+    reads += 1;
+    try {
+      if (await publicClient.getCode({ address })) {
+        return;
+      }
+      failure = undefined;
+    } catch (cause) {
+      failure = cause;
+    }
+    const wait = CODE_CHECK_WAITS_MS[reads - 1];
+    if (wait === undefined) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+
+  const where = chain.explorerUrl ? ` (${chain.explorerUrl}/tx/${txHash})` : "";
+  if (failure !== undefined) {
+    throw new DeployFailedError(
+      `Deployment transaction ${txHash} succeeded on ${chain.name} and names ${address} as the ` +
+        `new contract, but its code could not be read back to confirm it (${reads} attempts). ` +
+        `Check the transaction${where} before using the address. The last read failed with: ` +
+        reason(failure),
+      { cause: failure },
+    );
+  }
+  throw new DeployFailedError(
+    `Deployment transaction ${txHash} succeeded on ${chain.name}, but there is no contract ` +
+      `code at ${address} (read ${reads} times over ${CODE_CHECK_SECONDS} seconds). Nothing ` +
+      "usable was deployed: make sure the artifact holds creation bytecode and that the " +
+      `constructor does not self-destruct, and check the transaction${where}.`,
+  );
+}
+
+/**
+ * Deploy a compiled contract and wait until it exists.
+ *
+ * Resolves only once the deployment transaction has succeeded and the code is
+ * on chain at the new address. Rejects with `DeployFailedError` when the
+ * transaction reverted, created no contract, or left no code behind; with
+ * `MainnetConfirmationError` on a mainnet without `confirmMainnet`; and with
+ * `InsufficientFundsError` when a confirmed mainnet deployment cannot be paid
+ * for.
+ */
 export async function deployContract(params: DeployParams): Promise<DeployResult> {
   const { artifact, args, chain, provider, account, confirmMainnet } = params;
   // Testnet-first guardrail: never deploy to a mainnet chain without opt-in.
@@ -171,9 +249,12 @@ export async function deployContract(params: DeployParams): Promise<DeployResult
   if (!receipt.contractAddress) {
     throw new DeployFailedError("Deployment transaction did not return a contract address.");
   }
+  // Succeeded is still not deployed until the code is there to call.
+  const address = getAddress(receipt.contractAddress);
+  await assertCodeAt(publicClient, chain, address, txHash);
 
   return {
-    address: getAddress(receipt.contractAddress),
+    address,
     txHash,
     // A fresh L1 has no explorer; an empty string is more honest than a
     // relative "/address/0x…" link that points back into the app.

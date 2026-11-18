@@ -58,6 +58,7 @@ const { tokens, hasMore, fetchMore, isFetchingMore } = useTokenBalances(undefine
 - **The provider follows the wallet.** When the user switches account or network in the wallet, locks it, or revokes the site, `<AvaKitProvider>` updates `address` and `chain`, or disconnects. A network that is not in `chains` is not adopted: the app keeps its chain and the next transaction reports the mismatch.
 - **The burner wallet is testnet-only.** `burnerAdapter()` keeps a throwaway key in `localStorage` in the clear. While the active chain is a mainnet, `<AvaKitProvider>` refuses to connect it and disconnects an active one, and `<ConnectAvalanche />` does not offer it. See the [`@avakit/core` README](https://www.npmjs.com/package/@avakit/core).
 - **Mainnet deploys are opt-in.** `useAvaDeploy().deploy(artifact, args, { confirmMainnet: true })`. The account's balance is checked against the estimated cost before anything is sent.
+- **A deploy counts only when the contract exists.** `useAvaDeploy()` reports `success` once the deployment transaction has succeeded and the contract's code has been read back from the chain. A reverted deployment, or one that left no code at the new address, ends in `error` with a `DeployFailedError`.
 
 ## Server Components
 

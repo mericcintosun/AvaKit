@@ -58,7 +58,7 @@ Everything defaults to the Fuji testnet. `deployContract` refuses a mainnet chai
 
 A chain counts as mainnet unless its definition says `testnet: true`, and always when its id is a known mainnet (`43114`). A definition that leaves the flag out is therefore treated as a mainnet, not as a testnet.
 
-`deployContract` resolves only for a contract that really exists: a deployment transaction that reverted is rejected with `DeployFailedError`.
+`deployContract` resolves only for a contract that really exists. A deployment transaction that reverted is rejected with `DeployFailedError`, and so is one that succeeded but left no code at the new address: after a successful receipt the code is read back with `eth_getCode`, and because a node can serve a receipt slightly before the state behind it, an empty read is repeated for up to two seconds before the deployment is given up on.
 
 ## Explorer and faucet links
 
