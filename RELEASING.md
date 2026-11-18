@@ -29,7 +29,11 @@ exchange is also what produces the **provenance attestation** on each tarball
 
 2. **The bot opens a PR.** The workflow sees a pending changeset and opens/updates a
    **"chore: version packages"** PR (branch `changeset-release/main`) that applies the
-   bumps and rewrites the changelogs. Nothing is published yet.
+   bumps and rewrites the changelogs. Nothing is published yet. The PR is produced by
+   `pnpm version-packages`: `changeset version`, followed by `@avakit/mcp`'s
+   `sync:server-json` script when the package defines one. Changesets does not know
+   `packages/mcp/server.json` (the MCP Registry listing), so that script is what
+   bumps the listing in the same PR instead of leaving it a release behind.
 
 3. **Check the PR, then merge it.** Merging it is the publish trigger: the workflow
    runs again, passes the checks below, finds no changesets, and publishes whatever
