@@ -13,7 +13,9 @@ export function Providers({ children }: { children: ReactNode }) {
     // Social login (Web3Auth) appears only when a client ID is configured.
     const clientId = process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID;
     if (clientId) {
-      list.push(web3authAdapter({ clientId, network: "sapphire_devnet" }));
+      // Pass the app's chain so the embedded wallet lands on Fuji instead of
+      // Web3Auth's default network.
+      list.push(web3authAdapter({ clientId, network: "sapphire_devnet", chains: [fuji] }));
     }
     // Injected (Core / MetaMask) is always available — no API keys needed.
     list.push(injectedAdapter());
