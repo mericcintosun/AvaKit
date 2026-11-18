@@ -4,14 +4,30 @@ import { web3authAdapter } from "./web3auth.js";
 
 const ACCOUNT = "0x000000000000000000000000000000000000dEaD";
 
+/** What one instance of the stand-in SDK was asked to do. */
+interface SdkRecord {
+  options: Record<string, unknown>;
+  inits: number;
+  connects: number;
+  logouts: number;
+  /** Chain configs passed to addChain(), in order. */
+  added: Array<Record<string, unknown>>;
+  /** Chain ids passed to the SDK's own switchChain(), in order. */
+  switches: string[];
+  /** Methods requested from the EIP-1193 provider the SDK handed out. */
+  requests: string[];
+}
+
 /**
  * A stand-in for the `@web3auth/modal` SDK. Like the real one, connect() fails
  * until init() has completed. `initOutcomes` scripts what each init() call does,
- * in order; with nothing scripted, init() succeeds.
+ * in order, and `switchOutcomes` does the same for the SDK's switchChain(); with
+ * nothing scripted, both succeed.
  */
 const sdk = vi.hoisted(() => ({
-  instances: [] as Array<{ options: Record<string, unknown>; inits: number; connects: number }>,
+  instances: [] as SdkRecord[],
   initOutcomes: [] as Array<() => Promise<void>>,
+  switchOutcomes: [] as Array<() => Promise<void>>,
 }));
 
 vi.mock("@web3auth/modal", () => ({
@@ -19,10 +35,18 @@ vi.mock("@web3auth/modal", () => ({
     connected = false;
     provider = null;
     private initialised = false;
-    private readonly record: { options: Record<string, unknown>; inits: number; connects: number };
+    private readonly record: SdkRecord;
 
     constructor(options: Record<string, unknown>) {
-      this.record = { options, inits: 0, connects: 0 };
+      this.record = {
+        options,
+        inits: 0,
+        connects: 0,
+        logouts: 0,
+        added: [],
+        switches: [],
+        requests: [],
+      };
       sdk.instances.push(this.record);
     }
 
@@ -40,17 +64,27 @@ vi.mock("@web3auth/modal", () => ({
       this.connected = true;
       return {
         ethereumProvider: {
-          request: async ({ method }: { method: string }) =>
-            method === "eth_accounts" ? [ACCOUNT] : null,
+          request: async ({ method }: { method: string }) => {
+            this.record.requests.push(method);
+            return method === "eth_accounts" ? [ACCOUNT] : null;
+          },
         },
       };
     }
 
     async logout() {
+      this.record.logouts += 1;
       this.connected = false;
     }
 
-    async switchChain() {}
+    async addChain(config: Record<string, unknown>) {
+      this.record.added.push(config);
+    }
+
+    async switchChain({ chainId }: { chainId: string }) {
+      this.record.switches.push(chainId);
+      await sdk.switchOutcomes.shift()?.();
+    }
   },
 }));
 
@@ -63,6 +97,7 @@ beforeAll(async () => {
 beforeEach(() => {
   sdk.instances.length = 0;
   sdk.initOutcomes.length = 0;
+  sdk.switchOutcomes.length = 0;
 });
 
 describe("web3authAdapter", () => {
@@ -172,5 +207,47 @@ describe("web3authAdapter", () => {
     await adapter.disconnect();
 
     expect(adapter.getProvider()).toBeNull();
+    expect(sdk.instances[0]?.logouts).toBe(1);
+  });
+
+  describe("switchChain", () => {
+    it("registers the chain with the SDK and switches through it", async () => {
+      const adapter = web3authAdapter({ clientId: "test-client-id" });
+      const { provider } = await adapter.connect();
+
+      await adapter.switchChain?.(fuji);
+
+      const instance = sdk.instances[0];
+      expect(instance?.added).toEqual([
+        {
+          chainNamespace: "eip155",
+          chainId: "0xa869",
+          rpcTarget: fuji.rpcUrl,
+          displayName: fuji.name,
+          blockExplorerUrl: fuji.explorerUrl,
+          ticker: "AVAX",
+          tickerName: "Avalanche",
+        },
+      ]);
+      expect(instance?.switches).toEqual(["0xa869"]);
+      // The SDK switched by itself: the wallet was not asked over EIP-1193.
+      expect(instance?.requests).not.toContain("wallet_switchEthereumChain");
+      expect(adapter.getProvider()).toBe(provider);
+    });
+
+    // Some SDK builds cannot switch to a chain they were not configured with.
+    // The adapter then asks the embedded wallet itself, as it would any wallet.
+    it("falls back to the wallet's own chain switch when the SDK refuses", async () => {
+      sdk.switchOutcomes.push(async () => {
+        throw new Error("Chain config not found");
+      });
+      const adapter = web3authAdapter({ clientId: "test-client-id" });
+      await adapter.connect();
+
+      await adapter.switchChain?.(fuji);
+
+      expect(sdk.instances[0]?.switches).toEqual(["0xa869"]);
+      expect(sdk.instances[0]?.requests).toContain("wallet_switchEthereumChain");
+    });
   });
 });
