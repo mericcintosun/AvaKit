@@ -2,14 +2,14 @@
 
 A **Cloudflare Worker** that drips testnet AVAX so an AvaKit app can fund a new
 user's first transaction with zero wallet setup. It holds the funding key as a
-Worker secret and rate-limits in KV, so AvaKit client code never touches a
-private key.
+Worker secret and counts drips in a Durable Object, so AvaKit client code never
+touches a private key.
 
 This is the faucet behind **AvaKit Cloud** and `avakit.dev/new`. MIT — run your
 own if you'd rather not use ours.
 
 > Not part of the pnpm workspace; it deploys on its own. Cloudflare's free tier
-> covers it (100k requests/day, KV included).
+> covers it (100k requests/day, and SQLite-backed Durable Objects are included).
 
 ## Deploy
 
@@ -19,13 +19,10 @@ npm install
 
 npx wrangler login
 
-# 1. rate-limit store — paste the printed id into wrangler.toml
-npx wrangler kv namespace create FAUCET_KV
-
-# 2. the funding key (a THROWAWAY Fuji key — never one with real funds)
+# 1. the funding key (a THROWAWAY Fuji key — never one with real funds)
 npx wrangler secret put AVAKIT_FAUCET_KEY
 
-# 3. ship it
+# 2. ship it — this also creates the Durable Object (see `[[migrations]]`)
 npx wrangler deploy
 ```
 
@@ -40,31 +37,91 @@ NEXT_PUBLIC_AVAKIT_FAUCET_URL = https://<worker>.workers.dev/fund
 `avakit.dev/new` then funds each visitor's burner automatically. Without it the
 page stays honest and links to the official Fuji faucet instead.
 
+**Upgrading a faucet deployed before the Durable Object.** Earlier versions kept
+their rate limits in a KV namespace (`FAUCET_KV`). Nothing needs migrating:
+`npx wrangler deploy` creates the Durable Object and the limits start empty.
+The old namespace is no longer bound and can be deleted with
+`npx wrangler kv namespace delete --namespace-id <id>`.
+
 ## Config
 
 | Where | Name | Default | What |
 | --- | --- | --- | --- |
 | secret | `AVAKIT_FAUCET_KEY` | — (required) | 0x private key holding Fuji test AVAX |
 | var | `FAUCET_DRIP_AVAX` | `0.02` (set in `wrangler.toml`) | Amount per drip |
-| var | `FAUCET_CORS_ORIGIN` | `*` | Set to `https://avakit.dev` once live |
-| var | `FAUCET_FUJI_RPC` | public Fuji RPC | Override the RPC |
-| kv | `FAUCET_KV` | — (required) | Rate-limit store |
+| var | `FAUCET_CORS_ORIGIN` | `*` | Left open on purpose: CORS is a browser rule, not a security boundary, and locking it down only breaks local dev and preview deploys |
+| var | `FAUCET_FUJI_RPC` | public Fuji RPC | Override the RPC. A keyed URL is fine: it is never returned to a caller and is redacted from the log |
+| durable object | `FAUCET` | — (in `wrangler.toml`) | Rate limits and the send queue, one object per chain |
 
 ## Endpoints
 
 - `POST /fund` — `{ "address": "0x…", "chainId"?: 43113 }` → `{ txHash, amount, chainId }`
 - `GET /health` — `{ ok, address, chainId, balance }`
 
+Anything else answers `{ "error": "…", "code": "…" }`. The message is fixed text
+for people; branch on `code`:
+
+| Status | `code` | Meaning |
+| --- | --- | --- |
+| 400 | `invalid_json`, `invalid_address`, `unsupported_chain` | The request is wrong; retrying won't help |
+| 404 | `not_found` | Not one of the two endpoints |
+| 429 | `address_limited`, `ip_limited` | Over a limit. `Retry-After` says how many seconds until it clears |
+| 502 | `drip_failed` | The RPC or the chain refused the transaction. Nothing was charged to the caller's limits; retry shortly |
+| 503 | `faucet_empty`, `faucet_busy` | Out of funds, or too many drips in flight |
+| 500 | `misconfigured`, `internal` | The Worker's own setup (key, drip amount) or a bug |
+
+A failed drip never returns the upstream error. viem's messages include the RPC
+URL and the raw request, so the detail goes to the Worker log instead
+(`npm run tail`, or Workers Logs in the dashboard), with the RPC URL redacted.
+
 ## Limits
 
-- One drip per **address** / 24h · max **20** per **IP** / hour (KV-backed). The
-  per-IP cap is deliberately generous because a whole hackathon room shares one
-  NAT'd IP, and that room is the audience this exists for.
-- KV is eventually consistent, so these are a floor, not a hard guarantee — the
-  small drip amount is the other half of that trade-off.
-- **Add [Turnstile](https://developers.cloudflare.com/turnstile/) in front before
-  advertising this widely.** The allowlist in `src/worker.js` only permits Fuji
-  (43113), so it can never drip real funds.
+- One drip per **address** / 24h · max **20** per **client** in any rolling hour.
+  The per-client cap is deliberately generous because a whole hackathon room
+  shares one NAT'd IP, and that room is the audience this exists for.
+- A client is an IPv4 address or an IPv6 **/64**. One subscriber is handed a
+  whole /64, so counting single IPv6 addresses would count nothing.
+- The limits are exact. Every request for a chain goes through one Durable
+  Object, which checks and records a drip in a single step — a burst of
+  parallel requests cannot all read the counter before any of them writes it.
+- A drip only counts if its transaction goes out. If the send fails, the
+  address and the client both get their allowance back.
+- The same object sends the transactions one at a time, so concurrent requests
+  never sign the same nonce.
+- The allowlist in `src/sender.js` only permits Fuji (43113), and every
+  transaction is signed for that chain id whatever the RPC says — so the
+  faucet cannot drip real funds, even with `FAUCET_FUJI_RPC` pointed at another
+  network by mistake.
+- To count, the object stores each drip's address for 24 hours and the client
+  it came from for one hour. Its alarm deletes both on schedule, so an IP
+  address is gone an hour after its drip even if that was the day's last.
+
+These bound what one network can take. They do not stop a thousand networks:
+**add [Turnstile](https://developers.cloudflare.com/turnstile/) in front before
+advertising this widely.**
+
+## Local
+
+```bash
+cp .env.example .dev.vars    # gitignored — put a throwaway Fuji key in it
+npx wrangler dev
+curl http://localhost:8787/health
+```
+
+`wrangler dev` runs the Worker and its Durable Object locally, but a drip is a
+real Fuji transaction from whatever key is in `.dev.vars`.
+
+## Tests
+
+```bash
+npm install
+npm test
+```
+
+Needs Node 22.15 or newer. The suite never touches a network: it runs the
+Worker in local `workerd` straight from `wrangler.toml`, against a mock chain
+(`test/helpers/mock-chain.mjs`) that rejects nonce conflicts the way a real
+node does, and it generates its keys on the spot.
 
 ## Wire it into any app
 

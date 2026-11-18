@@ -1,76 +1,87 @@
+import { DurableObject } from "cloudflare:workers";
+import { isAddress, parseEther } from "viem";
+import { clientKey } from "./ip.js";
+import { DripLimits, IP_WINDOW_MS } from "./limits.js";
 import {
-  createPublicClient,
-  createWalletClient,
-  defineChain,
-  http,
-  isAddress,
-  parseEther,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+  CHAINS,
+  connect,
+  DEFAULT_CHAIN_ID,
+  DripSender,
+  describeError,
+  FaucetConfigError,
+  FaucetEmptyError,
+} from "./sender.js";
 
 /**
  * AvaKit faucet — a Cloudflare Worker that drips testnet AVAX so a new user's
  * first transaction is funded with no wallet setup. It holds the funding key as a
- * Worker secret and rate-limits in KV, so AvaKit client code never touches a
- * private key.
+ * Worker secret, so AvaKit client code never touches a private key.
  *
  *   POST /fund   { address, chainId? }  → { txHash, amount, chainId }
  *   GET  /health                        → { ok, address, chainId, balance }
  *
  * Point a dapp at it: <AvaKitProvider faucetUrl="https://<worker>/fund">
  *
+ * The Worker itself is stateless: it validates the request and hands the drip
+ * to the `Faucet` Durable Object. That object is the one place that both counts
+ * drips and signs them, which is what makes the rate limits exact and keeps two
+ * drips off the same nonce.
+ *
  * ⚠️ Testnet only. CHAINS is an allowlist, so this can never drip real funds.
  *    Add a captcha (Cloudflare Turnstile) in front before advertising it widely —
- *    the KV limits below are a floor, not a full anti-abuse defense.
+ *    the rate limits bound what one network can take; a captcha is what stops a
+ *    thousand of them.
  */
 
-/** Testnet allowlist — chainId → RPC. Anything not listed is refused. */
-const CHAINS = {
-  43113: { name: "Avalanche Fuji", rpc: "https://api.avax-test.network/ext/bc/C/rpc" },
+/**
+ * Every way a request is turned down: code → [status, message]. The text is
+ * fixed on purpose. An upstream error (viem prints the RPC URL and the request
+ * body in its messages) goes to the Worker log and never to the caller.
+ */
+const REFUSALS = {
+  invalid_json: [400, "Invalid JSON body."],
+  invalid_address: [400, "A valid 0x address is required."],
+  unsupported_chain: [400, "Unsupported or non-testnet chainId."],
+  not_found: [404, "Not found."],
+  address_limited: [429, "This address was funded recently. Try again later."],
+  ip_limited: [429, "Rate limit reached. Try again later."],
+  faucet_busy: [503, "The faucet is busy. Try again in a few seconds."],
+  faucet_empty: [503, "Faucet is empty. Please top it up."],
+  drip_failed: [502, "The faucet could not send the drip. Try again shortly."],
+  misconfigured: [500, "Faucet is misconfigured."],
+  internal: [500, "Faucet error. Try again shortly."],
 };
-const DEFAULT_CHAIN_ID = 43113;
 
-const ADDRESS_TTL_S = 24 * 60 * 60; // one drip per address / 24h
-const IP_TTL_S = 60 * 60; // per-IP window
-// A whole hackathon room shares one NAT'd IP, and that room is exactly the
-// audience this faucet exists for — so this is deliberately generous. It is the
-// real drain defense though (the per-address limit is trivially bypassed by
-// generating addresses), so it caps a single IP at IP_MAX * drip per hour.
-// Add Cloudflare Turnstile before advertising widely; that, not this, is the fix.
-const IP_MAX = 20;
-
-function clientsFor(chainId, env) {
-  const cfg = CHAINS[chainId];
-  if (!cfg) return null;
-  const rpc = env.FAUCET_FUJI_RPC || cfg.rpc;
-  const chain = defineChain({
-    id: chainId,
-    name: cfg.name,
-    nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
-    rpcUrls: { default: { http: [rpc] } },
-  });
-  const account = privateKeyToAccount(env.AVAKIT_FAUCET_KEY);
-  return {
-    account,
-    publicClient: createPublicClient({ chain, transport: http(rpc) }),
-    walletClient: createWalletClient({ account, chain, transport: http(rpc) }),
-  };
-}
+/** Drips one object will prepare or send at once before asking callers to come back. */
+const MAX_ACTIVE_DRIPS = 64;
+const BUSY_RETRY_S = 3;
 
 function cors(env) {
   return {
     "access-control-allow-origin": env.FAUCET_CORS_ORIGIN || "*",
     "access-control-allow-headers": "content-type",
     "access-control-allow-methods": "POST, GET, OPTIONS",
+    "access-control-expose-headers": "retry-after",
     "access-control-max-age": "86400",
   };
 }
 
-function json(body, status, env) {
+function json(body, status, env, headers) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", ...cors(env) },
+    headers: { "content-type": "application/json", ...cors(env), ...headers },
   });
+}
+
+/** `{ error, code }` for a refusal, with `Retry-After` when we know when to come back. */
+function refuse({ code, message, retryAfter }, env) {
+  const [status, text] = REFUSALS[code] ?? REFUSALS.internal;
+  return json(
+    { error: message ?? text, code },
+    status,
+    env,
+    retryAfter ? { "retry-after": String(retryAfter) } : undefined,
+  );
 }
 
 /**
@@ -82,89 +93,186 @@ function preflight(env) {
   return new Response(null, { status: 204, headers: cors(env) });
 }
 
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
+const KEY_MISSING = { code: "misconfigured", message: "Faucet key not configured." };
 
+async function health(env) {
+  if (!env.AVAKIT_FAUCET_KEY) return refuse(KEY_MISSING, env);
+
+  const { account, client } = connect(DEFAULT_CHAIN_ID, env);
+  const balance = await client.getBalance({ address: account.address }).catch(() => null);
+  return json(
+    {
+      ok: true,
+      address: account.address,
+      chainId: DEFAULT_CHAIN_ID,
+      balance: balance != null ? balance.toString() : null,
+    },
+    200,
+    env,
+  );
+}
+
+async function fund(request, env, ctx) {
+  if (!env.AVAKIT_FAUCET_KEY) return refuse(KEY_MISSING, env);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return refuse({ code: "invalid_json" }, env);
+  }
+  if (!body || typeof body.address !== "string" || !isAddress(body.address)) {
+    return refuse({ code: "invalid_address" }, env);
+  }
+
+  const chainId = Number(body.chainId ?? DEFAULT_CHAIN_ID);
+  if (!Object.hasOwn(CHAINS, chainId)) {
+    return refuse(
+      { code: "unsupported_chain", message: `Unsupported or non-testnet chainId ${chainId}.` },
+      env,
+    );
+  }
+
+  const ip = request.headers.get("cf-connecting-ip");
+
+  // One object per chain: it owns that chain's limits and the account's nonce.
+  const faucet = env.FAUCET.get(env.FAUCET.idFromName(String(chainId)));
+  const drip = (async () => faucet.drip({ chainId, to: body.address, client: clientKey(ip) }))();
+  // If the caller hangs up, stay with the drip until the object has answered.
+  ctx.waitUntil(drip.catch(() => {}));
+
+  const result = await drip;
+  if (!result.ok) return refuse(result, env);
+  return json({ txHash: result.txHash, amount: result.amount, chainId: result.chainId }, 200, env);
+}
+
+export default {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") return preflight(env);
 
-    if (request.method === "GET" && url.pathname === "/health") {
-      if (!env.AVAKIT_FAUCET_KEY) return json({ error: "Faucet key not configured." }, 500, env);
-      const c = clientsFor(DEFAULT_CHAIN_ID, env);
-      const balance = await c.publicClient
-        .getBalance({ address: c.account.address })
-        .catch(() => null);
-      return json(
-        {
-          ok: true,
-          address: c.account.address,
-          chainId: DEFAULT_CHAIN_ID,
-          balance: balance != null ? balance.toString() : null,
-        },
-        200,
-        env,
+    try {
+      const url = new URL(request.url);
+      if (request.method === "GET" && url.pathname === "/health") return await health(env);
+      if (request.method === "POST" && url.pathname === "/fund") {
+        return await fund(request, env, ctx);
+      }
+      return refuse({ code: "not_found" }, env);
+    } catch (e) {
+      if (e instanceof FaucetConfigError) {
+        return refuse({ code: "misconfigured", message: e.message }, env);
+      }
+      console.error(
+        JSON.stringify({ message: "unhandled error", ...describeError(e, env.FAUCET_FUJI_RPC) }),
       );
+      return refuse({ code: "internal" }, env);
     }
-
-    if (request.method === "POST" && url.pathname === "/fund") {
-      if (!env.AVAKIT_FAUCET_KEY) return json({ error: "Faucet key not configured." }, 500, env);
-
-      let body;
-      try {
-        body = await request.json();
-      } catch {
-        return json({ error: "Invalid JSON body." }, 400, env);
-      }
-      if (!body || typeof body.address !== "string" || !isAddress(body.address)) {
-        return json({ error: "A valid 0x address is required." }, 400, env);
-      }
-
-      const chainId = Number(body.chainId ?? DEFAULT_CHAIN_ID);
-      const clients = clientsFor(chainId, env);
-      if (!clients) {
-        return json({ error: `Unsupported or non-testnet chainId ${chainId}.` }, 400, env);
-      }
-
-      const address = body.address.toLowerCase();
-      const ip = request.headers.get("cf-connecting-ip") || "unknown";
-      const addrKey = `a:${address}`;
-      const ipKey = `i:${ip}`;
-
-      // KV is eventually consistent, so these limits are a floor rather than a
-      // hard guarantee — paired with a tiny drip that is the intended trade-off.
-      if (await env.FAUCET_KV.get(addrKey)) {
-        return json({ error: "This address was funded recently. Try again later." }, 429, env);
-      }
-      const hits = Number((await env.FAUCET_KV.get(ipKey)) ?? "0");
-      if (hits >= IP_MAX) {
-        return json({ error: "Rate limit reached. Try again later." }, 429, env);
-      }
-
-      try {
-        const dripAvax = env.FAUCET_DRIP_AVAX || "0.05";
-        const drip = parseEther(dripAvax);
-        const balance = await clients.publicClient.getBalance({ address: clients.account.address });
-        if (balance < drip) {
-          return json({ error: "Faucet is empty. Please top it up." }, 503, env);
-        }
-
-        // Reserve before sending so a burst can't slip through the await.
-        await env.FAUCET_KV.put(addrKey, "1", { expirationTtl: ADDRESS_TTL_S });
-        await env.FAUCET_KV.put(ipKey, String(hits + 1), { expirationTtl: IP_TTL_S });
-
-        const txHash = await clients.walletClient.sendTransaction({
-          account: clients.account,
-          to: body.address,
-          value: drip,
-        });
-        return json({ txHash, amount: dripAvax, chainId }, 200, env);
-      } catch (e) {
-        // Release the address reservation so a failed drip can be retried.
-        await env.FAUCET_KV.delete(addrKey).catch(() => {});
-        return json({ error: e instanceof Error ? e.message : "Drip failed." }, 502, env);
-      }
-    }
-
-    return json({ error: "Not found." }, 404, env);
   },
 };
+
+// ── The faucet account ──────────────────────────────────────────────────────
+
+/**
+ * Counts drips and sends them, for one chain.
+ *
+ * Both jobs need a single place that sees every request in order — the limits
+ * so that a burst cannot read a counter before anyone has written it, the
+ * sender so that two drips never sign the same nonce. A Durable Object is that
+ * place; KV, which the limits used to live in, is not.
+ */
+export class Faucet extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.limits = new DripLimits(ctx.storage.sql);
+    this.active = 0;
+    this.connection = null;
+  }
+
+  /**
+   * Fund `to`, unless a limit says no. Never throws for an expected failure:
+   * the caller gets `{ ok: false, code }` and maps it to a response.
+   */
+  async drip({ chainId, to, client }) {
+    const address = to.toLowerCase();
+
+    // Cheap, read-only refusals first, so an over-limit or flooding caller costs
+    // neither an RPC call nor a storage write.
+    const refused = this.limits.refusal({ address, client });
+    if (refused) return { ok: false, ...refused };
+    if (this.active >= MAX_ACTIVE_DRIPS) {
+      return { ok: false, code: "faucet_busy", retryAfter: BUSY_RETRY_S };
+    }
+
+    this.active += 1;
+    let reservation;
+    try {
+      const { sender, amount, value } = this.#setup(chainId);
+      const request = await sender.prepare({ to, value });
+
+      // Only now, with a transaction ready to send, is a slot taken — an empty
+      // faucet or an unreachable RPC is turned away above without writing a
+      // row. Other requests ran during that await, so reserve() checks again.
+      reservation = this.limits.reserve({ address, client });
+      if (reservation.refused) return { ok: false, ...reservation.refused };
+      await this.#scheduleCleanup();
+
+      const txHash = await sender.broadcast(request);
+      this.limits.settle(reservation.id);
+      return { ok: true, txHash, amount, chainId };
+    } catch (e) {
+      // A drip that did not go out must not cost the caller their allowance.
+      if (reservation?.id !== undefined) this.limits.release(reservation.id);
+
+      if (e instanceof FaucetEmptyError) return { ok: false, code: "faucet_empty" };
+      if (e instanceof FaucetConfigError) {
+        return { ok: false, code: "misconfigured", message: e.message };
+      }
+      console.error(
+        JSON.stringify({
+          message: "drip failed",
+          chainId,
+          to,
+          ...describeError(e, this.connection?.rpcUrl),
+        }),
+      );
+      return { ok: false, code: "drip_failed" };
+    } finally {
+      this.active -= 1;
+    }
+  }
+
+  /**
+   * Runs when the earliest stored row leaves its window. Rows are otherwise
+   * only cleared out by the next drip, and on a quiet day there may not be
+   * one — a client's address should not sit in storage waiting for it.
+   */
+  async alarm() {
+    const next = this.limits.prune();
+    if (next !== null) await this.ctx.storage.setAlarm(next);
+  }
+
+  /** Make sure alarm() will run once the drip just recorded has aged out. */
+  async #scheduleCleanup() {
+    const due = Date.now() + IP_WINDOW_MS;
+    const scheduled = await this.ctx.storage.getAlarm();
+    if (scheduled === null || scheduled > due) await this.ctx.storage.setAlarm(due);
+  }
+
+  #setup(chainId) {
+    if (!this.connection) {
+      const connection = connect(chainId, this.env);
+      if (!connection) throw new FaucetConfigError(`Chain ${chainId} is not allowlisted.`);
+      this.connection = { ...connection, sender: new DripSender(connection) };
+    }
+
+    const amount = this.env.FAUCET_DRIP_AVAX || "0.05";
+    let value = 0n;
+    try {
+      value = parseEther(amount);
+    } catch {
+      // Falls through to the check below.
+    }
+    if (value <= 0n) throw new FaucetConfigError("FAUCET_DRIP_AVAX is not a valid amount.");
+
+    return { sender: this.connection.sender, amount, value };
+  }
+}

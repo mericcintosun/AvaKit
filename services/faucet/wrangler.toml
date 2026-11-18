@@ -12,14 +12,30 @@ compatibility_flags = ["nodejs_compat"]
 FAUCET_DRIP_AVAX = "0.02"
 # Left open on purpose: CORS is a browser rule, not a security boundary (a bot can
 # POST directly anyway), so locking it down would only break local dev and Vercel
-# previews. The KV rate limits + the testnet-only allowlist are the real defense.
+# previews. The rate limits + the testnet-only allowlist are the real defense.
 FAUCET_CORS_ORIGIN = "*"
 
-# Rate-limit store. Created once with:
-#   npx wrangler kv namespace create FAUCET_KV
-[[kv_namespaces]]
-binding = "FAUCET_KV"
-id = "3676e259b19345acb584603edb86e3f6"
+# The rate limits and the send queue live in one SQLite-backed Durable Object per
+# chain, not in KV: a KV counter is read, awaited on and written back, so a burst
+# of requests all read the same value, and nothing in KV can stop two drips from
+# signing the same nonce. The object sees every request in order.
+[[durable_objects.bindings]]
+name = "FAUCET"
+class_name = "Faucet"
+
+# `new_sqlite_classes` (not `new_classes`) is required: only the SQLite storage
+# backend is available on the Workers free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Faucet"]
+
+# Keep what the Worker logs (a failed drip logs the reason; callers only ever get
+# a fixed message) so it can be read in the dashboard afterwards, not just live
+# in `wrangler tail`. Invocation logs are off so no visitor's IP is stored.
+[observability.logs]
+enabled = true
+invocation_logs = false
 
 # AVAKIT_FAUCET_KEY is a secret, never a var:
 #   npx wrangler secret put AVAKIT_FAUCET_KEY
+# For `wrangler dev`, put it in .dev.vars instead (gitignored).
