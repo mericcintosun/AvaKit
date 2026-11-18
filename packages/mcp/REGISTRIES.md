@@ -97,8 +97,10 @@ is `deleted`. If you ever rename again, check the search before assuming it work
 These need a human with an account; nothing else is blocking them.
 
 - **Smithery** — `smithery.yaml` (repo root) is already in the shape Smithery expects:
-  stdio, `npx -y @avakit/mcp`, one optional `avakitDeployerKey`. Sign in at
-  [smithery.ai](https://smithery.ai) with GitHub, connect this repo, and it reads that file.
+  stdio, `npx -y @avakit/mcp`, and two optional settings: `avakitDeployerKey` and
+  `projectsDirectory` (which becomes `AVAKIT_MCP_ROOT`). It offers nothing that opens the
+  mainnet gate, on purpose. Sign in at [smithery.ai](https://smithery.ai) with GitHub,
+  connect this repo, and it reads that file.
 - **mcp.so** — submit the repo + `npx -y @avakit/mcp`.
 - **Glama** — [glama.ai](https://glama.ai/mcp) crawls public repos on its own, so the
   server may appear without any action; the useful step is **claiming** it so it leaves

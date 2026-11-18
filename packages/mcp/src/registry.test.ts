@@ -3,6 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Connection, connect } from "./testing/connect.js";
 
@@ -88,6 +89,36 @@ describe("what the listing says the server does", () => {
     expect(actions("scaffold a dapp, deploy a contract, mint, and read chain state")).toContain(
       "mint",
     );
+  });
+});
+
+describe("smithery.yaml, the Smithery listing", () => {
+  const yaml = read(path.join("..", "..", "smithery.yaml"));
+  // The function between `commandFunction: |-` and the next key at its level.
+  const source = yaml.match(/^ {2}commandFunction: \|-\n((?: {4}.*\n)+)/m)?.[1] ?? "";
+  // Through JSON, so the result is plain data from this realm.
+  const start = (config: Record<string, string>): unknown =>
+    JSON.parse(JSON.stringify(runInNewContext(`(${source})`)(config)));
+
+  it("starts the published package and sets nothing unless asked", () => {
+    expect(start({})).toEqual({ command: "npx", args: ["-y", pkg.name], env: {} });
+  });
+
+  it("hands each option to the server under the variable the server reads", () => {
+    const options = [...yaml.matchAll(/^ {6}([A-Za-z]+):$/gm)].map((match) => match[1]);
+    expect(options).toEqual(["avakitDeployerKey", "projectsDirectory"]);
+    expect(
+      start({ avakitDeployerKey: "<deploy key>", projectsDirectory: "/home/you/code" }),
+    ).toEqual({
+      command: "npx",
+      args: ["-y", pkg.name],
+      env: { AVAKIT_DEPLOYER_KEY: "<deploy key>", AVAKIT_MCP_ROOT: "/home/you/code" },
+    });
+  });
+
+  it("offers no way to open the mainnet gate", () => {
+    // On purpose: see the comment at the top of smithery.yaml.
+    expect(source).not.toContain("AVAKIT_ALLOW_MAINNET");
   });
 });
 

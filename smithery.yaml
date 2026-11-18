@@ -6,6 +6,12 @@
 # packages/mcp/README.md), and this listing deliberately offers no option that sets
 # it: opening the mainnet gate should be a choice made by someone running the server
 # themselves, not a checkbox in a hosted form.
+#
+# It does offer the projects directory (AVAKIT_MCP_ROOT). scaffold_app only creates
+# projects inside the directory the server was started in, and refuses when that is
+# the filesystem root, which is where some clients start servers (Claude Desktop on
+# macOS), so those need a way to name one. Whoever installs the server fills it in;
+# a tool caller cannot change it.
 startCommand:
   type: stdio
   configSchema:
@@ -21,12 +27,19 @@ startCommand:
           throwaway testnet key, never a key holding real funds. Installed this
           way the server deploys to the Fuji testnet only; mainnet deploys stay
           refused.
+      projectsDirectory:
+        type: string
+        title: Projects directory (optional)
+        description: >-
+          Absolute path of the folder scaffold_app creates new projects in. Leave
+          it empty when your client starts the server inside a project folder, as
+          Claude Code and Cursor do. Set it for a client that does not, such as
+          Claude Desktop.
   commandFunction: |-
-    (config) => ({
-      command: 'npx',
-      args: ['-y', '@avakit/mcp'],
-      env: config.avakitDeployerKey
-        ? { AVAKIT_DEPLOYER_KEY: config.avakitDeployerKey }
-        : {},
-    })
+    (config) => {
+      const env = {};
+      if (config.avakitDeployerKey) env.AVAKIT_DEPLOYER_KEY = config.avakitDeployerKey;
+      if (config.projectsDirectory) env.AVAKIT_MCP_ROOT = config.projectsDirectory;
+      return { command: 'npx', args: ['-y', '@avakit/mcp'], env };
+    }
   exampleConfig: {}
