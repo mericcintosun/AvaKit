@@ -32,7 +32,12 @@ export type {
   NativeTokenBalance,
 } from "@avakit/core";
 export { ConnectAvalanche, type ConnectAvalancheProps } from "./connect-avalanche.js";
-export { useNfts, useTokenBalances, useTxHistory } from "./data-hooks.js";
+export {
+  type DataHookOptions,
+  useNfts,
+  useTokenBalances,
+  useTxHistory,
+} from "./data-hooks.js";
 export {
   type DeployStatus,
   type FaucetStatus,

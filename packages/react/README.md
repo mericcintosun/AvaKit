@@ -43,6 +43,12 @@ To add social login, install `@web3auth/modal` and pass `web3authAdapter({ clien
 - Wallet/tx hooks: `useAvaAccount`, `useAvaChain`, `useBalance`, `useContract`, `useAvaDeploy`, `useSendTransaction`, `useAvaKit`
 - Data hooks (AvaCloud Data API, no indexer): `useTokenBalances`, `useNfts`, `useTxHistory`
 
+The data hooks load one page at a time. Pass `{ pageSize }` as the second argument, check `hasMore`, and call `fetchMore()` to append the next page:
+
+```tsx
+const { tokens, hasMore, fetchMore, isFetchingMore } = useTokenBalances(undefined, { pageSize: 50 });
+```
+
 ## Server Components
 
 `@avakit/react` is a client module: its bundle starts with `"use client"`. In a Next.js App Router app you can therefore render `<AvaKitProvider>`, `<ConnectAvalanche />` or `<TransactionButton />` straight from a Server Component. The hooks still have to be called from a Client Component.
