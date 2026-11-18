@@ -73,19 +73,27 @@ interface Web3AuthModule {
 
 export function web3authAdapter(options: Web3AuthAdapterOptions): WalletAdapter {
   const network = options.network ?? "sapphire_devnet";
+  // The SDK instance once its init() has resolved; null before that.
   let instance: Web3AuthInstance | null = null;
+  // The initialisation in flight or completed (see ensureInstance).
+  let ready: Promise<Web3AuthInstance> | null = null;
   let provider: EIP1193Provider | null = null;
 
-  async function ensureInstance(): Promise<Web3AuthInstance> {
-    if (instance) return instance;
+  async function createInstance(): Promise<Web3AuthInstance> {
     let mod: Web3AuthModule;
     try {
       mod = (await import("@web3auth/modal")) as unknown as Web3AuthModule;
-    } catch {
-      throw new WalletNotAvailableError("web3auth");
+    } catch (cause) {
+      throw new WalletNotAvailableError(
+        "web3auth",
+        'Social login needs the optional "@web3auth/modal" package, which could not be ' +
+          `loaded (${cause instanceof Error ? cause.message : String(cause)}). ` +
+          "Install it with: npm install @web3auth/modal",
+        { cause },
+      );
     }
     const chainConfigs = (options.chains ?? []).map(toWeb3AuthChain);
-    instance = new mod.Web3Auth({
+    const created = new mod.Web3Auth({
       clientId: options.clientId,
       web3AuthNetwork: network,
       // Configure the target chain(s) up front so the embedded wallet connects on
@@ -94,8 +102,32 @@ export function web3authAdapter(options: Web3AuthAdapterOptions): WalletAdapter 
         ? { chains: chainConfigs, defaultChainId: chainConfigs[0]?.chainId }
         : {}),
     });
-    await instance.init();
-    return instance;
+    await created.init();
+    return created;
+  }
+
+  /**
+   * The initialised SDK. What is cached is the initialisation, not the bare
+   * instance: concurrent callers share one init() and nobody is handed the SDK
+   * before it is ready. A failed init (a network blip, a client ID that does not
+   * match the network) is forgotten, so the next call starts over instead of
+   * reusing an instance that never initialised.
+   */
+  function ensureInstance(): Promise<Web3AuthInstance> {
+    if (!ready) {
+      const attempt: Promise<Web3AuthInstance> = createInstance().then(
+        (created) => {
+          instance = created;
+          return created;
+        },
+        (error: unknown) => {
+          if (ready === attempt) ready = null;
+          throw error;
+        },
+      );
+      ready = attempt;
+    }
+    return ready;
   }
 
   return {
