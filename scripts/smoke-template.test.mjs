@@ -14,6 +14,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -97,4 +98,29 @@ test("a caller cannot switch telemetry back on", { skip }, (t) => {
   const { seen } = smoke(t, { env: { AVAKIT_TELEMETRY_DISABLED: "0" } });
 
   assert.equal(seen.telemetryDisabled, "1");
+});
+
+test("the temporary directory it creates is removed, even when the run fails", { skip }, (t) => {
+  const { status, seen, stderr } = smoke(t, { ownWorkdir: true, env: { SMOKE_KEEP: undefined } });
+  // So that a failing run of this test does not leak the directory it reports.
+  t.after(() => rmSync(seen.cwd, { recursive: true, force: true }));
+
+  assert.equal(status, 7);
+  assert.equal(existsSync(seen.cwd), false, `${seen.cwd} was left behind`);
+  assert.match(stderr, /SMOKE_KEEP=1/);
+});
+
+test("SMOKE_KEEP=1 keeps the temporary directory and prints where it is", { skip }, (t) => {
+  const { seen, stdout } = smoke(t, { ownWorkdir: true, env: { SMOKE_KEEP: "1" } });
+  t.after(() => rmSync(seen.cwd, { recursive: true, force: true }));
+
+  assert.equal(existsSync(seen.cwd), true);
+  assert.match(stdout, /kept .*SMOKE_KEEP=1/);
+});
+
+test("a directory passed by the caller is never removed", { skip }, (t) => {
+  const { seen, workdir } = smoke(t, { env: { SMOKE_KEEP: undefined } });
+
+  assert.equal(seen.cwd, realpathSync(workdir));
+  assert.equal(existsSync(workdir), true);
 });

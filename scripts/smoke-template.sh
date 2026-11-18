@@ -24,6 +24,11 @@
 # scripts are not exercised (no avalanche-cli in CI).
 #
 # Usage: scripts/smoke-template.sh <template-id> [workdir]
+#
+# Without a workdir the app is built in a temporary directory that is removed when
+# the script exits, pass or fail: one run leaves an installed and built Next.js app
+# plus the packed tarballs behind otherwise. Set SMOKE_KEEP=1 to keep that
+# directory (its path is printed), or pass a workdir, which is never removed.
 set -euo pipefail
 
 # A smoke run is this repo testing itself, not someone using AvaKit, so it must
@@ -35,19 +40,55 @@ set -euo pipefail
 export AVAKIT_TELEMETRY_DISABLED=1
 
 TEMPLATE="${1:?usage: smoke-template.sh <template-id> [workdir]}"
-WORKDIR="${2:-$(mktemp -d)}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$REPO/packages/create-avalanche-app/dist/index.js"
+BUILD_HINT='pnpm --filter "@avakit/core" --filter "@avakit/react" --filter create-avalanche-app build'
 
+# Check everything the run needs before scaffolding anything.
 if [ ! -f "$CLI" ]; then
-  echo "✖ $CLI not found — run: pnpm --filter create-avalanche-app build" >&2
+  echo "✖ $CLI not found — run: $BUILD_HINT" >&2
   exit 1
 fi
+if [ "${SMOKE_USE_NPM:-0}" != "1" ]; then
+  for pkg in core react; do
+    if [ ! -d "$REPO/packages/$pkg/dist" ]; then
+      echo "✖ packages/$pkg is not built — run: $BUILD_HINT" >&2
+      exit 1
+    fi
+  done
+fi
+
+# Only a directory this script created itself is ever removed.
+REMOVE_WORKDIR=0
+cleanup() {
+  local status=$?
+  [ "$REMOVE_WORKDIR" = "1" ] || return 0
+  if [ "${SMOKE_KEEP:-0}" = "1" ]; then
+    echo "▸ [$TEMPLATE] kept $WORKDIR (SMOKE_KEEP=1)"
+    return 0
+  fi
+  # Leave the directory before deleting it.
+  cd /
+  rm -rf "$WORKDIR"
+  if [ "$status" -ne 0 ]; then
+    echo "▸ [$TEMPLATE] removed the temporary app; re-run with SMOKE_KEEP=1 to inspect it" >&2
+  fi
+}
+trap cleanup EXIT
+
+if [ -n "${2:-}" ]; then
+  WORKDIR="$2"
+  mkdir -p "$WORKDIR"
+else
+  WORKDIR="$(mktemp -d)"
+  REMOVE_WORKDIR=1
+fi
+# Absolute, because the steps below change directory and still refer to it.
+WORKDIR="$(cd "$WORKDIR" && pwd)"
 
 APP_NAME="smoke-$TEMPLATE"
 APP_DIR="$WORKDIR/$APP_NAME"
 rm -rf "$APP_DIR"
-mkdir -p "$WORKDIR"
 
 echo "▸ [$TEMPLATE] scaffolding into $APP_DIR"
 ( cd "$WORKDIR" && node "$CLI" "$APP_NAME" --template "$TEMPLATE" --yes --no-install )
@@ -62,10 +103,6 @@ else
   rm -rf "$PACK_DIR"
   mkdir -p "$PACK_DIR"
   for pkg in core react; do
-    if [ ! -d "$REPO/packages/$pkg/dist" ]; then
-      echo "✖ packages/$pkg is not built — run: pnpm build" >&2
-      exit 1
-    fi
     ( cd "$REPO/packages/$pkg" && pnpm pack --pack-destination "$PACK_DIR" >/dev/null )
   done
   CORE_TGZ="$(ls "$PACK_DIR"/avakit-core-*.tgz | head -1)"
