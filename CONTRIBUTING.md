@@ -87,7 +87,7 @@ Templates that need `avalanche-cli` at runtime (`icm-messenger`, `l1-launch`, `t
 
 Without a second argument the app is built in a temporary directory that is removed when the script exits. To keep the app and look at it, pass a directory (`scripts/smoke-template.sh nft-mint /tmp/smoke`) or set `SMOKE_KEEP=1`.
 
-The script switches the scaffolder's telemetry off, so a smoke run is never counted as usage. When you run the built CLI by hand from this repo (`node packages/create-avalanche-app/dist/index.js …`), set `AVAKIT_TELEMETRY_DISABLED=1` yourself: a contributor trying out a change is not adoption, and without it the run is counted on [avakit.dev/stats](https://avakit.dev/stats).
+The script switches the scaffolder's telemetry off, so a smoke run is never counted as usage. When you run the built CLI by hand from this repo (`node packages/create-avalanche-app/dist/index.js …`), set `AVAKIT_TELEMETRY_DISABLED=1` yourself: a contributor trying out a change is not adoption, and without it the run is counted on [avakit.dev/stats](https://avakit.dev/stats). The variable also works in front of `pnpm test` and any other `turbo` command: `turbo.json` passes it (and `DO_NOT_TRACK`, `AVAKIT_TELEMETRY_URL` and `AVAKIT_CONFIG_DIR`) through to the tasks, which Turborepo's strict environment would otherwise drop.
 
 ## Contracts and bytecode artifacts
 

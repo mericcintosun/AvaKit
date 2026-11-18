@@ -1,6 +1,20 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  // Turborepo runs every task in strict env mode: a variable that is not
+  // declared is not passed to the task at all. Without this list,
+  // `AVAKIT_TELEMETRY_DISABLED=1 pnpm test` looks safe and is not: turbo drops
+  // the variable, so a test or script that runs the scaffolder under turbo
+  // reports to the production collector anyway, and a caller's
+  // AVAKIT_CONFIG_DIR is ignored in favour of the real ~/.config/avakit. (CI is
+  // passed through by default, which is why CI runs were never affected.)
+  // Passed through, not hashed: these change side effects, not task results.
+  "globalPassThroughEnv": [
+    "AVAKIT_CONFIG_DIR",
+    "AVAKIT_TELEMETRY_DISABLED",
+    "AVAKIT_TELEMETRY_URL",
+    "DO_NOT_TRACK"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

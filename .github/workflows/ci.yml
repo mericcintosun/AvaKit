@@ -36,11 +36,12 @@ jobs:
 
       # The repo's own tooling, which no package test covers. The self-tests check
       # that the smoke script keeps the scaffolder's telemetry off and removes its
-      # temporary directory, and that release.yml still gates publishing on the
-      # checks. The parity check fails when two templates pin different versions of
-      # a dependency they share: the templates are not workspace members and
-      # Dependabot is not pointed at them (see .github/dependabot.yml), so nothing
-      # else keeps them in step.
+      # temporary directory, that turbo.json still passes a telemetry opt-out
+      # through to the tasks turbo runs, and that release.yml still gates
+      # publishing on the checks. The parity check fails when two templates pin
+      # different versions of a dependency they share: the templates are not
+      # workspace members and Dependabot is not pointed at them (see
+      # .github/dependabot.yml), so nothing else keeps them in step.
       - name: Repo scripts · template dependency parity
         run: |
           node --test scripts/*.test.mjs
