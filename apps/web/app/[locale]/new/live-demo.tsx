@@ -35,11 +35,15 @@ import { abi, bytecode } from "@/lib/nft-artifact";
 const FAUCET_URL = process.env.NEXT_PUBLIC_AVAKIT_FAUCET_URL;
 /**
  * The official Fuji faucet: the way forward whenever ours can't fund the wallet.
- * It is the Builder Hub faucet (the older core.app address redirects there) and
- * asks for a free Builder Hub sign-in, which the copy below says up front.
+ * It is the Builder Hub faucet and asks for a free Builder Hub sign-in, which
+ * the copy below says up front.
+ *
+ * Written out rather than read from `fuji.faucetUrl`: this site still installs
+ * the published @avakit/core 0.2.0, whose `fuji.faucetUrl` is the older
+ * core.app address that only redirects here. From the next release the chain
+ * definition carries this same URL.
  */
-const PUBLIC_FAUCET_URL =
-  fuji.faucetUrl ?? "https://build.avax.network/console/primary-network/faucet";
+const PUBLIC_FAUCET_URL = "https://build.avax.network/console/primary-network/faucet";
 /** A faucet that takes the request and then stalls is a failure, not a wait. */
 const FAUCET_TIMEOUT_MS = 20_000;
 /** A drip lands within seconds. Past this, stop implying it is on its way. */
@@ -250,9 +254,13 @@ function Flow() {
   }, [address, funded, refetchBalance]);
 
   // This page asks the faucet itself instead of handing `faucetUrl` to
-  // <AvaKitProvider>: the provider's auto-fund swallows a refusal and never
-  // retries, which would leave the visitor on a spinner with no reason and no
-  // way forward. Here every outcome ends in a state the step below can render.
+  // <AvaKitProvider>. That is because of the version it runs on: the site still
+  // installs the published @avakit/react 0.2.0, whose automatic drip swallows a
+  // refusal and never retries, which would leave the visitor on a spinner with
+  // no reason and no way forward. Here every outcome ends in a state the step
+  // below can render. From the next release the provider reports its drip
+  // through useFaucet(), refusal included, and retries a temporary failure; once
+  // the site has moved to those packages this request can go back to it.
   const requestDrip = useCallback(async (to: Address) => {
     if (!FAUCET_URL) return;
     drippedFor.current = to;

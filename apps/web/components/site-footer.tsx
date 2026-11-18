@@ -30,7 +30,11 @@ const columns = [
     links: [
       { label: "Avalanche Builder Hub", href: "https://build.avax.network" },
       { label: "Web3Auth", href: "https://dashboard.web3auth.io" },
-      { label: "Fuji faucet", href: "https://core.app/tools/testnet-faucet" },
+      // The Builder Hub faucet itself: core.app/tools/testnet-faucet only redirects here.
+      {
+        label: "Fuji faucet",
+        href: "https://build.avax.network/console/primary-network/faucet",
+      },
     ],
   },
 ];
