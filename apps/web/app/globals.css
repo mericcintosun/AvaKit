@@ -4,6 +4,14 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * Devices whose primary input can hover. Tailwind already wraps `hover:` and
+ * `group-hover:` in this same query, so they never apply on a touch screen;
+ * pairing them with `can-hover:` (e.g. `can-hover:opacity-0
+ * group-hover:opacity-100`) keeps a hover-revealed control visible there.
+ */
+@custom-variant can-hover (@media (hover: hover));
+
+/*
  * AvaKit design tokens.
  *
  * Brand: "Ember Crimson". Surfaces stay near-black / near-white (a calm,

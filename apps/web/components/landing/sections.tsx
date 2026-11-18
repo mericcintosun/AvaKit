@@ -103,7 +103,7 @@ export function SurfacesSection() {
                           ))}
                         </ul>
                       ) : (
-                        <span className="text-foreground inline-flex items-center gap-1 text-sm opacity-0 transition-opacity group-hover:opacity-100">
+                        <span className="text-foreground inline-flex items-center gap-1 text-sm transition-opacity can-hover:opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">
                           {c.surfacesSection.readDocs} <ArrowRight className="size-3.5" />
                         </span>
                       )}

@@ -33,11 +33,15 @@ export function CodeBlock({
         </code>
       </pre>
       <Button
-        variant="ghost"
+        // Outline, not ghost: its solid fill masks a long line that scrolls
+        // underneath instead of letting the icon sit on top of the text.
+        variant="outline"
         size="icon"
         onClick={copy}
         aria-label="Copy code"
-        className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+        // Hidden until hover only where hovering exists; a touch screen has no
+        // hover to reveal it with, so there it is always shown.
+        className="absolute top-2 right-2 transition-opacity can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
       >
         {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
       </Button>
