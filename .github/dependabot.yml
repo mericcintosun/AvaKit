@@ -12,6 +12,27 @@ updates:
         patterns:
           - "*"
 
+  # The two Cloudflare Workers are standalone npm projects with their own
+  # package-lock.json, outside the pnpm workspace, so the entry above never sees
+  # them. One grouped PR per week for both.
+  - package-ecosystem: npm
+    directories:
+      - "/services/faucet"
+      - "/services/telemetry"
+    schedule:
+      interval: weekly
+    groups:
+      services:
+        patterns:
+          - "*"
+
+  # Not covered: the scaffolder templates (packages/create-avalanche-app/templates/*).
+  # They are not workspace members either, but their package.json files carry
+  # placeholders the scaffolder fills in ("@avakit/core": "__AVAKIT_CORE_DEP__")
+  # where Dependabot expects a version range, so it is not pointed at them. Bump
+  # a template dependency by hand, in every template in the same commit:
+  # scripts/check-template-deps.mjs (run in CI) fails when they disagree.
+
   # GitHub Actions — keeps the SHA-pinned actions current (Dependabot bumps the
   # SHA and the `# vX` comment together).
   - package-ecosystem: github-actions
