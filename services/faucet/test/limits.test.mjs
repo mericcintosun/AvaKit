@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ADDRESS_WINDOW_MS, DripLimits, IP_MAX, IP_WINDOW_MS } from "../src/limits.js";
+import {
+  ADDRESS_WINDOW_MS,
+  DripLimits,
+  FAILURE_MAX,
+  FAILURE_WINDOW_MS,
+  IP_MAX,
+  IP_WINDOW_MS,
+} from "../src/limits.js";
 import { memorySql } from "./helpers/sql.mjs";
 
 const MINUTE = 60 * 1000;
@@ -132,6 +139,83 @@ describe("a failed drip", () => {
     assert.equal(after.refusal({ address: sent, client: CLIENT }, T0).code, "address_limited");
     assert.equal(after.refusal({ address: interrupted, client: CLIENT }, T0), null);
     assert.equal(sql.exec("SELECT COUNT(*) AS n FROM hits").one().n, 1);
+  });
+});
+
+describe("failed attempts", () => {
+  const OTHER = "198.51.100.7";
+
+  it(`get a client refused after ${FAILURE_MAX} in five minutes, until they age out`, () => {
+    const limits = new DripLimits(memorySql());
+    for (let i = 1; i < FAILURE_MAX; i += 1) limits.fail({ client: CLIENT }, T0);
+    assert.equal(limits.refusal({ address: address(), client: CLIENT }, T0), null);
+
+    limits.fail({ client: CLIENT }, T0 + MINUTE);
+
+    const refused = { code: "ip_limited", retryAfter: 4 * 60 };
+    assert.deepEqual(limits.refusal({ address: address(), client: CLIENT }, T0 + MINUTE), refused);
+    assert.deepEqual(limits.reserve({ address: address(), client: CLIENT }, T0 + MINUTE), {
+      refused,
+    });
+    // Somebody else is not affected.
+    assert.equal(limits.refusal({ address: address(), client: OTHER }, T0 + MINUTE), null);
+
+    // The early ones lapse together, and the client is back.
+    const justBefore = T0 + FAILURE_WINDOW_MS - 1;
+    assert.deepEqual(limits.refusal({ address: address(), client: CLIENT }, justBefore), {
+      code: "ip_limited",
+      retryAfter: 1,
+    });
+    assert.ok(
+      "id" in limits.reserve({ address: address(), client: CLIENT }, T0 + FAILURE_WINDOW_MS),
+    );
+  });
+
+  it("name the moment the client is back, even when more than the limit were recorded", () => {
+    // Attempts already in flight when the limit is reached can still fail.
+    const limits = new DripLimits(memorySql());
+    for (let i = 0; i < 3; i += 1) limits.fail({ client: CLIENT }, T0);
+    for (let i = 0; i < FAILURE_MAX; i += 1) limits.fail({ client: CLIENT }, T0 + MINUTE);
+
+    // When the three early ones lapse there are still ten, so that is not it.
+    assert.deepEqual(limits.refusal({ address: address(), client: CLIENT }, T0 + 2 * MINUTE), {
+      code: "ip_limited",
+      retryAfter: 4 * 60,
+    });
+    const back = T0 + MINUTE + FAILURE_WINDOW_MS;
+    assert.equal(limits.refusal({ address: address(), client: CLIENT }, back - 1).retryAfter, 1);
+    assert.equal(limits.refusal({ address: address(), client: CLIENT }, back), null);
+  });
+
+  it("do not use up the client's drips", () => {
+    const limits = new DripLimits(memorySql());
+    for (let i = 1; i < FAILURE_MAX; i += 1) limits.fail({ client: CLIENT }, T0);
+
+    drip(limits, CLIENT, T0, IP_MAX);
+  });
+
+  it("are forgotten five minutes on, with or without another request", () => {
+    const sql = memorySql();
+    const limits = new DripLimits(sql);
+    const stored = () => sql.exec("SELECT COUNT(*) AS n FROM failures").one().n;
+
+    limits.fail({ client: CLIENT }, T0);
+    limits.fail({ client: OTHER }, T0 + MINUTE);
+    assert.equal(limits.prune(T0 + 2 * MINUTE), T0 + FAILURE_WINDOW_MS);
+    assert.equal(stored(), 2);
+
+    // The alarm's prune…
+    assert.equal(limits.prune(T0 + FAILURE_WINDOW_MS), T0 + MINUTE + FAILURE_WINDOW_MS);
+    assert.equal(stored(), 1);
+    // …or the next write, whichever comes first.
+    limits.fail({ client: CLIENT }, T0 + MINUTE + FAILURE_WINDOW_MS);
+    assert.deepEqual(
+      sql
+        .exec("SELECT client FROM failures")
+        .toArray()
+        .map((row) => row.client),
+      [CLIENT],
+    );
   });
 });
 

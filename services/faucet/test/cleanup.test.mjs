@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, describe, it } from "node:test";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { ADDRESS_WINDOW_MS, IP_WINDOW_MS } from "../src/limits.js";
+import { ADDRESS_WINDOW_MS, FAILURE_WINDOW_MS, IP_WINDOW_MS } from "../src/limits.js";
 import { CHAIN_ID, startMockChain } from "./helpers/mock-chain.mjs";
 import { createFaucet } from "./helpers/runtime.mjs";
 
@@ -72,17 +72,40 @@ describe("the Faucet object's alarm", () => {
     assert.equal(storage.alarm, T0 + 80 * MINUTE + IP_WINDOW_MS);
   });
 
-  it("finds nothing to do after a drip that failed to send", async (t) => {
+  it("forgets a failed attempt five minutes on, and keeps nothing else of it", async (t) => {
     t.mock.timers.enable({ apis: ["Date"], now: T0 });
     t.mock.method(console, "error", () => {});
     const { faucet, storage, fireAlarm } = createFaucet(env());
-    chain.fail("eth_sendRawTransaction", { status: 500 });
+    chain.fail("eth_sendRawTransaction", { error: { code: -32000, message: "boom" } });
 
     assert.deepEqual(await drip(faucet, "203.0.113.9"), { ok: false, code: "drip_failed" });
     assert.deepEqual([stored(storage, "hits"), stored(storage, "drips")], [0, 0]);
+    // The client is remembered just long enough to count its failures.
+    assert.equal(stored(storage, "failures"), 1);
+    assert.equal(storage.alarm, T0 + FAILURE_WINDOW_MS);
 
-    t.mock.timers.tick(IP_WINDOW_MS);
+    t.mock.timers.tick(FAILURE_WINDOW_MS);
     await fireAlarm();
+    assert.equal(stored(storage, "failures"), 0);
     assert.equal(storage.alarm, null);
+  });
+
+  it("pulls the alarm in for a failed attempt when only drips were stored", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: T0 });
+    t.mock.method(console, "error", () => {});
+    const { faucet, storage, fireAlarm } = createFaucet(env());
+
+    await drip(faucet, "203.0.113.9");
+    assert.equal(storage.alarm, T0 + IP_WINDOW_MS);
+    t.mock.timers.tick(MINUTE);
+    chain.fail("eth_estimateGas", { error: { code: -32000, message: "boom" } });
+    await drip(faucet, "198.51.100.7");
+    assert.equal(storage.alarm, T0 + MINUTE + FAILURE_WINDOW_MS);
+
+    // Once the failure is gone, the alarm goes back to waiting for the drip.
+    t.mock.timers.tick(FAILURE_WINDOW_MS);
+    await fireAlarm();
+    assert.equal(stored(storage, "failures"), 0);
+    assert.equal(storage.alarm, T0 + IP_WINDOW_MS);
   });
 });

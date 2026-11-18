@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { isAddress, parseEther } from "viem";
 import { clientKey } from "./ip.js";
-import { DripLimits, IP_WINDOW_MS } from "./limits.js";
+import { DripLimits, FAILURE_WINDOW_MS, IP_WINDOW_MS } from "./limits.js";
 import {
   CHAINS,
   connect,
@@ -64,6 +64,13 @@ const REFUSALS = {
 
 /** Drips one object will prepare or send at once before asking callers to come back. */
 const MAX_ACTIVE_DRIPS = 64;
+/**
+ * …and how many of those one client may hold. Eight lets a room behind one IP
+ * click together — the AvaKit client asks a busy faucet again, twice, and three
+ * rounds of eight cover the 20 drips an hour that room is allowed — while no
+ * single client can take more than an eighth of the slots.
+ */
+const MAX_ACTIVE_PER_CLIENT = 8;
 const BUSY_RETRY_S = 3;
 
 function cors(env) {
@@ -210,6 +217,8 @@ export class Faucet extends DurableObject {
     super(ctx, env);
     this.limits = new DripLimits(ctx.storage.sql);
     this.active = 0;
+    /** client → how many of the active drips are theirs. */
+    this.activeBy = new Map();
     this.connection = null;
   }
 
@@ -220,15 +229,17 @@ export class Faucet extends DurableObject {
   async drip({ chainId, to, client }) {
     const address = to.toLowerCase();
 
-    // Cheap, read-only refusals first, so an over-limit or flooding caller costs
-    // neither an RPC call nor a storage write.
+    // Cheap, read-only refusals first, so a caller that is over a limit, keeps
+    // failing or is flooding costs neither an RPC call nor a storage write.
     const refused = this.limits.refusal({ address, client });
     if (refused) return { ok: false, ...refused };
-    if (this.active >= MAX_ACTIVE_DRIPS) {
+    const mine = this.activeBy.get(client) ?? 0;
+    if (this.active >= MAX_ACTIVE_DRIPS || mine >= MAX_ACTIVE_PER_CLIENT) {
       return { ok: false, code: "faucet_busy", retryAfter: BUSY_RETRY_S };
     }
 
     this.active += 1;
+    this.activeBy.set(client, mine + 1);
     let reservation;
     try {
       const { sender, amount, value } = this.#setup(chainId);
@@ -239,7 +250,7 @@ export class Faucet extends DurableObject {
       // row. Other requests ran during that await, so reserve() checks again.
       reservation = this.limits.reserve({ address, client });
       if (reservation.refused) return { ok: false, ...reservation.refused };
-      await this.#scheduleCleanup();
+      await this.#scheduleCleanup(IP_WINDOW_MS);
 
       const txHash = await sender.broadcast(request);
       this.limits.settle(reservation.id);
@@ -250,11 +261,19 @@ export class Faucet extends DurableObject {
       // the transaction: the sender looks it up and reports it as sent.)
       if (reservation?.id !== undefined) this.limits.release(reservation.id);
 
+      // The faucet's own state: nothing a caller brings about by what it asks for.
       if (e instanceof FaucetEmptyError) return { ok: false, code: "faucet_empty" };
-      if (e instanceof FaucetRecipientError) return { ok: false, code: "contract_recipient" };
       if (e instanceof FaucetConfigError) {
         return { ok: false, code: "misconfigured", message: e.message };
       }
+
+      // Any other failure may be the caller's doing — the recipient is theirs
+      // to choose — and it cost RPC calls and a slot all the same. It is
+      // counted, so a client that only ever fails is soon refused up front.
+      this.limits.fail({ client });
+      await this.#scheduleCleanup(FAILURE_WINDOW_MS);
+
+      if (e instanceof FaucetRecipientError) return { ok: false, code: "contract_recipient" };
       console.error(
         JSON.stringify({
           message: "drip failed",
@@ -266,6 +285,9 @@ export class Faucet extends DurableObject {
       return { ok: false, code: "drip_failed" };
     } finally {
       this.active -= 1;
+      const left = this.activeBy.get(client) - 1;
+      if (left > 0) this.activeBy.set(client, left);
+      else this.activeBy.delete(client);
     }
   }
 
@@ -279,9 +301,9 @@ export class Faucet extends DurableObject {
     if (next !== null) await this.ctx.storage.setAlarm(next);
   }
 
-  /** Make sure alarm() will run once the drip just recorded has aged out. */
-  async #scheduleCleanup() {
-    const due = Date.now() + IP_WINDOW_MS;
+  /** Make sure alarm() will run once the row just recorded, kept for `window` ms, has aged out. */
+  async #scheduleCleanup(window) {
+    const due = Date.now() + window;
     const scheduled = await this.ctx.storage.getAlarm();
     if (scheduled === null || scheduled > due) await this.ctx.storage.setAlarm(due);
   }

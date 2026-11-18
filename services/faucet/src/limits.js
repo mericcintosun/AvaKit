@@ -11,6 +11,18 @@ export const IP_WINDOW_MS = 60 * 60 * 1000;
 export const IP_MAX = 20;
 
 /**
+ * Failed attempts: at most FAILURE_MAX per client in any rolling five minutes.
+ *
+ * A drip that fails costs the caller nothing, but it does cost the faucet four
+ * RPC calls and a place among the drips in flight, and the recipient that makes
+ * it fail is the caller's to choose. Ten leaves room for a flaky RPC (the
+ * AvaKit client tries three times per click) and five minutes is short enough
+ * that a room behind one IP is not locked out for long after an outage.
+ */
+export const FAILURE_WINDOW_MS = 5 * 60 * 1000;
+export const FAILURE_MAX = 10;
+
+/**
  * The faucet's rate limits, kept in the Durable Object's SQLite database.
  *
  * Every method is synchronous. A Durable Object runs one piece of JavaScript at
@@ -27,6 +39,10 @@ export const IP_MAX = 20;
  * Every drip keeps its own timestamp, so the per-IP limit is a true rolling
  * window: a hit stops counting exactly IP_WINDOW_MS after it was made, whatever
  * the client did in between.
+ *
+ * An attempt that fails is not a drip, and is counted on its own:
+ *
+ *   fail()    → recorded against the client for FAILURE_WINDOW_MS
  *
  * @param sql the Durable Object's `ctx.storage.sql`
  */
@@ -61,6 +77,17 @@ export class DripLimits {
     `);
     sql.exec("CREATE INDEX IF NOT EXISTS hits_client ON hits (client, at)");
     sql.exec("CREATE INDEX IF NOT EXISTS hits_at ON hits (at)");
+
+    // One row per attempt that failed after it had reached the RPC.
+    sql.exec(`
+      CREATE TABLE IF NOT EXISTS failures (
+        id INTEGER PRIMARY KEY,
+        client TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    sql.exec("CREATE INDEX IF NOT EXISTS failures_client ON failures (client, at)");
+    sql.exec("CREATE INDEX IF NOT EXISTS failures_at ON failures (at)");
 
     // This runs once per instance of the object, before it serves anything. A
     // drip still unsettled here belongs to a send that died with the previous
@@ -104,7 +131,33 @@ export class DripLimits {
       return { code: "ip_limited", retryAfter: seconds(hits.oldest + IP_WINDOW_MS - now) };
     }
 
+    // The FAILURE_MAX-th most recent failure, if there are that many: the
+    // client is let back in when that one stops counting. (Not simply the
+    // oldest — attempts that were already in flight when the limit was reached
+    // may fail too, so there can be more rows than the limit.)
+    const [failure] = this.#sql
+      .exec(
+        "SELECT at FROM failures WHERE client = ? AND at > ? ORDER BY at DESC, id DESC LIMIT 1 OFFSET ?",
+        client,
+        now - FAILURE_WINDOW_MS,
+        FAILURE_MAX - 1,
+      )
+      .toArray();
+    if (failure) {
+      return { code: "ip_limited", retryAfter: seconds(failure.at + FAILURE_WINDOW_MS - now) };
+    }
+
     return null;
+  }
+
+  /**
+   * Record an attempt by `client` that reached the RPC and did not end in a
+   * drip. FAILURE_MAX of them inside FAILURE_WINDOW_MS and refusal() turns the
+   * client away before anything is asked of the RPC again.
+   */
+  fail({ client }, now = Date.now()) {
+    this.#expire(now);
+    this.#sql.exec("INSERT INTO failures (client, at) VALUES (?, ?)", client, now);
   }
 
   /**
@@ -130,9 +183,10 @@ export class DripLimits {
    * Delete everything that has left its window, and say when the next row
    * will: a time in ms, or null once nothing is stored.
    *
-   * reserve() already clears out old rows, but only when another drip comes
-   * along. The Durable Object's alarm calls this so a client's address is
-   * gone an hour after its drip even if that drip was the last of the day.
+   * reserve() and fail() already clear out old rows, but only when another
+   * drip comes along. The Durable Object's alarm calls this so a client's
+   * address is gone an hour after its drip (five minutes after a failed
+   * attempt) even if that was the last of the day.
    */
   prune(now = Date.now()) {
     this.#expire(now);
@@ -142,12 +196,15 @@ export class DripLimits {
     if (hit !== null) expiries.push(hit + IP_WINDOW_MS);
     const drip = this.#sql.exec("SELECT MIN(at) AS at FROM drips").one().at;
     if (drip !== null) expiries.push(drip + ADDRESS_WINDOW_MS);
+    const failure = this.#sql.exec("SELECT MIN(at) AS at FROM failures").one().at;
+    if (failure !== null) expiries.push(failure + FAILURE_WINDOW_MS);
     return expiries.length > 0 ? Math.min(...expiries) : null;
   }
 
   #expire(now) {
     this.#sql.exec("DELETE FROM drips WHERE at <= ?", now - ADDRESS_WINDOW_MS);
     this.#sql.exec("DELETE FROM hits WHERE at <= ?", now - IP_WINDOW_MS);
+    this.#sql.exec("DELETE FROM failures WHERE at <= ?", now - FAILURE_WINDOW_MS);
   }
 
   /** The drip went out: keep counting it for the rest of its windows. */

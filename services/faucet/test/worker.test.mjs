@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import { parseEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { CHAIN_ID, startMockChain } from "./helpers/mock-chain.mjs";
@@ -13,6 +14,11 @@ import { startWorker } from "./helpers/workerd.mjs";
  */
 
 const IP_MAX = 20;
+/** Drips one client may have in flight at once. */
+const CLIENT_MAX_ACTIVE = 8;
+/** Failed attempts one client is allowed in any five minutes. */
+const FAILURE_MAX = 10;
+const FAILURE_WINDOW_S = 5 * 60;
 
 // Generated per run: no key is ever written down, and none of these hold funds.
 const key = generatePrivateKey();
@@ -73,6 +79,15 @@ function fund({ ip = someIp(), address = someAddress(), ...rest } = {}) {
     headers: { "content-type": "application/json", "cf-connecting-ip": ip },
     body: JSON.stringify({ address, ...rest }),
   });
+}
+
+/** POST /fund the way the AvaKit client does: a busy faucet is asked again. */
+async function fundPatiently(options) {
+  for (;;) {
+    const result = await fund(options);
+    if (result.body?.code !== "faucet_busy") return result;
+    await sleep(20);
+  }
 }
 
 const statuses = (results) => results.map((result) => result.status);
@@ -155,11 +170,14 @@ describe("POST /fund", () => {
 describe("rate limits", () => {
   it(`caps one client at ${IP_MAX} drips even when the requests arrive together`, async () => {
     // The KV counter was read, awaited on and written back, so a burst all read
-    // "0 so far" and every request passed the check.
+    // "0 so far" and every request passed the check. (One client only gets a
+    // few drips in flight at a time; the rest are told to ask again, and do.)
     const ip = someIp();
     chain.delay = 5;
 
-    const results = await Promise.all(Array.from({ length: 2 * IP_MAX }, () => fund({ ip })));
+    const results = await Promise.all(
+      Array.from({ length: 2 * IP_MAX }, () => fundPatiently({ ip })),
+    );
 
     assert.equal(count(results, 200), IP_MAX);
     assert.equal(count(results, 429), IP_MAX);
@@ -243,6 +261,89 @@ describe("concurrent drips", () => {
       assert.equal(refused.headers.get("retry-after"), "3");
     }
     assert.equal(chain.accepted.length, count(results, 200));
+  });
+
+  it("cannot all be held by one client", async () => {
+    // One client used to be able to take all 64 slots — with drips that only
+    // ever fail, for free — and everybody else was told the faucet was busy.
+    chain.delay = (method) => (method === "eth_getBalance" ? 500 : 0);
+    const hog = someIp();
+
+    const held = Promise.all(Array.from({ length: 70 }, () => fund({ ip: hog })));
+    await sleep(100);
+    const other = await fund();
+    const results = await held;
+
+    assert.equal(other.status, 200, "somebody else is still served");
+    assert.equal(count(results, 200), CLIENT_MAX_ACTIVE);
+    const busy = results.filter((result) => result.status === 503);
+    assert.equal(busy.length, 70 - CLIENT_MAX_ACTIVE);
+    for (const refused of busy) {
+      assert.equal(refused.body.code, "faucet_busy");
+      assert.equal(refused.headers.get("retry-after"), "3");
+    }
+  });
+});
+
+describe("a client whose drips keep failing", () => {
+  it("is refused before the RPC is asked again", async () => {
+    // Naming a contract that refuses the transfer cost four RPC calls a time
+    // and was never recorded, so one client could repeat it without limit.
+    const ip = someIp();
+    const address = someAddress();
+    chain.contract(address, { reverts: true });
+
+    const results = [];
+    for (let i = 0; i < FAILURE_MAX; i += 1) results.push(await fund({ ip, address }));
+    const calls = chain.calls.length;
+    for (let i = 0; i < 5; i += 1) results.push(await fund({ ip, address }));
+
+    assert.deepEqual(statuses(results), [...Array(FAILURE_MAX).fill(400), ...Array(5).fill(429)]);
+    assert.equal(chain.calls.length, calls, "a refused request costs no RPC call");
+    const refused = results.at(-1);
+    assert.deepEqual(refused.body, {
+      error: "Rate limit reached. Try again later.",
+      code: "ip_limited",
+    });
+    const retryAfter = Number(refused.headers.get("retry-after"));
+    assert.ok(
+      retryAfter > FAILURE_WINDOW_S - 60 && retryAfter <= FAILURE_WINDOW_S,
+      `retry-after was ${retryAfter}`,
+    );
+
+    // It is the client that is refused, whatever it asks for next…
+    assert.equal((await fund({ ip })).status, 429);
+    // …and nobody else.
+    assert.equal((await fund()).status, 200);
+  });
+
+  it("is counted when it is the send that fails", async () => {
+    const ip = someIp();
+    chain.fail("eth_sendRawTransaction", {
+      times: FAILURE_MAX + 1,
+      error: { code: -32000, message: "boom" },
+    });
+
+    const results = [];
+    for (let i = 0; i <= FAILURE_MAX; i += 1) results.push(await fund({ ip }));
+
+    assert.deepEqual(statuses(results), [...Array(FAILURE_MAX).fill(502), 429]);
+    assert.equal(chain.count("eth_sendRawTransaction"), FAILURE_MAX);
+  });
+
+  it("is not blamed for an empty faucet", async () => {
+    // Nobody can empty the faucet by choosing a recipient, and "empty" is the
+    // answer a visitor needs to see for as long as it is true.
+    const ip = someIp();
+    chain.balance = parseEther("0.001");
+
+    const results = [];
+    for (let i = 0; i < FAILURE_MAX + 2; i += 1) results.push(await fund({ ip }));
+    assert.deepEqual(statuses(results), Array(FAILURE_MAX + 2).fill(503));
+    assert.equal(results.at(-1).body.code, "faucet_empty");
+
+    chain.balance = parseEther("10");
+    assert.equal((await fund({ ip })).status, 200);
   });
 });
 

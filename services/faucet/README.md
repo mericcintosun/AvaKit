@@ -70,9 +70,9 @@ for people; branch on `code`:
 | 400 | `contract_recipient` | The address is a contract the faucet does not fund: it turns a plain transfer down, or paying it would take more than 100,000 gas. Use a wallet address |
 | 403 | `turnstile_required`, `turnstile_failed` | No token, or one that is forged, expired or already used |
 | 404 | `not_found` | Not one of the two endpoints |
-| 429 | `address_limited`, `ip_limited` | Over a limit. `Retry-After` says how many seconds until it clears |
-| 502 | `drip_failed` | The RPC or the chain refused the transaction. Nothing was charged to the caller's limits; retry shortly |
-| 503 | `faucet_empty`, `faucet_busy`, `turnstile_unavailable` | Out of funds, too many drips in flight, or Cloudflare's verification is unreachable |
+| 429 | `address_limited`, `ip_limited` | Over a limit: the address was funded in the last 24 hours, or the client has had its 20 drips this hour or 10 failed attempts in five minutes. `Retry-After` says how many seconds until it clears |
+| 502 | `drip_failed` | The RPC or the chain refused the transaction. No drip was charged to the caller's limits; retry shortly (it does count as a failed attempt) |
+| 503 | `faucet_empty`, `faucet_busy`, `turnstile_unavailable` | Out of funds, too many drips in flight (over all, or from this client; `Retry-After` is a few seconds), or Cloudflare's verification is unreachable |
 | 500 | `misconfigured`, `internal` | The Worker's own setup (key, drip amount) or a bug |
 
 A failed drip never returns the upstream error. viem's messages include the RPC
@@ -98,6 +98,14 @@ URL and the raw request, so the detail goes to the Worker log instead
   Either way the Worker logs `send answer lost` with the hash and `found`.
 - The same object sends the transactions one at a time, so concurrent requests
   never sign the same nonce.
+- At most **64** drips are in flight at once, and at most **8** of them from
+  one client; a request beyond that gets `503 faucet_busy` with
+  `Retry-After: 3`. One client can therefore not hold every slot.
+- Failed attempts are counted per client: after **10** in any rolling five
+  minutes the client is refused with `429 ip_limited` before the RPC is asked
+  again. A failed drip is free for the caller but costs the faucet RPC calls,
+  and the recipient that makes it fail is the caller's choice. An empty or
+  misconfigured faucet is nobody's failed attempt and is not counted.
 - A drip pays for at most **100,000 gas** (`MAX_DRIP_GAS` in `src/sender.js`).
   A wallet takes 21,000 and a smart-contract wallet a little more; a contract
   whose `receive()` needs more than the cap, or that reverts, is refused with
@@ -106,9 +114,10 @@ URL and the raw request, so the detail goes to the Worker log instead
   transaction is signed for that chain id whatever the RPC says — so the
   faucet cannot drip real funds, even with `FAUCET_FUJI_RPC` pointed at another
   network by mistake.
-- To count, the object stores each drip's address for 24 hours and the client
-  it came from for one hour. Its alarm deletes both on schedule, so an IP
-  address is gone an hour after its drip even if that was the day's last.
+- To count, the object stores each drip's address for 24 hours, the client
+  it came from for one hour, and the client of a failed attempt for five
+  minutes. Its alarm deletes all three on schedule, so an IP address is gone
+  an hour after its drip even if that was the day's last.
 
 These bound what one network can take. They do not stop a thousand networks —
 that is what Turnstile is for.
