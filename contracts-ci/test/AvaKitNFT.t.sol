@@ -111,6 +111,26 @@ contract AvaKitNFTTest is TestBase {
         nft.ownerOf(999);
     }
 
+    // ERC-721 makes the next two queries throw as well: like a zero-address
+    // owner, a zero balance or a zero approval would read as a real answer.
+
+    function test_BalanceOfRevertsForZeroAddress() public {
+        vm.expectRevert(bytes("AvaKitNFT: balance query for the zero address"));
+        nft.balanceOf(address(0));
+    }
+
+    function test_GetApprovedRevertsForNonexistentToken() public {
+        vm.expectRevert(bytes("AvaKitNFT: nonexistent token"));
+        nft.getApproved(999);
+    }
+
+    function test_GetApprovedIsZeroForAnUnapprovedToken() public {
+        vm.prank(ALICE);
+        uint256 id = nft.mint();
+
+        assertEq(nft.getApproved(id), address(0), "no approval yet");
+    }
+
     // ---- approvals ----
 
     function test_ApproveSetsApproval() public {

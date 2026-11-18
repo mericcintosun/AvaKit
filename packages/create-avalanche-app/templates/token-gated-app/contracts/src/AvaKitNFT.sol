@@ -24,8 +24,8 @@ contract AvaKitNFT {
 
     uint256 public totalSupply;
     mapping(uint256 => address) private _owners;
-    mapping(address => uint256) public balanceOf;
-    mapping(uint256 => address) public getApproved;
+    mapping(address => uint256) private _balances;
+    mapping(uint256 => address) private _tokenApprovals;
     mapping(address => mapping(address => bool)) public isApprovedForAll;
 
     /// @dev tokenId => the seed its art is drawn from. Written once, at mint,
@@ -53,6 +53,14 @@ contract AvaKitNFT {
         require(owner != address(0), "AvaKitNFT: nonexistent token");
     }
 
+    /// @notice ERC-721 requires balanceOf to revert for the zero address: it
+    ///         can never hold a token, so a balance of zero would read as a
+    ///         real answer too.
+    function balanceOf(address owner) external view returns (uint256) {
+        require(owner != address(0), "AvaKitNFT: balance query for the zero address");
+        return _balances[owner];
+    }
+
     /// @notice Mint the next token to the caller.
     function mint() external returns (uint256 tokenId) {
         tokenId = ++totalSupply;
@@ -63,7 +71,7 @@ contract AvaKitNFT {
             keccak256(abi.encodePacked(tokenId, msg.sender, block.chainid))
         );
         unchecked {
-            balanceOf[msg.sender] += 1;
+            _balances[msg.sender] += 1;
         }
         emit Transfer(address(0), msg.sender, tokenId);
     }
@@ -76,8 +84,15 @@ contract AvaKitNFT {
             msg.sender == owner || isApprovedForAll[owner][msg.sender],
             "AvaKitNFT: not authorized to approve"
         );
-        getApproved[tokenId] = approved;
+        _tokenApprovals[tokenId] = approved;
         emit Approval(owner, approved, tokenId);
+    }
+
+    /// @notice ERC-721 requires getApproved to revert for nonexistent tokens,
+    ///         for the same reason as ownerOf.
+    function getApproved(uint256 tokenId) external view returns (address) {
+        ownerOf(tokenId); // reverts for a nonexistent token
+        return _tokenApprovals[tokenId];
     }
 
     function setApprovalForAll(address operator, bool approved) external {
@@ -93,16 +108,16 @@ contract AvaKitNFT {
         require(to != address(0), "AvaKitNFT: transfer to the zero address");
         require(
             msg.sender == owner ||
-                msg.sender == getApproved[tokenId] ||
+                msg.sender == _tokenApprovals[tokenId] ||
                 isApprovedForAll[owner][msg.sender],
             "AvaKitNFT: not authorized to transfer"
         );
 
         // Per-token approval is one-shot: it does not survive a transfer.
-        delete getApproved[tokenId];
+        delete _tokenApprovals[tokenId];
         unchecked {
-            balanceOf[from] -= 1;
-            balanceOf[to] += 1;
+            _balances[from] -= 1;
+            _balances[to] += 1;
         }
         _owners[tokenId] = to;
         emit Transfer(from, to, tokenId);
