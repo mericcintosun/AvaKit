@@ -30,6 +30,8 @@ import http from "node:http";
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
+import { isChainId } from "./api.js";
+import { isPackageManager } from "./pm.js";
 
 const ENDPOINT =
   process.env.AVAKIT_TELEMETRY_URL || "https://avakit-telemetry.avakit.workers.dev/e";
@@ -40,7 +42,13 @@ const SEND_TIMEOUT_MS = 1500;
 export const TELEMETRY_DOCS_URL = "https://avakit.dev/docs/telemetry";
 
 /** Coarse failure buckets — never the raw error text, which can carry paths. */
-export type ErrorKind = "dir-exists" | "scaffold-failed";
+const ERROR_KINDS = ["dir-exists", "scaffold-failed"] as const;
+export type ErrorKind = (typeof ERROR_KINDS)[number];
+
+/** What a template id looks like: a short lowercase slug, never a path. */
+const TEMPLATE_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
+/** Sent in place of any value that is not one we recognise. */
+const OTHER = "other";
 
 export interface ScaffoldEvent {
   template: string;
@@ -54,8 +62,37 @@ interface Config {
   anonymousId: string;
   /** ISO date of the run where we printed the first-run notice, if we have. */
   notifiedAt?: string;
-  /** Set by `--no-telemetry`; env vars take precedence over this either way. */
+  /**
+   * Set by `--no-telemetry` / `--telemetry`, or written into the file by hand;
+   * env vars take precedence over this either way.
+   */
   enabled?: boolean;
+}
+
+/**
+ * Read a stored config, keeping unknown keys but trusting only well-formed
+ * values for the ones we act on. Throws if the text is not a JSON object.
+ *
+ * `enabled` is read generously in one direction only: a hand-written `"false"`,
+ * `0` or `"off"` is as much an opt-out as `false`, while nothing but a real
+ * `true` counts as opting in.
+ */
+function parseStored(text: string): Partial<Config> {
+  const parsed: unknown = JSON.parse(text);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("config is not a JSON object");
+  }
+  const { anonymousId, notifiedAt, enabled, ...rest } = parsed as Record<string, unknown>;
+  const off =
+    enabled === false ||
+    enabled === 0 ||
+    (typeof enabled === "string" && ["false", "0", "off", "no"].includes(enabled.toLowerCase()));
+  return {
+    ...rest,
+    ...(typeof anonymousId === "string" && anonymousId ? { anonymousId } : {}),
+    ...(typeof notifiedAt === "string" && notifiedAt ? { notifiedAt } : {}),
+    ...(off ? { enabled: false } : enabled === true ? { enabled: true } : {}),
+  };
 }
 
 function envOn(name: string): boolean {
@@ -138,18 +175,21 @@ export class Telemetry {
   private read(): Config | null {
     if (this.config) return this.config;
     try {
-      if (existsSync(this.file)) {
-        const parsed = JSON.parse(readFileSync(this.file, "utf8")) as Partial<Config>;
-        if (typeof parsed.anonymousId === "string" && parsed.anonymousId) {
-          this.config = parsed as Config;
-          return this.config;
-        }
+      const stored = existsSync(this.file) ? parseStored(readFileSync(this.file, "utf8")) : {};
+      if (stored.anonymousId) {
+        this.config = stored as Config;
+        return this.config;
       }
-      // No config yet (or a corrupt one) — mint a fresh id and persist it.
-      this.config = { anonymousId: randomUUID() };
+      // No id yet: a first run, or a file written by hand (say, `{"enabled":
+      // false}` from a provisioning script). Mint one, but keep everything the
+      // file already says — replacing it wholesale dropped the opt-out and
+      // switched telemetry back on.
+      this.config = { ...stored, anonymousId: randomUUID() };
       this.persist();
       return this.config;
     } catch {
+      // Unreadable, or not something we can interpret. Staying off is the only
+      // safe reading of a file that may have been meant as an opt-out.
       return null;
     }
   }
@@ -201,14 +241,19 @@ export class Telemetry {
     const config = this.read();
     if (!config) return;
 
+    // Each field is checked against what it is allowed to be, so "no project
+    // name, no path" holds whatever a caller hands us. The collector does the
+    // same on arrival, but by then the value has already left the machine.
     const body = JSON.stringify({
       event: "scaffold",
       anonymousId: config.anonymousId,
-      template: event.template,
-      chain: event.chain,
-      pm: event.pm,
-      ok: event.ok,
-      ...(event.errorKind ? { errorKind: event.errorKind } : {}),
+      template: TEMPLATE_ID.test(event.template) ? event.template : OTHER,
+      chain: isChainId(event.chain) ? event.chain : OTHER,
+      pm: isPackageManager(event.pm) ? event.pm : OTHER,
+      ok: event.ok === true,
+      ...(event.errorKind
+        ? { errorKind: ERROR_KINDS.includes(event.errorKind) ? event.errorKind : OTHER }
+        : {}),
       cliVersion: this.cliVersion,
       platform: process.platform,
       nodeMajor: process.versions.node.split(".")[0],
@@ -231,31 +276,37 @@ export class Telemetry {
    */
   private post(body: string): Promise<void> {
     return new Promise((resolve) => {
-      let url: URL;
-      try {
-        url = new URL(ENDPOINT);
-      } catch {
-        return resolve();
-      }
-      const request = (url.protocol === "https:" ? https : http).request(url, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "content-length": Buffer.byteLength(body),
-        },
-      });
-      const timer = setTimeout(() => request.destroy(), SEND_TIMEOUT_MS);
+      let timer: NodeJS.Timeout | undefined;
       const done = () => {
         clearTimeout(timer);
         resolve();
       };
-      request.on("error", done);
-      request.on("close", done);
-      request.on("response", (response) => {
-        response.resume(); // Drain, otherwise the socket is never released.
-        response.on("end", done);
-      });
-      request.end(body);
+      // Everything that can throw synchronously is inside this try: a throw in
+      // a Promise executor is a rejection, and "never rejects" has to hold even
+      // for an endpoint override we cannot use.
+      try {
+        const url = new URL(ENDPOINT);
+        // `localhost:8787/e` parses, with "localhost:" as its protocol, and
+        // node:http throws on any protocol but its own. Not ours to send to.
+        if (url.protocol !== "https:" && url.protocol !== "http:") return done();
+        const request = (url.protocol === "https:" ? https : http).request(url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "content-length": Buffer.byteLength(body),
+          },
+        });
+        timer = setTimeout(() => request.destroy(), SEND_TIMEOUT_MS);
+        request.on("error", done);
+        request.on("close", done);
+        request.on("response", (response) => {
+          response.resume(); // Drain, otherwise the socket is never released.
+          response.on("end", done);
+        });
+        request.end(body);
+      } catch {
+        done();
+      }
     });
   }
 
@@ -266,8 +317,11 @@ export class Telemetry {
    * whole spawned process isn't worth the complexity.
    */
   async flush(): Promise<void> {
-    if (!this.pending) return;
-    await this.pending;
+    const pending = this.pending;
+    if (!pending) return;
     this.pending = null;
+    // `post` never rejects; the catch is so that stays true of `flush` even if
+    // that ever changes. Telemetry must not be what fails a scaffold.
+    await pending.catch(() => {});
   }
 }
