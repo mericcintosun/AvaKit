@@ -1,13 +1,13 @@
 "use client";
 
 import { motion, type Variants } from "framer-motion";
-import { ArrowRight, Check, Copy } from "lucide-react";
+import { ArrowRight, Check, Copy, X } from "lucide-react";
 import { useLocale } from "next-intl";
-import { useState } from "react";
 
 import { Container } from "@/components/section";
 import { Terminal } from "@/components/terminal";
 import { Button } from "@/components/ui/button";
+import { CopyAnnouncement, useCopy } from "@/components/use-copy";
 import { Link } from "@/i18n/navigation";
 import { getContent, type Locale } from "@/lib/content";
 
@@ -21,26 +21,30 @@ const item: Variants = {
 };
 
 function CopyPill({ command }: { command: string }) {
-  const [copied, setCopied] = useState(false);
+  const { status, copy } = useCopy();
   return (
-    <button
-      type="button"
-      onClick={() =>
-        navigator.clipboard.writeText(command).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        })
-      }
-      className="bg-muted/40 hover:bg-muted inline-flex items-center gap-3 rounded-full border py-1.5 pr-2 pl-4 font-mono text-xs transition-colors sm:text-sm"
-    >
-      <span>
-        <span className="text-primary select-none">$ </span>
-        {command}
-      </span>
-      <span className="bg-background flex size-6 items-center justify-center rounded-full border">
-        {copied ? <Check className="size-3" /> : <Copy className="text-muted-foreground size-3" />}
-      </span>
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => copy(command)}
+        className="bg-muted/40 hover:bg-muted inline-flex items-center gap-3 rounded-full border py-1.5 pr-2 pl-4 font-mono text-xs transition-colors sm:text-sm"
+      >
+        <span>
+          <span className="text-primary select-none">$ </span>
+          {command}
+        </span>
+        <span className="bg-background flex size-6 items-center justify-center rounded-full border">
+          {status === "copied" ? (
+            <Check className="size-3" />
+          ) : status === "failed" ? (
+            <X className="text-destructive size-3" />
+          ) : (
+            <Copy className="text-muted-foreground size-3" />
+          )}
+        </span>
+      </button>
+      <CopyAnnouncement status={status} />
+    </>
   );
 }
 

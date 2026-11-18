@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CopyAnnouncement, useCopy } from "@/components/use-copy";
 import { cn } from "@/lib/utils";
 
 export function CodeBlock({
@@ -15,14 +15,7 @@ export function CodeBlock({
   prefix?: string;
   className?: string;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  function copy() {
-    navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
+  const { status, copy } = useCopy();
 
   return (
     <div className={cn("group bg-muted/40 relative min-w-0 rounded-lg border", className)}>
@@ -37,14 +30,21 @@ export function CodeBlock({
         // underneath instead of letting the icon sit on top of the text.
         variant="outline"
         size="icon"
-        onClick={copy}
+        onClick={() => copy(code)}
         aria-label="Copy code"
         // Hidden until hover only where hovering exists; a touch screen has no
         // hover to reveal it with, so there it is always shown.
         className="absolute top-2 right-2 transition-opacity can-hover:opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
       >
-        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        {status === "copied" ? (
+          <Check className="size-4" />
+        ) : status === "failed" ? (
+          <X className="text-destructive size-4" />
+        ) : (
+          <Copy className="size-4" />
+        )}
       </Button>
+      <CopyAnnouncement status={status} />
     </div>
   );
 }

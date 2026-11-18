@@ -1,12 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Check, Copy } from "lucide-react";
+import { ArrowRight, Check, Copy, X } from "lucide-react";
 import { useLocale } from "next-intl";
 import { useState } from "react";
 
 import { Container, Section, SectionHeading } from "@/components/section";
 import { Button } from "@/components/ui/button";
+import { CopyAnnouncement, useCopy } from "@/components/use-copy";
 import { Link } from "@/i18n/navigation";
 import { getContent, type Locale } from "@/lib/content";
 
@@ -19,13 +20,7 @@ export function RecommenderSection() {
     ? `npm create avalanche-app@latest my-app -- --template ${template.id}`
     : "";
 
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(command).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  };
+  const { status, copy } = useCopy();
 
   return (
     <Section id="recommender">
@@ -102,16 +97,19 @@ export function RecommenderSection() {
                   </pre>
                   <button
                     type="button"
-                    onClick={copy}
+                    onClick={() => copy(command)}
                     aria-label="Copy command"
                     className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-2 transition-colors"
                   >
-                    {copied ? (
+                    {status === "copied" ? (
                       <Check className="text-primary size-4" />
+                    ) : status === "failed" ? (
+                      <X className="text-destructive size-4" />
                     ) : (
                       <Copy className="size-4" />
                     )}
                   </button>
+                  <CopyAnnouncement status={status} />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
