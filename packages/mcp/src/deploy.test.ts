@@ -2,7 +2,14 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { cChain, fuji } from "@avakit/core";
-import { type Address, encodeErrorResult, getContractAddress, parseAbi } from "viem";
+import {
+  type Address,
+  encodeErrorResult,
+  getAddress,
+  getContractAddress,
+  isAddress,
+  parseAbi,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { deployOutcome } from "./deploy.js";
@@ -10,17 +17,56 @@ import { type Connection, connect } from "./testing/connect.js";
 import { type FakeClock, type FakeNetwork, fakeClock, fakeNetwork } from "./testing/network.js";
 
 const TX_HASH = `0x${"ab".repeat(32)}` as const;
-const CONTRACT = "0x00000000000000000000000000000000000000C1" as const;
+/** A contract address the way a node reports it in a receipt: lowercase. */
+const CONTRACT = "0x52908400098527886e0f7030069857d2e4169ee7" as const;
 
 describe("deployOutcome", () => {
   it("returns the address and explorer link when the creation succeeded", () => {
+    const address = getAddress(CONTRACT);
     expect(deployOutcome({ status: "success", contractAddress: CONTRACT }, TX_HASH, fuji)).toEqual({
       ok: true,
       result: {
-        address: CONTRACT,
+        address,
         txHash: TX_HASH,
-        explorerUrl: `${fuji.explorerUrl}/address/${CONTRACT}`,
+        explorerUrl: `${fuji.explorerUrl}/address/${address}`,
       },
+    });
+  });
+
+  it("returns the address with its checksum, whatever case the node used", () => {
+    const outcome = deployOutcome({ status: "success", contractAddress: CONTRACT }, TX_HASH, fuji);
+    if (!outcome.ok) throw new Error(outcome.message);
+    const { address } = outcome.result;
+    expect(address).not.toBe(CONTRACT);
+    expect(address.toLowerCase()).toBe(CONTRACT);
+    // Mixed case that holds as a checksum: one changed character no longer does.
+    expect(isAddress(address)).toBe(true);
+    expect(isAddress(address.replace("52908400", "52908401"))).toBe(false);
+  });
+
+  it("builds its links from the chain's definition, and leaves them out without an explorer", () => {
+    const elsewhere = { ...fuji, explorerUrl: "https://explorer.example/fuji" };
+    expect(
+      deployOutcome({ status: "success", contractAddress: CONTRACT }, TX_HASH, elsewhere),
+    ).toMatchObject({
+      result: { explorerUrl: `https://explorer.example/fuji/address/${getAddress(CONTRACT)}` },
+    });
+
+    // A chain with no explorer (a fresh L1) gets no link, rather than "/address/0x…".
+    const bare = { ...fuji, explorerUrl: "" };
+    const deployed = deployOutcome({ status: "success", contractAddress: CONTRACT }, TX_HASH, bare);
+    expect(deployed).toEqual({
+      ok: true,
+      result: { address: getAddress(CONTRACT), txHash: TX_HASH },
+    });
+    const reverted = deployOutcome(
+      { status: "reverted", contractAddress: CONTRACT },
+      TX_HASH,
+      bare,
+    );
+    expect(reverted).toEqual({
+      ok: false,
+      message: expect.stringMatching(/Check the constructor arguments and the bytecode\.$/),
     });
   });
 
@@ -33,11 +79,11 @@ describe("deployOutcome", () => {
     expect(outcome.message).toContain("reverted");
     expect(outcome.message).toContain(TX_HASH);
     expect(outcome.message).toContain(`${fuji.explorerUrl}/tx/${TX_HASH}`);
-    expect(outcome.message).not.toContain(CONTRACT);
+    expect(outcome.message.toLowerCase()).not.toContain(CONTRACT);
   });
 
   it("is a failure when the receipt has no contract address", () => {
-    for (const contractAddress of [null, undefined]) {
+    for (const contractAddress of [null, undefined, "", "0x1234"]) {
       const outcome = deployOutcome({ status: "success", contractAddress }, TX_HASH, cChain);
       expect(outcome).toEqual({ ok: false, message: expect.stringContaining("contract address") });
     }
@@ -60,7 +106,7 @@ describe("deploy_contract with AVAKIT_DEPLOYER_KEY", () => {
   let net: FakeNetwork;
   let time: FakeClock;
   let deployer: Address;
-  /** Where the deployer's first contract lands, the way a node returns it: lowercase. */
+  /** Where the deployer's first contract lands, as the tool reports it: with its checksum. */
   let created: string;
 
   beforeEach(() => {
@@ -69,7 +115,7 @@ describe("deploy_contract with AVAKIT_DEPLOYER_KEY", () => {
     // A fresh random key per test: never a literal, never written anywhere.
     const key = generatePrivateKey();
     deployer = privateKeyToAccount(key).address;
-    created = getContractAddress({ from: deployer, nonce: 0n }).toLowerCase();
+    created = getContractAddress({ from: deployer, nonce: 0n });
     net.fuji.setBalance(deployer, 10n ** 18n);
     net.cChain.setBalance(deployer, 10n ** 18n);
     vi.stubEnv("AVAKIT_DEPLOYER_KEY", key);
@@ -120,7 +166,7 @@ describe("deploy_contract with AVAKIT_DEPLOYER_KEY", () => {
     expect(result.isError).toBe(true);
     expect(result.text).toContain("reverted");
     expect(result.text).toContain(net.fuji.sent[0]?.hash);
-    expect(result.text.toLowerCase()).not.toContain(created);
+    expect(result.text.toLowerCase()).not.toContain(created.toLowerCase());
   });
 
   it("reports a receipt without a contract address as an error", async () => {
@@ -242,6 +288,36 @@ describe("deploy_contract with AVAKIT_DEPLOYER_KEY", () => {
     expect(result.text).toContain("creation bytecode");
     expect(result.text).toContain(`${fuji.explorerUrl}/tx/${net.fuji.sent[0]?.hash}`);
     // Read six times over two seconds before giving up.
+    expect(net.fuji.callsTo("eth_getCode")).toHaveLength(6);
+  });
+
+  it("reads the code again when a read fails, since the transaction is already mined", async () => {
+    // The node that served the receipt drops the next two requests.
+    let failures = 2;
+    net.fuji.override("eth_getCode", () => {
+      if (failures-- > 0) throw { code: -32000, message: "request dropped" };
+      return "0x6080604052";
+    });
+    const result = await deploy();
+    expect(result.isError).toBe(false);
+    expect(result.json()).toMatchObject({ address: created });
+    expect(net.fuji.callsTo("eth_getCode")).toHaveLength(3);
+    expect(net.fuji.sent).toHaveLength(1);
+  });
+
+  it("says the deployment is unconfirmed, not failed, when the code cannot be read at all", async () => {
+    net.fuji.override("eth_getCode", () => {
+      throw { code: -32000, message: "request dropped" };
+    });
+    const result = await deploy();
+    expect(result.isError).toBe(true);
+    expect(result.text).toBe(
+      `Transaction ${net.fuji.sent[0]?.hash} succeeded on Avalanche Fuji and should have created a ` +
+        `contract at ${created}, but the node could not be asked whether the code is there ` +
+        "(request dropped). Check it before deploying again, so that it is not deployed twice. " +
+        `${fuji.explorerUrl}/tx/${net.fuji.sent[0]?.hash}`,
+    );
+    // Asked for the whole two seconds before saying so.
     expect(net.fuji.callsTo("eth_getCode")).toHaveLength(6);
   });
 

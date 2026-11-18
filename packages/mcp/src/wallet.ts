@@ -37,8 +37,6 @@ const SIGNABLE_CHAIN_IDS: ReadonlySet<number> = new Set([FUJI_CHAIN_ID, 43114]);
 export const DEPLOYER_KEY_ENV = "AVAKIT_DEPLOYER_KEY";
 /** Set to 0 to turn the session test wallet off. */
 export const TEST_WALLET_ENV = "AVAKIT_TEST_WALLET";
-/** Where test AVAX comes from when the AvaKit faucet says no. */
-export const BUILDER_HUB_FAUCET_URL = "https://build.avax.network/console/primary-network/faucet";
 
 /** Goes into every result the session wallet signed for. */
 export const SESSION_NOTE =

@@ -59,7 +59,7 @@ import {
   resolveScaffoldTarget,
   resolveWorkspace,
 } from "./guards.js";
-import { BUILDER_HUB_FAUCET_URL, resolveSigner, walletFor } from "./wallet.js";
+import { resolveSigner, walletFor } from "./wallet.js";
 import { writeContract } from "./write.js";
 
 type ChainSlug = "fuji" | "c-chain";
@@ -582,6 +582,18 @@ server.registerTool(
   },
 );
 
+/**
+ * Fuji's own faucet page, from the chain's definition in @avakit/core (Builder
+ * Hub, which asks for a sign-in), as the two lines of the context that name it.
+ * Nothing is said about a page the definition does not have.
+ */
+const FUJI_FAUCET_FALLBACK = fuji.faucetUrl
+  ? `your own funded Fuji key in \`AVAKIT_DEPLOYER_KEY\`, or test AVAX for the session wallet's address from ${fuji.faucetUrl} (that page needs a free Builder Hub sign-in)`
+  : "your own funded Fuji key in `AVAKIT_DEPLOYER_KEY`, or test AVAX sent to the session wallet's address";
+const FUJI_FAUCET_LINK = fuji.faucetUrl
+  ? `\n- Fuji faucet: ${fuji.faucetUrl} (needs a free Builder Hub sign-in; the session test wallet above needs none: the server funds it from the AvaKit faucet)`
+  : "";
+
 const AVAKIT_CONTEXT = `# AvaKit context
 
 AvaKit is an open-source, AI-native Avalanche developer toolkit.
@@ -596,7 +608,7 @@ AvaKit is an open-source, AI-native Avalanche developer toolkit.
 - Three calls, no file to read or copy: \`scaffold_app\` (its result lists \`artifacts\`) → \`deploy_contract({ artifactPath })\` → \`write_contract({ address, artifactPath, functionName: "mint" })\`.
 - Minting, like every other state-changing call, is done with \`write_contract\`. Reading is \`read_chain\`.
 - Mainnet (\`chain: "c-chain"\`) needs all three: your own key in \`AVAKIT_DEPLOYER_KEY\`, \`confirm: true\` in the call, and \`AVAKIT_ALLOW_MAINNET=1\` in the server's environment. The session test wallet is never used on mainnet.
-- If the faucet refuses (rate limit, empty), there are two ways forward: your own funded Fuji key in \`AVAKIT_DEPLOYER_KEY\`, or test AVAX from ${BUILDER_HUB_FAUCET_URL} (free Builder Hub sign-in).
+- If the AvaKit faucet refuses (rate limit, empty), there are two ways forward: ${FUJI_FAUCET_FALLBACK}.
 
 ## @avakit/react
 - \`<AvaKitProvider chains={[...]} adapters={[...]}>\`, \`<ConnectAvalanche />\`
@@ -614,8 +626,7 @@ AvaKit is an open-source, AI-native Avalanche developer toolkit.
 
 ## Docs
 - Avalanche Builder Hub: https://build.avax.network/llms.txt
-- Web3Auth dashboard: https://dashboard.web3auth.io
-- Fuji faucet (free Builder Hub sign-in): ${BUILDER_HUB_FAUCET_URL}`;
+- Web3Auth dashboard: https://dashboard.web3auth.io${FUJI_FAUCET_LINK}`;
 
 server.registerTool(
   "get_context",

@@ -7,6 +7,7 @@
  */
 
 import { fuji } from "@avakit/core";
+import { getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Connection } from "./testing/connect.js";
@@ -94,10 +95,11 @@ describe("on Fuji with no key configured", () => {
     const deployed = await deploy();
     expect(deployed.isError).toBe(false);
     const contract = deployed.json<{ address: string; note: string }>();
+    const created = getAddress(net.fuji.sent[0]?.created ?? "");
     expect(contract).toEqual({
-      address: net.fuji.sent[0]?.created,
+      address: created,
       txHash: net.fuji.sent[0]?.hash,
-      explorerUrl: `${fuji.explorerUrl}/address/${net.fuji.sent[0]?.created}`,
+      explorerUrl: `${fuji.explorerUrl}/address/${created}`,
       signer: { address: wallet.address, source: "session" },
       note:
         "Signed with a temporary Fuji test wallet that lives only until the server stops. " +
@@ -132,7 +134,7 @@ describe("on Fuji with no key configured", () => {
     });
     expect(net.fuji.sent[1]).toMatchObject({
       from: wallet.address,
-      to: contract.address,
+      to: contract.address.toLowerCase(),
       data: "0x1249c58b",
       chainId: 43113,
       value: 0n,
@@ -215,10 +217,6 @@ describe("on Fuji with no key configured", () => {
       ],
       [{ status: 503, body: { code: "faucet_empty" } }, "it is out of test AVAX"],
       [
-        { status: 503, body: { code: "faucet_busy" } },
-        "it is busy right now; calling this tool again in a few seconds may work",
-      ],
-      [
         { status: 403, body: { code: "turnstile_required" } },
         "it asks for a human verification step that this server cannot complete",
       ],
@@ -240,26 +238,48 @@ describe("on Fuji with no key configured", () => {
           `${BUILDER_HUB} (needs a free Builder Hub sign-in) for ${wallet} and call this tool again ` +
           "while the server is still running.",
       );
+      // The page named is the one in the chain's definition.
+      expect(BUILDER_HUB).toBe(fuji.faucetUrl);
       // Asked once: a refusal is an answer, not something to retry.
       expect(net.faucet.requests, reason).toHaveLength(1);
     }
     expect(net.fuji.sent).toEqual([]);
   });
 
-  it("asks the faucet again after a network error or a 5xx that is not 503, three times at most", async () => {
+  it("asks the faucet again after no answer or a failure on its side, three times at most", async () => {
+    // The pause between attempts is random from zero up; zero keeps the test quick.
+    vi.spyOn(Math, "random").mockReturnValue(0);
     net.faucet.script = ["network", { status: 502, body: { code: "drip_failed" } }];
     const third = await deploy();
     expect(third.isError).toBe(false);
     expect(net.faucet.requests).toHaveLength(3);
-    // Backed off before the second and the third: about 1 s, then about 2 s.
-    const [first, second] = time.sleeps;
-    expect(first).toBeGreaterThanOrEqual(500);
-    expect(first).toBeLessThanOrEqual(1000);
-    expect(second).toBeGreaterThanOrEqual(1000);
-    expect(second).toBeLessThanOrEqual(2000);
+    expect(net.fuji.sent).toHaveLength(1);
+  });
+
+  it("asks a busy faucet again, and says so in plain words when it stays busy", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const busy: FaucetAnswer = { status: 503, body: { code: "faucet_busy" } };
+    // Busy once, then served.
+    net.faucet.script = [busy];
+    expect((await deploy()).isError).toBe(false);
+    expect(net.faucet.requests).toHaveLength(2);
+
+    // Busy three times: that is the answer.
+    const wallet = await sessionAddress();
+    net.fuji.setBalance(wallet, 0n);
+    net.faucet.requests.length = 0;
+    net.faucet.script = [busy, busy, busy];
+    const result = await deploy();
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain(
+      "The AvaKit faucet did not fund it: it is busy right now; calling this tool again in a few seconds may work. Nothing was sent.",
+    );
+    expect(net.faucet.requests).toHaveLength(3);
+    expect(net.fuji.sent).toHaveLength(1);
   });
 
   it("stops after three failed attempts and says what the last one was", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
     net.faucet.script = ["timeout", { status: 500 }, "network", "fund"];
     const result = await deploy();
     expect(result.isError).toBe(true);
@@ -275,6 +295,7 @@ describe("on Fuji with no key configured", () => {
   it("looks for the drip before giving up when an answer was lost on the way", async () => {
     // The faucet served the first request; its answer never arrived. Asked
     // again, it says "funded recently". Both are true, and the money is there.
+    vi.spyOn(Math, "random").mockReturnValue(0);
     net.faucet.script = [
       "fund-then-drop",
       { status: 429, body: { code: "address_limited" }, headers: { "retry-after": "86399" } },

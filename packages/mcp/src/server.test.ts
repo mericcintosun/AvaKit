@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fuji } from "@avakit/core";
+import { AVAKIT_FAUCET_URL, fuji } from "@avakit/core";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseArtifact } from "./artifact.js";
@@ -195,8 +195,11 @@ describe("the documentation", () => {
       "one drip per wallet per 24 hours",
       "`AVAKIT_TEST_WALLET=0`",
       "`AVAKIT_DEPLOYER_KEY`",
-      "https://build.avax.network/console/primary-network/faucet",
+      // The official faucet page, as the chain's definition in @avakit/core names it.
+      fuji.faucetUrl ?? "(Fuji has no faucet page)",
       "free Builder Hub sign-in",
+      // And the hosted faucet the session wallet asks, likewise.
+      AVAKIT_FAUCET_URL,
     ]) {
       expect(section, said).toContain(said);
     }
@@ -559,8 +562,15 @@ describe("get_context", () => {
     expect(text).toContain(
       '`scaffold_app` (its result lists `artifacts`) → `deploy_contract({ artifactPath })` → `write_contract({ address, artifactPath, functionName: "mint" })`',
     );
-    // The faucet that now needs a sign-in is described as such.
-    expect(text).toContain("https://build.avax.network/console/primary-network/faucet");
+    // The faucet page is the one the chain's definition names, and it is said
+    // to need a sign-in, which the session test wallet does not.
+    expect(fuji.faucetUrl).toBe("https://build.avax.network/console/primary-network/faucet");
+    expect(text).toContain(
+      `- Fuji faucet: ${fuji.faucetUrl} (needs a free Builder Hub sign-in; the session test wallet above needs none: the server funds it from the AvaKit faucet)`,
+    );
+    expect(text).toContain(
+      `test AVAX for the session wallet's address from ${fuji.faucetUrl} (that page needs a free Builder Hub sign-in)`,
+    );
     expect(text).not.toContain("core.app/tools/testnet-faucet");
   });
 });

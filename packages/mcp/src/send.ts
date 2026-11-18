@@ -35,8 +35,8 @@ import { requestDrip } from "./faucet.js";
 import { log } from "./log.js";
 import { clock } from "./time.js";
 import {
-  BUILDER_HUB_FAUCET_URL,
   DEPLOYER_KEY_ENV,
+  FUJI_CHAIN_ID,
   SESSION_NOTE,
   type Signer,
   type SignerSource,
@@ -122,11 +122,18 @@ async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
   }
 }
 
-function waysForward(address: Address): string {
+/**
+ * What a person can do when the AvaKit faucet did not fund the session wallet.
+ * The second way is the chain's own faucet page, from its definition in
+ * @avakit/core; for Fuji that is Builder Hub, which asks for a sign-in.
+ */
+function waysForward(chain: AvaChain, address: Address): string {
+  const fundIt = chain.faucetUrl
+    ? `get test AVAX at ${chain.faucetUrl} (needs a free Builder Hub sign-in) for ${address}`
+    : `send test AVAX to ${address}`;
   return (
-    `Two ways forward: set ${DEPLOYER_KEY_ENV} to your own funded Fuji key, or get test AVAX at ` +
-    `${BUILDER_HUB_FAUCET_URL} (needs a free Builder Hub sign-in) for ${address} and call this ` +
-    "tool again while the server is still running."
+    `Two ways forward: set ${DEPLOYER_KEY_ENV} to your own funded Fuji key, or ${fundIt} and call ` +
+    "this tool again while the server is still running."
   );
 }
 
@@ -186,6 +193,15 @@ async function ensureFunds(
     );
   }
 
+  // The faucet funds Fuji and the session wallet signs for Fuji; resolveSigner
+  // hands it out for nothing else. Asked again here, where the request is made.
+  if (chain.id !== FUJI_CHAIN_ID) {
+    throw new ToolError(
+      `The session test wallet is funded and used on Avalanche Fuji (chain ${FUJI_CHAIN_ID}) only, ` +
+        `not on ${chain.name}. Nothing was sent.`,
+    );
+  }
+
   log(`asking the faucet for test AVAX for the session wallet ${address}.`);
   const drip = await requestDrip(address);
   const needs = `this ${kind} needs about ${avax(required, "up")} ${symbol}`;
@@ -193,7 +209,7 @@ async function ensureFunds(
     log(`the faucet did not fund ${address}: ${drip.reason}.`);
     throw new ToolError(
       `The session test wallet ${address} has ${avax(balance)} ${symbol} on ${chain.name} and ${needs}. ` +
-        `The AvaKit faucet did not fund it: ${drip.reason}. Nothing was sent. ${waysForward(address)}`,
+        `The AvaKit faucet did not fund it: ${drip.reason}. Nothing was sent. ${waysForward(chain, address)}`,
     );
   }
 
@@ -211,20 +227,20 @@ async function ensureFunds(
   if (arrived > balance) {
     throw new ToolError(
       `The AvaKit faucet funded the session test wallet ${address}, but its ${avax(arrived)} ${symbol} ` +
-        `does not cover it: ${needs} at the current gas price. Nothing was sent. ${waysForward(address)}`,
+        `does not cover it: ${needs} at the current gas price. Nothing was sent. ${waysForward(chain, address)}`,
     );
   }
   if (!drip.ok) {
     throw new ToolError(
       `The session test wallet ${address} has ${avax(balance)} ${symbol} on ${chain.name} and ${needs}. ` +
-        `The AvaKit faucet did not fund it: ${drip.reason}. Nothing was sent. ${waysForward(address)}`,
+        `The AvaKit faucet did not fund it: ${drip.reason}. Nothing was sent. ${waysForward(chain, address)}`,
     );
   }
   throw new ToolError(
     `The AvaKit faucet accepted the request${drip.txHash ? ` (its transaction: ${drip.txHash})` : ""}, but ` +
       `the test AVAX had not reached the session test wallet ${address} after ` +
       `${FUNDS_WAIT_MS / 1000} seconds. Nothing was sent; calling this tool again in a moment will ` +
-      `most likely work. ${waysForward(address)}`,
+      `most likely work. ${waysForward(chain, address)}`,
   );
 }
 
@@ -295,14 +311,34 @@ async function settle(client: PublicClient, address: Address, nonce: number): Pr
 /**
  * Whether there is contract code at `address`, read up to six times over two
  * seconds before the answer is no (see STATE_READS).
+ *
+ * @param patient Also repeat a read that failed, as `waitForDeployment` in
+ *   @avakit/core does. For the check after a deployment, where the transaction
+ *   is already mined and one dropped request is no reason to call the contract
+ *   unconfirmed. It then throws only when the last read failed too, which leaves
+ *   the question open rather than answered. Without it the first failed read is
+ *   thrown at once: before anything has been sent, an unreachable node should be
+ *   reported promptly.
  */
-export async function codeExists(chain: AvaChain, address: Address): Promise<boolean> {
+export async function codeExists(
+  chain: AvaChain,
+  address: Address,
+  patient = false,
+): Promise<boolean> {
   const client = getPublicClient(chain);
+  let failure: unknown;
   for (let read = 0; read < STATE_READS; read++) {
     if (read > 0) await clock.sleep(STATE_INTERVAL_MS);
-    const code = await client.getCode({ address });
-    if (code && code !== "0x") return true;
+    try {
+      const code = await client.getCode({ address });
+      if (code && code !== "0x") return true;
+      failure = undefined;
+    } catch (error) {
+      if (!patient) throw error;
+      failure = error;
+    }
   }
+  if (failure !== undefined) throw failure;
   return false;
 }
 

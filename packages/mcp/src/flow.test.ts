@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fuji } from "@avakit/core";
 import { templatesDir } from "create-avalanche-app/api";
+import { getAddress } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseArtifact } from "./artifact.js";
 import type { Connection } from "./testing/connect.js";
@@ -122,8 +123,10 @@ describe("the README's prompt", () => {
     expect(creation?.data).toBe(shipped("nft-mint", "nft-artifact.ts").bytecode);
     expect(creation?.data).toHaveLength(15_422);
     expect(creation?.to).toBeNull();
-    expect(creation?.created).toBe(contract.address);
-    expect(call).toMatchObject({ to: contract.address, data: "0x1249c58b" });
+    // The address came back with its checksum, and the mint went to that contract.
+    expect(contract.address).toBe(getAddress(contract.address));
+    expect(creation?.created).toBe(contract.address.toLowerCase());
+    expect(call).toMatchObject({ to: contract.address.toLowerCase(), data: "0x1249c58b" });
 
     // Signed by the session wallet, for Fuji, with no value; funded once.
     for (const transaction of [creation, call]) {

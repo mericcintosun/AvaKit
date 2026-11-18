@@ -1,5 +1,13 @@
 import type { AvaChain } from "@avakit/core";
-import { type Abi, type Address, encodeDeployData, getContractAddress, type Hex } from "viem";
+import {
+  type Abi,
+  type Address,
+  encodeDeployData,
+  getAddress,
+  getContractAddress,
+  type Hex,
+  isAddress,
+} from "viem";
 import { constructorArgs } from "./abi.js";
 import { reasonOf, ToolError } from "./errors.js";
 import { codeExists, explorerTx, type SignedBy, send, signedBy } from "./send.js";
@@ -11,9 +19,16 @@ export interface DeployReceipt {
   contractAddress?: string | null;
 }
 
-export type DeployOutcome =
-  | { ok: true; result: { address: Address; txHash: Hex; explorerUrl: string } }
-  | { ok: false; message: string };
+/** A deployed contract: where it is, and where to look it up when the chain has an explorer. */
+export interface Deployed {
+  /** The new contract, checksummed. */
+  address: Address;
+  txHash: Hex;
+  /** Explorer link for the contract. Left out when the chain has no explorer. */
+  explorerUrl?: string;
+}
+
+export type DeployOutcome = { ok: true; result: Deployed } | { ok: false; message: string };
 
 /**
  * Decide whether a mined creation transaction really deployed a contract.
@@ -23,6 +38,14 @@ export type DeployOutcome =
  * result — so a transaction whose constructor reverted still carries one, with
  * no code behind it. Only `status` says whether the creation succeeded, so it
  * is checked first and a reverted deploy is never reported as an address.
+ *
+ * The address is returned with its EIP-55 checksum, as `waitForDeployment` in
+ * @avakit/core returns it. An agent copies it into its next call, and
+ * `write_contract` refuses a mixed-case address whose checksum does not hold,
+ * so a character changed on the way is caught instead of called.
+ *
+ * Explorer links come from the chain's definition and are left out for a chain
+ * that has no explorer.
  */
 export function deployOutcome(receipt: DeployReceipt, txHash: Hex, chain: AvaChain): DeployOutcome {
   if (receipt.status !== "success") {
@@ -31,20 +54,26 @@ export function deployOutcome(receipt: DeployReceipt, txHash: Hex, chain: AvaCha
       message:
         `Deployment reverted: transaction ${txHash} was mined on ${chain.name}, but no ` +
         `contract was created (the constructor reverted or ran out of gas). Check the ` +
-        `constructor arguments and the bytecode. ${chain.explorerUrl}/tx/${txHash}`,
+        `constructor arguments and the bytecode.${linked(explorerTx(chain, txHash))}`,
     };
   }
-  if (!receipt.contractAddress) {
+  if (!receipt.contractAddress || !isAddress(receipt.contractAddress, { strict: false })) {
     return { ok: false, message: "Deployment did not return a contract address." };
   }
+  const address = getAddress(receipt.contractAddress);
   return {
     ok: true,
     result: {
-      address: receipt.contractAddress as Address,
+      address,
       txHash,
-      explorerUrl: `${chain.explorerUrl}/address/${receipt.contractAddress}`,
+      ...(chain.explorerUrl ? { explorerUrl: `${chain.explorerUrl}/address/${address}` } : {}),
     },
   };
+}
+
+/** A link to end a sentence with, or nothing when there is none. */
+function linked(url: string): string {
+  return url ? ` ${url}` : "";
 }
 
 export interface DeployRequest {
@@ -54,7 +83,7 @@ export interface DeployRequest {
   args?: readonly unknown[];
 }
 
-export type DeployResult = { address: Address; txHash: Hex; explorerUrl: string } & SignedBy;
+export type DeployResult = Deployed & SignedBy;
 
 /**
  * Deploy a contract and return its address — but only an address that has a
@@ -92,22 +121,23 @@ export async function deployContract(
   if (!outcome.ok) throw new ToolError(outcome.message);
 
   const { address } = outcome.result;
-  const where = explorerTx(chain, sent.hash);
+  const where = linked(explorerTx(chain, sent.hash));
   let hasCode: boolean;
   try {
-    hasCode = await codeExists(chain, address);
+    // Patiently: the transaction is mined, so a read that fails is repeated.
+    hasCode = await codeExists(chain, address, true);
   } catch (error) {
     throw new ToolError(
       `Transaction ${sent.hash} succeeded on ${chain.name} and should have created a contract at ` +
         `${address}, but the node could not be asked whether the code is there (${reasonOf(error)}). ` +
-        `Check it before deploying again, so that it is not deployed twice. ${where}`,
+        `Check it before deploying again, so that it is not deployed twice.${where}`,
     );
   }
   if (!hasCode) {
     throw new ToolError(
       `Transaction ${sent.hash} succeeded on ${chain.name}, but there is no contract code at ` +
         `${address}: the bytecode ran and left nothing behind. Make sure it is the creation bytecode ` +
-        `(Foundry's bytecode.object), not the deployed runtime bytecode. ${where}`,
+        `(Foundry's bytecode.object), not the deployed runtime bytecode.${where}`,
     );
   }
   return { ...outcome.result, ...signedBy(signer, sent) };

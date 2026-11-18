@@ -19,7 +19,8 @@ export type WriteResult = {
   txHash: Hex;
   status: "success";
   blockNumber: bigint;
-  explorerUrl: string;
+  /** Explorer link for the transaction. Left out when the chain has no explorer. */
+  explorerUrl?: string;
 } & SignedBy;
 
 /**
@@ -125,14 +126,14 @@ export async function writeContract(
     throw new ToolError(
       `Transaction ${sent.hash} was mined on ${chain.name} but reverted, so nothing changed. The ` +
         "simulation passed just before it was sent: the contract's state changed in between, or the " +
-        `call ran out of gas. ${where}`,
+        `call ran out of gas.${where ? ` ${where}` : ""}`,
     );
   }
   return {
     txHash: sent.hash,
     status: "success",
     blockNumber: sent.receipt.blockNumber,
-    explorerUrl: where,
+    ...(where ? { explorerUrl: where } : {}),
     ...signedBy(signer, sent),
   };
 }

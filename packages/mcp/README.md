@@ -64,7 +64,12 @@ When the faucet says no, **nothing is sent**, and the tool returns the faucet's 
 1. set `AVAKIT_DEPLOYER_KEY` to your own funded Fuji key, or
 2. get test AVAX from the official faucet at <https://build.avax.network/console/primary-network/faucet> (it needs a free Builder Hub sign-in) for the session wallet's address, and call the tool again while the server is still running.
 
-The faucet is asked again only when the answer could be different: after a network error, or a 5xx other than 503 — three attempts in all, ten seconds each, with a growing randomised pause between them. A refusal (429, 503, 4xx) is an answer and is not retried.
+The request is `requestFaucet` from `@avakit/core`, and it is repeated only when the answer could be different:
+
+- **Asked again:** no answer arrived (a network error, or nothing within ten seconds), or the faucet failed on its side — a 500, 502 or 504, a 503 in which the faucet says it is busy, or a 503 that an outage in front of the faucet answered.
+- **Not asked again:** a refusal. A 429 (this wallet was funded in the last 24 hours, or the hourly limit was reached), the faucet's own 503 for "empty", and every 4xx are answers, and repeating the question would only use up the allowance faster.
+
+That is three attempts at most, ten seconds each, with a randomised pause between them that doubles its range each time. When an attempt got no answer, the server looks at the wallet's balance for another ten seconds before giving up, because the request may have been served all the same.
 
 ### Turning it off, or using your own key
 
@@ -113,7 +118,9 @@ An ABI can also be passed inline as `abi`: the compiler's JSON array, or just th
 
 Returns `{ address, txHash, explorerUrl, signer: { address, source }, note? }`.
 
-The address is returned only once the transaction has been mined, its status is success **and** there is code at the address. Each of the three has been seen to be false on its own, and each is reported as an error rather than as a deployed contract.
+`address` carries its EIP-55 checksum (mixed case). `write_contract` refuses a mixed-case address whose checksum does not hold, so a character that changes while an agent copies the address from one call to the next is caught rather than called. `explorerUrl` here and in `write_contract` is built from the chain's definition in `@avakit/core`.
+
+The address is returned only once the transaction has been mined, its status is success **and** there is code at the address. Each of the three has been seen to be false on its own, and each is reported as an error rather than as a deployed contract. The code is read up to six times over about two seconds, because a node can hand out a receipt a moment before it can show the code; if it cannot be read at all, the error says the deployment is unconfirmed and to check the address before deploying again.
 
 ### `write_contract`
 
