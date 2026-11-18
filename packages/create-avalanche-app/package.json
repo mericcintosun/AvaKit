@@ -72,6 +72,6 @@
     "directory": "packages/create-avalanche-app"
   },
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22"
   }
 }

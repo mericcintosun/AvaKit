@@ -69,57 +69,52 @@ describe("nodeFloor", () => {
 
 describe("checkNodeVersion", () => {
   it("refuses a Node.js below the floor, naming the version found and the one required", () => {
-    for (const found of ["20.10.9", "20.0.0", "18.19.1", "16.20.2", "v20.10.9"]) {
-      const check = checkNodeVersion(found, ">=20.11");
+    for (const found of ["21.7.3", "20.20.2", "20.11.0", "18.19.1", "v20.11.0"]) {
+      const check = checkNodeVersion(found, ">=22");
       expect(check.ok, found).toBe(false);
       expect(check.message).toBe(
-        `Error: create-avalanche-app needs Node.js 20.11 or newer, but this is Node.js ${found.replace("v", "")}. ` +
+        `Error: create-avalanche-app needs Node.js 22 or newer, but this is Node.js ${found.replace("v", "")}. ` +
           "Install Node.js 22 or 24 from https://nodejs.org and run the command again.",
       );
     }
   });
 
-  it("lets the floor itself and the rest of Node.js 20 and 21 through, with a warning", () => {
-    for (const found of ["20.11.0", "20.11.1", "20.19.5", "21.7.3"]) {
-      const check = checkNodeVersion(found, ">=20.11");
-      expect(check.ok, found).toBe(true);
-      expect(check.message).toBe(
-        `Warning: this is Node.js ${found}. Node.js 20 reached end-of-life in April 2026, and ` +
-          "AvaKit is tested on Node.js 22 and 24. Upgrade when you can: https://nodejs.org",
-      );
-    }
-  });
-
-  it("says nothing on the release lines AvaKit is tested on, or newer ones", () => {
+  it("says nothing from the floor up: the release lines AvaKit is tested on, or newer ones", () => {
     for (const found of ["22.0.0", "22.14.0", "23.11.0", "24.1.0", "24.21.0", "26.0.0"]) {
-      expect(checkNodeVersion(found, ">=20.11"), found).toEqual({ ok: true, message: null });
+      expect(checkNodeVersion(found, ">=22"), found).toEqual({ ok: true, message: null });
     }
   });
 
-  it("puts each message on a single line", () => {
-    for (const found of ["18.19.1", "20.11.0"]) {
-      expect(checkNodeVersion(found, ">=20.11").message, found).not.toContain("\n");
-    }
+  it("puts the message on a single line", () => {
+    expect(checkNodeVersion("20.11.0", ">=22").message).not.toContain("\n");
   });
 
-  it("states a floor with a patch number in full", () => {
-    const check = checkNodeVersion("20.11.0", ">=20.11.1");
-    expect(check.ok).toBe(false);
-    expect(check.message).toContain("needs Node.js 20.11.1 or newer, but this is Node.js 20.11.0.");
+  it("states the floor the way the range does", () => {
+    expect(checkNodeVersion("20.10.9", ">=20.11").message).toContain(
+      "needs Node.js 20.11 or newer, but this is Node.js 20.10.9.",
+    );
+    expect(checkNodeVersion("20.11.0", ">=20.11.1").message).toContain(
+      "needs Node.js 20.11.1 or newer, but this is Node.js 20.11.0.",
+    );
+    // A minor or patch of zero is not spelled out.
+    expect(checkNodeVersion("20.11.0", ">=22.0").message).toContain("needs Node.js 22 or newer");
   });
 
   it("enforces the floor this package declares when none is passed", () => {
     const floor = nodeFloor(pkg.engines.node);
     if (!floor) throw new Error("engines.node has no floor");
     const [major, minor, patch] = floor;
-    expect(checkNodeVersion(`${major}.${minor}.${patch}`).ok).toBe(true);
+    expect(checkNodeVersion(`${major}.${minor}.${patch}`)).toEqual({ ok: true, message: null });
     const below = minor > 0 ? `${major}.${minor - 1}.99` : `${major - 1}.99.99`;
     expect(checkNodeVersion(below).ok).toBe(false);
+    // The boundary the README states: every Node.js 21 is refused, 22.0.0 runs.
+    expect(checkNodeVersion("21.99.99").ok).toBe(false);
+    expect(checkNodeVersion("22.0.0")).toEqual({ ok: true, message: null });
   });
 
   it("does not refuse what it cannot judge", () => {
     // A version it cannot read, or a range it cannot read: never grounds to stop.
-    expect(checkNodeVersion("not-a-version", ">=20.11")).toEqual({ ok: true, message: null });
+    expect(checkNodeVersion("not-a-version", ">=22")).toEqual({ ok: true, message: null });
     expect(checkNodeVersion("18.19.1", "^20.11 || >=22").ok).toBe(true);
     expect(checkNodeVersion("18.19.1", "").ok).toBe(true);
   });
@@ -142,11 +137,49 @@ describe("what the messages claim", () => {
     const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
     expect(readme).toContain(`Node.js **${TESTED_NODE_MAJORS.join(" or ")}**`);
     expect(readme).toContain(`\`engines.node\` (\`${pkg.engines.node}\`)`);
-    expect(readme).toContain("Node.js 20 reached end-of-life in April 2026");
-    // The table's rows are the three outcomes of the check, at the same boundaries.
-    const [major, minor] = nodeFloor(pkg.engines.node) ?? [];
-    expect(readme).toContain(`| ${TESTED_NODE_MAJORS[0]} or newer |`);
-    expect(readme).toContain(`| ${major}.${minor} to ${TESTED_NODE_MAJORS[0] - 1} |`);
-    expect(readme).toContain(`| older than ${major}.${minor} |`);
+    expect(readme).toContain("Node.js 20 reached end of life in April 2026");
+    // The table's rows are the two outcomes of the check, at the same boundary.
+    const [major] = nodeFloor(pkg.engines.node) ?? [];
+    expect(readme).toContain(`| ${major} or newer |`);
+    expect(readme).toContain(`| older than ${major} |`);
+    // No row may promise a run on a Node.js the check refuses.
+    expect(readme).not.toMatch(/\|\s*20\.11 to 21\s*\|/);
+  });
+});
+
+describe("the floor", () => {
+  /** `engines.node` of a dependency, as installed next to this package. */
+  function dependencyEngines(name: string): string | undefined {
+    const manifest = JSON.parse(
+      readFileSync(new URL(`../node_modules/${name}/package.json`, import.meta.url), "utf8"),
+    ) as { engines?: { node?: string } };
+    return manifest.engines?.node;
+  }
+
+  it("is the oldest release line AvaKit is tested on", () => {
+    // Above it, a tested Node.js would be refused; below it, the CLI would run
+    // on a Node.js that nothing tests.
+    expect(nodeFloor(pkg.engines.node)).toEqual([TESTED_NODE_MAJORS[0], 0, 0]);
+  });
+
+  it("is no lower than what any dependency of the CLI declares", () => {
+    // ink, the wizard's UI, declares Node.js 22. With the floor below that, npm
+    // warns about ink while installing the CLI, installers that enforce engines
+    // refuse it, and the CLI allows a Node.js it cannot promise to run on.
+    const floor = nodeFloor(pkg.engines.node);
+    if (!floor) throw new Error("engines.node has no floor");
+    const dependencies = Object.keys(
+      (
+        JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+          dependencies: Record<string, string>;
+        }
+      ).dependencies,
+    );
+    expect(dependencies).toContain("ink");
+    expect(nodeFloor(dependencyEngines("ink"))).not.toBeNull();
+    for (const name of dependencies) {
+      const theirs = nodeFloor(dependencyEngines(name));
+      if (theirs) expect(compareNodeVersions(floor, theirs), name).toBeGreaterThanOrEqual(0);
+    }
   });
 });

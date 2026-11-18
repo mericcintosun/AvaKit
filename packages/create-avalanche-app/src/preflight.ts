@@ -4,12 +4,16 @@
  * A stranger's machine does not run the Node.js this was built on: Ubuntu
  * 24.04's `apt install nodejs` still gives Node.js 18, where the scaffolder
  * used to fail somewhere in the middle with a stack trace about a dependency.
- * So the entry (`index.ts`) asks here first, and gets back one line to print:
+ * So the entry (`index.ts`) asks here first: below the floor in this package's
+ * `engines.node` it gets back one line to print and does not run; otherwise it
+ * gets nothing back.
  *
- *   - below the floor in this package's `engines.node`: an error, and no run;
- *   - on a release line older than the ones AvaKit is tested on: a warning, and
- *     the run goes ahead;
- *   - otherwise nothing.
+ * The floor is Node.js 22, the oldest release line AvaKit is tested on, and also
+ * what the wizard's terminal UI (`ink`) and several of its dependencies declare.
+ * Those are installed fresh, within their semver ranges, on every
+ * `npm create`, so a release of one of them may use what only Node.js 22 has
+ * without notice: a Node.js below 22 is not something the CLI can promise to
+ * run on, so it is refused rather than warned about.
  *
  * This module and the entry import nothing but Node built-ins and use no recent
  * syntax, so they still load on a Node.js that cannot load the rest of the CLI.
@@ -59,7 +63,7 @@ export function compareNodeVersions(a: NodeVersion, b: NodeVersion): number {
 
 /**
  * The oldest version an `engines.node` range allows. Only the form this package
- * uses is understood (`>=20.11`, with one to three numbers). Anything else is
+ * uses is understood (`>=22`, with one to three numbers). Anything else is
  * null, and no floor is enforced, rather than guessed at: a range such as
  * `^20.11 || >=22` has no single floor to compare against.
  */
@@ -72,7 +76,7 @@ export function nodeFloor(range: string | undefined): NodeVersion | null {
 export interface NodeCheck {
   /** False when this Node.js is too old to run the CLI at all. */
   ok: boolean;
-  /** One line for stderr: the error when not `ok`, a warning or nothing when `ok`. */
+  /** One line for stderr when not `ok`; null when `ok`. */
   message: string | null;
 }
 
@@ -91,23 +95,17 @@ export function checkNodeVersion(
 
   const floor = nodeFloor(enginesNode);
   if (floor && compareNodeVersions(version, floor) < 0) {
-    // "20.11" rather than "20.11.0": the floor the way package.json states it.
-    const required = floor[2] === 0 ? `${floor[0]}.${floor[1]}` : floor.join(".");
+    // "22" rather than "22.0.0", "20.11" rather than "20.11.0": the floor the way
+    // package.json states it, with trailing zeros left off.
+    let shown = floor.length;
+    while (shown > 1 && floor[shown - 1] === 0) shown--;
+    const required = floor.slice(0, shown).join(".");
     return {
       ok: false,
       message:
         `Error: create-avalanche-app needs Node.js ${required} or newer, but this is ${running}. ` +
         `Install Node.js ${TESTED_NODE_MAJORS.join(" or ")} from https://nodejs.org and run ` +
         "the command again.",
-    };
-  }
-  if (version[0] < TESTED_NODE_MAJORS[0]) {
-    return {
-      ok: true,
-      message:
-        `Warning: this is ${running}. Node.js 20 reached end-of-life in April 2026, and AvaKit ` +
-        `is tested on Node.js ${TESTED_NODE_MAJORS.join(" and ")}. Upgrade when you can: ` +
-        "https://nodejs.org",
     };
   }
   return { ok: true, message: null };

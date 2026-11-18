@@ -33,12 +33,16 @@ Node.js **22 or 24**, and a package manager: npm ships with Node.js and is all y
 | Node.js | What the CLI does |
 | --- | --- |
 | 22 or newer | Runs. 22 and 24 are the release lines AvaKit is tested on. |
-| 20.11 to 21 | Runs, after one warning line on stderr: Node.js 20 reached end-of-life in April 2026. |
-| older than 20.11 | Stops with one line that names the version it found and the one it needs, and exits with status 1. |
+| older than 22 | Stops with one line that names the version it found and the one it needs, creates nothing, and exits with status 1. |
 
 The check is the first thing the CLI does, before it reads its arguments, so an unsupported
 Node.js gets that one line instead of a stack trace from the middle of a scaffold. The floor is
-this package's `engines.node` (`>=20.11`).
+this package's `engines.node` (`>=22`). Node.js 20 reached end of life in April 2026 (Node.js 21
+a long time before), and the library that draws the interactive wizard, `ink`, requires Node.js
+22, as do several of the packages it uses. On Node.js 20 or 21, npm therefore prints
+`EBADENGINE` warnings while it fetches the CLI, and an installer that enforces engines (npm with
+`engine-strict`, Yarn 1) refuses to install it. Install Node.js 22 or 24 from
+[nodejs.org](https://nodejs.org) instead.
 
 "Tested on" means the
 [end-to-end workflow](https://github.com/mericcintosun/AvaKit/actions/workflows/e2e-fuji.yml):

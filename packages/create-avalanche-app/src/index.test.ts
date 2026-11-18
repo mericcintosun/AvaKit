@@ -57,33 +57,21 @@ async function start(nodeVersion: string): Promise<void> {
 
 describe("the create-avalanche-app entry", () => {
   it("refuses a Node.js below the engines floor with one line, before loading the CLI", async () => {
-    for (const version of ["18.19.1", "20.10.9"]) {
+    // Node.js 20 and 21 included: the wizard's UI library declares Node.js 22.
+    for (const version of ["18.19.1", "20.11.0", "20.20.2", "21.7.3"]) {
       stderr = "";
       vi.resetModules();
       await start(version);
 
       expect(stderr, version).toBe(
-        `Error: create-avalanche-app needs Node.js 20.11 or newer, but this is Node.js ${version}. ` +
+        `Error: create-avalanche-app needs Node.js 22 or newer, but this is Node.js ${version}. ` +
           "Install Node.js 22 or 24 from https://nodejs.org and run the command again.\n",
       );
       expect(process.exitCode, version).toBe(1);
     }
-    // Not even imported: on a Node.js that old, loading it is what would crash.
+    // Not even imported, so nothing is asked and nothing is created.
     expect(loads).toBe(0);
     expect(run).not.toHaveBeenCalled();
-  });
-
-  it("warns on Node.js 20 and then runs the CLI", async () => {
-    await start("20.11.0");
-
-    expect(stderr).toBe(
-      "Warning: this is Node.js 20.11.0. Node.js 20 reached end-of-life in April 2026, and " +
-        "AvaKit is tested on Node.js 22 and 24. Upgrade when you can: https://nodejs.org\n",
-    );
-    expect(loads).toBe(1);
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(process.exitCode).toBe(realExitCode);
-    expect(exit).not.toHaveBeenCalled();
   });
 
   it("says nothing on a tested Node.js and hands the process to the CLI", async () => {
