@@ -4,7 +4,7 @@
  * replacement in one place.
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scaffold } from "./scaffold.js";
@@ -186,21 +186,41 @@ export async function scaffoldApp(opts: ScaffoldAppOptions): Promise<ScaffoldApp
     __AVAKIT_REACT_DEP__: local ? "workspace:*" : `^${AVAKIT_REACT_VERSION}`,
   };
 
-  const files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
+  // A scaffold that fails part-way (a full disk, a permission error) must not
+  // leave a half-written project behind: the retry would find the directory
+  // "not empty" and be refused. Only a directory this call creates is removed —
+  // never one that was already there.
+  const createdHere = !pathExists(opts.targetDir);
+  try {
+    const files = await scaffold({ templateDir, targetDir: opts.targetDir, replacements });
 
-  // Every template's `providers.tsx` registers all three adapters — burner,
-  // injected, and web3auth — so @web3auth/modal (an optional peer of
-  // @avakit/core) is always needed at runtime. `web3authAdapter.isAvailable()`
-  // is `Boolean(clientId)` against the templates' inlined demo id, so the Social
-  // login button always renders enabled; not installing the SDK it dynamic-imports
-  // meant it threw on click. Install what the code imports.
-  addDependency(
-    path.join(opts.targetDir, "package.json"),
-    "@web3auth/modal",
-    WEB3AUTH_MODAL_VERSION,
-  );
+    // Every template's `providers.tsx` registers all three adapters — burner,
+    // injected, and web3auth — so @web3auth/modal (an optional peer of
+    // @avakit/core) is always needed at runtime. `web3authAdapter.isAvailable()`
+    // is `Boolean(clientId)` against the templates' inlined demo id, so the Social
+    // login button always renders enabled; not installing the SDK it dynamic-imports
+    // meant it threw on click. Install what the code imports.
+    addDependency(
+      path.join(opts.targetDir, "package.json"),
+      "@web3auth/modal",
+      WEB3AUTH_MODAL_VERSION,
+    );
 
-  return { targetDir: opts.targetDir, files };
+    return { targetDir: opts.targetDir, files };
+  } catch (error) {
+    if (createdHere) rmSync(opts.targetDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/** Whether anything is at `target` — including a symlink that points nowhere. */
+function pathExists(target: string): boolean {
+  try {
+    lstatSync(target);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function addDependency(pkgPath: string, name: string, version: string): void {
