@@ -5,10 +5,11 @@ import { humanizeError, Button, ConnectAvalanche, shortenAddress, useAvaKit } fr
 import { useEERC } from "@avalabs/eerc-sdk";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { type Address, createWalletClient, custom, formatUnits, parseUnits } from "viem";
 import { FundingNotice, useFunding } from "@/components/funding";
 import {
+  CircuitDownloadError,
   type CircuitURLs,
   EERC_CONTRACT_ADDRESS,
   loadVerifiedCircuits,
@@ -37,13 +38,25 @@ export function Demo() {
   // Download + SHA-256-verify the proving circuits before the SDK ever sees
   // them (see lib/eerc-config.ts). Starts on mount, in parallel with the
   // user connecting a wallet.
+  // A download that failed can be retried; a file that failed its integrity
+  // check cannot (retrying only downloads and refuses it again), so it gets no
+  // button.
   const [circuits, setCircuits] = useState<CircuitURLs | null>(null);
-  const [circuitError, setCircuitError] = useState<string | null>(null);
-  useEffect(() => {
+  const [circuitError, setCircuitError] = useState<{ message: string; retry: boolean } | null>(null);
+  const loadCircuits = useCallback(() => {
+    setCircuitError(null);
     loadVerifiedCircuits()
       .then(setCircuits)
-      .catch((e) => setCircuitError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) =>
+        setCircuitError({
+          message: e instanceof Error ? e.message : String(e),
+          retry: e instanceof CircuitDownloadError,
+        }),
+      );
   }, []);
+  useEffect(() => {
+    loadCircuits();
+  }, [loadCircuits]);
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col gap-8 px-6 py-16">
@@ -63,9 +76,16 @@ export function Demo() {
         </p>
       </div>
 
-      {circuitError ? (
+      {circuitError?.retry ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-dashed p-6">
+          <p className="text-muted-foreground text-sm">{circuitError.message}</p>
+          <Button variant="outline" onClick={loadCircuits}>
+            Try again
+          </Button>
+        </div>
+      ) : circuitError ? (
         <p className="border-destructive text-destructive rounded-md border px-3 py-2 text-sm font-medium">
-          {circuitError}
+          {circuitError.message}
         </p>
       ) : !isConnected || !address || !provider ? (
         <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">

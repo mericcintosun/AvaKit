@@ -63,15 +63,45 @@ export type CircuitURLs = {
   [K in keyof typeof CIRCUIT_FILES]: { wasm: string; zkey: string };
 };
 
-async function fetchAndVerify(file: { path: string; sha256: string }): Promise<string> {
-  // force-cache: the pinned URLs are immutable, so repeat visits (and the
-  // second circuit that shares a URL with an earlier fetch) hit the browser
-  // HTTP cache instead of re-downloading megabytes.
-  const res = await fetch(`${CIRCUIT_BASE}/${file.path}`, { cache: "force-cache" });
-  if (!res.ok) {
-    throw new Error(`Circuit download failed: ${file.path} (HTTP ${res.status})`);
+/**
+ * The circuits could not be downloaded at all (offline, an ad blocker or a proxy
+ * blocking the CDN, an HTTP error). Worth retrying: nothing was received, so
+ * nothing was accepted. A file that downloads but fails its SHA-256 check is a
+ * plain `Error` instead, and is never retried into acceptance.
+ */
+export class CircuitDownloadError extends Error {
+  constructor(status?: number) {
+    super(
+      `Could not download the eERC proving circuits from ${new URL(CIRCUIT_BASE).host}` +
+        (status ? ` (HTTP ${status})` : "") +
+        "; an ad blocker, a proxy or being offline commonly blocks it.",
+    );
+    this.name = "CircuitDownloadError";
   }
-  const bytes = await res.arrayBuffer();
+}
+
+async function download(path: string): Promise<ArrayBuffer> {
+  let res: Response;
+  try {
+    // force-cache: the pinned URLs are immutable, so repeat visits (and the
+    // second circuit that shares a URL with an earlier fetch) hit the browser
+    // HTTP cache instead of re-downloading megabytes.
+    res = await fetch(`${CIRCUIT_BASE}/${path}`, { cache: "force-cache" });
+  } catch {
+    // fetch rejects (a bare "Failed to fetch") when the request never got an answer.
+    throw new CircuitDownloadError();
+  }
+  if (!res.ok) throw new CircuitDownloadError(res.status);
+  try {
+    return await res.arrayBuffer();
+  } catch {
+    // The connection dropped part-way through the file.
+    throw new CircuitDownloadError();
+  }
+}
+
+async function fetchAndVerify(file: { path: string; sha256: string }): Promise<string> {
+  const bytes = await download(file.path);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   const hex = Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -113,7 +143,8 @@ let verified: Promise<CircuitURLs> | null = null;
 /**
  * Download every circuit, verify it against the pinned SHA-256, and return
  * blob URLs in the shape `useEERC` expects. ~50 MB on first visit (browser-
- * cached afterwards); rejects if any file fails its integrity check.
+ * cached afterwards); rejects with a `CircuitDownloadError` when a file cannot be
+ * downloaded, and with a plain `Error` when a file fails its integrity check.
  *
  * The work happens once per page load, however often the UI asks (React runs
  * effects twice in development, and a remount asks again): later callers share

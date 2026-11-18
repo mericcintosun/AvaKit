@@ -63,7 +63,10 @@ no browser-deploy step, unlike AvaKit's other templates.
   `usesSharedInstance` (true while it still equals `SHARED_EERC_CONTRACT_ADDRESS`), the pinned
   circuit files + SHA-256 hashes, and `loadVerifiedCircuits()` (download → verify → blob URLs,
   done once per page load and shared by every caller; needs https or `http://localhost`, because
-  browsers only provide WebCrypto there).
+  browsers only provide WebCrypto there). A download that fails (offline, an ad blocker or a proxy
+  blocking cdn.jsdelivr.net) rejects with `CircuitDownloadError`, which the demo shows with a "Try
+  again" button; a file that fails its SHA-256 check rejects with a plain `Error` and gets no retry
+  button — keep it that way, a retry must never be a way around the integrity check.
 - `scripts/deploy-eerc.mjs` (`npm run deploy:eerc`) — deploys YOUR OWN standalone instance to Fuji
   (clones the official repo pinned to the circuits' commit, never vendors it) and rewrites
   `EERC_CONTRACT_ADDRESS` to point at it.
