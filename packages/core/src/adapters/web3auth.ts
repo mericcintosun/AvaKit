@@ -33,7 +33,11 @@ export interface Web3AuthAdapterOptions {
    * which would otherwise force a chain switch the embedded provider may reject.
    */
   chains?: AvaChain[];
-  /** Network. Defaults to "sapphire_devnet" for testing, "sapphire_mainnet" for production. */
+  /**
+   * Web3Auth network the client ID belongs to. Default: "sapphire_devnet" (for
+   * testing). Pass "sapphire_mainnet" in production: it is never chosen
+   * automatically, whichever chain the app is on.
+   */
   network?: "sapphire_devnet" | "sapphire_mainnet";
   /** Display name for UI. */
   name?: string;
