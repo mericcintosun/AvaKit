@@ -34,6 +34,8 @@ function copyViaSelection(text: string): boolean {
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   document.body.appendChild(field);
   field.select();
+  // `select()` alone has been unreliable on mobile Safari; set the range too.
+  field.setSelectionRange(0, text.length);
   let ok = false;
   try {
     ok = document.execCommand("copy");
