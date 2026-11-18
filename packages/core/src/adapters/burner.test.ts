@@ -1,5 +1,11 @@
 import type { EIP1193Provider, Hex } from "viem";
-import { numberToHex, parseTransaction, recoverTransactionAddress } from "viem";
+import {
+  numberToHex,
+  parseTransaction,
+  recoverTransactionAddress,
+  verifyMessage,
+  verifyTypedData,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AvaChain, cChain, defineChain, fuji } from "../chains.js";
@@ -69,6 +75,31 @@ describe("burnerAdapter", () => {
       params: ["0xdeadbeef", TEST_ADDRESS],
     })) as string;
     expect(sig).toMatch(/^0x[0-9a-f]{130}$/);
+  });
+
+  // The route an app takes through viem: the wallet client serialises the
+  // request and asks the wallet for personal_sign / eth_signTypedData_v4.
+  it("signs messages and EIP-712 typed data that verify against the burner address", async () => {
+    const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false });
+    const { address, provider } = await adapter.connect();
+    const wallet = getWalletClient(fuji, provider);
+    const typedData = {
+      domain: { name: "AvaKit", version: "1", chainId: fuji.id },
+      types: {
+        Greeting: [
+          { name: "text", type: "string" },
+          { name: "nonce", type: "uint256" },
+        ],
+      },
+      primaryType: "Greeting",
+      message: { text: "gm", nonce: 7n },
+    } as const;
+
+    const messageSignature = await wallet.signMessage({ account: address, message: "gm" });
+    const typedSignature = await wallet.signTypedData({ account: address, ...typedData });
+
+    expect(await verifyMessage({ address, message: "gm", signature: messageSignature })).toBe(true);
+    expect(await verifyTypedData({ address, ...typedData, signature: typedSignature })).toBe(true);
   });
 
   it("emits chainChanged to EIP-1193 listeners on switch", async () => {
