@@ -69,6 +69,16 @@ export default async function TemplatesPage({ params }: { params: Promise<{ loca
                     <Badge variant="outline" className="font-mono text-[10px]">
                       {t.id}
                     </Badge>
+                    {/* Where it runs, from the template's manifest: a devnet
+                        template needs Avalanche CLI, and only a template that
+                        lists c-chain can be scaffolded for mainnet. */}
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {t.runsOn === "devnet"
+                        ? c.templatesPage.runsOn.devnet
+                        : t.mainnet
+                          ? c.templatesPage.runsOn.fujiAndMainnet
+                          : c.templatesPage.runsOn.fuji}
+                    </Badge>
                     {t.contracts ? (
                       <Badge
                         variant="secondary"
@@ -88,6 +98,11 @@ export default async function TemplatesPage({ params }: { params: Promise<{ loca
                       </li>
                     ))}
                   </ul>
+                  {t.runsOn === "devnet" ? (
+                    <p className="text-muted-foreground rounded-lg border border-dashed p-3 text-sm leading-relaxed text-pretty">
+                      {c.templatesPage.devnetNote}
+                    </p>
+                  ) : null}
                   <CodeBlock
                     code={`npm create avalanche-app@latest my-app -- --template ${t.id}`}
                     prefix="$"
