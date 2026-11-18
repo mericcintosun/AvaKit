@@ -24,17 +24,17 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@avakit/core": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.32.2",
-    "create-avalanche-app": "workspace:*",
-    "viem": "2.58.0",
-    "zod": "4.6.7"
+    "create-avalanche-app": "workspace:*"
   },
   "devDependencies": {
+    "@avakit/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@types/node": "catalog:",
     "tsup": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "viem": "2.58.0",
+    "vitest": "catalog:",
+    "zod": "4.6.7"
   },
   "keywords": [
     "avalanche",
