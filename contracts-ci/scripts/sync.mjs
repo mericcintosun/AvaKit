@@ -67,6 +67,11 @@ function compilerSettings(file) {
     const header = line.match(/^\[(.+)\]$/);
     if (header) {
       table = header[1].trim();
+      // e.g. [profile.default.optimizer_details]: compiler settings this
+      // reader would silently leave out of the comparison.
+      if (table.startsWith("profile.default.")) {
+        throw new Error(`${file}: [${table}] is not compared; extend scripts/sync.mjs first`);
+      }
       continue;
     }
     if (table !== "profile.default") continue;
