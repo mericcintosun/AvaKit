@@ -160,6 +160,31 @@ describe("scaffold_app", () => {
     expect(readdirSync(cwd)).toEqual([]);
   });
 
+  it("refuses to plant a project anywhere when the server was started in the filesystem root", async () => {
+    // Where Claude Desktop starts servers on macOS. Everything on the disk is
+    // inside "/", so there the directory check used to let every path through.
+    vi.spyOn(process, "cwd").mockReturnValue(path.parse(cwd).root);
+    mkdirSync(path.join(base, "outside"));
+    for (const args of [
+      { name: "planted" },
+      { name: "planted", directory: path.join(base, "outside") },
+      { name: "planted", directory: cwd },
+    ]) {
+      const result = await mcp.call("scaffold_app", args);
+      expect(result.isError, JSON.stringify(args)).toBe(true);
+      expect(result.text).toContain("not a project folder");
+      expect(result.text).toContain("AVAKIT_MCP_ROOT");
+    }
+    expect(readdirSync(path.join(base, "outside"))).toEqual([]);
+    expect(readdirSync(cwd)).toEqual([]);
+
+    // Named in the server environment, a directory works from there as well.
+    vi.stubEnv("AVAKIT_MCP_ROOT", cwd);
+    const result = await mcp.call("scaffold_app", { name: "my-app" });
+    expect(result.isError).toBe(false);
+    expect(existsSync(path.join(cwd, "my-app", "package.json"))).toBe(true);
+  });
+
   it("allows another root only when the server environment names it", async () => {
     mkdirSync(path.join(base, "projects"));
     vi.stubEnv("AVAKIT_MCP_ROOT", path.join(base, "projects"));

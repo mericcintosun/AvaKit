@@ -79,6 +79,10 @@ function isInside(root: string, target: string): boolean {
  *
  * Containment is checked on real paths, so a symlink inside the root that
  * points outside it is not a way out.
+ *
+ * A working directory that is the filesystem root constrains nothing: every path
+ * on the disk is inside it. Some clients start servers there (Claude Desktop on
+ * macOS, in `/`), so in that case there is no root until the server names one.
  */
 export function resolveScaffoldTarget(
   name: string,
@@ -89,10 +93,18 @@ export function resolveScaffoldTarget(
   assertSafeProjectName(name);
   const configured = env[SCAFFOLD_ROOT_ENV]?.trim();
   const root = configured ? path.resolve(cwd, configured) : cwd;
+  const realRoot = realPath(root);
+  if (!configured && path.parse(realRoot).root === realRoot) {
+    throw new Error(
+      `Refusing to scaffold: this server was started in "${root}", which is not a project folder, ` +
+        `so it has no directory to create projects in. Set ${SCAFFOLD_ROOT_ENV} in the server ` +
+        `environment to the directory new projects should go in — a tool caller cannot set it.`,
+    );
+  }
   // Relative to the root, so with AVAKIT_MCP_ROOT set a bare name lands in it.
   const parent = directory ? path.resolve(root, directory) : root;
   const target = path.resolve(parent, name);
-  if (!isInside(realPath(root), realPath(target))) {
+  if (!isInside(realRoot, realPath(target))) {
     throw new Error(
       `Refusing to scaffold into "${parent}": it is outside "${root}", the only directory this ` +
         `server creates projects in. Pass a directory inside it, or set ${SCAFFOLD_ROOT_ENV} in the ` +

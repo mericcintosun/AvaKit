@@ -138,6 +138,25 @@ describe("resolveScaffoldTarget", () => {
     expect(target("app", cwd, env)).toBe(path.join(cwd, "app"));
   });
 
+  it("refuses to treat the filesystem root as the place for projects", () => {
+    // Claude Desktop on macOS starts its servers in "/". Every path on the disk is
+    // inside that, so the containment check on its own let any directory through.
+    const fsRoot = path.parse(cwd).root;
+    const fromRoot = (directory?: string, env: NodeJS.ProcessEnv = {}) =>
+      resolveScaffoldTarget("planted", directory, fsRoot, env);
+
+    for (const directory of [undefined, outside, cwd, homedir(), "tmp"]) {
+      expect(() => fromRoot(directory), String(directory)).toThrow(
+        /not a project folder.* AVAKIT_MCP_ROOT/,
+      );
+    }
+    // Naming a directory in the server environment is how such a client is set up …
+    expect(fromRoot(undefined, { AVAKIT_MCP_ROOT: outside })).toBe(path.join(outside, "planted"));
+    expect(() => fromRoot(cwd, { AVAKIT_MCP_ROOT: outside })).toThrow(/Refusing to scaffold into/);
+    // … and only that can open up the whole disk, if that is really what is wanted.
+    expect(fromRoot(outside, { AVAKIT_MCP_ROOT: fsRoot })).toBe(path.join(outside, "planted"));
+  });
+
   it("treats an empty AVAKIT_MCP_ROOT as not set", () => {
     for (const value of ["", "   "]) {
       expect(target("app", undefined, { AVAKIT_MCP_ROOT: value })).toBe(path.join(cwd, "app"));

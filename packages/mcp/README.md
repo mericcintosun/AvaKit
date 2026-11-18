@@ -45,8 +45,10 @@ a sub-directory of it. A path outside (an absolute path elsewhere, or one that c
 `..`, directly or through a symlink) is refused, so an agent acting on a malicious prompt cannot
 plant a project somewhere else on your disk.
 
-To create projects somewhere else — for example with Claude Desktop, which does not start servers
-inside a project folder — name that directory in the server's environment:
+Claude Desktop does not start servers inside a project folder: their working directory can be `/`
+(as it is on macOS), which contains the whole disk, so `scaffold_app` refuses to create anything
+from there. For a client like that, or to create projects somewhere else, name the directory in
+the server's environment:
 
 ```json
 {
@@ -107,6 +109,6 @@ a tool call.
 | --- | --- |
 | `AVAKIT_DEPLOYER_KEY` | The private key `deploy_contract` signs with. Without it the tool refuses; the other tools need no key. |
 | `AVAKIT_ALLOW_MAINNET` | Set to `1` to allow mainnet deploys (which also need `confirm: true`). Unset, the server is testnet-only. |
-| `AVAKIT_MCP_ROOT` | The directory `scaffold_app` creates projects in, instead of the server's working directory. |
+| `AVAKIT_MCP_ROOT` | The directory `scaffold_app` creates projects in, instead of the server's working directory. Needed when the server is started in the filesystem root. |
 
 MIT © AvaKit contributors
