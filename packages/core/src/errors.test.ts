@@ -3,6 +3,7 @@ import {
   AvaKitError,
   ChainMismatchError,
   DeployFailedError,
+  FaucetError,
   InsufficientFundsError,
   MainnetConfirmationError,
   missingTestnetFlagHint,
@@ -19,6 +20,7 @@ describe("errors", () => {
       new InsufficientFundsError(),
       new MainnetConfirmationError("Avalanche C-Chain"),
       new WalletNotAvailableError("web3auth"),
+      new FaucetError("boom"),
     ]) {
       expect(err).toBeInstanceOf(AvaKitError);
       expect(err.name).toBe(err.constructor.name);
@@ -75,6 +77,72 @@ describe("errors", () => {
 
   it("WalletNotAvailableError references the adapter id", () => {
     expect(new WalletNotAvailableError("web3auth").message).toContain("web3auth");
+  });
+
+  // The two-argument form is what existed before the code: it has to keep
+  // working, and to mean what the status says.
+  it("FaucetError works out its code from the status when given no code", () => {
+    expect(new FaucetError("Rate limited.", 429)).toMatchObject({
+      message: "Rate limited.",
+      status: 429,
+      code: "rate_limited",
+      retryable: false,
+    });
+    expect(new FaucetError("Empty.", 503)).toMatchObject({ code: "empty", retryable: false });
+    expect(new FaucetError("Bad address.", 400)).toMatchObject({
+      code: "invalid",
+      retryable: false,
+    });
+    expect(new FaucetError("Forbidden.", 403)).toMatchObject({ code: "invalid", retryable: false });
+    expect(new FaucetError("Send failed.", 502)).toMatchObject({
+      code: "unavailable",
+      retryable: true,
+    });
+    expect(new FaucetError("Not configured.", 500)).toMatchObject({
+      code: "unavailable",
+      retryable: true,
+    });
+  });
+
+  it("FaucetError without a status is a request that got no answer", () => {
+    const e = new FaucetError("Faucet request failed: Failed to fetch");
+
+    expect(e.status).toBeUndefined();
+    expect(e.code).toBe("network");
+    expect(e.retryable).toBe(true);
+    expect(e.retryAfterMs).toBeUndefined();
+    expect(e.faucetCode).toBeUndefined();
+  });
+
+  it("FaucetError lets an explicit code overrule the status, and keeps the details", () => {
+    const cause = new Error("upstream");
+    const busy = new FaucetError("Busy.", 503, {
+      code: "unavailable",
+      faucetCode: "faucet_busy",
+      retryAfterMs: 3000,
+      cause,
+    });
+
+    expect(busy.code).toBe("unavailable");
+    expect(busy.retryable).toBe(true);
+    expect(busy.status).toBe(503);
+    expect(busy.faucetCode).toBe("faucet_busy");
+    expect(busy.retryAfterMs).toBe(3000);
+    expect(busy.cause).toBe(cause);
+  });
+
+  it("FaucetError is retryable for exactly the failures that may pass", () => {
+    const retryable = (["rate_limited", "empty", "invalid", "unavailable", "network"] as const).map(
+      (code) => [code, new FaucetError("x", undefined, { code }).retryable],
+    );
+
+    expect(retryable).toEqual([
+      ["rate_limited", false],
+      ["empty", false],
+      ["invalid", false],
+      ["unavailable", true],
+      ["network", true],
+    ]);
   });
 
   it("WalletNotAvailableError advises a browser wallet unless given a specific hint", () => {

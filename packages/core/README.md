@@ -39,7 +39,7 @@ Chains live at `@avakit/core/chains`. The two adapters that need an extra SDK si
 - **Adapters** — `burnerAdapter({ chain })` (a throwaway in-browser wallet, zero setup — see the warning below) + `clearBurner()`; `injectedAdapter()` (Core / MetaMask); `web3authAdapter({ clientId })` (social login, from `@avakit/core/web3auth`); `coinbaseAdapter()` (passkey smart wallet, from `@avakit/core/coinbase`)
 - **Network** — `ensureChain(provider, chain)` (add + switch; once it resolves the wallet is on the chain, burner wallet included)
 - **Deploy** — `deployContract`, `getBytecode`
-- **Faucet** — `requestFaucet({ url, address, chainId })` asks a faucet API for testnet AVAX; `AVAKIT_FAUCET_URL` is the endpoint of AvaKit's shared Fuji faucet (see [below](#the-hosted-faucet))
+- **Faucet** — `requestFaucet({ url, address, chainId })` asks a faucet API for testnet AVAX, retries a failure that may be temporary and rejects with a typed `FaucetError` (see [Faucet requests](#faucet-requests)); `AVAKIT_FAUCET_URL` is the endpoint of AvaKit's shared Fuji faucet (see [The hosted faucet](#the-hosted-faucet))
 - **RPC data** — `getBalance`, `getTransactionReceipt`, `readContract` (take an `AvaChain`)
 - **Indexed data (AvaCloud)** — `getNativeBalance`, `listErc20Balances`, `listNfts`, `listTransactions` (take an address + a chain, either an `AvaChain` like `fuji` or a raw chain id like `43113`)
 
@@ -70,6 +70,44 @@ A chain counts as mainnet unless its definition says `testnet: true`, and always
 | `cChain` | `https://build.avax.network/explorer/mainnet/c-chain` |
 
 `fuji.faucetUrl` is `https://build.avax.network/console/primary-network/faucet`, the Builder Hub faucet. It is a page for people, not an API, and it asks for a free Builder Hub sign-in (the coupon code and mainnet-balance requirements of the earlier faucet are gone). A chain with no explorer or faucet, such as a fresh L1, leaves the field empty.
+
+## Faucet requests
+
+`requestFaucet({ url, address, chainId })` posts to a faucet API (the AvaKit faucet Worker, or anything that speaks the same `POST { address, chainId }` protocol) and resolves with what it reports: `{ txHash, amount, chainId }`.
+
+When the faucet refuses or cannot be reached, it rejects with a `FaucetError`. The message is the faucet's own where it sent one; `code` is for code to branch on:
+
+| `code` | Meaning | `retryable` |
+| --- | --- | --- |
+| `"rate_limited"` | This address, or this network, was funded recently (HTTP 429) | no |
+| `"empty"` | The faucet has run out of funds (503) | no |
+| `"invalid"` | The request itself was refused: a bad address, a chain the faucet does not serve, a missing or rejected captcha token (400 and every other 4xx) | no |
+| `"unavailable"` | The faucet failed on its side: it could not send the drip, or is busy (500, 502 and every other 5xx) | yes |
+| `"network"` | No answer arrived: the request could not be sent, timed out or was aborted | yes |
+
+The error also carries `status` (the HTTP status, undefined when no answer arrived), `retryAfterMs` (the faucet's `Retry-After`, when it sent one) and `faucetCode` (the faucet's own, more specific refusal code, such as `"address_limited"` or `"faucet_busy"`, when its answer had one — that code, where known, decides `code` ahead of the status).
+
+```ts
+import { FaucetError, requestFaucet } from "@avakit/core";
+
+try {
+  await requestFaucet({ url, address, chainId: 43113 });
+} catch (e) {
+  if (e instanceof FaucetError && e.code === "rate_limited") {
+    // funded recently; e.retryAfterMs says how long until the faucet will drip again
+  }
+}
+```
+
+A `retryable` failure is retried before `requestFaucet` gives up; a refusal never is. The options that control it, all optional:
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `retries` | `2` | Extra attempts after a retryable failure, so at most three attempts. `0` turns retries off |
+| `retryDelayMs` | `800` | Base of the wait between attempts: random between zero and a window that starts here and doubles after every failure (exponential backoff with full jitter). A `Retry-After` of up to five seconds is waited out first; a longer one ends the retries at once |
+| `timeoutMs` | `10000` | Limit for one attempt, so a faucet that hangs cannot hang the caller. `0` turns it off |
+| `signal` | — | An `AbortSignal`: aborting stops the request and any retry still to come |
+| `turnstileToken` | — | A Cloudflare Turnstile token for a faucet that asks for one, sent in the request body. Pass a function to have a fresh token fetched before every attempt (a token is single-use); a plain string is sent once and the request is then not retried |
 
 ## The hosted faucet
 

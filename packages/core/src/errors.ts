@@ -85,11 +85,79 @@ export class InsufficientFundsError extends AvaKitError {
   }
 }
 
+/**
+ * Why a faucet request failed, for code to branch on:
+ *
+ * - `"rate_limited"`: this address, or this network, was funded recently (429).
+ * - `"empty"`: the faucet has run out of funds (503).
+ * - `"invalid"`: the request itself was refused, and sending it again will not
+ *   help: a bad address, a chain the faucet does not serve, a missing or
+ *   rejected captcha token (400 and every other 4xx).
+ * - `"unavailable"`: the faucet failed on its side: it could not send the
+ *   drip, is busy or is misconfigured (500, 502 and every other 5xx).
+ * - `"network"`: no answer arrived: the request could not be sent, timed out
+ *   or was aborted.
+ */
+export type FaucetErrorCode = "rate_limited" | "empty" | "invalid" | "unavailable" | "network";
+
+/** What a `FaucetError` knows beyond its message and HTTP status. */
+export interface FaucetErrorDetails {
+  /** Defaults to what `status` implies, or `"network"` when there is no status. */
+  code?: FaucetErrorCode;
+  /** How long the faucet asked the caller to wait, in milliseconds. */
+  retryAfterMs?: number;
+  /** The faucet's own refusal code, when its answer carried one. */
+  faucetCode?: string;
+  /** The underlying error, kept as the standard `cause`. */
+  cause?: unknown;
+}
+
+/** The code a bare HTTP status stands for. No status means no answer arrived. */
+function faucetCodeForStatus(status: number | undefined): FaucetErrorCode {
+  if (status === undefined) return "network";
+  if (status === 429) return "rate_limited";
+  if (status === 503) return "empty";
+  if (status >= 400 && status < 500) return "invalid";
+  return "unavailable";
+}
+
 export class FaucetError extends AvaKitError {
   override name = "FaucetError";
+  /** HTTP status of the faucet's answer. Undefined when no answer arrived. */
   readonly status?: number;
-  constructor(message: string, status?: number) {
-    super(message);
+  /** What went wrong, for code to branch on. */
+  readonly code: FaucetErrorCode;
+  /**
+   * Whether sending the same request again may work: true for `"unavailable"`
+   * and `"network"`, false for a refusal (`"rate_limited"`, `"empty"`,
+   * `"invalid"`). `requestFaucet` retries only these.
+   */
+  readonly retryable: boolean;
+  /**
+   * How long the faucet asked the caller to wait before trying again, in
+   * milliseconds, taken from its `Retry-After` header. Undefined when it did not
+   * say.
+   */
+  readonly retryAfterMs?: number;
+  /**
+   * The faucet's own refusal code, when its answer carried one (for example
+   * `"address_limited"`, `"ip_limited"`, `"faucet_busy"` or
+   * `"turnstile_required"` from the AvaKit faucet Worker). More specific than
+   * `code`; undefined for a faucet that only sends a message.
+   */
+  readonly faucetCode?: string;
+
+  /**
+   * @param message What to tell the user: the faucet's own message when it sent one.
+   * @param status HTTP status of the faucet's answer, if one arrived.
+   * @param details The code and the rest. Without a `code`, the status decides.
+   */
+  constructor(message: string, status?: number, details: FaucetErrorDetails = {}) {
+    super(message, details.cause === undefined ? undefined : { cause: details.cause });
     this.status = status;
+    this.code = details.code ?? faucetCodeForStatus(status);
+    this.retryable = this.code === "unavailable" || this.code === "network";
+    this.retryAfterMs = details.retryAfterMs;
+    this.faucetCode = details.faucetCode;
   }
 }

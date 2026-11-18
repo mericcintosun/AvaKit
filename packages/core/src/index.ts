@@ -72,6 +72,8 @@ export {
   ChainMismatchError,
   DeployFailedError,
   FaucetError,
+  type FaucetErrorCode,
+  type FaucetErrorDetails,
   InsufficientFundsError,
   MainnetConfirmationError,
   WalletConnectionError,
@@ -82,6 +84,7 @@ export {
   AVAKIT_FAUCET_URL,
   type FaucetRequestOptions,
   type FaucetResult,
+  type FaucetTokenSource,
   requestFaucet,
 } from "./faucet.js";
 // Network switching
