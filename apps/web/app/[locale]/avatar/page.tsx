@@ -11,7 +11,9 @@ import { Link } from "@/i18n/navigation";
 /* AvaKit 3D mascots — a standalone showcase page for the two branded assets:
    the AvaFox mascot and the Obsidian Core. Interactive glTF (Draco) rendered
    with <model-viewer>, imported from npm client-side and code-split to this
-   page, so there is no external CDN at runtime. The root is forced `dark` so all
+   page. One thing still comes from outside at runtime: the models are Draco
+   compressed, and <model-viewer> fetches its Draco decoder from
+   www.gstatic.com when it loads one. The root is forced `dark` so all
    colors resolve from the design tokens in globals.css (Ember Crimson =
    --primary / --brand) — no colors are hardcoded here. Each model ships a baked,
    seamless 6s idle clip, which plays by itself unless the visitor asked their
@@ -137,7 +139,10 @@ export default function AvatarPage() {
   };
 
   return (
+    // English only, also under /tr: `lang` says so, for screen readers and so
+    // that the upper-cased labels follow English rules.
     <div
+      lang="en"
       className="dark bg-background text-foreground relative min-h-dvh w-full overflow-hidden"
       style={{
         backgroundImage:

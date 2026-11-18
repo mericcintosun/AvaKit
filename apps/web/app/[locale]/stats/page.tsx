@@ -66,7 +66,8 @@ export default async function StatsPage() {
   const hasScaffolds = (telemetry?.scaffolds.succeeded ?? 0) > 0;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-5 py-12 sm:px-8">
+    // English only, also under /tr, so the page says which language it is in.
+    <div lang="en" className="mx-auto flex max-w-5xl flex-col gap-8 px-5 py-12 sm:px-8">
       <div className="flex flex-col gap-3">
         <h1 className="text-primary text-3xl font-semibold tracking-tight">Stats</h1>
         <p className="text-muted-foreground text-lg text-balance">

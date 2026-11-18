@@ -149,7 +149,13 @@ const METRICS = [
 
 export default function PitchDeckPage() {
   return (
-    <div className="dark bg-background text-foreground fixed inset-0 z-[100] h-dvh snap-y snap-mandatory overflow-y-auto">
+    // The deck exists in English only, also under /tr, so its root says so: a
+    // screen reader then reads it as English, and the upper-cased labels follow
+    // English rules (under lang="tr" an upper-cased "i" gets a dot: TRACTİON).
+    <div
+      lang="en"
+      className="dark bg-background text-foreground fixed inset-0 z-[100] h-dvh snap-y snap-mandatory overflow-y-auto"
+    >
       {/* 01 — Cover */}
       <Slide n="01" eyebrow="Team1 Mini Grant">
         <div className="flex flex-col items-center gap-6 text-center">

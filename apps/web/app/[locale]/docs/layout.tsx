@@ -6,7 +6,13 @@ import { DocsSidebar } from "@/components/docs/docs-sidebar";
 
 export default function DocsLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto grid max-w-6xl gap-10 px-5 py-12 sm:px-8 md:grid-cols-[210px_minmax(0,1fr)]">
+    // The docs exist in English only, also under /tr: `lang` says so, for
+    // screen readers and so that the sidebar's upper-cased section labels follow
+    // English rules (under lang="tr" an upper-cased "i" becomes a dotted capital).
+    <div
+      lang="en"
+      className="mx-auto grid max-w-6xl gap-10 px-5 py-12 sm:px-8 md:grid-cols-[210px_minmax(0,1fr)]"
+    >
       <aside className="hidden md:block">
         <div className="sticky top-20">
           <DocsSidebar />
