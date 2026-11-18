@@ -10,8 +10,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { banner, bannerColor } from "./banner.js";
 import { getAddressData } from "./dataapi.js";
-import { getDevnetStatus, isValidL1Params, runDevnetActionAsync } from "./devnet.js";
-import { deployMessengers, getIcmState, sendIcmMessage } from "./icm.js";
+import {
+  type DevnetAction,
+  getDevnetStatus,
+  isValidL1Params,
+  type L1Params,
+  runDevnetActionAsync,
+} from "./devnet.js";
+import { deployMessengers, getIcmState, MAX_MESSAGE_BYTES, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
 import { VERSION } from "./version.js";
 
@@ -23,8 +29,28 @@ function text(body: string, isError = false) {
   return { content: [{ type: "text" as const, text: body }], isError };
 }
 
-export async function runMcp(): Promise<void> {
+/** Build the MCP server with every Studio tool registered (not yet connected). */
+export function createMcpServer(): McpServer {
   const server = new McpServer({ name: "avakit-studio", version: VERSION });
+
+  // One avalanche-cli action at a time: an agent may call tools in parallel, and
+  // concurrent runs against the same local network corrupt each other.
+  let running: DevnetAction | null = null;
+  async function devnetAction(action: DevnetAction, tail: number, params?: L1Params) {
+    if (running) {
+      return text(
+        `another devnet action (${running}) is still running — wait for it to finish, then retry`,
+        true,
+      );
+    }
+    running = action;
+    try {
+      const { exitCode, log } = await runDevnetActionAsync(action, params);
+      return text(toJson({ exitCode, tail: log.slice(-tail) }), exitCode !== 0);
+    } finally {
+      running = null;
+    }
+  }
 
   server.registerTool(
     "avalanche_env",
@@ -55,10 +81,7 @@ export async function runMcp(): Promise<void> {
         "Create two local Avalanche L1s with Interchain Messaging and a relayer, and deploy them locally. Idempotent. Takes a few minutes.",
       inputSchema: {},
     },
-    async () => {
-      const { exitCode, log } = await runDevnetActionAsync("create-icm");
-      return text(toJson({ exitCode, tail: log.slice(-12) }), exitCode !== 0);
-    },
+    async () => devnetAction("create-icm", 12),
   );
 
   server.registerTool(
@@ -86,34 +109,28 @@ export async function runMcp(): Promise<void> {
     async ({ name, chainId, token }) => {
       const params = { name, chainId, token };
       if (!isValidL1Params(params)) return text("invalid L1 parameters", true);
-      const { exitCode, log } = await runDevnetActionAsync("create-l1", params);
-      return text(toJson({ exitCode, tail: log.slice(-12) }), exitCode !== 0);
+      return devnetAction("create-l1", 12, params);
     },
   );
 
   server.registerTool(
     "devnet_start",
     { title: "Start network", description: "Start the local Avalanche network.", inputSchema: {} },
-    async () => {
-      const { exitCode, log } = await runDevnetActionAsync("start");
-      return text(toJson({ exitCode, tail: log.slice(-8) }), exitCode !== 0);
-    },
+    async () => devnetAction("start", 8),
   );
 
   server.registerTool(
     "devnet_stop",
     { title: "Stop network", description: "Stop the local Avalanche network.", inputSchema: {} },
-    async () => {
-      const { exitCode, log } = await runDevnetActionAsync("stop");
-      return text(toJson({ exitCode, tail: log.slice(-8) }), exitCode !== 0);
-    },
+    async () => devnetAction("stop", 8),
   );
 
   server.registerTool(
     "icm_state",
     {
       title: "Interchain state",
-      description: "Report each L1's messenger address and last received cross-chain message.",
+      description:
+        "Report the running, ICM-ready local L1s: each one's messenger address (null until deployed) and last received cross-chain message.",
       inputSchema: {},
     },
     async () => text(toJson(await getIcmState())),
@@ -123,7 +140,8 @@ export async function runMcp(): Promise<void> {
     "icm_deploy_messengers",
     {
       title: "Deploy ICM messengers",
-      description: "Deploy the AvaKitMessenger contract on each running L1 that doesn't have one.",
+      description:
+        "Deploy the AvaKitMessenger contract on each running L1 that doesn't have a live one, and link the messengers so they accept each other's messages.",
       inputSchema: {},
     },
     async () => text(toJson(await deployMessengers())),
@@ -134,14 +152,22 @@ export async function runMcp(): Promise<void> {
     {
       title: "Send a cross-chain message",
       description:
-        "Send a string from one L1's messenger to the other's over Interchain Messaging.",
+        "Send a string from one running L1's messenger to another's over Interchain Messaging.",
       inputSchema: {
         from: z.string().describe("Source L1 name, e.g. chain1"),
-        to: z.string().describe("Destination L1 name, e.g. chain2"),
-        message: z.string().max(200).describe("Message text"),
+        to: z.string().describe("Destination L1 name, e.g. chain2 (must differ from `from`)"),
+        message: z
+          .string()
+          .min(1)
+          .max(MAX_MESSAGE_BYTES)
+          .describe(
+            `Message text: at most ${MAX_MESSAGE_BYTES} UTF-8 bytes, and it cannot start with "-"`,
+          ),
       },
     },
     async ({ from, to, message }) => {
+      // sendIcmMessage runs the same checks the dashboard's HTTP route gets
+      // (distinct chains, byte length, no leading dash) — there is one copy.
       try {
         return text(toJson(await sendIcmMessage(from, to, message)));
       } catch (e) {
@@ -155,7 +181,7 @@ export async function runMcp(): Promise<void> {
     {
       title: "Look up address data",
       description:
-        "Balances, NFTs, and recent transactions for an address on a public Avalanche chain, via the AvaCloud Data API.",
+        "Balances, NFTs, and recent transactions for an address on a public Avalanche chain, via the AvaCloud Data API. A section named in `errors` could not be loaded — treat it as unknown, not as empty.",
       inputSchema: {
         address: z.string().describe("0x… address"),
         chainId: z
@@ -170,6 +196,11 @@ export async function runMcp(): Promise<void> {
     },
   );
 
+  return server;
+}
+
+export async function runMcp(): Promise<void> {
+  const server = createMcpServer();
   // Banner to STDERR only — stdout carries the JSON-RPC protocol here.
   if (process.stderr.isTTY) {
     process.stderr.write(banner(bannerColor(process.stderr)));
