@@ -18,13 +18,21 @@ export const CHAIN_ID = 43113;
  *  - `autoMine`  false keeps accepted transactions pending until `mine()`
  *  - `chainId`   the chain this node is on (anything but Fuji is a wrong RPC)
  *  - `fills`     true makes it answer `eth_fillTransaction`, as geth does
+ *  - `blind`     how many lookups of a transaction it holds still answer "not
+ *                found", as from a node that has not heard of it yet
  *  - `fail()`    make the next calls of one method fail
+ *  - `lose()`    handle the next calls of one method, then lose the answer
+ *  - `contract()` make a recipient a contract: costlier to pay, or reverting
  *  - `drop()`    evict a pending transaction, as a restarting node would
  */
 export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
   /** address → { nonce: next nonce in state, pool: Map<nonce, hash> } */
   const accounts = new Map();
   const failures = [];
+  /** hash → what `eth_getTransactionByHash` answers for a transaction the pool took. */
+  const transactions = new Map();
+  /** lower-cased recipient → { gas?, reverts? } for recipients that run code. */
+  const contracts = new Map();
 
   const accountOf = (address) => {
     const key = address.toLowerCase();
@@ -46,6 +54,7 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
     autoMine: true,
     chainId: CHAIN_ID,
     fills: false,
+    blind: 0,
     /** Every transaction the pool accepted, oldest first. */
     accepted: [],
     /** The chain id of every signed transaction it was sent, accepted or not. */
@@ -66,6 +75,23 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
       failures.push({ method, times, status: status ?? (error ? undefined : 500), error });
     },
 
+    /**
+     * Handle the next `times` calls of `method` as usual, then lose the answer:
+     * the caller gets an HTTP error (a 502, as from a proxy whose upstream hung
+     * up) for a call that did happen.
+     */
+    lose(method, { times = 1, status = 502 } = {}) {
+      failures.push({ method, times, status, lost: true });
+    },
+
+    /**
+     * Put code at `address`. A transfer to it is estimated at `gas`, or, with
+     * `reverts` (true, or a reason), is refused by the contract.
+     */
+    contract(address, { gas, reverts } = {}) {
+      contracts.set(address.toLowerCase(), { gas, reverts });
+    },
+
     /** Include every pending transaction that is next in line. */
     mine() {
       for (const account of accounts.values()) {
@@ -78,7 +104,9 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
 
     /** Evict `address`'s pending transaction at `txNonce` without mining it. */
     drop(address, txNonce) {
-      accountOf(address).pool.delete(txNonce);
+      const { pool } = accountOf(address);
+      transactions.delete(pool.get(txNonce));
+      pool.delete(txNonce);
     },
 
     /** The next nonce `address` has in state (mined transactions only). */
@@ -93,6 +121,8 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
       chain.autoMine = true;
       chain.chainId = CHAIN_ID;
       chain.fills = false;
+      chain.blind = 0;
+      contracts.clear();
       chain.accepted.length = 0;
       chain.signedFor.length = 0;
       chain.calls.length = 0;
@@ -126,10 +156,28 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
     if (chain.balance < cost) throw rpcError("insufficient funds for gas * price + value");
 
     account.pool.set(tx.nonce, hash);
+    transactions.set(hash, {
+      hash,
+      from,
+      to: tx.to,
+      nonce: toHex(tx.nonce),
+      value: toHex(tx.value ?? 0n),
+      input: "0x",
+    });
     chain.balance -= tx.value ?? 0n;
     chain.accepted.push({ hash, raw, from, to: tx.to, value: tx.value ?? 0n, nonce: tx.nonce });
     if (chain.autoMine) chain.mine();
     return hash;
+  }
+
+  /** What a transfer to `to` is estimated at. Throws if the recipient refuses it. */
+  function gasFor(to) {
+    const contract = contracts.get(String(to ?? "").toLowerCase());
+    if (contract?.reverts) {
+      const reason = typeof contract.reverts === "string" ? `: ${contract.reverts}` : "";
+      throw rpcError(`execution reverted${reason}`, 3);
+    }
+    return toHex(contract?.gas ?? 21000);
   }
 
   async function call({ method, params = [] }) {
@@ -153,7 +201,7 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
             to: tx.to,
             value: tx.value ?? "0x0",
             input: "0x",
-            gas: toHex(21000),
+            gas: gasFor(tx.to),
             maxFeePerGas: toHex(5),
             maxPriorityFeePerGas: toHex(1),
             accessList: [],
@@ -171,7 +219,7 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
         if (chain.balance < BigInt(params[0]?.value ?? 0)) {
           throw rpcError("insufficient funds for transfer");
         }
-        return toHex(21000);
+        return gasFor(params[0]?.to);
       case "eth_maxPriorityFeePerGas":
         return toHex(1);
       case "eth_gasPrice":
@@ -188,6 +236,14 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
         };
       case "eth_sendRawTransaction":
         return sendRawTransaction(params[0]);
+      case "eth_getTransactionByHash": {
+        const known = transactions.get(params[0]);
+        if (known && chain.blind > 0) {
+          chain.blind -= 1;
+          return null;
+        }
+        return known ?? null;
+      }
       default:
         throw unavailable(method);
     }
@@ -200,6 +256,11 @@ export async function startMockChain({ balance = 10n ** 18n, nonce = 7 } = {}) {
     const failure = failures.find((f) => f.method === request.method && f.times > 0);
     if (failure) {
       failure.times -= 1;
+      if (failure.lost) {
+        // The call happens; only its answer goes missing.
+        await call(request).catch(() => {});
+        return { status: failure.status };
+      }
       chain.calls.push(request.method);
       if (failure.status) return { status: failure.status };
       return { jsonrpc: "2.0", id: request.id, error: failure.error };

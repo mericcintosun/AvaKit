@@ -1,4 +1,4 @@
-import { createPublicClient, defineChain, http, keccak256 } from "viem";
+import { createPublicClient, defineChain, http, keccak256, RpcRequestError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 /** Testnet allowlist — chainId → RPC. Anything not listed is refused. */
@@ -26,6 +26,16 @@ export const NONCE_SETTLE_MS = 15_000;
 
 /** Attempts at one drip before giving up on finding a free nonce. */
 export const MAX_SEND_ATTEMPTS = 4;
+
+/**
+ * When a send gets no answer, the node may hold the transaction all the same.
+ * It is then looked up by its hash: this is the wait before each look, so four
+ * looks over two seconds — long enough for a node that was still busy with the
+ * send, or one of a pool that hears of it a moment later.
+ */
+export const SENT_LOOKUP_WAITS_MS = [0, 500, 500, 1000];
+/** The looks together may not take longer than this, however slow the RPC is. */
+const SENT_LOOKUP_DEADLINE_MS = 5000;
 
 /** What geth (and Avalanche's coreth) says when a nonce is already spoken for. */
 const NONCE_TAKEN = /nonce too low|replacement transaction underpriced/;
@@ -71,14 +81,17 @@ export function connect(chainId, env) {
 export class DripSender {
   #client;
   #account;
+  /** Only ever used to redact it from what is logged. */
+  #rpcUrl;
   /** Tail of the send queue. */
   #queue = Promise.resolve();
   /** nonce → when we last saw it used, for nonces the node has not counted yet. */
   #used = new Map();
 
-  constructor({ client, account }) {
+  constructor({ client, account, rpcUrl }) {
     this.#client = client;
     this.#account = account;
+    this.#rpcUrl = rpcUrl;
   }
 
   /**
@@ -141,6 +154,7 @@ export class DripSender {
         chainId,
         nonce,
       });
+      const hash = keccak256(serializedTransaction);
       try {
         await this.#client.sendRawTransaction({ serializedTransaction });
       } catch (e) {
@@ -156,13 +170,54 @@ export class DripSender {
         }
 
         // "already known" means the node holds this exact transaction, so it is
-        // sent. Anything else is a real failure.
-        if (!ALREADY_KNOWN.test(said)) throw e;
+        // sent. Any other JSON-RPC error is the node refusing it: a real failure.
+        if (!ALREADY_KNOWN.test(said)) {
+          if (rejectedByNode(e)) throw e;
+
+          // What is left is no answer at all — an HTTP error from something in
+          // front of the node, or a timeout. That says nothing about the
+          // transaction, which the node may have taken before the answer was
+          // lost. We signed it, so we know its hash: ask.
+          const found = await this.#landed(hash);
+          console.warn(
+            JSON.stringify({
+              message: "send answer lost",
+              txHash: hash,
+              found,
+              ...describeError(e, this.#rpcUrl),
+            }),
+          );
+          if (!found) throw e;
+        }
       }
 
       this.#used.set(nonce, Date.now());
-      return keccak256(serializedTransaction);
+      return hash;
     }
+  }
+
+  /**
+   * Whether the node holds the transaction with this hash, pending or mined.
+   * Asked a few times, because the node that answers may not be the one that
+   * took it. A look that fails counts as "not found": if the RPC stays out of
+   * reach, the drip is reported as failed.
+   */
+  async #landed(hash) {
+    const deadline = AbortSignal.timeout(SENT_LOOKUP_DEADLINE_MS);
+    for (const wait of SENT_LOOKUP_WAITS_MS) {
+      if (wait > 0) await sleep(wait);
+      if (deadline.aborted) break;
+      try {
+        const transaction = await this.#client.request(
+          { method: "eth_getTransactionByHash", params: [hash] },
+          { retryCount: 0, signal: deadline },
+        );
+        if (transaction) return true;
+      } catch {
+        // This look got no answer either. The next one may.
+      }
+    }
+    return false;
   }
 
   /**
@@ -190,6 +245,19 @@ export class DripSender {
     }
     return nonce;
   }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * True when the node itself turned the request down with a JSON-RPC error, as
+ * opposed to the request getting no answer (an HTTP error, a timeout).
+ */
+function rejectedByNode(error) {
+  for (let e = error; e; e = e.cause) {
+    if (e instanceof RpcRequestError) return true;
+  }
+  return false;
 }
 
 /** The node's own words for why a request failed, lower-cased ("" if it said nothing). */

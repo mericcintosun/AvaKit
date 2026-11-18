@@ -246,6 +246,62 @@ describe("concurrent drips", () => {
   });
 });
 
+describe("a drip whose send gets no answer", () => {
+  it("is reported as sent, and counted, when the node has the transaction", async () => {
+    // The node takes the transaction and its answer is lost on the way back
+    // (a 502 from a proxy). The old Worker answered 502 and gave the allowance
+    // back, so the same address could be funded again and again.
+    const ip = someIp();
+    const address = someAddress();
+    chain.lose("eth_sendRawTransaction");
+
+    const funded = await fund({ ip, address });
+
+    assert.equal(funded.status, 200);
+    assert.equal(chain.accepted.length, 1);
+    assert.equal(funded.body.txHash, chain.accepted[0].hash);
+
+    const again = await fund({ ip, address });
+    assert.equal(again.status, 429);
+    assert.equal(again.body.code, "address_limited");
+    assert.equal(chain.accepted.length, 1, "the address is not paid twice");
+
+    const logged = worker.logs().filter((entry) => /send answer lost/.test(entry.text));
+    assert.equal(logged.length, 1);
+    assert.match(logged[0].text, new RegExp(`"txHash":"${funded.body.txHash}","found":true`));
+    assert.doesNotMatch(logged[0].text, /SECRET|apikey|127\.0\.0\.1/);
+  });
+
+  it(`still stops one client at ${IP_MAX} drips`, async () => {
+    const ip = someIp();
+    chain.lose("eth_sendRawTransaction", { times: IP_MAX + 1 });
+
+    const results = [];
+    for (let i = 0; i <= IP_MAX; i += 1) results.push(await fund({ ip }));
+
+    assert.deepEqual(statuses(results), [...Array(IP_MAX).fill(200), 429]);
+    assert.equal(results.at(-1).body.code, "ip_limited");
+    assert.equal(chain.accepted.length, IP_MAX);
+  });
+
+  it("is a failure the caller can retry when the node does not have the transaction", async () => {
+    const ip = someIp();
+    const address = someAddress();
+    chain.fail("eth_sendRawTransaction", { status: 502 });
+
+    const failed = await fund({ ip, address });
+
+    assert.equal(failed.status, 502);
+    assert.equal(failed.body.code, "drip_failed");
+    assert.equal(chain.accepted.length, 0);
+    const logged = worker.logs().filter((entry) => /send answer lost/.test(entry.text));
+    assert.equal(logged.length, 1);
+    assert.match(logged[0].text, /"found":false/);
+
+    assert.equal((await fund({ ip, address })).status, 200);
+  });
+});
+
 describe("a drip that fails", () => {
   it("does not cost the caller their allowance", async () => {
     const ip = someIp();

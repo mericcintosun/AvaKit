@@ -90,6 +90,11 @@ URL and the raw request, so the detail goes to the Worker log instead
   parallel requests cannot all read the counter before any of them writes it.
 - A drip only counts if its transaction goes out. If the send fails, the
   address and the client both get their allowance back.
+- A send that gets no answer (an HTTP error from the RPC, a timeout) is not
+  taken for a failure. The faucet signed the transaction, so it looks it up by
+  its hash for about two seconds: if the node has it, the drip counts and the
+  caller gets `200` with the hash; if not, it is a `502` and nothing is counted.
+  Either way the Worker logs `send answer lost` with the hash and `found`.
 - The same object sends the transactions one at a time, so concurrent requests
   never sign the same nonce.
 - The allowlist in `src/sender.js` only permits Fuji (43113), and every

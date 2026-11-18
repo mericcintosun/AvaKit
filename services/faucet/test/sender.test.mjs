@@ -10,6 +10,7 @@ import {
   FaucetEmptyError,
   MAX_SEND_ATTEMPTS,
   NONCE_SETTLE_MS,
+  SENT_LOOKUP_WAITS_MS,
 } from "../src/sender.js";
 import { CHAIN_ID, startMockChain } from "./helpers/mock-chain.mjs";
 
@@ -173,6 +174,70 @@ describe("DripSender", () => {
       "rejected",
     ]);
     assert.deepEqual(nonces(), [FIRST_NONCE, FIRST_NONCE + 1]);
+  });
+
+  it("reports a drip as sent when the node took it and only the answer was lost", async (t) => {
+    // The old sender treated the missing answer as a failure, so the caller
+    // was told nothing went out and could be funded again.
+    t.mock.method(console, "warn", () => {});
+    const sender = freshFaucet().sender();
+    chain.autoMine = false;
+    chain.lose("eth_sendRawTransaction");
+
+    const hash = await drip(sender);
+
+    assert.equal(chain.accepted.length, 1);
+    assert.equal(chain.accepted[0].hash, hash);
+    assert.equal(chain.count("eth_getTransactionByHash"), 1);
+
+    // Its nonce is spoken for, even if the node answering next has not counted it.
+    chain.lag = 1;
+    await drip(sender);
+    assert.deepEqual(nonces(), [FIRST_NONCE, FIRST_NONCE + 1]);
+    assert.equal(chain.count("eth_sendRawTransaction"), 2, "the taken nonce cost no retry");
+  });
+
+  it("keeps looking for a moment when the node asked has not heard of the drip yet", async (t) => {
+    t.mock.method(console, "warn", () => {});
+    const sender = freshFaucet().sender();
+    chain.lose("eth_sendRawTransaction", { status: 504 });
+    chain.blind = SENT_LOOKUP_WAITS_MS.length - 1;
+
+    const hash = await drip(sender);
+
+    assert.equal(chain.accepted[0].hash, hash);
+    assert.equal(chain.count("eth_getTransactionByHash"), SENT_LOOKUP_WAITS_MS.length);
+  });
+
+  it("fails a drip whose send got no answer and that the node does not know", async (t) => {
+    const warn = t.mock.method(console, "warn", () => {});
+    const sender = freshFaucet().sender();
+    chain.fail("eth_sendRawTransaction", { status: 502 });
+
+    await assert.rejects(drip(sender), /HTTP request failed/);
+
+    assert.equal(chain.accepted.length, 0);
+    assert.equal(chain.count("eth_getTransactionByHash"), SENT_LOOKUP_WAITS_MS.length);
+    // Which of the two it was is logged, without the RPC URL.
+    assert.equal(warn.mock.callCount(), 1);
+    const logged = warn.mock.calls[0].arguments[0];
+    assert.match(logged, /"message":"send answer lost","txHash":"0x[0-9a-f]{64}","found":false/);
+    assert.doesNotMatch(logged, /SECRET|apikey|127\.0\.0\.1/);
+
+    // The nonce was never used, so the next drip takes it.
+    await drip(sender);
+    assert.deepEqual(nonces(), [FIRST_NONCE]);
+  });
+
+  it("takes the node's refusal as final, without looking the transaction up", async (t) => {
+    const warn = t.mock.method(console, "warn", () => {});
+    const sender = freshFaucet().sender();
+    chain.fail("eth_sendRawTransaction", { error: { code: -32000, message: "boom" } });
+
+    await assert.rejects(drip(sender), /boom/);
+
+    assert.equal(chain.count("eth_getTransactionByHash"), 0);
+    assert.equal(warn.mock.callCount(), 0);
   });
 
   it("works with a node that fills the transaction in itself", async () => {

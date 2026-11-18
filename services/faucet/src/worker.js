@@ -239,6 +239,8 @@ export class Faucet extends DurableObject {
       return { ok: true, txHash, amount, chainId };
     } catch (e) {
       // A drip that did not go out must not cost the caller their allowance.
+      // (A send that merely got no answer does not end up here if the node has
+      // the transaction: the sender looks it up and reports it as sent.)
       if (reservation?.id !== undefined) this.limits.release(reservation.id);
 
       if (e instanceof FaucetEmptyError) return { ok: false, code: "faucet_empty" };
