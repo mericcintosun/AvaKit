@@ -145,19 +145,24 @@ export default function AvatarPage() {
                 "0 30px 80px -20px color-mix(in oklch, var(--background) 90%, black), inset 0 0 120px color-mix(in oklch, var(--brand) 6%, transparent)",
             }}
           >
+            {/* Once <model-viewer> is defined, React sets a prop the element has
+                a property for as that property, not as an attribute. `autoplay`
+                and `exposure` are such props, so they need real values: the
+                attribute spelling `autoplay=""` would be assigned as a falsy
+                string and the second mascot would never start its idle loop. */}
             <ModelViewer
               key={active.key}
               src={active.src}
               poster={active.poster}
               alt={active.alt}
-              autoplay=""
+              autoplay
               animation-name={active.clip}
               camera-controls=""
               touch-action="pan-y"
               interaction-prompt="none"
               environment-image="neutral"
               shadow-intensity="0"
-              exposure="1.05"
+              exposure={1.05}
               min-camera-orbit={active.orbit.min}
               max-camera-orbit={active.orbit.max}
               style={{ width: "100%", height: "100%", backgroundColor: "transparent" }}
