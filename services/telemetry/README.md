@@ -232,9 +232,16 @@ there was no activity.
 
 | Table | Rows | Holds |
 | --- | --- | --- |
-| `scaffolds` | one per (day, template, wallet, chain, pm, cli, platform, ok) | a count |
+| `scaffolds` | one per (day, template, wallet, chain, pm, cli, platform, ok, error kind) | a count |
 | `installs` | one per install | salted hash of the CLI's random id, first/last day, count |
 | `rate` | one per (client, day), pruned daily | salted hash, a count |
+
+`wallet` is vestigial. `create-avalanche-app` stopped reporting it in 0.4.0 —
+every scaffold ships all the wallets, so there was nothing left to choose — and
+the column holds `"other"` for every scaffold from a CLI since then. It stays
+because it is part of the table's primary key and a live table is not migrated
+(see [Changing the schema](#changing-the-schema)); nothing reads it, and
+`/stats` does not report it.
 
 **No IP is ever stored.** Rate limiting keys off `SHA-256(salt + client + today)`,
 which is deleted the next day and can't be walked back to an IP without the

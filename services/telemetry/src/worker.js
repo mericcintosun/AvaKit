@@ -51,6 +51,8 @@ const STATS_TTL_MS = 5 * 60 * 1000;
  */
 const SHAPES = {
   template: new RegExp(`^(${TEMPLATES.join("|")})$`),
+  // Vestigial: only a CLI older than 0.4.0 still sends `wallet` — see the
+  // `scaffolds` table below.
   wallet: /^(web3auth|injected|burner|coinbase)$/,
   chain: /^(fuji|c-chain)$/,
   pm: /^(pnpm|npm|yarn|bun)$/,
@@ -90,6 +92,12 @@ export class Counters extends DurableObject {
 
     // Aggregate rows, not an event log: one row per distinct combination per
     // day, incremented in place. Bounded, and there's nothing per-person in it.
+    //
+    // `wallet` is vestigial. create-avalanche-app stopped reporting it in 0.4.0
+    // (every scaffold ships all the wallets, so there was nothing left to
+    // choose), and a row written for any CLI since then holds "other". The
+    // column stays because it is part of the primary key, and CREATE TABLE IF
+    // NOT EXISTS does not migrate a table that already exists. Nothing reads it.
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS scaffolds (
         day TEXT NOT NULL,

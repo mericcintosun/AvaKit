@@ -306,6 +306,26 @@ describe("what is stored", () => {
     assert.equal(sql.exec("SELECT COUNT(*) AS n FROM installs").one().n, 1);
     assert.equal(sql.exec("SELECT COUNT(*) AS n FROM rate").one().n, 2);
   });
+
+  it("fills the vestigial wallet column with other for every current CLI", async (t) => {
+    // create-avalanche-app stopped reporting `wallet` in 0.4.0. The column is
+    // part of the primary key, so it stays; only an older CLI still fills it.
+    clock(t);
+    const collector = await loadWorker();
+    await scaffold(collector, { cliVersion: "0.4.1" });
+    await scaffold(collector, { cliVersion: "0.3.1", wallet: "injected" });
+
+    const rows = collector.counters.sql
+      .exec("SELECT cli, wallet, n FROM scaffolds ORDER BY cli")
+      .toArray()
+      .map((row) => ({ ...row }));
+    assert.deepEqual(rows, [
+      { cli: "0.3.1", wallet: "injected", n: 1 },
+      { cli: "0.4.1", wallet: "other", n: 1 },
+    ]);
+    // Nothing reads the column: both are simply two scaffolds.
+    assert.equal((await stats(collector)).scaffolds.succeeded, 2);
+  });
 });
 
 describe("everything else", () => {
