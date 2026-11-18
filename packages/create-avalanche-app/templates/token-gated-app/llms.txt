@@ -7,6 +7,7 @@
 - [contracts/src/AvaKitNFT.sol](contracts/src/AvaKitNFT.sol): the access-pass ERC-721.
 - [lib/nft-artifact.ts](lib/nft-artifact.ts): compiled ABI + bytecode (browser deploy).
 - [components/demo.tsx](components/demo.tsx): deploy → mint → gate logic.
+- [components/funding.tsx](components/funding.tsx): `useFunding()` + `<FundingNotice />` — polls the balance while the wallet is empty, reports the faucet (`useFaucet()`), and disables transaction buttons only while the balance is really zero.
 - [lib/deployed-contract.ts](lib/deployed-contract.ts): `useDeployedContract(name, chain)` — remembers the deployed pass contract per chain in localStorage and only uses it once `eth_getCode` confirms bytecode.
 - [app/providers.tsx](app/providers.tsx): AvaKitProvider + theme.
 - [CLAUDE.md](CLAUDE.md): agent guide (gate pattern, security caveats, rules).
@@ -24,11 +25,15 @@ const hasAccess = balance > 0n;
 
 A pending or failed read is "unknown", not "no pass": the demo's `Gate` state is `checking` | `error` | `ready`, and it resets to `checking` whenever the account or contract changes.
 
+## Test AVAX
+
+On Fuji, `app/providers.tsx` passes `faucetUrl` to `<AvaKitProvider>`: the temporary wallet is funded automatically when it connects, any other empty wallet through `useFaucet().fund()` ("Get test AVAX"). Default: AvaKit's shared Fuji faucet — rate-limited (one small drip per address per day, plus an hourly cap per IP address), paid for by the AvaKit maintainer, for first runs only. `NEXT_PUBLIC_AVAKIT_FAUCET_URL` = your own faucet's `/fund` URL (Worker in `services/faucet` of the AvaKit repository), or `off`. Never passed off Fuji. Fallback when it refuses: the official faucet (needs a free Builder Hub sign-in). Do not call `fund()` on mount (the provider already asks for the temporary wallet; a second request is refused), and treat `status: "success"` as "sent", not "arrived": wait for a non-zero balance.
+
 ## Key APIs
 
 - Deploy: `useAvaDeploy().deploy({ abi, bytecode })`
 - Read/write: `useContract({ address, abi }).read(...)` / `.write("mint", [])`
-- Wallet: `<ConnectAvalanche />`, `useAvaAccount()`, `useAvaChain()`
+- Wallet: `<ConnectAvalanche />`, `useAvaAccount()`, `useAvaChain()`, `useBalance()`, `useFaucet()`
 
 ## Security note
 
@@ -37,4 +42,5 @@ Client-side gating is illustrative. For real protected content, verify ownership
 ## External docs
 
 - Avalanche Builder Hub: https://build.avax.network/llms.txt
-- Fuji faucet: https://core.app/tools/testnet-faucet
+- Official Fuji faucet (needs a free Builder Hub sign-in; the app's temporary wallet is funded without one, see "Test AVAX"): https://build.avax.network/console/primary-network/faucet
+- Run your own faucet: https://github.com/mericcintosun/AvaKit/tree/main/services/faucet

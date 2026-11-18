@@ -1,19 +1,20 @@
 "use client";
 
 import { getWalletClient } from "@avakit/core";
-import { humanizeError,
+import {
   Button,
   ConnectAvalanche,
+  humanizeError,
   shortenAddress,
   useAvaAccount,
   useAvaChain,
   useAvaKit,
-  useBalance,
 } from "@avakit/react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { formatEther } from "viem";
+import { FundingNotice, useFunding } from "@/components/funding";
 
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -34,7 +35,9 @@ export function Demo() {
   const { address, isConnected } = useAvaAccount();
   const { chain } = useAvaChain();
   const { provider } = useAvaKit();
-  const { data: balance, isLoading, refetch } = useBalance();
+  // The wallet's balance, and the funds a new wallet needs before it can send
+  // anything (see components/funding.tsx).
+  const funding = useFunding();
   const [txHash, setTxHash] = useState<string | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -52,7 +55,7 @@ export function Demo() {
         value: 0n,
       } as Parameters<typeof wallet.sendTransaction>[0]);
       setTxHash(hash);
-      void refetch();
+      funding.refresh();
     } catch (e) {
       setTxError(humanizeError(e));
     } finally {
@@ -84,24 +87,22 @@ export function Demo() {
           <Row label="Address" value={shortenAddress(address, 6)} mono />
           <Row
             label="Balance"
-            value={isLoading ? "…" : `${formatEther(balance ?? 0n)} ${chain.nativeCurrency.symbol}`}
+            value={
+              funding.balance === null
+                ? funding.balanceError
+                  ? "unavailable"
+                  : "…"
+                : `${formatEther(funding.balance)} ${chain.nativeCurrency.symbol}`
+            }
             mono
           />
 
           <div className="flex flex-col gap-2 pt-2">
-            <Button onClick={sendTestTx} disabled={sending}>
+            {/* Even a 0-AVAX transfer costs gas, so an empty wallet cannot send it. */}
+            <Button onClick={sendTestTx} disabled={sending || funding.isEmpty}>
               {sending ? "Sending…" : "Send 0 AVAX to myself"}
             </Button>
-            {chain.faucetUrl ? (
-              <a
-                href={chain.faucetUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-muted-foreground text-center text-xs underline underline-offset-4"
-              >
-                Need test AVAX? Open the faucet
-              </a>
-            ) : null}
+            <FundingNotice funding={funding} />
           </div>
 
           {txHash ? (

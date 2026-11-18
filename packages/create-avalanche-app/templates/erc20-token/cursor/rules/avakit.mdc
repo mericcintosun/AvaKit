@@ -23,9 +23,24 @@ Deploy a token from the browser, mint, and transfer.
 
 - `contracts/src/AvaKitToken.sol` (minimal, self-contained). Recompile: `cd contracts && forge build`, then update `lib/token-artifact.ts`.
 
+## Test AVAX
+
+- On Fuji, `app/providers.tsx` passes `faucetUrl` to `<AvaKitProvider>`: the temporary wallet is
+  funded when it connects, any other empty wallet through `useFaucet().fund()`. The default is
+  AvaKit's shared Fuji faucet: rate-limited (one small drip per address per day, plus an hourly cap
+  per IP address), paid for by the AvaKit maintainer, for first runs only — not for a product.
+- `NEXT_PUBLIC_AVAKIT_FAUCET_URL` = your own faucet's `/fund` URL (Worker in `services/faucet` of
+  the AvaKit repository), or `off`. Never pass a faucet URL on a chain other than Fuji.
+- `components/funding.tsx` (`useFunding()`, `<FundingNotice />`) shows the funding state and the
+  fallback (the official faucet needs a free Builder Hub sign-in). Disable transaction buttons only
+  while `funding.isEmpty` — an unknown balance is not an empty one.
+- Never call `fund()` on mount: the provider already asks for the temporary wallet and reports it
+  through `useFaucet()`, and a second request is refused as "funded recently". `status: "success"`
+  means the faucet sent the drip, not that it arrived — wait for a non-zero balance.
+
 ## UI & safety
 
 - shadcn/ui only; black & white for now; dark/light via next-themes; both must work.
 - Animations: Framer Motion or GSAP only.
-- Deploying/minting/transferring cost gas; fund the wallet on Fuji first.
+- Deploying/minting/transferring cost gas; a new wallet is funded by the faucet (see "Test AVAX").
 - Default chain is Fuji testnet; mainnet requires explicit opt-in.

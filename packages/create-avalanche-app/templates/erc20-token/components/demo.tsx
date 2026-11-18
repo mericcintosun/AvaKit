@@ -15,6 +15,7 @@ import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatUnits, parseUnits } from "viem";
+import { FundingNotice, useFunding } from "@/components/funding";
 import { useDeployedContract } from "@/lib/deployed-contract";
 import { abi, bytecode } from "@/lib/token-artifact";
 
@@ -42,6 +43,9 @@ export function Demo() {
   const { address, isConnected } = useAvaAccount();
   const { chain } = useAvaChain();
   const { deploy, status: deployStatus } = useAvaDeploy();
+  // Deploying, minting and transferring cost gas. A new wallet has none until
+  // the faucet has funded it (see components/funding.tsx).
+  const funding = useFunding();
 
   // The token you deploy is remembered per chain, so a reload does not ask for
   // a second deploy — and it is only used again once the chain confirms there
@@ -155,19 +159,10 @@ export function Demo() {
       ) : !contractAddress ? (
         <div className="flex flex-col gap-3 rounded-xl border p-6">
           <p className="text-sm">Step 1 — deploy your ERC-20 contract.</p>
-          <Button onClick={handleDeploy} disabled={deployStatus === "deploying"}>
+          <Button onClick={handleDeploy} disabled={deployStatus === "deploying" || funding.isEmpty}>
             {deployStatus === "deploying" ? "Deploying…" : "Deploy token contract"}
           </Button>
-          {chain.faucetUrl ? (
-            <a
-              href={chain.faucetUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-muted-foreground text-center text-xs underline underline-offset-4"
-            >
-              Need test AVAX? Open the faucet
-            </a>
-          ) : null}
+          <FundingNotice funding={funding} />
         </div>
       ) : (
         <div className="flex flex-col gap-4 rounded-xl border p-6">
@@ -178,7 +173,7 @@ export function Demo() {
           <div className="flex flex-col gap-2 pt-2 sm:flex-row">
             <Button
               className="flex-1"
-              disabled={busy !== null}
+              disabled={busy !== null || funding.isEmpty}
               onClick={() => run("mint", () => write("mint", []))}
             >
               {busy === "mint" ? "Minting…" : "Mint 100 AKT"}
@@ -186,12 +181,13 @@ export function Demo() {
             <Button
               className="flex-1"
               variant="outline"
-              disabled={busy !== null || (balance ?? 0n) < parseUnits("10", 18)}
+              disabled={busy !== null || funding.isEmpty || (balance ?? 0n) < parseUnits("10", 18)}
               onClick={() => run("transfer", () => write("transfer", [BURN, parseUnits("10", 18)]))}
             >
               {busy === "transfer" ? "Sending…" : "Burn 10 AKT"}
             </Button>
           </div>
+          <FundingNotice funding={funding} />
 
           <a
             href={`${chain.explorerUrl}/address/${contractAddress}`}

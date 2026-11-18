@@ -7,8 +7,14 @@
 - [contracts/src/AvaKitToken.sol](contracts/src/AvaKitToken.sol): minimal self-contained ERC-20 (AKT, 18 decimals) with a `mint()` faucet.
 - [lib/token-artifact.ts](lib/token-artifact.ts): compiled ABI + bytecode (browser deploy).
 - [components/demo.tsx](components/demo.tsx): deploy → mint → transfer.
+- [components/funding.tsx](components/funding.tsx): `useFunding()` + `<FundingNotice />` — polls the balance while the wallet is empty, reports the faucet (`useFaucet()`), and disables transaction buttons only while the balance is really zero.
+- [app/providers.tsx](app/providers.tsx): AvaKitProvider (chains + wallet adapters + the Fuji faucet) + theme.
 - [lib/deployed-contract.ts](lib/deployed-contract.ts): `useDeployedContract(name, chain)` — remembers the deployed token per chain in localStorage and only uses it once `eth_getCode` confirms bytecode.
 - [CLAUDE.md](CLAUDE.md): agent guide (API, decimals, contract workflow).
+
+## Test AVAX
+
+On Fuji, `app/providers.tsx` passes `faucetUrl` to `<AvaKitProvider>`: the temporary wallet is funded automatically when it connects, any other empty wallet through `useFaucet().fund()` ("Get test AVAX"). Default: AvaKit's shared Fuji faucet — rate-limited (one small drip per address per day, plus an hourly cap per IP address), paid for by the AvaKit maintainer, for first runs only. `NEXT_PUBLIC_AVAKIT_FAUCET_URL` = your own faucet's `/fund` URL (Worker in `services/faucet` of the AvaKit repository), or `off`. Never passed off Fuji. Fallback when it refuses: the official faucet (needs a free Builder Hub sign-in). Do not call `fund()` on mount (the provider already asks for the temporary wallet; a second request is refused), and treat `status: "success"` as "sent", not "arrived": wait for a non-zero balance.
 
 ## Key APIs
 
@@ -27,4 +33,5 @@ Then copy abi + bytecode.object from `out/AvaKitToken.sol/AvaKitToken.json` into
 ## External docs
 
 - Avalanche Builder Hub: https://build.avax.network/llms.txt
-- Fuji faucet: https://core.app/tools/testnet-faucet
+- Official Fuji faucet (needs a free Builder Hub sign-in; the app's temporary wallet is funded without one, see "Test AVAX"): https://build.avax.network/console/primary-network/faucet
+- Run your own faucet: https://github.com/mericcintosun/AvaKit/tree/main/services/faucet

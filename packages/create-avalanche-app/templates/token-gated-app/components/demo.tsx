@@ -14,6 +14,7 @@ import {
 import { Lock, Moon, Sun, Unlock } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FundingNotice, useFunding } from "@/components/funding";
 import { useDeployedContract } from "@/lib/deployed-contract";
 import { abi, bytecode } from "@/lib/nft-artifact";
 
@@ -47,6 +48,9 @@ export function Demo() {
   const { address, isConnected } = useAvaAccount();
   const { chain } = useAvaChain();
   const { deploy, status: deployStatus } = useAvaDeploy();
+  // Deploying and minting cost gas. A new wallet has none until the faucet has
+  // funded it (see components/funding.tsx).
+  const funding = useFunding();
 
   // The pass contract you deploy is remembered per chain, so a reload does not
   // ask for a second deploy — and it is only used again once the chain confirms
@@ -162,19 +166,10 @@ export function Demo() {
       ) : !contractAddress ? (
         <div className="flex flex-col gap-3 rounded-xl border p-6">
           <p className="text-sm">Step 1 — deploy the access-pass contract.</p>
-          <Button onClick={handleDeploy} disabled={deployStatus === "deploying"}>
+          <Button onClick={handleDeploy} disabled={deployStatus === "deploying" || funding.isEmpty}>
             {deployStatus === "deploying" ? "Deploying…" : "Deploy access-pass contract"}
           </Button>
-          {chain.faucetUrl ? (
-            <a
-              href={chain.faucetUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-muted-foreground text-center text-xs underline underline-offset-4"
-            >
-              Need test AVAX? Open the faucet
-            </a>
-          ) : null}
+          <FundingNotice funding={funding} />
         </div>
       ) : gate.status === "checking" ? (
         <div className="text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
@@ -221,9 +216,10 @@ export function Demo() {
             <Lock className="size-4" />
             Locked — you don't hold an access pass
           </div>
-          <Button onClick={handleMint} disabled={minting}>
+          <Button onClick={handleMint} disabled={minting || funding.isEmpty}>
             {minting ? "Minting…" : "Mint access pass"}
           </Button>
+          <FundingNotice funding={funding} />
           <PassContract
             href={`${chain.explorerUrl}/address/${contractAddress}`}
             label={shortenAddress(contractAddress, 6)}

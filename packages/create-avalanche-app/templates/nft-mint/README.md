@@ -13,9 +13,22 @@ cp .env.example .env.local
 pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
-Then: connect a wallet → **Deploy NFT contract** → **Mint NFT**. Deploying and minting cost gas, so fund your wallet on Fuji first (in-app faucet link).
+Then: connect a wallet → **Deploy NFT contract** → **Mint NFT**. Deploying and minting cost gas; a new wallet gets its first test AVAX from a faucet (see [Test AVAX](#test-avax)), and both buttons wait until it has arrived.
 
 The app remembers the contract you deployed (in your browser, per chain), so a reload picks up where you left off. **Deploy a new contract** starts over — use it after you change the contract.
+
+## Test AVAX
+
+A new wallet is empty, so on Fuji the app asks a faucet for a little test AVAX: by itself for the
+temporary wallet ("Start instantly"), with no account or sign-in anywhere, and with a
+**Get test AVAX** button for any other wallet that holds none. By default that is AvaKit's shared
+Fuji faucet — rate-limited (one small drip per address per day, with an hourly cap per IP address),
+paid for by the AvaKit maintainer, and meant for first runs only: do not build a product on it.
+When it refuses or is empty, the app shows the faucet's message, a **Try again** button and the
+official faucet (needs a free Builder Hub sign-in). To run your own, deploy the Worker in
+[`services/faucet`](https://github.com/mericcintosun/AvaKit/tree/main/services/faucet) and set
+`NEXT_PUBLIC_AVAKIT_FAUCET_URL` to its `/fund` URL in `.env.local`; set it to `off` and the app
+asks no faucet at all.
 
 ## How the contract works
 

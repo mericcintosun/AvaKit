@@ -16,8 +16,21 @@ pnpm dev    # http://localhost:3000 (or the port Next prints)
 
 Then connect a wallet, read your balance, and send a first transaction on the chain this app was scaffolded for: `__CHAIN_CONST__` in `app/providers.tsx` (`fuji` is the Avalanche Fuji testnet, `cChain` is Avalanche C-Chain mainnet).
 
-- **On Fuji** you can start instantly with a temporary in-browser wallet, use social login (it works out of the box on localhost through a bundled demo key), or connect Core / MetaMask. Need test AVAX? Use the in-app faucet link or https://core.app/tools/testnet-faucet.
-- **On C-Chain mainnet** every transaction costs real AVAX and there is no faucet. The temporary wallet is not offered, and social login stays disabled until you set your own Sapphire Mainnet client ID in `.env.local` — connect Core / MetaMask, or add that client ID.
+- **On Fuji** you can start instantly with a temporary in-browser wallet, use social login (it works out of the box on localhost through a bundled demo key), or connect Core / MetaMask. A new wallet gets its first test AVAX from a faucet — see [Test AVAX](#test-avax).
+- **On C-Chain mainnet** every transaction costs real AVAX and there is no faucet: the app asks none, and a wallet is funded by its owner. The temporary wallet is not offered, and social login stays disabled until you set your own Sapphire Mainnet client ID in `.env.local` — connect Core / MetaMask, or add that client ID.
+
+## Test AVAX
+
+A new wallet is empty, so on Fuji the app asks a faucet for a little test AVAX: by itself for the
+temporary wallet ("Start instantly"), with no account or sign-in anywhere, and with a
+**Get test AVAX** button for any other wallet that holds none. By default that is AvaKit's shared
+Fuji faucet — rate-limited (one small drip per address per day, with an hourly cap per IP address),
+paid for by the AvaKit maintainer, and meant for first runs only: do not build a product on it.
+When it refuses or is empty, the app shows the faucet's message, a **Try again** button and the
+official faucet (needs a free Builder Hub sign-in). To run your own, deploy the Worker in
+[`services/faucet`](https://github.com/mericcintosun/AvaKit/tree/main/services/faucet) and set
+`NEXT_PUBLIC_AVAKIT_FAUCET_URL` to its `/fund` URL in `.env.local`; set it to `off` and the app
+asks no faucet at all.
 
 ## Stack
 
@@ -27,6 +40,7 @@ Next.js 16 · `@avakit/react` · `@avakit/core` · viem · shadcn/ui · next-the
 
 - `app/providers.tsx` — wallet + chain + theme providers
 - `components/demo.tsx` — connect, balance, transaction
+- `components/funding.tsx` — whether the wallet can pay for gas, and the faucet notice
 - `app/globals.css` — shadcn tokens (black & white)
 
 ## AI-native
