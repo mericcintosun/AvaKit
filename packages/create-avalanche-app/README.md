@@ -45,7 +45,9 @@ this package's `engines.node` (`>=20.11`).
 every day, on fresh machines with nothing but Node.js and npm (Linux with Node.js 22 and 24,
 macOS and Windows with Node.js 24), it takes the published packages from npm, scaffolds
 `nft-mint` (through `@avakit/mcp`, which uses this package's scaffolder), installs and builds the
-app, and on one machine deploys the contract to Fuji and mints.
+app, and on one machine deploys the contract to Fuji and mints. To repeat it on your own machine,
+clone the repository and run `node scripts/e2e-fuji.mjs --source npm` (add `--skip-chain` to stop
+after the build, without touching the testnet or its faucet).
 
 ## Templates
 

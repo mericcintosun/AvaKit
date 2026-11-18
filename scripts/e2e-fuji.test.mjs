@@ -308,8 +308,10 @@ function fakeRepo(t) {
  * @param {object} [options.stub] How the stub server behaves.
  * @param {object} [options.npm] How the fake npm behaves.
  * @param {Record<string, string | undefined>} [options.env] On top of the run's environment.
+ * @param {{ after: RegExp, signal: NodeJS.Signals }} [options.interrupt] Send the run a signal
+ *   once its output matches.
  */
-async function e2e(t, args, { stub = {}, npm = {}, env = {}, fake = fakeRepo(t) } = {}) {
+async function e2e(t, args, { stub = {}, npm = {}, env = {}, fake = fakeRepo(t), interrupt } = {}) {
   const childEnv = {
     ...process.env,
     PATH: [join(fake.repo, "bin"), dirname(process.execPath), "/usr/bin", "/bin"].join(":"),
@@ -340,8 +342,13 @@ async function e2e(t, args, { stub = {}, npm = {}, env = {}, fake = fakeRepo(t) 
   );
   let stdout = "";
   let stderr = "";
+  let interrupted = false;
   child.stdout.setEncoding("utf8").on("data", (chunk) => {
     stdout += chunk;
+    if (interrupt && !interrupted && interrupt.after.test(stdout)) {
+      interrupted = true;
+      child.kill(interrupt.signal);
+    }
   });
   child.stderr.setEncoding("utf8").on("data", (chunk) => {
     stderr += chunk;
@@ -1149,6 +1156,43 @@ test("the time limit stops a run that hangs, and the server with it", { skip }, 
   });
   assert.equal(invalid.status, 2);
   assert.match(invalid.stderr, /AVAKIT_E2E_TIMEOUT_SECONDS must be a whole number of seconds/);
+  assert.deepEqual(invalid.recorded, [], "nothing is started on a usage error");
+});
+
+test("in a workflow, a version that is not one is an annotation and starts nothing", {
+  skip,
+}, async (t) => {
+  const run = await e2e(t, ["--source", "npm", "--version", "^1.0.0"], {
+    env: { GITHUB_ACTIONS: "true" },
+  });
+  assert.equal(run.status, 2);
+  assert.match(run.stderr, /^Error: Invalid --version "\^1\.0\.0"/);
+  assert.ok(
+    run.stdout.includes(
+      '::error title=AvaKit end to end::Invalid --version "^1.0.0". Give a version (0.1.28) or a dist-tag (latest).',
+    ),
+  );
+  assert.deepEqual(run.recorded, []);
+  assert.deepEqual(run.leftovers, []);
+});
+
+test("an interrupted run stops its server, tidies up and exits with the signal's status", {
+  skip,
+}, async (t) => {
+  for (const [signal, status] of [
+    ["SIGINT", 130],
+    ["SIGTERM", 143],
+  ]) {
+    // Interrupted while it waits for a server that will never answer.
+    const run = await e2e(t, ["--source", "npm", "--skip-chain"], {
+      stub: { hang: true },
+      interrupt: { after: /\[server\] stub-mcp running on stdio/, signal },
+    });
+    assert.equal(run.status, status, signal);
+    assert.equal(run.summary.failure.reason, `Interrupted (${signal}).`);
+    assert.throws(() => process.kill(run.server.pid, 0), { code: "ESRCH" });
+    assert.deepEqual(run.leftovers, []);
+  }
 });
 
 test("--keep leaves the working directory with the app in it", { skip }, async (t) => {

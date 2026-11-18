@@ -1428,6 +1428,9 @@ async function main() {
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     process.stderr.write(`Error: ${error.message}\n\n${USAGE}`);
+    // In a workflow, the version box is where a wrong value comes from: say so
+    // where the run is looked at, not only in the log.
+    if (IN_ACTIONS) say(`::error title=AvaKit end to end::${oneLine(error.message, 300)}`);
     return 2;
   }
   if (options.help) {
