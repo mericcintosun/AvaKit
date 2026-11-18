@@ -148,6 +148,7 @@ async function fund(request, env, ctx) {
       secret: env.TURNSTILE_SECRET,
       token: body.turnstileToken,
       ip,
+      // Unset in production: it only lets a test stand in for Cloudflare.
       url: env.TURNSTILE_VERIFY_URL || undefined,
     });
     if (verdict !== "ok") return refuse({ code: `turnstile_${verdict}` }, env);
