@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { takeBlockedRequests } from "./testing/no-network.js";
 
 /** Every variable that switches telemetry off; blanked so a test can switch it on. */
 const OFF_SWITCHES = [
@@ -71,10 +72,26 @@ const configFile = () => path.join(configDir, "config.json");
 const readConfig = () => JSON.parse(readFileSync(configFile(), "utf8")) as Record<string, unknown>;
 
 describe("the test suite itself", () => {
-  it("runs with telemetry disabled unless a test opts in", async () => {
+  it("runs with telemetry off and aimed at this machine unless a test opts in", async () => {
     expect(process.env.AVAKIT_TELEMETRY_DISABLED).toBe("1");
+    expect(new URL(process.env.AVAKIT_TELEMETRY_URL ?? "").hostname).toBe("127.0.0.1");
     const { Telemetry } = await import("./telemetry.js");
     expect(new Telemetry({ cliVersion: "1.2.3" }).enabled).toBe(false);
+  });
+
+  it("cannot send an event off this machine even when a test switches telemetry on", async () => {
+    // What a careless test could do: telemetry on, endpoint somewhere else. A
+    // name that can never resolve (RFC 2606) stands in for the real collector.
+    const { Telemetry } = await load("https://collector.example.invalid/e");
+    const telemetry = new Telemetry({ cliVersion: "1.2.3" });
+    expect(telemetry.enabled).toBe(true);
+    telemetry.record(EVENT);
+    await telemetry.flush();
+
+    // Refused by src/testing/no-network.ts, which would also have failed this
+    // test had the refusal not been collected here.
+    expect(takeBlockedRequests()).toEqual(["collector.example.invalid"]);
+    expect(received).toEqual([]);
   });
 });
 
