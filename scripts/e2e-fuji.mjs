@@ -15,7 +15,9 @@
  *                     pins are what npm has; otherwise that half is skipped, and reported as
  *                     skipped (scripts/smoke-template.sh covers it against this checkout's build).
  * --version           The @avakit/mcp version or dist-tag to test. Default: latest. npm only.
- * --skip-chain        Stop before the on-chain half: no faucet drip, no transactions.
+ * --skip-chain        Stop before the on-chain half: no faucet drip, no transactions. The server
+ *                     must still offer every tool of the flow: a run against a server that
+ *                     cannot deploy or mint fails, whichever half it was asked to run.
  * --keep              Leave the temporary directory, with the scaffolded app, in place.
  * --json <file>       Also write the summary as JSON.
  *
@@ -24,13 +26,16 @@
  * `wallet_status`, `deploy_contract`, `write_contract` (mint) and `read_chain`
  * (the owner of token 1). With no AVAKIT_DEPLOYER_KEY in the environment the
  * server signs with a throwaway test wallet that it funds from the hosted Fuji
- * faucet, so that half can fail when the faucet is empty or rate-limited. A
- * tool that only reads is asked again a few times when it errors, because a
+ * faucet, which is shared and rate-limited. When it refuses or is empty, the
+ * run fails and says so: the failing step carries the tool's own reason, and
+ * the summary says that the faucet, not necessarily a package, is what failed.
+ * A tool that only reads is asked again a few times when it errors, because a
  * node of the public RPC can be a block behind; a tool that sends a
- * transaction is never asked twice.
+ * transaction, or that may ask the faucet, is never asked twice.
  *
  * Fuji only: the chain is not an option, and AVAKIT_ALLOW_MAINNET is taken out
- * of the server's environment. No private key is accepted, used or printed.
+ * of the server's environment. No private key is accepted, used or printed; a
+ * deployer key in the environment reaches the MCP server and no other child.
  *
  * Every child process gets DO_NOT_TRACK=1 (a robot's run is not adoption) and
  * is stopped when the whole run exceeds its time limit: 20 minutes, or
@@ -41,7 +46,9 @@
  * run timed out, after printing that step's raw output; 2 for a usage error;
  * 130, 143 or 129 when it was interrupted (SIGINT, SIGTERM, SIGHUP).
  *
- * Plain Node.js, no dependencies; Linux, macOS and Windows.
+ * Plain Node.js, no dependencies; Linux, macOS and Windows. The parts with no
+ * side effects are exported for scripts/e2e-fuji.test.mjs; importing this file
+ * runs nothing.
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -77,8 +84,22 @@ const CHAIN = "fuji";
 const APP_NAME = "e2e-nft-mint";
 /** The packages whose versions the scaffolder stamps into the app it creates. */
 const PINNED_PACKAGES = ["@avakit/core", "@avakit/react"];
-const SCAFFOLD_TOOLS = ["scaffold_app"];
-const CHAIN_TOOLS = ["wallet_status", "deploy_contract", "write_contract", "read_chain"];
+/**
+ * Every tool the flow calls. A server must list all of them, also when this run
+ * stops before the on-chain half: the flow is not there without them.
+ */
+const REQUIRED_TOOLS = [
+  "scaffold_app",
+  "deploy_contract",
+  "write_contract",
+  "read_chain",
+  "wallet_status",
+];
+/**
+ * The steps whose tool signs, and so may have the server ask the faucet to fund
+ * its test wallet first.
+ */
+const SIGNING_STEPS = ["deploy", "mint"];
 /** Looked for on PATH and reported. None of them is needed. */
 const PATH_TOOLS = ["pnpm", "yarn", "bun", "forge"];
 const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -133,6 +154,7 @@ const USAGE = `Usage:
   --source workspace   test this checkout's build of the MCP server (run "pnpm build" first)
   --version <v>        the @avakit/mcp version or dist-tag to test (npm only; default: latest)
   --skip-chain         stop before the on-chain half: no faucet drip, no transactions
+                       (the server must still list every tool of the flow)
   --keep               keep the temporary directory with the scaffolded app
   --json <file>        also write the summary as JSON
 `;
@@ -230,10 +252,6 @@ const redact = (() => {
   return (text) => text.replace(pattern, "[redacted]");
 })();
 
-// Output piped into something that stops reading (`| head`) must not crash the
-// run half-way, with children still going.
-process.stdout.on("error", () => {});
-
 function say(text = "") {
   process.stdout.write(`${redact(text)}\n`);
 }
@@ -289,15 +307,25 @@ function seconds(ms) {
 /** Every child process still running, so that all of them can be stopped. */
 const running = new Set();
 
-/** The environment every child gets. */
-function childEnv(extra = {}) {
+/**
+ * The environment a child gets.
+ *
+ * @param {Record<string, string>} [extra] Set on top of it.
+ * @param {object} [options]
+ * @param {boolean} [options.server] The child is the MCP server, the one
+ *   process a deployer key in the environment is meant for.
+ */
+function childEnv(extra = {}, { server = false } = {}) {
   const env = { ...ENV };
   // The server has to create the project where this script looks for it, and
-  // it must not be able to sign for mainnet whatever this shell has set.
+  // it must not be able to sign for mainnet whatever this shell has set. A
+  // deployer key is the server's alone: `npm install` runs the install scripts
+  // of every dependency, and none of them has any business seeing it.
   // (Environment variable names are case-insensitive on Windows.)
   for (const name of Object.keys(env)) {
     const upper = name.toUpperCase();
     if (upper === "AVAKIT_ALLOW_MAINNET" || upper === "AVAKIT_MCP_ROOT") delete env[name];
+    if (upper === "AVAKIT_DEPLOYER_KEY" && !server) delete env[name];
   }
   return {
     ...env,
@@ -393,11 +421,6 @@ async function stopEverything() {
   );
 }
 
-// Whatever ends this process, no child outlives it.
-process.on("exit", () => {
-  for (const child of running) stop(child, "SIGKILL");
-});
-
 /**
  * Run one of COMMANDS to the end.
  *
@@ -472,12 +495,23 @@ class McpClient {
   noise = [];
   /** The error of the last read that was asked again. */
   lastReadError = "";
+  #readRetryMs;
+  #say;
 
-  constructor(child) {
+  /**
+   * @param {import("node:child_process").ChildProcess} child The server, with all three of its
+   *   streams piped.
+   * @param {object} [options]
+   * @param {number} [options.readRetryMs] How long to wait before a read is asked again.
+   * @param {(text: string) => void} [options.log] Where the conversation is printed.
+   */
+  constructor(child, { readRetryMs = READ_RETRY_MS, log: print = say } = {}) {
     this.#child = child;
+    this.#readRetryMs = readRetryMs;
+    this.#say = print;
     const messages = lineSplitter((line) => this.#receive(line));
     child.stdout.setEncoding("utf8").on("data", (chunk) => messages.feed(chunk));
-    const log = lineSplitter((line) => say(`       [server] ${line}`));
+    const log = lineSplitter((line) => print(`       [server] ${line}`));
     child.stderr.setEncoding("utf8").on("data", (chunk) => {
       this.stderr.add(chunk);
       log.feed(chunk);
@@ -567,11 +601,12 @@ class McpClient {
    * @param {boolean} [options.readOnly] The tool only reads. Its error can be a
    *   node of the public RPC that is a block behind, or a moment of bad
    *   network, so it is asked again a few times. Never set for a tool that
-   *   sends a transaction: asking that twice could do it twice.
+   *   sends a transaction: asking that twice could do it twice, and would ask
+   *   the shared faucet twice.
    */
   async callTool(name, args, { readOnly = false } = {}) {
     for (let attempt = 1; ; attempt++) {
-      say(`       > ${name} ${oneLine(args)}`);
+      this.#say(`       > ${name} ${oneLine(args)}`);
       const result = await this.request("tools/call", { name, arguments: args });
       const parts = Array.isArray(result?.content) ? result.content : [];
       const text = parts
@@ -579,16 +614,23 @@ class McpClient {
         .map((part) => part.text)
         .join("\n");
       if (result?.isError !== true) {
-        say(`       < ${oneLine(text)}`);
+        this.#say(`       < ${oneLine(text)}`);
         return { text, attempts: attempt };
       }
       if (!readOnly || attempt === READ_ATTEMPTS) {
-        throw new StepError(`${name} reported an error.`, text || JSON.stringify(result, null, 2));
+        // The tool's own words are the reason, so they go where the step's
+        // result is shown and not only into its raw output.
+        const reason = oneLine(text, 500) || "it gave no reason";
+        const asked = attempt > 1 ? ` (asked ${attempt} times)` : "";
+        throw new StepError(
+          `${name} reported an error${asked}: ${reason}`,
+          text || JSON.stringify(result, null, 2),
+        );
       }
       this.lastReadError = text;
-      say(`       ! ${oneLine(text, 300)}`);
-      say(`       ! a read is safe to repeat: asking again in ${READ_RETRY_MS / 1000}s`);
-      await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
+      this.#say(`       ! ${oneLine(text, 300)}`);
+      this.#say(`       ! a read is safe to repeat: asking again in ${this.#readRetryMs / 1000}s`);
+      await new Promise((resolve) => setTimeout(resolve, this.#readRetryMs));
     }
   }
 
@@ -745,6 +787,28 @@ function pendingChangesets(names) {
 }
 
 /**
+ * The explorer page next to `url`: the same address with `suffix` at its end
+ * replaced by `replacement`. Null when `url` does not end that way.
+ */
+function siblingUrl(url, suffix, replacement) {
+  if (typeof url !== "string" || !url.toLowerCase().endsWith(suffix.toLowerCase())) return null;
+  return `${url.slice(0, -suffix.length)}${replacement}`;
+}
+
+/**
+ * Whether a failed step failed at the faucet: one of the steps whose tool has
+ * the server fund its test wallet, with an answer that names the faucet.
+ */
+function isFaucetFailure(step) {
+  return SIGNING_STEPS.includes(step.id) && /faucet/i.test(`${step.detail}\n${step.output}`);
+}
+
+/** The tools of the flow that a server's list does not have. */
+function missingTools(listed) {
+  return REQUIRED_TOOLS.filter((tool) => !listed.includes(tool));
+}
+
+/**
  * The artifact paths in what `scaffold_app` reports as `artifacts`: a list of
  * paths, a list of objects that carry one, or a map from contract to path.
  */
@@ -819,7 +883,11 @@ function startServerStep(options) {
   return async () => {
     // The server's working directory is where it creates projects, and what the
     // artifact paths it reports are relative to.
-    const spawnOptions = { cwd: state.workDir, env: childEnv(), stdio: ["pipe", "pipe", "pipe"] };
+    const spawnOptions = {
+      cwd: state.workDir,
+      env: childEnv({}, { server: true }),
+      stdio: ["pipe", "pipe", "pipe"],
+    };
     let child;
     let startedWith;
     if (options.source === "workspace") {
@@ -838,7 +906,7 @@ function startServerStep(options) {
       // that the command names. It is `npx --yes @avakit/mcp@<version>`.
       const spec = `${MCP_PACKAGE}@${options.version}`;
       startedWith = `${COMMANDS.npxMcpBin.join(" ")} (with npm_config_package=${spec})`;
-      spawnOptions.env = childEnv({ npm_config_package: spec });
+      spawnOptions.env = childEnv({ npm_config_package: spec }, { server: true });
       child = spawnNpm(COMMANDS.npxMcpBin, spawnOptions);
     } else {
       const spec = `${MCP_PACKAGE}@${options.version}`;
@@ -884,35 +952,24 @@ function startServerStep(options) {
   };
 }
 
-function listToolsStep(options) {
-  return async () => {
-    const names = [];
-    let cursor;
-    // A server may hand over its tools a page at a time.
-    for (let page = 0; page < 20; page++) {
-      const result = await state.server.request("tools/list", cursor ? { cursor } : undefined);
-      for (const tool of result?.tools ?? []) names.push(tool.name);
-      cursor = result?.nextCursor;
-      if (!cursor) break;
-    }
-    const required = options.skipChain ? SCAFFOLD_TOOLS : [...SCAFFOLD_TOOLS, ...CHAIN_TOOLS];
-    const missing = required.filter((tool) => !names.includes(tool));
-    if (missing.length > 0) {
-      throw new StepError(
-        `The server has no ${missing.join(", ")}. This run needs: ${required.join(", ")}.`,
-        `The server lists ${names.length} tools: ${names.join(", ") || "none"}`,
-      );
-    }
-    const uncalled = CHAIN_TOOLS.filter((tool) => !names.includes(tool));
-    if (uncalled.length > 0) {
-      // Only with --skip-chain, where the on-chain tools are never called.
-      state.warnings.push(
-        `This server has no ${uncalled.join(", ")}, which the on-chain half needs. ` +
-          "That half was not run (--skip-chain), so this did not fail the run.",
-      );
-    }
-    return `${names.length} tools: ${names.join(", ")}`;
-  };
+async function listToolsStep() {
+  const names = [];
+  let cursor;
+  // A server may hand over its tools a page at a time.
+  for (let page = 0; page < 20; page++) {
+    const result = await state.server.request("tools/list", cursor ? { cursor } : undefined);
+    for (const tool of result?.tools ?? []) names.push(tool.name);
+    cursor = result?.nextCursor;
+    if (!cursor) break;
+  }
+  const missing = missingTools(names);
+  if (missing.length > 0) {
+    throw new StepError(
+      `The server has no ${missing.join(", ")}. The flow needs: ${REQUIRED_TOOLS.join(", ")}.`,
+      `The server lists ${names.length} tools: ${names.join(", ") || "none"}`,
+    );
+  }
+  return `${names.length} tools: ${names.join(", ")}`;
 }
 
 async function scaffoldStep() {
@@ -1019,11 +1076,19 @@ async function artifactStep() {
 }
 
 async function walletStep() {
-  const { data } = await state.server.callJsonTool(
+  const { data, text } = await state.server.callJsonTool(
     "wallet_status",
     { chain: CHAIN },
     { readOnly: true },
   );
+  // Before anything is signed: the wallet the server shows must be the one for
+  // the chain that was asked about.
+  if (typeof data?.chain === "string" && !/fuji/i.test(data.chain)) {
+    throw new StepError(
+      `wallet_status was asked about ${CHAIN} and answered for "${oneLine(data.chain, 80)}". Nothing was sent.`,
+      text,
+    );
+  }
   state.chain.walletBefore = {
     address: data?.address ?? null,
     source: data?.source ?? null,
@@ -1048,15 +1113,12 @@ async function deployStep() {
     );
   }
   const contractUrl = typeof data.explorerUrl === "string" ? data.explorerUrl : null;
-  const addressSuffix = `/address/${data.address}`;
   Object.assign(state.chain, {
     contractAddress: data.address,
     contractUrl,
     deployTxHash: data.txHash,
     // The tool links the contract; the transaction is on the same explorer.
-    deployTxUrl: contractUrl?.endsWith(addressSuffix)
-      ? `${contractUrl.slice(0, -addressSuffix.length)}/tx/${data.txHash}`
-      : null,
+    deployTxUrl: siblingUrl(contractUrl, `/address/${data.address}`, `/tx/${data.txHash}`),
     deployer: { address: data.signer?.address ?? null, source: data.signer?.source ?? null },
     notes: data.note ? [String(data.note)] : [],
   });
@@ -1084,6 +1146,20 @@ async function mintStep() {
     signer: { address: data.signer?.address ?? null, source: data.signer?.source ?? null },
   });
   if (data.note) state.chain.notes.push(String(data.note));
+  // Should the deploy's link not have been one to the contract's page, the
+  // mint's link still says where this explorer keeps its transactions.
+  state.chain.deployTxUrl ??= siblingUrl(
+    state.chain.mintTxUrl,
+    `/tx/${data.txHash}`,
+    `/tx/${state.chain.deployTxHash}`,
+  );
+  const deployer = state.chain.deployer?.address;
+  const minter = state.chain.signer.address;
+  if (deployer && minter && deployer.toLowerCase() !== minter.toLowerCase()) {
+    state.warnings.push(
+      `The contract was deployed by ${deployer} and the token minted by ${minter}: the server changed wallets between the two calls.`,
+    );
+  }
   return `transaction ${data.txHash} in block ${data.blockNumber ?? "?"}, signed by ${data.signer?.address ?? "?"} (${data.signer?.source ?? "?"})`;
 }
 
@@ -1124,7 +1200,7 @@ function plan(options) {
   const steps = [
     ["environment", "Environment", environmentStep],
     ["server", "Start the MCP server", startServerStep(options)],
-    ["tools", "List its tools", listToolsStep(options)],
+    ["tools", "List its tools", listToolsStep],
     ["scaffold", `Scaffold ${TEMPLATE}`, scaffoldStep],
   ];
   if (options.source === "workspace") steps.push(["pins", "Check the pins against npm", pinsStep]);
@@ -1202,10 +1278,30 @@ function skippedSteps(steps) {
   return [...reasons].map(([reason, names]) => `Skipped (${names.join(", ")}): ${reason}`);
 }
 
+/** The step that failed and why, or null when none did. */
+function failureOfRun(steps) {
+  const step = steps.find((entry) => entry.status === "failed");
+  if (!step) return null;
+  return { step: step.id, name: step.name, reason: step.detail, faucet: isFaucetFailure(step) };
+}
+
+const FAUCET_NOTE =
+  "The failing tool's answer names the faucet: the wallet that signs could not be funded. " +
+  "On Fuji the server funds its test wallet from the shared, rate-limited AvaKit faucet, and " +
+  "this is what a run looks like when that faucet refuses or is empty. It was not asked again: " +
+  "a second request would draw on the same faucet. By itself it does not mean a package is broken.";
+
 function notes(options, steps) {
-  const lines = skippedSteps(steps);
+  const lines = failureOfRun(steps)?.faucet ? [FAUCET_NOTE] : [];
+  lines.push(...skippedSteps(steps));
   if (options.skipChain) {
     lines.push("The on-chain half was not run (--skip-chain): nothing was deployed or minted.");
+  } else if (failureOfRun(steps) && !state.chain?.mintTxHash) {
+    lines.push(
+      state.chain?.contractAddress
+        ? "The run stopped after the deploy: a contract is on chain, and no token was minted."
+        : "The run stopped before anything was deployed: there is no contract and no token.",
+    );
   }
   for (const note of state.chain?.notes ?? []) lines.push(`From the server: ${note}`);
   if (state.chain?.signer?.source === "env" || state.chain?.deployer?.source === "env") {
@@ -1224,6 +1320,11 @@ function printSummary(options, steps, result) {
   say(`  ${"Step".padEnd(width)}  Result   Seconds`);
   for (const step of steps) {
     say(`  ${step.name.padEnd(width)}  ${step.status.padEnd(7)}  ${seconds(step.ms).padStart(7)}`);
+  }
+  const failure = failureOfRun(steps);
+  if (failure) {
+    say();
+    say(`  Failed at "${failure.name}": ${failure.reason}`);
   }
   if (packagesLine()) {
     say();
@@ -1247,6 +1348,9 @@ function printSummary(options, steps, result) {
 function summaryJson(options, steps, result) {
   return {
     ok: result.ok,
+    // Null for a run that passed. `faucet` is true when the step that failed
+    // was one that signs and its tool's answer names the faucet.
+    failure: failureOfRun(steps),
     source: options.source,
     requestedVersion: options.version ?? null,
     skipChain: options.skipChain,
@@ -1275,6 +1379,13 @@ function summaryMarkdown(options, steps, result) {
       ? `[\`${value}\`](${url})`
       : `\`${value}\``;
   const lines = [`### ${cell(headline(options, steps, result))}`, ""];
+  // Why it failed comes first and in full view, not folded away below the table.
+  const failure = failureOfRun(steps);
+  if (failure) {
+    lines.push(`**Failed at "${cell(failure.name)}":** ${cell(failure.reason)}`, "");
+    if (failure.faucet) lines.push(`> ${cell(FAUCET_NOTE)}`, "");
+  }
+  const remarks = notes(options, steps).filter((note) => note !== FAUCET_NOTE);
   lines.push("| Step | Result | Seconds | Detail |", "| --- | --- | ---: | --- |");
   for (const step of steps) {
     lines.push(
@@ -1289,7 +1400,7 @@ function summaryMarkdown(options, steps, result) {
       lines.push(`| ${label} | ${linked(value, url)}${cell(remark)} |`);
     }
   }
-  for (const note of notes(options, steps)) lines.push("", cell(note));
+  for (const note of remarks) lines.push("", cell(note));
   const failed = steps.find((step) => step.status === "failed");
   if (failed?.output) {
     lines.push(
@@ -1323,6 +1434,14 @@ async function main() {
     process.stdout.write(USAGE);
     return 0;
   }
+
+  // Output piped into something that stops reading (`| head`) must not crash the
+  // run half-way, with children still going.
+  process.stdout.on("error", () => {});
+  // Whatever ends this process, no child outlives it.
+  process.on("exit", () => {
+    for (const child of running) stop(child, "SIGKILL");
+  });
 
   const startedAt = new Date().toISOString();
   const started = performance.now();
@@ -1411,17 +1530,21 @@ async function main() {
   if (failed) {
     say();
     say(`---- raw output of the failing step, "${failed.name}" ----`);
-    // Indented, so that no line of it can pass for a GitHub workflow command.
+    // Behind a bar, so that no line of it can pass for a GitHub workflow
+    // command: the runner looks for "::" after any leading spaces.
     for (const line of (failed.output.trimEnd() || "(it printed nothing)").split("\n")) {
-      say(`    ${line}`);
+      say(`    | ${line}`);
     }
     if (noise.length > 0) {
       say("---- lines on the server's stdout that were not JSON-RPC ----");
-      for (const line of noise) say(`    ${line}`);
+      for (const line of noise) say(`    | ${line}`);
     }
     say("---- end ----");
     if (IN_ACTIONS) {
-      say(`::error title=AvaKit end to end::${failed.name}: ${oneLine(failed.detail, 300)}`);
+      const title = isFaucetFailure(failed)
+        ? "AvaKit end to end - the faucet did not fund the test wallet"
+        : "AvaKit end to end";
+      say(`::error title=${title}::${failed.name}: ${oneLine(failed.detail, 300)}`);
     }
   } else if (noise.length > 0) {
     state.warnings.push(
@@ -1472,13 +1595,47 @@ async function main() {
   return 0;
 }
 
-main().then(
-  (code) => {
-    // Let everything printed leave the pipe before the process ends.
-    process.stdout.write("", () => process.stderr.write("", () => process.exit(code)));
-  },
-  (error) => {
-    process.stderr.write(`${redact(error?.stack ?? String(error))}\n`);
-    process.exit(1);
-  },
-);
+/** Whether `node` was started on this file, as opposed to the file being imported. */
+function isEntryPoint() {
+  if (typeof import.meta.main === "boolean") return import.meta.main;
+  // Node.js before 22.18 and 24.2 does not say. The file it was started on is
+  // this one when both names lead to the same file.
+  const started = process.argv[1];
+  if (!started) return false;
+  try {
+    return realpathSync.native(started) === realpathSync.native(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
+  main().then(
+    (code) => {
+      // Let everything printed leave the pipe before the process ends.
+      process.stdout.write("", () => process.stderr.write("", () => process.exit(code)));
+    },
+    (error) => {
+      process.stderr.write(`${redact(error?.stack ?? String(error))}\n`);
+      process.exit(1);
+    },
+  );
+}
+
+// For scripts/e2e-fuji.test.mjs. Nothing here starts a run.
+export {
+  artifactPaths,
+  FAUCET_NOTE,
+  isFaucetFailure,
+  lineSplitter,
+  McpClient,
+  missingTools,
+  parseArgs,
+  publishedVersions,
+  REQUIRED_TOOLS,
+  StepError,
+  satisfies,
+  siblingUrl,
+  spawnNode,
+  UsageError,
+};
