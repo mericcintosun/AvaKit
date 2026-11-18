@@ -8,10 +8,12 @@ compatibility_flags = ["nodejs_compat"]
 # What a drip has to pay for: avakit.dev/new deploys the nft-mint template's
 # contract and mints from it, 1,826,568 gas in all (deploy 1,714,358 + mint
 # 112,210). 0.02 AVAX covers that while the fee per gas stays under about
-# 10.9 nAVAX (0.02 AVAX / 1,826,568 gas). Fuji's fee is dynamic and its minimum
-# is far below that today, but this is not a worst-case amount: at the 25 nAVAX
-# the base fee used to sit at, the same two transactions cost about 0.046 AVAX
-# and a drip would not even pay for the deploy. Measure again when that contract
+# 10.9 nAVAX (0.02 AVAX / 1,826,568 gas) — a little less in practice, because a
+# wallet must hold gas × maxFeePerGas before it can send, and viem asks for 1.2
+# times the base fee plus the tip. Fuji's fee is dynamic and its minimum is far
+# below that today, but this is not a worst-case amount: at the 25 nAVAX the
+# base fee used to sit at, the same two transactions cost about 0.046 AVAX and a
+# drip would not even pay for the deploy. Measure again when that contract
 # changes. Note the real cost per visitor is the *drip*, not the gas — the
 # remainder is stranded in a throwaway wallet forever.
 FAUCET_DRIP_AVAX = "0.02"
