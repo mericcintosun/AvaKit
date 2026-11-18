@@ -206,6 +206,17 @@ afterEach(() => {
   vi.mocked(getBalance).mockReset();
 });
 
+describe("useFaucet outside the provider", () => {
+  it("says what is missing", () => {
+    // Silence the React error boundary console noise for this expected throw.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => renderHook(() => useFaucet())).toThrow(/within <AvaKitProvider>/);
+
+    spy.mockRestore();
+  });
+});
+
 describe("automatic funding of a burner wallet", () => {
   it("funds a burner that connects with an empty balance, and shows it through useFaucet", async () => {
     const faucet = stubPendingFaucet();
