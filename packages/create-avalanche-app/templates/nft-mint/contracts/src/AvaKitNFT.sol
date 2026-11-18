@@ -186,12 +186,13 @@ contract AvaKitNFT {
             _type(tokenId, accent, paletteName, _network())
         );
 
+        // The description says only what is true of every deployment of this
+        // contract: nothing about where a token was minted or what it cost.
         return string.concat(
             'data:application/json;utf8,{"name":"AvaKit %23',
             _pad3(tokenId),
-            '","description":"Minted in about a minute at avakit.dev/new - no install, ',
-            'no signup, no seed phrase, no gas. The art is generated on-chain from this ',
-            'token, by the contract you deployed.",',
+            '","description":"Generated on-chain by the AvaKitNFT contract. ',
+            'The art is derived from the token and never changes.",',
             '"attributes":[{"trait_type":"Palette","value":"',
             paletteName,
             '"}],"image":"data:image/svg+xml;utf8,',

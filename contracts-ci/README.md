@@ -29,7 +29,8 @@ node --test scripts/guards.test.mjs  # the two scripts above still catch what th
   above the first table.
 - **`test/`** covers mint/transfer/allowance for the token; mint, the ERC-721
   transfer and approval surface and the on-chain `tokenURI` (unchanged by
-  transfers, labelled with the chain it is on) for the NFT; and send/receive
+  transfers, labelled with the chain it is on, described without a URL or a
+  claim about what minting cost) for the NFT; and send/receive
   for the ICM messenger: the Teleporter caller check, the trusted-remote
   allowlist, the message length cap and the gas a delivery has to fit in.
 - **`test/TestBase.sol`** inlines the few Foundry cheatcodes the tests need

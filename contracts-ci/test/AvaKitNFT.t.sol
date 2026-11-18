@@ -417,7 +417,97 @@ contract AvaKitNFTTest is TestBase {
         assertTrue(!_contains(nft.tokenURI(id), "FUJI"), "no Fuji claim on an L1");
     }
 
+    function test_DescriptionIsTrueWhereverTheContractIsDeployed() public {
+        // Both templates ship this contract, so the text ends up in wallets
+        // and explorers for every app scaffolded from them. It can only say
+        // what holds for all of them: nothing about a website the token was
+        // minted on, and nothing about what minting it cost.
+        vm.prank(ALICE);
+        string memory description = _description(nft.tokenURI(nft.mint()));
+        assertTrue(bytes(description).length > 0, "a description");
+
+        assertTrue(!_contains(description, "/"), "no URL: a slash");
+        assertTrue(!_contains(description, "www"), "no URL: www");
+        assertTrue(!_hasDotInsideAWord(description), "no URL: a domain name");
+
+        string[10] memory claims = [
+            "gas",
+            "free",
+            "fee",
+            "cost",
+            "price",
+            "pay",
+            "install",
+            "signup",
+            "seed phrase",
+            "minute"
+        ];
+        string memory lowered = _lower(description);
+        for (uint256 i = 0; i < claims.length; i++) {
+            assertTrue(
+                !_contains(lowered, claims[i]),
+                string.concat("no claim about cost or setup: ", claims[i])
+            );
+        }
+    }
+
     // ---- helpers ----
+
+    /// @dev The `description` of the metadata JSON in a tokenURI: what sits
+    ///      between `"description":"` and the next double quote.
+    function _description(
+        string memory uri
+    ) private pure returns (string memory) {
+        bytes memory u = bytes(uri);
+        bytes memory key = bytes('"description":"');
+        for (uint256 i = 0; i + key.length <= u.length; i++) {
+            bool found = true;
+            for (uint256 j = 0; j < key.length; j++) {
+                if (u[i + j] != key[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (!found) continue;
+
+            uint256 start = i + key.length;
+            uint256 end = start;
+            while (end < u.length && u[end] != '"') end++;
+            bytes memory value = new bytes(end - start);
+            for (uint256 k = 0; k < value.length; k++) value[k] = u[start + k];
+            return string(value);
+        }
+        revert("no description in the tokenURI");
+    }
+
+    /// @dev A dot with a letter or digit straight after it, as in a domain
+    ///      name. The dot that ends a sentence has a space or nothing after it.
+    function _hasDotInsideAWord(string memory str) private pure returns (bool) {
+        bytes memory s = bytes(str);
+        for (uint256 i = 0; i + 1 < s.length; i++) {
+            if (s[i] != ".") continue;
+            bytes1 next = s[i + 1];
+            if (
+                (next >= "a" && next <= "z") ||
+                (next >= "A" && next <= "Z") ||
+                (next >= "0" && next <= "9")
+            ) return true;
+        }
+        return false;
+    }
+
+    /// @dev ASCII lower-case, so a claim is found however it is capitalised.
+    function _lower(string memory str) private pure returns (string memory) {
+        bytes memory s = bytes(str);
+        bytes memory lowered = new bytes(s.length);
+        for (uint256 i = 0; i < s.length; i++) {
+            bytes1 char = s[i];
+            lowered[i] = (char >= "A" && char <= "Z")
+                ? bytes1(uint8(char) + 32)
+                : char;
+        }
+        return string(lowered);
+    }
 
     function _contains(
         string memory haystack,
