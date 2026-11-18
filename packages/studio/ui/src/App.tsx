@@ -1,12 +1,13 @@
 import { Moon, Sun } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { ApiError, api, type DevnetStatus, type IcmState, type Inventory } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, type DevnetStatus, type IcmState, type Inventory } from "./api";
 import { BootSplash } from "./components/BootSplash";
 import { Sidebar, type View } from "./components/Sidebar";
 import { useToast } from "./components/toast";
 import { Dot } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { useFujiWizard } from "./hooks/useFujiWizard";
+import { type Connection, connectionAfterFailure, connectionLabel } from "./lib/connection";
 import { countPeers } from "./lib/interchain";
 import { finishNotice, runHome, runLabel } from "./lib/run-messages";
 import { useRunStatus } from "./run";
@@ -63,8 +64,8 @@ export function App() {
   const [env, setEnv] = useState<Inventory | null>(null);
   const [status, setStatus] = useState<DevnetStatus | null>(null);
   const [icm, setIcm] = useState<IcmState | null>(null);
-  const [online, setOnline] = useState<boolean | null>(null);
-  const [staleToken, setStaleToken] = useState(false);
+  const [connection, setConnection] = useState<Connection>("connecting");
+  const envLoaded = useRef(false);
   const [view, setView] = useState<View>("overview");
 
   // State that must outlive a view lives here, above the view switch: the
@@ -72,26 +73,27 @@ export function App() {
   const { run, busy, lost, onFinished } = useRunStatus();
   const wizard = useFujiWizard(run, view === "fuji");
 
+  // Every poll decides the connection state afresh — not just the first one —
+  // so a Studio that was stopped (or restarted, with a new session token) shows
+  // as such within one poll interval instead of "connected" until a click fails.
   const refreshStatus = useCallback(async () => {
     try {
       setStatus(await api<DevnetStatus>("/api/devnet/status"));
-    } catch {
-      /* keep last */
+      setConnection("online");
+      // The environment does not change while Studio runs: read once, and
+      // again only if that first read failed.
+      if (!envLoaded.current) {
+        setEnv(await api<Inventory>("/api/env"));
+        envLoaded.current = true;
+      }
+    } catch (e) {
+      // The last status is kept, but no longer shown as current (see below).
+      setConnection(connectionAfterFailure(e));
     }
   }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        await api("/api/health");
-        setEnv(await api<Inventory>("/api/env"));
-        await refreshStatus();
-        setOnline(true);
-      } catch (e) {
-        setOnline(false);
-        setStaleToken(e instanceof ApiError && e.status === 401);
-      }
-    })();
+    void refreshStatus();
     const timer = setInterval(() => void refreshStatus(), 5000);
     return () => clearInterval(timer);
   }, [refreshStatus]);
@@ -145,6 +147,8 @@ export function App() {
   }, [lost, toast]);
 
   const hasCli = env?.tools.some((t) => t.name === "avalanche-cli" && t.installed) ?? false;
+  // Stopped, or restarted with another session token: nothing on screen is current.
+  const disconnected = connection === "offline" || connection === "stale-token";
   const meta = TITLES[view];
 
   return (
@@ -152,7 +156,12 @@ export function App() {
       {/* One-shot terminal boot splash — overlays the dashboard, which mounts
           underneath and is revealed when the splash fades. */}
       <BootSplash />
-      <Sidebar active={view} onNavigate={setView} network={status?.running ?? null} />
+      <Sidebar
+        active={view}
+        onNavigate={setView}
+        // What a Studio that no longer answers last said is not the network's state.
+        network={disconnected ? null : (status?.running ?? null)}
+      />
 
       <main className="ml-60 min-h-dvh">
         <header className="bg-background/80 sticky top-0 z-10 flex items-center justify-between border-b px-8 py-4 backdrop-blur">
@@ -174,9 +183,9 @@ export function App() {
             )}
             <span className="text-muted-foreground flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs">
               <span
-                className={`size-1.5 rounded-full ${online ? "bg-foreground" : "bg-muted-foreground/40"}`}
+                className={`size-1.5 rounded-full ${connection === "online" ? "bg-foreground" : "bg-muted-foreground/40"}`}
               />
-              {online === null ? "connecting" : online ? "connected" : "offline"}
+              {connectionLabel(connection)}
             </span>
             <Button variant="outline" size="icon" aria-label="Toggle theme" onClick={toggle}>
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
@@ -185,8 +194,8 @@ export function App() {
         </header>
 
         <div className="px-8 py-8">
-          {online === false ? (
-            staleToken ? (
+          {disconnected ? (
+            connection === "stale-token" ? (
               <div className="flex flex-col items-start gap-3">
                 <p className="text-muted-foreground text-sm">
                   Studio didn't recognize this tab's session token — the server was likely restarted
