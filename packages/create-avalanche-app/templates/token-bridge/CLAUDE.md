@@ -13,6 +13,20 @@ registered automatically.
 
 Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem · shadcn/ui · avalanche-cli (local devnet) · ava-labs/icm-contracts (ICTT)
 
+## Tooling status
+
+- The local network is driven by **Avalanche CLI** (`avalanche`, ava-labs/avalanche-cli). Ava Labs
+  put it in maintenance mode in December 2025 and removed its pages from the Avalanche
+  documentation on 2026-10-06 in favour of Platform CLI.
+- Last proven end to end: July 2026, with Avalanche CLI 1.9.6. `scripts/bridge.sh` and
+  `scripts/deploy-bridge.mjs` have been changed since then, and the changed versions have not been
+  through a full run on a live network yet.
+- Migration to the supported toolchain is planned work, not done. Until then do not replace the
+  `avalanche …` commands with another tool's: the scripts parse what
+  `avalanche blockchain describe` prints (the RPC URLs, the hex blockchain IDs and the EWOQ
+  row). If a step fails, compare `avalanche --version` with 1.9.6 first and show the user what
+  the CLI printed.
+
 ## How ICTT works here
 
 - **ERC20TokenHome** (on chain1) holds the real ERC-20. When you bridge, it **locks** your tokens and
@@ -31,8 +45,13 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   artifacts + the public EWOQ dev key, which it reads from `avalanche blockchain describe` at run
   time (the key is not stored in this repo; `BRIDGE_DEPLOYER_KEY=0x…` deploys with another key
   that is funded on both chains). Writes all addresses to `bridge.config.json`.
-- `lib/ictt-artifacts.json` — ABIs + bytecode for TeleporterRegistry, ERC20TokenHome,
-  ERC20TokenRemote, and the demo ERC-20, compiled from `ava-labs/icm-contracts` with the optimizer.
+- `lib/ictt-artifacts.json` — ABIs + bytecode for TeleporterRegistry, ERC20TokenHome and
+  ERC20TokenRemote, compiled from `ava-labs/icm-contracts` with the optimizer, plus the demo ERC-20
+  (`DemoToken`). The demo ERC-20 is **not** from icm-contracts: it is AvaKit's own `AvaKitToken`,
+  the contract the `erc20-token` template ships (on-chain name "AvaKit Token", symbol `AKT`, 18
+  decimals, a public `mint()` that gives the caller 100 tokens). The UI labels it with chain1's
+  token name from `bridge.config.json` (`TOK1`), which is also what the bridged token's symbol
+  (`TOK1.b`) is built from.
 - `lib/ictt.ts` — turns `bridge.config.json` into AvaKit chains + the addresses/ABIs the app uses.
 - `components/demo.tsx` — the bridge UI: balances on both chains, mint, and bridge in either direction.
 
@@ -53,14 +72,21 @@ hex — NOT the EVM chainId — via `blockchainIdOf(chain)` in `lib/ictt.ts`.
 
 ## Editing / regenerating the contracts
 
-The bundled artifacts are compiled from `ava-labs/icm-contracts` (`contracts/ictt`, non-upgradeable
-variants, tag v1.0.9) with **solc 0.8.25, optimizer runs 200, and `evmVersion: cancun`** — the
-optimizer keeps ERC20TokenHome/Remote under the 24 KB EVM code-size limit, and Cancun is required
-because the compiled code uses the `MCOPY` opcode (building for Shanghai changes the bytecode).
-To regenerate, compile those contracts with those exact settings (Hardhat or solc standard-JSON)
-and replace the `abi`/`bytecode` in `lib/ictt-artifacts.json`. (Note: `avalanche interchain
-tokenTransferrer deploy` can also deploy an ICTT bridge, but it requires a specific pinned Foundry
-build to compile under the size limit — this template ships pre-compiled bytecode to avoid that.)
+The three bridge artifacts (TeleporterRegistry, ERC20TokenHome, ERC20TokenRemote) are compiled from
+`ava-labs/icm-contracts` (`contracts/ictt`, non-upgradeable variants, tag v1.0.9) with **solc
+0.8.25, optimizer runs 200, and `evmVersion: cancun`** — the optimizer keeps ERC20TokenHome/Remote
+under the 24 KB EVM code-size limit, and Cancun is required because the compiled code uses the
+`MCOPY` opcode (building for Shanghai changes the bytecode). To regenerate, compile those contracts
+with those exact settings (Hardhat or solc standard-JSON) and replace the `abi`/`bytecode` in
+`lib/ictt-artifacts.json`. (Note: `avalanche interchain tokenTransferrer deploy` can also deploy an
+ICTT bridge, but it requires a specific pinned Foundry build to compile under the size limit — this
+template ships pre-compiled bytecode to avoid that.)
+
+`DemoToken` is built separately, from `AvaKitToken.sol` in the AvaKit repository
+(`packages/create-avalanche-app/templates/erc20-token/contracts/src/`), with solc 0.8.28. Its
+source is not in this template. `scripts/deploy-bridge.mjs` deploys it with no constructor
+arguments and then calls its `mint()`, and the UI's **Mint** button calls `mint()` too, so a token
+you put in its place must offer both, or the script and the UI must change with it.
 
 ## Rules
 

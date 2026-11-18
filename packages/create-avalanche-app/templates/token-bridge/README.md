@@ -22,6 +22,20 @@ Then: import the printed EWOQ dev key into your wallet (pre-funded on both chain
 **Mint** the demo token on br1 → **Bridge to br2** → watch the bridged token (`TOK1.b`) arrive.
 Swap direction to bridge it back.
 
+## Tooling status
+
+`pnpm bridge` (`scripts/bridge.sh`, `scripts/deploy-bridge.mjs`) drives **Avalanche CLI** (the
+`avalanche` command, from [ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli)). What to know
+before you rely on it:
+
+- Ava Labs put Avalanche CLI in maintenance mode in December 2025, and on 2026-10-06 removed its
+  pages from the Avalanche documentation in favour of Platform CLI.
+- This template was last proven end to end in July 2026, with Avalanche CLI 1.9.6 (check yours
+  with `avalanche --version`). Both scripts have been changed since then, and the changed versions
+  have not been through a full run on a live network yet. They read what
+  `avalanche blockchain describe` prints, so another CLI version may need adjustments.
+- Moving this template to the supported toolchain is planned work and is not done yet.
+
 ## Reset the devnet
 
 ```bash
@@ -40,6 +54,8 @@ CLEAN=1 pnpm bridge        # wipe + rebuild in one step (use if a stale network 
 
 The bridge contracts are compiled from [ava-labs/icm-contracts](https://github.com/ava-labs/icm-contracts)
 and bundled as bytecode, so `pnpm bridge` deploys them with no Solidity toolchain on your machine.
+The demo ERC-20 it deploys next to them is AvaKit's own `AvaKitToken` (the `erc20-token`
+template's contract), bundled the same way.
 
 ## Stack
 

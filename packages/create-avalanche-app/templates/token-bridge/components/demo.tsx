@@ -288,15 +288,16 @@ function SetupPanel() {
       <p className="text-muted-foreground text-xs">
         Needs{" "}
         <a
-          href="https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli"
+          href="https://github.com/ava-labs/avalanche-cli"
           target="_blank"
           rel="noreferrer"
           className="underline underline-offset-4"
         >
           avalanche-cli
-        </a>
-        . When it finishes it writes <span className="font-mono">bridge.config.json</span> and this
-        page becomes the bridge automatically.
+        </a>{" "}
+        (see “Tooling status” in the README). When it finishes it writes{" "}
+        <span className="font-mono">bridge.config.json</span> and this page becomes the bridge
+        automatically.
       </p>
     </div>
   );

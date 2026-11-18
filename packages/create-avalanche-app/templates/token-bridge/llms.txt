@@ -6,7 +6,7 @@
 
 - [scripts/bridge.sh](scripts/bridge.sh): `pnpm bridge` — 2 L1s + relayer, then deploy the bridge.
 - [scripts/deploy-bridge.mjs](scripts/deploy-bridge.mjs): deploys demo ERC-20 + Home + Remote + registers them (viem + embedded artifacts + the EWOQ dev key, read from `avalanche blockchain describe` at run time — it is not stored in the repo; `BRIDGE_DEPLOYER_KEY` overrides it); writes bridge.config.json.
-- [lib/ictt-artifacts.json](lib/ictt-artifacts.json): ABIs + optimized bytecode for TeleporterRegistry, ERC20TokenHome, ERC20TokenRemote, demo ERC-20 (from ava-labs/icm-contracts).
+- [lib/ictt-artifacts.json](lib/ictt-artifacts.json): ABIs + optimized bytecode for TeleporterRegistry, ERC20TokenHome and ERC20TokenRemote (from ava-labs/icm-contracts), plus the demo ERC-20 (`DemoToken`: AvaKit's own `AvaKitToken`, the `erc20-token` template's contract — not from icm-contracts).
 - [lib/ictt.ts](lib/ictt.ts): bridge.config.json → AvaKit chains + addresses + ABIs; `blockchainIdOf`, `isConfigured`.
 - [components/demo.tsx](components/demo.tsx): the bridge UI — balances, mint, bridge in either direction.
 - [CLAUDE.md](CLAUDE.md): agent guide — how ICTT works (lock/mint/burn/unlock), SendTokensInput, regeneration.
@@ -22,4 +22,4 @@
 
 - ICTT contracts: https://github.com/ava-labs/icm-contracts (contracts/ictt)
 - ICTT overview: https://build.avax.network/docs/avalanche-l1s/interchain-token-transfer
-- avalanche-cli: https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli
+- Avalanche CLI (https://github.com/ava-labs/avalanche-cli) drives the local network. It has been in maintenance mode since December 2025; this template was last proven end to end with 1.9.6 in July 2026 (see "Tooling status" in README.md).
