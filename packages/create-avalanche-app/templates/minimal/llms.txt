@@ -4,7 +4,7 @@
 
 ## Project map
 
-- [app/providers.tsx](app/providers.tsx): AvaKitProvider (chains + wallet adapters) and theme provider.
+- [app/providers.tsx](app/providers.tsx): AvaKitProvider (chains + wallet adapters) and theme provider. The chain is `__CHAIN_CONST__` (`fuji` = Fuji testnet, `cChain` = C-Chain mainnet) and the wallet setup follows it: on a testnet a temporary burner wallet plus social login on a bundled demo key; on mainnet no burner, and social login only with your own Sapphire Mainnet `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID`.
 - [app/layout.tsx](app/layout.tsx): root layout and fonts.
 - [app/page.tsx](app/page.tsx): renders the demo.
 - [components/demo.tsx](components/demo.tsx): connect wallet, read balance, send a transaction.
@@ -19,8 +19,8 @@
 
 ## Key APIs (@avakit/core)
 
-- `fuji`, `cChain`, `defineChain` from `@avakit/core/chains`
-- `injectedAdapter()`, `web3authAdapter({ clientId })` (from `@avakit/core/web3auth`)
+- `fuji`, `cChain`, `defineChain` from `@avakit/core/chains`; `isMainnet(chain)`
+- `injectedAdapter()`, `burnerAdapter({ chain })` (testnet-only), `web3authAdapter({ clientId, chains, network })` (from `@avakit/core/web3auth`; `network` is `"sapphire_devnet"` or `"sapphire_mainnet"`)
 - `getPublicClient`, `getWalletClient`, `ensureChain`, `deployContract`, `getBalance`, `readContract`
 
 ## External docs

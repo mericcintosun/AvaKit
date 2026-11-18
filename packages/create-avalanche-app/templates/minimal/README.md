@@ -5,17 +5,19 @@ An Avalanche dapp scaffolded with [AvaKit](https://github.com/mericcintosun/AvaK
 ## Getting started
 
 ```bash
-# 1. (social login, optional) add a free Web3Auth client ID
+# 1. (social login, optional) add your own Web3Auth client ID
 cp .env.example .env.local
-#    → get one at https://dashboard.web3auth.io (Sapphire Devnet, EVM)
+#    → create a project at https://dashboard.web3auth.io (EVM): on Sapphire Devnet
+#      for a testnet app, on Sapphire Mainnet for a mainnet app (see .env.example)
 
 # 2. run it
 pnpm dev    # http://localhost:3000 (or the port Next prints)
 ```
 
-Then connect a wallet (social login or Core / MetaMask), read your balance, and send a first transaction on Avalanche Fuji.
+Then connect a wallet, read your balance, and send a first transaction on the chain this app was scaffolded for: `__CHAIN_CONST__` in `app/providers.tsx` (`fuji` is the Avalanche Fuji testnet, `cChain` is Avalanche C-Chain mainnet).
 
-> Need test AVAX? Use the in-app faucet link or https://core.app/tools/testnet-faucet.
+- **On Fuji** you can start instantly with a temporary in-browser wallet, use social login (it works out of the box on localhost through a bundled demo key), or connect Core / MetaMask. Need test AVAX? Use the in-app faucet link or https://core.app/tools/testnet-faucet.
+- **On C-Chain mainnet** every transaction costs real AVAX and there is no faucet. The temporary wallet is not offered, and social login stays disabled until you set your own Sapphire Mainnet client ID in `.env.local` — connect Core / MetaMask, or add that client ID.
 
 ## Stack
 
