@@ -19,6 +19,26 @@ const nextConfig: NextConfig = {
     // delivered at 75.
     qualities: [75, 95],
   },
+  // Baseline response headers for every route. Deliberately no
+  // Content-Security-Policy yet: the theme script and the JSON-LD block are
+  // inline, so a CSP needs nonces and its own rollout.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // Never guess a script or stylesheet type from its bytes.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Other origins learn where a visitor came from, not which page.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // /new signs transactions with one click, so no other site may frame it.
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          // The site uses none of these.
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
 };
 
 export default withNextIntl(nextConfig);
