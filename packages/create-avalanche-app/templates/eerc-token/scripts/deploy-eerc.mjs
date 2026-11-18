@@ -15,7 +15,7 @@
 // config reads it from process.env).
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,14 +51,62 @@ function run(cmd, args, opts = {}) {
   execFileSync(cmd, args, { stdio: "inherit", shell: cmd !== "git" && shell, ...opts });
 }
 
+// The commit `dir` is checked out at, or null when it is not the top of a git
+// checkout. (`--show-prefix` is empty only at the top of a work tree, so a plain
+// directory that happens to sit inside some other repository does not count.)
+function checkedOutCommit(dir) {
+  try {
+    const [prefix, head] = execFileSync("git", ["-C", dir, "rev-parse", "--show-prefix", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).split(/\r?\n/);
+    return prefix === "" ? head.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 // [1/4] Clone the official repo, pinned (cached per commit, reused on re-runs).
-if (existsSync(join(cacheDir, "package.json"))) {
+// The cache is trusted only while it is checked out at exactly the pinned
+// commit. A directory that merely looks like a clone is not enough: if an
+// earlier checkout failed or was interrupted, it sits on the default branch,
+// and contracts built from there need not match the pinned circuits — every
+// proof would then revert on the instance this script deploys.
+if (checkedOutCommit(cacheDir) === COMMIT) {
   console.log(`\n[1/4] Using cached clone: ${cacheDir}`);
 } else {
-  console.log(`\n[1/4] Cloning ava-labs/EncryptedERC @ ${COMMIT.slice(0, 12)}…`);
+  console.log(
+    existsSync(cacheDir)
+      ? `\n[1/4] The cached clone is not at the pinned commit — replacing it (${cacheDir})…`
+      : `\n[1/4] Cloning ava-labs/EncryptedERC @ ${COMMIT.slice(0, 12)}…`,
+  );
+  // Clone and check out in a staging directory and move it into place only
+  // once it is at the pinned commit, so an interrupted or failed run can never
+  // leave a cache behind that a later run would mistake for the pinned one.
+  const staging = `${cacheDir}.partial`;
+  rmSync(staging, { recursive: true, force: true });
   mkdirSync(dirname(cacheDir), { recursive: true });
-  run("git", ["clone", REPO, cacheDir]);
-  run("git", ["-C", cacheDir, "checkout", COMMIT]);
+  try {
+    run("git", ["clone", REPO, staging]);
+    run("git", ["-C", staging, "checkout", COMMIT]);
+  } catch {
+    rmSync(staging, { recursive: true, force: true });
+    console.error(
+      `\nCould not fetch ava-labs/EncryptedERC at the pinned commit ${COMMIT}.\n` +
+        "Check your network connection and that git is installed, then run this again.\n" +
+        "Nothing was deployed.",
+    );
+    process.exit(1);
+  }
+  if (checkedOutCommit(staging) !== COMMIT) {
+    rmSync(staging, { recursive: true, force: true });
+    console.error(
+      `\nThe clone did not end up at the pinned commit ${COMMIT}. Nothing was deployed.`,
+    );
+    process.exit(1);
+  }
+  rmSync(cacheDir, { recursive: true, force: true });
+  renameSync(staging, cacheDir);
 }
 
 // [2/4] Install + compile. Circuits are pre-built in the repo (circom/build),

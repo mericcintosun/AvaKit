@@ -93,7 +93,9 @@ DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc
 
 Use a throwaway key funded with Fuji test AVAX. The script clones the official
 `ava-labs/EncryptedERC` repo into `~/.avakit/` — **pinned to the same commit the circuit CDN URLs
-use**, so contracts and circuits can never drift apart — compiles it, deploys verifiers +
+use**, so contracts and circuits can never drift apart (the cached clone is reused only while
+`git rev-parse HEAD` in it equals that commit; anything else is replaced with a fresh clone, and a
+checkout that fails leaves no cache behind) — compiles it, deploys verifiers +
 Registrar + standalone `EncryptedERC` to Fuji, and rewrites `EERC_CONTRACT_ADDRESS` in
 `lib/eerc-config.ts` to your new instance. The key is read from the environment at hardhat
 runtime; it is never written to disk or passed on a command line. (The contracts are not vendored
