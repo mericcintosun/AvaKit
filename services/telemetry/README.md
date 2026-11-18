@@ -54,6 +54,28 @@ AVAKIT_TELEMETRY_URL=http://localhost:8787/e npx create-avalanche-app demo -y --
 curl http://localhost:8787/stats
 ```
 
+## Tests
+
+```bash
+npm install
+npm test
+```
+
+Needs Node 22.15 or newer. `test/worker.test.mjs` loads the Worker in plain Node
+(with a stand-in for `cloudflare:workers` and an in-memory SQLite database) so
+it can move the clock and look inside the storage; `test/workerd.test.mjs` runs
+the same Worker in local `workerd` straight from `wrangler.toml`. Neither
+touches a network.
+
+## Adding a template
+
+`template` is the one reported field that becomes a visible label on the stats
+page, so the collector accepts an exact list — `src/templates.js` — and files
+everything else under `"other"`. When `create-avalanche-app` gains a template,
+add its id to that list and deploy the collector. Until you do, its scaffolds
+are still counted, just as `"other"`; `npm test` fails while the list and
+`packages/create-avalanche-app/templates/` disagree.
+
 ## Changing the schema
 
 The tables are created with `CREATE TABLE IF NOT EXISTS`, which **does not
@@ -89,7 +111,7 @@ seconds after a delete the old Durable Object is still being torn down and
     "total": 0,        // every attempt
     "succeeded": 0,    // ok only
     "last30d": 0,      // ok only
-    "byTemplate": {},  // ok only, descending
+    "byTemplate": {},  // ok only, descending; keys are shipped template ids or "other"
     "byDay": []        // ok only, ascending; days with no scaffolds are absent
   },
   "failures": {},      // errorKind → count; tells our bug apart from user error
@@ -120,7 +142,10 @@ machine, and even that is hashed before it lands.
 
 Every field is normalised to a bounded enum on the way in (see `SHAPES` in
 `src/worker.js`); anything unrecognised becomes `"other"`, so a new template
-shipping doesn't stop counting and a hostile client can't invent unbounded rows.
+shipping doesn't stop counting and a hostile client can't invent unbounded rows
+or put a label of its own on the stats page. `/stats` applies the same list on
+the way out, so a label stored before `template` became an exact list is
+reported as `"other"` as well.
 
 ## Limits
 

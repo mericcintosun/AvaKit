@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { TEMPLATES } from "./templates.js";
 
 /**
  * AvaKit telemetry collector — a Cloudflare Worker that counts anonymous
@@ -35,11 +36,12 @@ const IP_DAILY_MAX = 60;
 /**
  * Bounds on what a client may report. Anything failing these becomes "other"
  * rather than being rejected — a new template shipping shouldn't stop counting,
- * but an attacker shouldn't be able to invent unbounded rows either. The per-IP
- * cap is what actually bounds cardinality; these keep the data readable.
+ * but an attacker shouldn't be able to invent rows, or labels, either. The
+ * per-IP cap is what actually bounds cardinality; these keep the data
+ * readable and, for `template`, keep it to names we chose (see templates.js).
  */
 const SHAPES = {
-  template: /^[a-z0-9][a-z0-9-]{0,31}$/,
+  template: new RegExp(`^(${TEMPLATES.join("|")})$`),
   wallet: /^(web3auth|injected|burner|coinbase)$/,
   chain: /^(fuji|c-chain)$/,
   pm: /^(pnpm|npm|yarn|bun)$/,
@@ -182,14 +184,21 @@ export class Counters extends DurableObject {
             .exec("SELECT COALESCE(SUM(n), 0) AS n FROM scaffolds WHERE ok = 1 AND day >= ?", since)
             .one().n,
         ),
+        // Only names we chose ever leave here. `template` is validated on the
+        // way in, but rows written before it was an exact list may hold any
+        // slug a caller cared to send, so those are folded into "other" too.
         byTemplate: Object.fromEntries(
           this.sql
             .exec(
-              `SELECT template, SUM(n) AS n FROM scaffolds WHERE ok = 1
-               GROUP BY template ORDER BY n DESC`,
+              `SELECT CASE WHEN template IN (${TEMPLATES.map(() => "?").join(", ")})
+                           THEN template ELSE 'other' END AS label,
+                      SUM(n) AS n
+               FROM scaffolds WHERE ok = 1
+               GROUP BY label ORDER BY n DESC`,
+              ...TEMPLATES,
             )
             .toArray()
-            .map((r) => [r.template, Number(r.n)]),
+            .map((r) => [r.label, Number(r.n)]),
         ),
         byDay: this.sql
           .exec(
