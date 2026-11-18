@@ -1,66 +1,37 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import http from "node:http";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type Collector, startCollector, TELEMETRY_OFF_SWITCHES } from "./testing/collector.js";
 import { takeBlockedRequests } from "./testing/no-network.js";
-
-/** Every variable that switches telemetry off; blanked so a test can switch it on. */
-const OFF_SWITCHES = [
-  "AVAKIT_TELEMETRY_DISABLED",
-  "DO_NOT_TRACK",
-  "CI",
-  "CONTINUOUS_INTEGRATION",
-  "GITHUB_ACTIONS",
-  "GITLAB_CI",
-  "CIRCLECI",
-  "TRAVIS",
-  "JENKINS_URL",
-  "BUILDKITE",
-  "TEAMCITY_VERSION",
-  "CODEBUILD_BUILD_ID",
-  "BUILD_NUMBER",
-];
 
 const EVENT = { template: "minimal", chain: "fuji", pm: "npm", ok: true } as const;
 
 let configDir: string;
-let server: http.Server;
+let collector: Collector;
 let received: Record<string, unknown>[];
 let endpoint: string;
 
 beforeEach(async () => {
   configDir = mkdtempSync(path.join(tmpdir(), "caa-telemetry-"));
-  received = [];
   // A collector on the loopback interface: nothing in this file leaves the machine.
-  server = http.createServer((request, response) => {
-    let body = "";
-    request.on("data", (chunk) => {
-      body += chunk;
-    });
-    request.on("end", () => {
-      received.push(JSON.parse(body) as Record<string, unknown>);
-      response.statusCode = 204;
-      response.end();
-    });
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  endpoint = `http://127.0.0.1:${(server.address() as AddressInfo).port}/e`;
+  collector = await startCollector();
+  ({ received, url: endpoint } = collector);
 });
 
 afterEach(async () => {
   vi.unstubAllEnvs();
-  await new Promise((resolve) => server.close(resolve));
+  await collector.close();
   rmSync(configDir, { recursive: true, force: true });
 });
 
 /**
- * Load a fresh copy of the module with telemetry switched on, pointed at `url`
- * (the endpoint is read once, when the module loads).
+ * Load a fresh copy of the module with telemetry switched on in this process's
+ * environment — the one a `Telemetry` reads unless it is handed another — and
+ * pointed at `url`.
  */
 async function load(url: string = endpoint, env: Record<string, string> = {}) {
-  for (const name of OFF_SWITCHES) vi.stubEnv(name, "");
+  for (const name of TELEMETRY_OFF_SWITCHES) vi.stubEnv(name, "");
   vi.stubEnv("AVAKIT_CONFIG_DIR", configDir);
   vi.stubEnv("AVAKIT_TELEMETRY_URL", url);
   for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
@@ -130,8 +101,7 @@ describe("Telemetry", () => {
 
   it("stays off, and sends nothing, for each documented off switch", async () => {
     const switches: Record<string, string>[] = [
-      { AVAKIT_TELEMETRY_DISABLED: "1" },
-      { DO_NOT_TRACK: "1" },
+      ...TELEMETRY_OFF_SWITCHES.map((name) => ({ [name]: "1" })),
       { CI: "true" },
     ];
     for (const env of switches) {
@@ -145,6 +115,29 @@ describe("Telemetry", () => {
     expect(received).toEqual([]);
     // Off by environment means the config file is not even created.
     expect(existsSync(configFile())).toBe(false);
+  });
+
+  it("is governed by the environment it is handed, not by the process's", async () => {
+    // Off in the process, on in the environment passed in — the way round the
+    // CLI's own tests run it, each with a collector and a config directory.
+    vi.stubEnv("AVAKIT_TELEMETRY_DISABLED", "1");
+    const { Telemetry } = await import("./telemetry.js");
+    const env = { AVAKIT_TELEMETRY_URL: endpoint, AVAKIT_CONFIG_DIR: configDir };
+    const on = new Telemetry({ cliVersion: "1.2.3", env });
+    expect(on.enabled).toBe(true);
+    on.record(EVENT);
+    await on.flush();
+    expect(received).toHaveLength(1);
+    // Its config file went where that environment says, too.
+    expect(readConfig().anonymousId).toBe(received[0]?.anonymousId);
+
+    // On in the process, off in the environment passed in.
+    const { Telemetry: Reloaded } = await load();
+    const off = new Reloaded({ cliVersion: "1.2.3", env: { ...env, DO_NOT_TRACK: "1" } });
+    expect(off.enabled).toBe(false);
+    off.record(EVENT);
+    await off.flush();
+    expect(received).toHaveLength(1);
   });
 
   it("persists --no-telemetry and --telemetry", async () => {
@@ -248,14 +241,12 @@ describe("Telemetry", () => {
     });
 
     it("does not reject when nothing is listening", async () => {
-      const { port } = server.address() as AddressInfo;
-      await new Promise((resolve) => server.close(resolve));
-      const { Telemetry } = await load(`http://127.0.0.1:${port}/e`);
+      // The collector's own address, once it has stopped listening there.
+      await collector.close();
+      const { Telemetry } = await load();
       const telemetry = new Telemetry({ cliVersion: "1.2.3" });
       telemetry.record(EVENT);
       await expect(telemetry.flush()).resolves.toBeUndefined();
-      // Listen again so afterEach has a server to close.
-      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     });
   });
 

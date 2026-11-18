@@ -9,9 +9,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { listTemplates } from "./api.js";
 import { projectNameProblem, run } from "./cli.js";
+import { type Collector, startCollector, TELEMETRY_OFF_SWITCHES } from "./testing/collector.js";
 import { canFakeBin, FAKE_BIN_TIMEOUT_MS, type FakeBin, fakeBin } from "./testing/fake-bin.js";
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI colour codes.
@@ -20,13 +21,27 @@ const ANSI = /\u001b\[[0-9;]*m/g;
 const PNPM_AGENT = "pnpm/10.20.0 npm/? node/v24.11.0 darwin arm64";
 
 let cwd: string;
+let configDir: string;
 
 beforeEach(() => {
   cwd = mkdtempSync(path.join(tmpdir(), "caa-cli-"));
+  configDir = mkdtempSync(path.join(tmpdir(), "caa-cli-config-"));
 });
-afterEach(() => rmSync(cwd, { recursive: true, force: true }));
+afterEach(() => {
+  rmSync(cwd, { recursive: true, force: true });
+  rmSync(configDir, { recursive: true, force: true });
+});
 
-/** Run the CLI in-process and collect what it printed. Non-interactive unless `tty`. */
+/**
+ * Run the CLI in-process and collect what it printed. Non-interactive unless `tty`.
+ *
+ * `run()` takes its telemetry settings from the environment it is handed, and
+ * every run here is handed one with telemetry off, aimed at this machine, and
+ * keeping its config in a throwaway directory. So no scaffold in this file can
+ * be counted as usage or touch the real config, however the tests are launched
+ * — even without this package's vitest config. A test of telemetry itself
+ * overrides these in `env`, with a collector of its own.
+ */
 async function invoke(
   argv: string[],
   env: NodeJS.ProcessEnv = {},
@@ -38,7 +53,12 @@ async function invoke(
   const code = await run({
     argv,
     cwd,
-    env,
+    env: {
+      AVAKIT_TELEMETRY_DISABLED: "1",
+      AVAKIT_TELEMETRY_URL: "http://127.0.0.1:9/e",
+      AVAKIT_CONFIG_DIR: configDir,
+      ...env,
+    },
     stdout: { write: (text) => (stdout += text) },
     stderr: { write: (text) => (stderr += text) },
     stdinIsTTY: tty,
@@ -241,6 +261,94 @@ describe("create-avalanche-app (non-interactive)", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('"notes" already exists and is not a directory.');
     expect(readFileSync(path.join(cwd, "notes"), "utf8")).toBe("keep me");
+  });
+});
+
+describe("create-avalanche-app telemetry", () => {
+  let collector: Collector;
+
+  beforeEach(async () => {
+    // On the loopback interface: nothing here leaves the machine.
+    collector = await startCollector();
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await collector.close();
+  });
+
+  /** An environment in which telemetry is on and reports to the local collector. */
+  const counted = (): NodeJS.ProcessEnv => ({
+    AVAKIT_TELEMETRY_DISABLED: "",
+    AVAKIT_TELEMETRY_URL: collector.url,
+  });
+
+  it("reports a scaffold once, anonymously, and says so on the first run only", async () => {
+    const first = await invoke(["secret-project", "--yes", "--no-install"], counted());
+    expect(first.code).toBe(0);
+    expect(first.stdout).toContain("AvaKit collects completely anonymous usage data");
+    expect(collector.received).toEqual([
+      expect.objectContaining({
+        event: "scaffold",
+        template: "minimal",
+        chain: "fuji",
+        pm: "npm",
+        ok: true,
+      }),
+    ]);
+    // Neither the project's name nor where it was created.
+    const sent = JSON.stringify(collector.received);
+    expect(sent).not.toContain("secret-project");
+    expect(sent).not.toContain(path.basename(cwd));
+
+    const second = await invoke(["another", "--yes", "--no-install"], counted());
+    expect(second.code).toBe(0);
+    expect(second.stdout).not.toContain("anonymous usage data");
+    expect(collector.received).toHaveLength(2);
+    // The same machine, so the same random id: two runs are not two people.
+    expect(collector.received[1]?.anonymousId).toBe(collector.received[0]?.anonymousId);
+  });
+
+  it("reports a refused directory as a failed scaffold", async () => {
+    mkdirSync(path.join(cwd, "taken"));
+    writeFileSync(path.join(cwd, "taken", "notes.txt"), "keep me");
+    const result = await invoke(["taken", "-t", "nft-mint", "--yes", "--no-install"], counted());
+    expect(result.code).toBe(1);
+    expect(collector.received).toEqual([
+      expect.objectContaining({ template: "nft-mint", ok: false, errorKind: "dir-exists" }),
+    ]);
+  });
+
+  it("remembers --no-telemetry for the runs that follow", async () => {
+    const optedOut = await invoke(["one", "--yes", "--no-install", "--no-telemetry"], counted());
+    expect(optedOut.code).toBe(0);
+    expect(optedOut.stdout).not.toContain("anonymous usage data");
+    // No flag this time, and still nothing is sent.
+    const next = await invoke(["two", "--yes", "--no-install"], counted());
+    expect(next.code).toBe(0);
+    expect(collector.received).toEqual([]);
+  });
+
+  it("is decided by the environment the run is given, never by the process's own", async () => {
+    // What a test run looks like when nothing has switched telemetry off for
+    // the process: on, with somewhere to report to and a config directory.
+    const ambientConfig = path.join(configDir, "ambient");
+    for (const name of TELEMETRY_OFF_SWITCHES) vi.stubEnv(name, "");
+    vi.stubEnv("AVAKIT_TELEMETRY_URL", collector.url);
+    vi.stubEnv("AVAKIT_CONFIG_DIR", ambientConfig);
+
+    // The run is handed an environment in which telemetry is off, and that wins:
+    // this is what keeps every other scaffold in this file from being counted.
+    const quiet = await invoke(["app", "--yes", "--no-install"]);
+    expect(quiet.code).toBe(0);
+    expect(quiet.stdout).not.toContain("anonymous usage data");
+    expect(collector.received).toEqual([]);
+    expect(existsSync(ambientConfig)).toBe(false);
+
+    // And the other way round: off in the process, on for the run.
+    vi.stubEnv("AVAKIT_TELEMETRY_DISABLED", "1");
+    const loud = await invoke(["other", "--yes", "--no-install"], counted());
+    expect(loud.code).toBe(0);
+    expect(collector.received).toHaveLength(1);
   });
 });
 

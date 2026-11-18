@@ -47,6 +47,11 @@ export interface CliContext {
   /** The arguments after the node binary and the script path. */
   argv: readonly string[];
   cwd: string;
+  /**
+   * The environment: which package manager launched us, the telemetry settings,
+   * and what the commands we start inherit. Nothing below reads `process.env`
+   * for those, so a caller that passes its own decides all three.
+   */
   env: NodeJS.ProcessEnv;
   stdout: Output;
   stderr: Output;
@@ -223,8 +228,12 @@ async function main(ctx: CliContext): Promise<number> {
   // be scaffolded fails as a plain usage error.
   const defaults = interactive ? null : resolveDefaults(opts, templates, detectedPm);
 
+  // From the environment this run was given, like everything else here: a run
+  // inside a test must never be switched on, or pointed at the real collector,
+  // by whatever the surrounding process happens to have set.
   const telemetry = new Telemetry({
     cliVersion: VERSION,
+    env: ctx.env,
     ...(opts.telemetry != null ? { flag: opts.telemetry } : {}),
   });
 

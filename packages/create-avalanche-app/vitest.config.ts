@@ -13,6 +13,11 @@ import { defineConfig } from "vitest/config";
 //
 // Tests that exercise telemetry itself opt back in explicitly, with their own
 // config directory and their own server on 127.0.0.1.
+//
+// None of this applies when the tests are started without this file (from the
+// repository root, say), so the tests that run the whole CLI do not lean on it:
+// `run()` takes its telemetry settings from the environment it is handed, and
+// cli.test.ts hands every run one with the first two fences in it.
 export default defineConfig({
   test: {
     include: ["src/**/*.test.{ts,tsx}"],

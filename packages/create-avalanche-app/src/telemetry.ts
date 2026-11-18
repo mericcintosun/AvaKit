@@ -33,8 +33,8 @@ import path from "node:path";
 import { isChainId } from "./api.js";
 import { isPackageManager } from "./pm.js";
 
-const ENDPOINT =
-  process.env.AVAKIT_TELEMETRY_URL || "https://avakit-telemetry.avakit.workers.dev/e";
+/** Where events go, unless AVAKIT_TELEMETRY_URL names another collector. */
+const DEFAULT_ENDPOINT = "https://avakit-telemetry.avakit.workers.dev/e";
 
 /** Hard ceiling on how long a send may delay the user's exit. */
 const SEND_TIMEOUT_MS = 1500;
@@ -95,8 +95,8 @@ function parseStored(text: string): Partial<Config> {
   };
 }
 
-function envOn(name: string): boolean {
-  const v = process.env[name];
+function envOn(env: NodeJS.ProcessEnv, name: string): boolean {
+  const v = env[name];
   return v != null && v !== "" && v !== "0" && v.toLowerCase() !== "false";
 }
 
@@ -104,46 +104,53 @@ function envOn(name: string): boolean {
  * CI detection. Deliberately broad: a false positive costs us one uncounted
  * scaffold, a false negative pollutes the public number with robots.
  */
-function isCI(): boolean {
+function isCI(env: NodeJS.ProcessEnv): boolean {
   return (
-    envOn("CI") ||
-    envOn("CONTINUOUS_INTEGRATION") ||
-    envOn("GITHUB_ACTIONS") ||
-    envOn("GITLAB_CI") ||
-    envOn("CIRCLECI") ||
-    envOn("TRAVIS") ||
-    envOn("JENKINS_URL") ||
-    envOn("BUILDKITE") ||
-    envOn("TEAMCITY_VERSION") ||
-    envOn("CODEBUILD_BUILD_ID") ||
-    envOn("BUILD_NUMBER")
+    envOn(env, "CI") ||
+    envOn(env, "CONTINUOUS_INTEGRATION") ||
+    envOn(env, "GITHUB_ACTIONS") ||
+    envOn(env, "GITLAB_CI") ||
+    envOn(env, "CIRCLECI") ||
+    envOn(env, "TRAVIS") ||
+    envOn(env, "JENKINS_URL") ||
+    envOn(env, "BUILDKITE") ||
+    envOn(env, "TEAMCITY_VERSION") ||
+    envOn(env, "CODEBUILD_BUILD_ID") ||
+    envOn(env, "BUILD_NUMBER")
   );
 }
 
 /** `~/.config/avakit` (or the OS equivalent); AVAKIT_CONFIG_DIR overrides it. */
-function configDir(): string {
-  if (process.env.AVAKIT_CONFIG_DIR) return process.env.AVAKIT_CONFIG_DIR;
+function configDir(env: NodeJS.ProcessEnv): string {
+  if (env.AVAKIT_CONFIG_DIR) return env.AVAKIT_CONFIG_DIR;
   if (process.platform === "win32") {
-    return path.join(
-      process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"),
-      "avakit",
-    );
+    return path.join(env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "avakit");
   }
-  return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "avakit");
+  return path.join(env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "avakit");
 }
 
 export class Telemetry {
   private readonly cliVersion: string;
+  private readonly endpoint: string;
   private readonly file: string;
   private config: Config | null = null;
   private pending: Promise<void> | null = null;
   /** Reason we're off, or null if we're on. Computed once in the constructor. */
   private readonly disabledBy: "env" | "flag" | "ci" | "config" | "no-home" | null;
 
-  /** @param flag `--telemetry` / `--no-telemetry`, or undefined if neither. */
-  constructor(opts: { cliVersion: string; flag?: boolean }) {
+  /**
+   * @param opts.flag `--telemetry` / `--no-telemetry`, or undefined if neither.
+   * @param opts.env The environment that decides whether telemetry is on, where
+   *   its config file lives and where events go. Defaults to this process's. The
+   *   CLI passes the environment it was started with, so running it in-process
+   *   with another one (as its tests do) is never decided by the ambient one —
+   *   a test run that reached the real collector would be counted as a person.
+   */
+  constructor(opts: { cliVersion: string; flag?: boolean; env?: NodeJS.ProcessEnv }) {
+    const env = opts.env ?? process.env;
     this.cliVersion = opts.cliVersion;
-    this.file = path.join(configDir(), "config.json");
+    this.endpoint = env.AVAKIT_TELEMETRY_URL || DEFAULT_ENDPOINT;
+    this.file = path.join(configDir(env), "config.json");
 
     // Either flag is a persisted preference, not a one-run mute — an opt-out you
     // have to retype every time isn't an opt-out, and an opt-out you can't undo
@@ -152,11 +159,11 @@ export class Telemetry {
 
     // The env vars win over the flag on purpose: DO_NOT_TRACK is a machine-wide
     // "never" and honouring it is the whole point of respecting the convention.
-    if (envOn("AVAKIT_TELEMETRY_DISABLED") || envOn("DO_NOT_TRACK")) {
+    if (envOn(env, "AVAKIT_TELEMETRY_DISABLED") || envOn(env, "DO_NOT_TRACK")) {
       this.disabledBy = "env";
     } else if (opts.flag === false) {
       this.disabledBy = "flag";
-    } else if (isCI()) {
+    } else if (isCI(env)) {
       this.disabledBy = "ci";
     } else {
       // Reading config can fail on a locked-down or read-only home; that's a
@@ -285,7 +292,7 @@ export class Telemetry {
       // a Promise executor is a rejection, and "never rejects" has to hold even
       // for an endpoint override we cannot use.
       try {
-        const url = new URL(ENDPOINT);
+        const url = new URL(this.endpoint);
         // `localhost:8787/e` parses, with "localhost:" as its protocol, and
         // node:http throws on any protocol but its own. Not ours to send to.
         if (url.protocol !== "https:" && url.protocol !== "http:") return done();
