@@ -195,10 +195,18 @@ const hash = await send({ to: "0x…", value: parseEther("0.01") });`}
       <Note>
         <C>status</C> becomes <C>"success"</C>, and <C>send()</C> resolves with the hash, as soon as
         the wallet has broadcast the transaction. Neither waits for it to be mined, so a transaction
-        that later reverts is not reported here. When the outcome matters, wait for the receipt and
-        check its status: <C>getPublicClient(chain).waitForTransactionReceipt({"{ hash }"})</C> from{" "}
-        <C>@avakit/core</C>. <C>explorerUrl</C> is <C>null</C> on a chain without an explorer.
+        that later reverts is not reported here. <C>explorerUrl</C> is <C>null</C> on a chain
+        without an explorer.
       </Note>
+      <P>When the outcome matters, wait for the receipt and check its status:</P>
+      <CodeBlock
+        code={`import { getPublicClient } from "@avakit/core";
+import { useAvaChain } from "@avakit/react";
+
+const { chain } = useAvaChain();
+const receipt = await getPublicClient(chain).waitForTransactionReceipt({ hash });
+if (receipt.status !== "success") throw new Error("The transaction reverted.");`}
+      />
 
       <H2>Read chain data (no indexer)</H2>
       <P>
