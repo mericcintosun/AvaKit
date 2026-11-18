@@ -219,7 +219,7 @@ describe("getIcmState", () => {
 
   it("returns a received message exactly as it was sent", async () => {
     // cast's own rendering would escape every one of these.
-    const text = 'say "hi" \\ back\\slash \ttab — 山 🔺 ​';
+    const text = 'say "hi" \\ back\\slash \ttab — 山 🔺 \u200b';
     deployed();
     sandbox.fakeCast({ lastMessage: text });
     const state = await getIcmState();
@@ -387,6 +387,20 @@ describe("deployMessengers", () => {
       { chain: "chain1", args: [OTHER, SET_TRUSTED_REMOTE_SIG, id2.hex, SHARED] },
       { chain: "chain2", args: [SHARED, SET_TRUSTED_REMOTE_SIG, id1.hex, OTHER] },
     ]);
+  });
+
+  it("refuses to record a messenger it would not call usable itself", async () => {
+    // The bytecode Studio ships and its own "is this messenger current?" check
+    // must agree. If a deploy produces a contract without the cap, say so —
+    // recording it would only lead to "no messenger here" on the next look.
+    twoChains();
+    rpc.setOutdated("chain1", OLD);
+    sandbox.fakeCast({ deploy: { chain1: OLD, chain2: OLD } });
+    await expect(deployMessengers()).rejects.toThrow(
+      "the messenger deployed on chain1 has no message-length cap: this build of Studio ships outdated messenger bytecode",
+    );
+    expect(sandbox.castJournal()).toEqual(["create chain1"]);
+    expect(sandbox.readIcmState()).toEqual({});
   });
 
   it("fails when a transaction is mined but reverted, and records nothing", async () => {

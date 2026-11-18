@@ -403,6 +403,18 @@ export function deployMessengers(): Promise<IcmState> {
         if (typeof receipt.contractAddress !== "string" || !ADDRESS.test(receipt.contractAddress)) {
           throw new Error(`deploying the messenger on ${peer.name} returned no contract address`);
         }
+        // What was just deployed must be a messenger `usableMessenger` accepts.
+        // If it is not, the bytecode this build ships and that check have
+        // drifted apart: say so now, rather than record an address that the
+        // very next look would call "no messenger here".
+        if (
+          (await hasCode(peer.rpcUrl, receipt.contractAddress)) &&
+          (await capsMessageLength(peer.rpcUrl, receipt.contractAddress)) === false
+        ) {
+          throw new Error(
+            `the messenger deployed on ${peer.name} has no message-length cap: this build of Studio ships outdated messenger bytecode`,
+          );
+        }
         messenger = receipt.contractAddress;
         state.set(peer.name, messenger);
         // Persist at once: a failure further down must not lose this address.
