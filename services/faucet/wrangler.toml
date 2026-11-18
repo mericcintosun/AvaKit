@@ -46,4 +46,6 @@ invocation_logs = false
 # Secrets, never vars:
 #   npx wrangler secret put AVAKIT_FAUCET_KEY   (required — a throwaway Fuji key)
 #   npx wrangler secret put TURNSTILE_SECRET    (optional — turns the captcha on)
+#   npx wrangler secret put FAUCET_FUJI_RPC     (optional — your own RPC; a
+#                                                provider's URL carries its API key)
 # For `wrangler dev`, put them in .dev.vars instead (gitignored).

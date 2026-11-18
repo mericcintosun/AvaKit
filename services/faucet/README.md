@@ -49,10 +49,26 @@ The old namespace is no longer bound and can be deleted with
 | --- | --- | --- | --- |
 | secret | `AVAKIT_FAUCET_KEY` | — (required) | 0x private key holding Fuji test AVAX |
 | secret | `TURNSTILE_SECRET` | — (off) | Set it and `POST /fund` requires a Turnstile token — see [Turnstile](#turnstile-optional) |
+| secret | `FAUCET_FUJI_RPC` | — (the public Fuji RPC) | Use your own RPC instead. A provider's URL carries its API key, so it is a secret — see below |
 | var | `FAUCET_DRIP_AVAX` | `0.02` (set in `wrangler.toml`) | Amount per drip |
 | var | `FAUCET_CORS_ORIGIN` | `*` | Left open on purpose: CORS is a browser rule, not a security boundary, and locking it down only breaks local dev and preview deploys |
-| var | `FAUCET_FUJI_RPC` | public Fuji RPC | Override the RPC. A keyed URL is fine: it is never returned to a caller and is redacted from the log |
 | durable object | `FAUCET` | — (in `wrangler.toml`) | Rate limits and the send queue, one object per chain |
+
+**An RPC URL with a key in it is a secret.** Set it with
+
+```bash
+npx wrangler secret put FAUCET_FUJI_RPC
+```
+
+and never under `[vars]`: `wrangler.toml` is committed, so a key written there
+is published with the repository. A plain-text variable typed into the
+Cloudflare dashboard instead is no better: it is shown to everyone with access
+to the account, and wrangler treats `wrangler.toml` as the source of truth and
+removes it on the next `wrangler deploy` (what wrangler documents for
+`keep_vars`; not verified against a live account). The Worker reads the name
+the same way whether it is a secret or a var (so a public, keyless URL may be a
+var), but do not define it as both. The URL is never returned to a caller, and
+it is redacted from everything the Worker logs.
 
 ## Endpoints
 
