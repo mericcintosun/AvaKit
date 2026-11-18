@@ -1,7 +1,7 @@
 /**
  * Local ICTT bridge configuration.
  *
- * `scripts/bridge.sh` (`pnpm bridge`) spins up two Avalanche L1s and deploys a
+ * `scripts/bridge.sh` (`npm run bridge`) spins up two Avalanche L1s and deploys a
  * full Interchain Token Transfer bridge across them, writing every address into
  * `bridge.config.json`. This module turns that into AvaKit chains + the ABIs the
  * app needs to bridge tokens.
@@ -41,7 +41,7 @@ export interface BridgeConfig {
 
 export const bridge = config as BridgeConfig;
 
-/** True once `pnpm bridge` has deployed everything and filled in the addresses. */
+/** True once `npm run bridge` has deployed everything and filled in the addresses. */
 export const isConfigured = Boolean(bridge.configured && bridge.bridge);
 
 function toAvaChain(c: BridgeChainConfig): AvaChain {

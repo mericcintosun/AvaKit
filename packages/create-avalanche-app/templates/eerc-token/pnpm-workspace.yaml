@@ -1,4 +1,5 @@
-# pnpm settings for this scaffolded app.
+# pnpm settings for this scaffolded app, used only if you install with pnpm (npm, yarn
+# and bun ignore this file).
 # allowBuilds: pre-approve native postinstall scripts so `pnpm install` / `pnpm dev`
 #   don't fail with ERR_PNPM_IGNORED_BUILDS on pnpm 10+. The eERC crypto/wallet stack
 #   pulls in blake-hash, keccak, bufferutil and utf-8-validate alongside sharp.

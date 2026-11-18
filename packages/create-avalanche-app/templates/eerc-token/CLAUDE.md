@@ -45,13 +45,13 @@ no browser-deploy step, unlike AvaKit's other templates.
 - **Circuits + contracts:** `ava-labs/EncryptedERC` at commit
   `c7eb0e09bc9315e68c35d3c09f5dce4b794d0485` — `CIRCUIT_COMMIT` in `lib/eerc-config.ts` (the circuit
   files the browser proves against, each with a pinned SHA-256) and `COMMIT` in
-  `scripts/deploy-eerc.mjs` (the contracts `pnpm deploy:eerc` builds). Keep the two equal:
+  `scripts/deploy-eerc.mjs` (the contracts `npm run deploy:eerc` builds). Keep the two equal:
   contracts and circuits have to be the same version.
 - **SDK:** `@avalabs/eerc-sdk` `1.0.2` (exact, in `package.json`), with `wagmi` `2.19.5` because
   the SDK peer-depends on `wagmi: ^2.0.0`.
 - Upstream merged security fixes with regenerated verifier keys on 2026-08-31 that are not in a tagged release yet; this template has not been moved to them.
   Moving to them means changing both constants together, recomputing all ten SHA-256 hashes from
-  the source repository, and deploying a new instance with `pnpm deploy:eerc` — never change one
+  the source repository, and deploying a new instance with `npm run deploy:eerc` — never change one
   of these alone.
 - **Testnet only:** Avalanche Fuji, and nothing else (see "Fuji only" under Rules). Never point this
   template at a mainnet or put real funds behind it.
@@ -59,12 +59,12 @@ no browser-deploy step, unlike AvaKit's other templates.
 ## Architecture
 
 - `lib/eerc-config.ts` — `EERC_CONTRACT_ADDRESS`, the `EncryptedERC` instance the app talks to
-  (standalone, name "Test", symbol "TEST", 2 decimals; `pnpm deploy:eerc` rewrites this line),
+  (standalone, name "Test", symbol "TEST", 2 decimals; `npm run deploy:eerc` rewrites this line),
   `usesSharedInstance` (true while it still equals `SHARED_EERC_CONTRACT_ADDRESS`), the pinned
   circuit files + SHA-256 hashes, and `loadVerifiedCircuits()` (download → verify → blob URLs,
   done once per page load and shared by every caller; needs https or `http://localhost`, because
   browsers only provide WebCrypto there).
-- `scripts/deploy-eerc.mjs` (`pnpm deploy:eerc`) — deploys YOUR OWN standalone instance to Fuji
+- `scripts/deploy-eerc.mjs` (`npm run deploy:eerc`) — deploys YOUR OWN standalone instance to Fuji
   (clones the official repo pinned to the circuits' commit, never vendors it) and rewrites
   `EERC_CONTRACT_ADDRESS` to point at it.
 - `app/providers.tsx` — `<AvaKitProvider>` (wallet) + `<WagmiProvider>` (eERC SDK internals) + `ThemeProvider`.
@@ -119,7 +119,7 @@ Two things to keep when you change this:
    `decryptedBalance`, `parsedDecryptedBalance`, `refetchBalance`.
 7. **Mint** — `balance.privateMint(recipient, amountInBaseUnits)`. **Owner-only on-chain**
    (`EncryptedERC.privateMint` is `onlyOwner` by design, for compliance) — only the wallet that
-   deployed the contract can mint. Run `pnpm deploy:eerc` to get your own instance, connect the
+   deployed the contract can mint. Run `npm run deploy:eerc` to get your own instance, connect the
    deployer wallet, and the UI walks you through the auditor step; the demo reads
    `eerc.owner` / `eerc.isAuditorKeySet` and gates the Mint button accordingly.
 8. **Transfer** — `balance.privateTransfer(to, amountInBaseUnits)`. Permissionless for any two
@@ -136,7 +136,7 @@ The shared demo contract has no auditor key requirements you control and mint is
 One command replaces the old five manual steps:
 
 ```bash
-DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc
+DEPLOYER_PRIVATE_KEY=0x... npm run deploy:eerc
 ```
 
 Use a throwaway key funded with Fuji test AVAX — the app's faucet only funds the wallet connected in
@@ -164,7 +164,7 @@ mint/transfer/burn succeeds) → Mint.
 - Amounts are in the token's base units (2 decimals here) — always convert with `parseUnits` /
   `formatUnits`, read `decimals` from `balance.decimals` rather than hardcoding it.
 - Never hardcode private keys; wallet signing always goes through the connected adapter.
-- **Fuji only.** The shared eERC instance exists only on Fuji and `pnpm deploy:eerc` deploys only
+- **Fuji only.** The shared eERC instance exists only on Fuji and `npm run deploy:eerc` deploys only
   to Fuji, so there is no supported way to run this template on another chain. Changing the chain
   in `app/providers.tsx` alone leaves the app reading an address with no contract behind it; to
   use another chain you would first have to deploy the eERC contracts there yourself with the
@@ -173,5 +173,5 @@ mint/transfer/burn succeeds) → Mint.
 
 ## Commands
 
-- `pnpm dev` — dev server (http://localhost:3000 by default)
-- `pnpm build` — production build
+- `npm run dev` — dev server (http://localhost:3000 by default)
+- `npm run build` — production build

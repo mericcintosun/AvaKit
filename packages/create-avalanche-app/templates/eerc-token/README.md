@@ -4,13 +4,15 @@ An Avalanche **confidential token** dapp scaffolded with [AvaKit](https://github
 
 ## Getting started
 
+The commands are written for npm; pnpm, yarn and bun work as well.
+
 ```bash
 # 1. (social login, optional) add a free Web3Auth client ID
 cp .env.example .env.local
 #    → https://dashboard.web3auth.io (Sapphire Devnet, EVM)
 
 # 2. run it
-pnpm dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then: connect a wallet → **Register** (one-time, on-chain) → **Unlock private balance** (free,
@@ -40,7 +42,7 @@ asks no faucet at all.
   and every file is verified against a pinned SHA-256 before the SDK proves against it, so a
   tampered CDN copy fails loudly instead of proving quietly.
 - Minting is **owner-only** (eERC design, for compliance), so it stays disabled against the shared
-  demo instance. Deploy your own with one command — `DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc` —
+  demo instance. Deploy your own with one command — `DEPLOYER_PRIVATE_KEY=0x... npm run deploy:eerc` —
   then connect the deployer wallet: the app walks you through the one-click auditor step and mint
   unlocks. Confidential transfer and burn work for any registered wallet.
 
@@ -49,11 +51,11 @@ asks no faucet at all.
 - **Circuits and contracts:** [`ava-labs/EncryptedERC`](https://github.com/ava-labs/EncryptedERC)
   at commit `c7eb0e09bc9315e68c35d3c09f5dce4b794d0485`. The browser loads the proving circuits from
   that commit (`CIRCUIT_COMMIT` in `lib/eerc-config.ts`, every file checked against a pinned
-  SHA-256), and `pnpm deploy:eerc` builds the contracts from the same commit (`COMMIT` in
+  SHA-256), and `npm run deploy:eerc` builds the contracts from the same commit (`COMMIT` in
   `scripts/deploy-eerc.mjs`). The two constants must stay equal.
 - **SDK:** `@avalabs/eerc-sdk` 1.0.2, an exact version in `package.json`.
 - Upstream merged security fixes with regenerated verifier keys on 2026-08-31 that are not in a tagged release yet; this template has not been moved to them.
-- **Testnet only.** The shared instance and `pnpm deploy:eerc` both live on Avalanche Fuji, and the
+- **Testnet only.** The shared instance and `npm run deploy:eerc` both live on Avalanche Fuji, and the
   scaffolder offers no other chain for this template. Do not put real funds behind it.
 
 ## Stack

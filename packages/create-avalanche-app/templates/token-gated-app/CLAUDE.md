@@ -97,5 +97,5 @@ To gate on a different token (e.g. an existing ERC-20 or NFT), point `useContrac
 
 ## Commands
 
-- `pnpm dev` — dev server
+- `npm run dev` — dev server
 - `cd contracts && forge build` — recompile the access-pass contract

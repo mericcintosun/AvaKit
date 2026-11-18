@@ -47,6 +47,14 @@ jobs:
           node --test scripts/*.test.mjs
           node scripts/check-template-deps.mjs
 
+      # The scaffolder installs with npm unless it was launched by another package
+      # manager, and a machine with only Node.js has no pnpm, yarn or bun. This
+      # fails when a template's README, CLAUDE.md, llms.txt, script hint or UI tells
+      # its reader to run a pnpm, yarn or bun command, naming the file and line;
+      # the commands a scaffolded app shows are written for npm.
+      - name: Repo scripts · template commands are written for npm
+        run: node scripts/check-template-commands.mjs
+
       # @avakit/mcp is published with @avakit/core bundled inside it, so core is
       # a devDependency of the server and Changesets no longer releases the
       # server when core is released. This fails when a pending changeset bumps

@@ -212,7 +212,7 @@ function Dashboard() {
           {l1.network === "local" ? (
             <p className="text-muted-foreground text-xs">
               Local dev: import the pre-funded EWOQ key (from{" "}
-              <span className="font-mono">pnpm l1</span>) to get {l1.token}.
+              <span className="font-mono">npm run l1</span>) to get {l1.token}.
             </p>
           ) : null}
         </div>
@@ -368,7 +368,7 @@ function NextSteps({ hasToken }: { hasToken: boolean }) {
             </span>
           ) : (
             <span className="text-muted-foreground text-xs">
-              EWOQ key is pre-funded (printed by <span className="font-mono">pnpm l1</span>).
+              EWOQ key is pre-funded (printed by <span className="font-mono">npm run l1</span>).
             </span>
           )}
         </StepRow>
@@ -446,9 +446,9 @@ function SetupPanel() {
           and wires this app to it. No test AVAX, no faucet, no always-on node.
         </p>
       </div>
-      <CopyCommand command="pnpm l1" />
+      <CopyCommand command="npm run l1" />
       <p className="text-muted-foreground text-xs">
-        Configure it: <span className="font-mono">L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 pnpm l1</span>.
+        Configure it: <span className="font-mono">L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 npm run l1</span>.
         Needs{" "}
         <a
           href="https://github.com/ava-labs/avalanche-cli"

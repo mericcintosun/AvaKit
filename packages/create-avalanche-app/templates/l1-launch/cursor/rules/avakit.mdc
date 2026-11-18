@@ -10,12 +10,12 @@ Launch your own Avalanche L1, then explore it in a built-in dashboard.
 
 ## Flow
 
-- `pnpm l1` (scripts/l1.sh) creates + deploys a local Subnet-EVM L1 and writes `l1.config.json`.
+- `npm run l1` (scripts/l1.sh) creates + deploys a local Subnet-EVM L1 and writes `l1.config.json`.
 - `lib/l1.ts` turns that into an AvaKit `chain` + `isConfigured`.
 - `components/demo.tsx` is the explorer: poll `getPublicClient(chain)` for `getBlockNumber`,
   `getGasPrice`, `getBlock({ blockNumber, includeTransactions: true })`, `getBalance`.
 - Deploy the demo token: `deployContract({ artifact: { abi, bytecode }, chain, provider, account })`.
-- `FUJI_KEY=<key> pnpm l1:fuji` launches a sovereign PoA version of the chain on Fuji (advanced; needs
+- `FUJI_KEY=<key> npm run l1:fuji` launches a sovereign PoA version of the chain on Fuji (advanced; needs
   test AVAX + an always-on validator). It uses a separate avalanche-cli config (`<name>fuji`,
   `--proof-of-authority --production-defaults`): never deploy the local dev config (non-sovereign,
   EWOQ-funded genesis) to a public network, and never `create --force` over a config that is live.

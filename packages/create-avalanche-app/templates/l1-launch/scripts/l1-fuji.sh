@@ -2,20 +2,20 @@
 #
 # Graduate your L1 to the Fuji TESTNET (advanced).
 #
-# Unlike `pnpm l1` (fully local, instant, free), deploying to Fuji is a real,
+# Unlike `npm run l1` (fully local, instant, free), deploying to Fuji is a real,
 # multi-step operation. This script wraps the avalanche-cli commands and, where
 # the CLI needs interactive input or your own keys, walks you through it. Read
 # the caveats below before running — a Fuji L1 needs an always-on validator and
 # a periodically-topped-up balance, or it stops producing blocks.
 #
-# The local chain from `pnpm l1` never goes to Fuji: it is a non-sovereign dev
+# The local chain from `npm run l1` never goes to Fuji: it is a non-sovereign dev
 # chain whose genesis pre-funds the PUBLIC EWOQ key. This script creates a
 # separate avalanche-cli config instead — a sovereign Proof-of-Authority L1 with
 # production defaults, owned by your Fuji key, with the same chain ID and token
 # as your local chain — and deploys that. It never overwrites an existing config.
 #
 # Configure via env (only FUJI_KEY is required):
-#   FUJI_KEY=mykey pnpm l1:fuji
+#   FUJI_KEY=mykey npm run l1:fuji
 #
 #   FUJI_KEY              avalanche-cli key that pays for the deploy and owns the L1
 #   L1_NAME               your local chain's name (default: the one in l1.config.json)
@@ -65,14 +65,14 @@ Deploy your L1 to Fuji — what you need first (one-time):
 ────────────────────────────────────────────────────────────────────────
 EOF
 
-[ -n "$KEY" ] || die "Set FUJI_KEY to your funded avalanche-cli key name, e.g. FUJI_KEY=mykey pnpm l1:fuji"
+[ -n "$KEY" ] || die "Set FUJI_KEY to your funded avalanche-cli key name, e.g. FUJI_KEY=mykey npm run l1:fuji"
 case "$KEY" in
   *[!A-Za-z0-9_-]*) die "FUJI_KEY must be the NAME of an avalanche-cli key (see: avalanche key list), not a key or a path." ;;
 esac
 [ -f "$CLI_HOME/key/$KEY.pk" ] || die "No avalanche-cli key named '$KEY'. Create one first: avalanche key create $KEY"
 
 # --- 1. Work out which chain this is -----------------------------------------
-# Defaults come from what `pnpm l1` wrote, so the Fuji L1 keeps your chain ID and
+# Defaults come from what `npm run l1` wrote, so the Fuji L1 keeps your chain ID and
 # token without retyping them.
 IFS='|' read -r CFG_NETWORK CFG_NAME CFG_CHAIN_ID CFG_TOKEN < <(
   node -e '
@@ -113,7 +113,7 @@ esac
 # (sidecar.json + genesis.json) rather than scraped from a table.
 # Prints: state|evmChainId|token|rpcUrl|blockchainIdHex
 #   missing  no config with this name
-#   test     non-sovereign and/or pre-funds the public EWOQ key — what `pnpm l1` creates
+#   test     non-sovereign and/or pre-funds the public EWOQ key — what `npm run l1` creates
 #   ready    sovereign, not on Fuji yet
 #   partial  a Fuji deploy was started but recorded no RPC endpoint
 #   live     deployed to Fuji
@@ -200,9 +200,9 @@ case "${STATE:-}" in
   missing)
     OWNER="${L1_OWNER:-}"
     [ -n "$OWNER" ] || OWNER="$(owner_address)"
-    [[ "$OWNER" =~ ^0x[0-9a-fA-F]{40}$ ]] || die "Could not work out the address of key '$KEY' (is this app installed? run: pnpm install).
+    [[ "$OWNER" =~ ^0x[0-9a-fA-F]{40}$ ]] || die "Could not work out the address of key '$KEY' (is this app installed? run: npm install).
      Or pass the owner explicitly — the key's C-Chain address from 'avalanche key list --fuji --keys $KEY':
-       L1_OWNER=0x… FUJI_KEY=$KEY pnpm l1:fuji"
+       L1_OWNER=0x… FUJI_KEY=$KEY npm run l1:fuji"
     say "Creating '$NAME' — a sovereign Proof-of-Authority L1 (chainId $CHAIN_ID · token $TOKEN · owner $OWNER)…"
     # --proof-of-authority + the two owner flags make this a sovereign L1 whose
     # validator set you manage; --production-defaults leaves the EWOQ dev key out
@@ -288,7 +288,7 @@ cat <<EOF
 
 ✔ Your L1 '$NAME' is on Fuji.
 
-  • pnpm dev → the built-in explorer now points at your Fuji L1's RPC.
+  • npm run dev → the built-in explorer now points at your Fuji L1's RPC.
   • Connect your OWN funded wallet (no EWOQ on Fuji). The owner address starts
     with native tokens on the L1 for gas.
   • Keep this machine / your validator node running, and keep the validator
@@ -296,7 +296,7 @@ cat <<EOF
     0.1 AVAX lasts about three days):
       avalanche validator getBalance --fuji --l1 $NAME
       avalanche validator increaseBalance --fuji --l1 $NAME --key $KEY --balance 1
-  • Back to the local chain any time with: pnpm l1
+  • Back to the local chain any time with: npm run l1
 
 There is no automatic hosted explorer for a custom Fuji L1 — this app's built-in
 explorer is your window into the chain.

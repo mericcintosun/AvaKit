@@ -57,7 +57,7 @@ function deployerAccount() {
   } catch {
     fail(
       `Could not run "avalanche blockchain describe ${cfg.chain1.name}" to read the EWOQ dev key.\n` +
-        "Is avalanche-cli installed and did `pnpm bridge` create the chains?\n" +
+        "Is avalanche-cli installed and did `npm run bridge` create the chains?\n" +
         "Or pass a key that is funded on both chains: BRIDGE_DEPLOYER_KEY=0x… node scripts/deploy-bridge.mjs",
     );
   }
@@ -167,7 +167,7 @@ async function main() {
     if (Date.now() > deadline) {
       throw new Error(
         "The home chain has not seen the registration after 90s. " +
-          "Check that the relayer is running (pnpm bridge starts it), then " +
+          "Check that the relayer is running (npm run bridge starts it), then " +
           "re-run: node scripts/deploy-bridge.mjs",
       );
     }

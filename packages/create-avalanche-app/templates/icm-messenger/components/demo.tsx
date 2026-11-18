@@ -534,7 +534,7 @@ function SetupPanel() {
           Messaging and a relayer wired automatically — with one command in your terminal:
         </p>
       </div>
-      <CopyCommand command="pnpm devnet" />
+      <CopyCommand command="npm run devnet" />
       <p className="text-muted-foreground text-xs">
         Needs{" "}
         <a

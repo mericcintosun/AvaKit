@@ -1,7 +1,7 @@
 /**
  * Your Avalanche L1 configuration.
  *
- * `scripts/l1.sh` (`pnpm l1`) creates a Subnet-EVM chain, deploys it to a local
+ * `scripts/l1.sh` (`npm run l1`) creates a Subnet-EVM chain, deploys it to a local
  * Avalanche network, and writes the discovered RPC URL + blockchain ID into
  * `l1.config.json`. This module turns that into an AvaKit chain the app uses.
  */
@@ -11,7 +11,7 @@ import config from "../l1.config.json";
 
 export interface L1Config {
   configured: boolean;
-  /** "local" (pnpm l1) or "fuji" (pnpm l1:fuji). */
+  /** "local" (npm run l1) or "fuji" (npm run l1:fuji). */
   network: string;
   name: string;
   token: string;
@@ -22,13 +22,13 @@ export interface L1Config {
   blockchainIdHex: string;
   /** EWOQ dev account on local networks (empty on Fuji — bring your own
    * wallet). Address only: the key itself is printed to the terminal by
-   * `pnpm l1` and never written to disk. */
+   * `npm run l1` and never written to disk. */
   faucetAccount: { address: string };
 }
 
 export const l1 = config as L1Config;
 
-/** True once `pnpm l1` has filled in the chain's RPC URL. */
+/** True once `npm run l1` has filled in the chain's RPC URL. */
 export const isConfigured = Boolean(l1.configured && l1.rpcUrl);
 
 /** Your L1 as an AvaKit chain. The explorer is built into this app (see components/demo.tsx). */

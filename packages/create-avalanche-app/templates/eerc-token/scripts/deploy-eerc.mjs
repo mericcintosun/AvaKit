@@ -1,6 +1,6 @@
 // Deploy YOUR OWN standalone eERC instance to Fuji and point this app at it.
 //
-//   DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc
+//   DEPLOYER_PRIVATE_KEY=0x... npm run deploy:eerc
 //
 // Why this exists: the template ships pointed at a shared demo instance whose
 // `privateMint` is owner-only (by design, for compliance) — so minting only
@@ -34,7 +34,7 @@ if (!key || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
       "Builder Hub sign-in: https://build.avax.network/console/primary-network/faucet\n" +
       "(The app's temporary wallet is funded without one, but this deployer key is not.)\n\n" +
       "Then:\n\n" +
-      "  DEPLOYER_PRIVATE_KEY=0x... pnpm deploy:eerc\n\n" +
+      "  DEPLOYER_PRIVATE_KEY=0x... npm run deploy:eerc\n\n" +
       "The key stays in your shell environment — it is never written to disk.\n",
   );
   process.exit(1);
@@ -175,7 +175,7 @@ writeFileSync(eercConfig, lib.replace(pointer, `export const EERC_CONTRACT_ADDRE
 
 console.log(
   `\n[4/4] Done — lib/eerc-config.ts now points at YOUR instance:\n  ${address}\n\n` +
-    "Next, run the app (pnpm dev) and connect the DEPLOYER wallet:\n" +
+    "Next, run the app (npm run dev) and connect the DEPLOYER wallet:\n" +
     "  1. Register (one-time, on-chain)\n" +
     "  2. Set auditor (one click — the app shows it to the owner until it's set)\n" +
     "  3. Mint privately — now works, because you are the owner\n",

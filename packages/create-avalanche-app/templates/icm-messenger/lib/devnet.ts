@@ -23,7 +23,7 @@ export interface IcmChainConfig {
 export interface IcmConfig {
   configured: boolean;
   /**
-   * The TeleporterMessenger both chains use. `pnpm devnet` reads it from
+   * The TeleporterMessenger both chains use. `npm run devnet` reads it from
    * `avalanche blockchain describe` and checks that a contract is deployed
    * there; it is normally the canonical predeploy, but never assume that.
    */
@@ -34,7 +34,7 @@ export interface IcmConfig {
 
 export const icm = config as IcmConfig;
 
-/** True once `pnpm devnet` has filled in the two chains' RPC URLs. */
+/** True once `npm run devnet` has filled in the two chains' RPC URLs. */
 export const isConfigured = Boolean(
   icm.configured && icm.chain1.rpcUrl && icm.chain2.rpcUrl,
 );

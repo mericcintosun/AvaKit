@@ -6,5 +6,5 @@
   "evmChainId": 9999,
   "rpcUrl": "",
   "blockchainIdHex": "",
-  "faucetAccount": { "note": "EWOQ: avalanche-cli's PUBLIC local dev key, pre-funded on every local network. The key itself is printed by pnpm l1 (never written to this file - secret scanners flag committed keys, even public dev ones).", "address": "" }
+  "faucetAccount": { "note": "EWOQ: avalanche-cli's PUBLIC local dev key, pre-funded on every local network. The key itself is printed by npm run l1 (never written to this file - secret scanners flag committed keys, even public dev ones).", "address": "" }
 }

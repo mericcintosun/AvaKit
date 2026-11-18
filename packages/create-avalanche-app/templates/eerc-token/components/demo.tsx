@@ -190,7 +190,7 @@ function EercPanel({
 
   // Minting is owner-only on-chain (compliance by design), and every mint /
   // transfer / burn requires the instance's auditor key to be set — the owner
-  // does both against their own instance (`pnpm deploy:eerc`).
+  // does both against their own instance (`npm run deploy:eerc`).
   const isOwner = Boolean(eerc.owner && eerc.owner.toLowerCase() === address.toLowerCase());
 
   return (
@@ -228,7 +228,7 @@ function EercPanel({
         {isOwner ? null : usesSharedInstance ? (
           <p className="text-muted-foreground text-xs">
             Minting is owner-only, and this app is pointed at the shared demo instance — run{" "}
-            <span className="font-mono">pnpm deploy:eerc</span> to deploy your own instance, then
+            <span className="font-mono">npm run deploy:eerc</span> to deploy your own instance, then
             connect the deployer wallet to mint.
           </p>
         ) : (

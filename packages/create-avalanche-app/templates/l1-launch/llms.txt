@@ -4,8 +4,8 @@
 
 ## Project map
 
-- [scripts/l1.sh](scripts/l1.sh): `pnpm l1` — create + deploy a local Subnet-EVM L1, write l1.config.json.
-- [scripts/l1-fuji.sh](scripts/l1-fuji.sh): `FUJI_KEY=<key> pnpm l1:fuji` — create a separate sovereign PoA config (`<name>fuji`, production defaults, owned by the Fuji key) and deploy it to the Fuji testnet (advanced). Never deploys the local dev config, never overwrites a config, safe to re-run.
+- [scripts/l1.sh](scripts/l1.sh): `npm run l1` — create + deploy a local Subnet-EVM L1, write l1.config.json.
+- [scripts/l1-fuji.sh](scripts/l1-fuji.sh): `FUJI_KEY=<key> npm run l1:fuji` — create a separate sovereign PoA config (`<name>fuji`, production defaults, owned by the Fuji key) and deploy it to the Fuji testnet (advanced). Never deploys the local dev config, never overwrites a config, safe to re-run.
 - [l1.config.json](l1.config.json): your chain (name, token, evmChainId, rpcUrl, blockchainIdHex, faucetAccount).
 - [lib/l1.ts](lib/l1.ts): config → AvaKit chain (`defineChain`) + `isConfigured`.
 - [lib/deployed-contract.ts](lib/deployed-contract.ts): `useDeployedContract(name, chain)` — remembers the deployed demo token per chain instance (chain id + RPC URL) and only uses it once `eth_getCode` confirms bytecode, so an address from before a network reset is dropped.

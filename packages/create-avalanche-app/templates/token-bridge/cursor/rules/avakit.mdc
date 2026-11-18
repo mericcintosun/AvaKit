@@ -10,7 +10,7 @@ Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer.
 
 ## Flow
 
-- `pnpm bridge` (scripts/bridge.sh) spins up 2 L1s + relayer, then deploy-bridge.mjs deploys a demo
+- `npm run bridge` (scripts/bridge.sh) spins up 2 L1s + relayer, then deploy-bridge.mjs deploys a demo
   ERC-20 + TeleporterRegistry + Home (chain1) + Registry + Remote (chain2) and registers them.
 - `lib/ictt.ts` exposes `homeChain`, `remoteChain`, the addresses, ABIs, `blockchainIdOf`, `isConfigured`.
 - `components/demo.tsx` reads balances and bridges via `home.send` / `remote.send`.

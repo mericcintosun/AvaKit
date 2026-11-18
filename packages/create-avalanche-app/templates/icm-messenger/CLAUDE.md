@@ -36,7 +36,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   constructor parameter.
 - `lib/messenger-artifact.ts` — the compiled ABI + bytecode (browser deploy, no Foundry at runtime).
 - `icm.config.json` — the two local chains (RPC URL + **hex blockchain ID**) and the
-  TeleporterMessenger address they use. Written by `pnpm devnet`.
+  TeleporterMessenger address they use. Written by `npm run devnet`.
 - `lib/devnet.ts` — turns that config into AvaKit chains + helpers.
 - `lib/deployed-contract.ts` — `useDeployedContract(name, chain)`: remembers each chain's deployed
   messenger in `localStorage`, keyed by chain id **and RPC URL**, and only hands the address to the
@@ -44,7 +44,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   new chains, so old addresses are dropped and the cards go back to "Deploy messenger". Never read
   a contract address straight from `localStorage`.
 - `app/providers.tsx` — `<AvaKitProvider chains={[chain1, chain2]}>` with the injected wallet.
-- `components/demo.tsx` — the **Devnet Studio**: live chain cards (block height + ICM status), deploy on both chains, send, and watch the message land on the other chain. When the devnet isn't up yet it shows a copy-command setup panel (`pnpm devnet`) — it never runs shell itself.
+- `components/demo.tsx` — the **Devnet Studio**: live chain cards (block height + ICM status), deploy on both chains, send, and watch the message land on the other chain. When the devnet isn't up yet it shows a copy-command setup panel (`npm run devnet`) — it never runs shell itself.
 - `scripts/devnet.sh` — the one-command local ICM devnet. After deploying the two chains it reads
   their RPC URL, hex blockchain ID and TeleporterMessenger address from
   `avalanche blockchain describe`, verifies with `eth_getCode` that a contract is deployed at that
@@ -53,9 +53,9 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 ## The flow
 
-1. `pnpm devnet` — creates + deploys two L1s locally with ICM + relayer, writes `icm.config.json`.
-2. Import the EWOQ dev key into your wallet (pre-funded on both chains; `pnpm devnet` prints it).
-3. `pnpm dev`, then in the app: deploy the messenger on chain1 and chain2. The chain's
+1. `npm run devnet` — creates + deploys two L1s locally with ICM + relayer, writes `icm.config.json`.
+2. Import the EWOQ dev key into your wallet (pre-funded on both chains; `npm run devnet` prints it).
+3. `npm run dev`, then in the app: deploy the messenger on chain1 and chain2. The chain's
    TeleporterMessenger address is a constructor argument — the UI passes it from
    `icm.config.json`.
 4. Link: "Link the messengers" registers each messenger as the other one's trusted remote
@@ -103,7 +103,7 @@ the EVM `chainId` (1001/1002). Get it from `avalanche blockchain describe <name>
   again.
 - The TeleporterMessenger address is an **immutable constructor parameter**, not a hardcoded
   constant: the canonical predeploy is `0x253b…5fcf`, but a chain can run a different
-  Teleporter version. `pnpm devnet` reads the real address from `avalanche blockchain describe`
+  Teleporter version. `npm run devnet` reads the real address from `avalanche blockchain describe`
   and writes it to `icm.config.json`; the UI passes it to the constructor from there. Do not
   replace that with a constant in the app.
 
@@ -120,14 +120,14 @@ cd contracts && forge build
 
 - UI uses **shadcn/ui only** (`@avakit/react` components are shadcn-styled). Black & white; dark/light via `next-themes`.
 - Animations: **Framer Motion** or **GSAP** only.
-- Never hardcode private keys. The EWOQ key is a **public dev key** — local devnet only, never a real network — and even it is not written into this repo: `pnpm devnet` reads it from `avalanche blockchain describe` to print it, so secret scanners stay quiet.
+- Never hardcode private keys. The EWOQ key is a **public dev key** — local devnet only, never a real network — and even it is not written into this repo: `npm run devnet` reads it from `avalanche blockchain describe` to print it, so secret scanners stay quiet.
 
 ## Commands
 
-- `pnpm devnet` — start the local 2-L1 ICM devnet (writes `icm.config.json`). Chains are named
+- `npm run devnet` — start the local 2-L1 ICM devnet (writes `icm.config.json`). Chains are named
   `icm1`/`icm2` (chainIds 1001/1002) so this can run alongside the token-bridge devnet.
-- `CLEAN=1 pnpm devnet` — wipe any existing local network first, then rebuild (use after a reboot or
+- `CLEAN=1 npm run devnet` — wipe any existing local network first, then rebuild (use after a reboot or
   when a stale network blocks the deploy)
-- `pnpm dev` — dev server (http://localhost:3000 by default)
+- `npm run dev` — dev server (http://localhost:3000 by default)
 - `cd contracts && forge build` — recompile the contract
 - `avalanche network stop | clean` — pause | wipe the devnet

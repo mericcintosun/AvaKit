@@ -75,5 +75,5 @@ cd contracts && forge build
 
 ## Commands
 
-- `pnpm dev` — dev server
+- `npm run dev` — dev server
 - `cd contracts && forge build` — recompile the token

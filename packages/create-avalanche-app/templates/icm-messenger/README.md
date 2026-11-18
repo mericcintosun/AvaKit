@@ -4,15 +4,17 @@ An Avalanche **cross-chain messaging** dapp scaffolded with [AvaKit](https://git
 
 ## Getting started
 
+The commands are written for npm; pnpm, yarn and bun work as well.
+
 ```bash
 # 1. start two local L1s with ICM + a relayer (writes icm.config.json)
-pnpm devnet
+npm run devnet
 
 # 2. run the app
-pnpm dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (or the port Next prints)
 ```
 
-`pnpm devnet` needs [avalanche-cli](https://github.com/ava-labs/avalanche-cli) (see [Tooling status](#tooling-status)) and a Unix-like shell (macOS, Linux, or **WSL2** on Windows — the script is bash):
+`npm run devnet` needs [avalanche-cli](https://github.com/ava-labs/avalanche-cli) (see [Tooling status](#tooling-status)) and a Unix-like shell (macOS, Linux, or **WSL2** on Windows — the script is bash):
 
 ```bash
 curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts/install.sh | sh -s -- -b /usr/local/bin
@@ -20,11 +22,11 @@ curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts
 
 The two local chains are named `icm1`/`icm2` (EVM chainIds 1001/1002), so this can run alongside the token-bridge devnet without colliding.
 
-Then in your wallet (Core / MetaMask), **import the EWOQ dev key** — avalanche-cli's public local dev key, pre-funded on both local chains. `pnpm devnet` prints it when it finishes; it is also on the `ewoq` row of `avalanche blockchain describe icm1`. It is deliberately not written in this repo (secret scanners flag committed keys, even public dev ones). Never use it on a real network.
+Then in your wallet (Core / MetaMask), **import the EWOQ dev key** — avalanche-cli's public local dev key, pre-funded on both local chains. `npm run devnet` prints it when it finishes; it is also on the `ewoq` row of `avalanche blockchain describe icm1`. It is deliberately not written in this repo (secret scanners flag committed keys, even public dev ones). Never use it on a real network.
 
 ## Tooling status
 
-`pnpm devnet` (`scripts/devnet.sh`) drives **Avalanche CLI** (the `avalanche` command, from
+`npm run devnet` (`scripts/devnet.sh`) drives **Avalanche CLI** (the `avalanche` command, from
 [ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli)). What to know before you rely on it:
 
 - Ava Labs put Avalanche CLI in maintenance mode in December 2025, and on 2026-10-06 removed its
@@ -86,8 +88,8 @@ remote again.
 
 ```bash
 avalanche network stop     # pause (keeps state)
-avalanche network clean    # wipe (new blockchain IDs — re-run pnpm devnet)
-CLEAN=1 pnpm devnet        # wipe + rebuild in one step (use if a stale network blocks the deploy)
+avalanche network clean    # wipe (new blockchain IDs — re-run npm run devnet)
+CLEAN=1 npm run devnet     # wipe + rebuild in one step (use if a stale network blocks the deploy)
 ```
 
 A wipe creates brand-new chains (same chainIds, new blockchain IDs), so the messengers you deployed

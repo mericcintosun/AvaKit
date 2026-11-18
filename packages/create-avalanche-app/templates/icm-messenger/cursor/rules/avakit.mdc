@@ -11,7 +11,7 @@ Teleporter), against a local 2-L1 devnet.
 
 ## Flow
 
-- `pnpm devnet` (scripts/devnet.sh) creates + deploys two local L1s with the
+- `npm run devnet` (scripts/devnet.sh) creates + deploys two local L1s with the
   TeleporterMessenger and a relayer, and writes `icm.config.json` — including the
   TeleporterMessenger address it read from `avalanche blockchain describe` and verified
   on-chain. Use that value; do not hardcode the canonical address in the app.

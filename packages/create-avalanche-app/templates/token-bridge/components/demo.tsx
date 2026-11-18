@@ -284,7 +284,7 @@ function SetupPanel() {
           up the two chains, a relayer, and the full bridge — one command in your terminal:
         </p>
       </div>
-      <CopyCommand command="pnpm bridge" />
+      <CopyCommand command="npm run bridge" />
       <p className="text-muted-foreground text-xs">
         Needs{" "}
         <a

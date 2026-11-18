@@ -5,7 +5,7 @@ Operational guide for AI agents (Claude Code / Cursor) working in this project.
 ## What this is
 
 A dapp that bridges an ERC-20 between two Avalanche L1s using **Interchain Token Transfer (ICTT)**.
-It runs against a **local devnet** of two L1s that `scripts/bridge.sh` (`pnpm bridge`) spins up — with
+It runs against a **local devnet** of two L1s that `scripts/bridge.sh` (`npm run bridge`) spins up — with
 Interchain Messaging, a relayer, and a full ICTT bridge (a demo token + Home + Remote) deployed and
 registered automatically.
 
@@ -35,11 +35,11 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   arrival it **mints** to the recipient. Bridging back **burns** the remote token and **unlocks** the
   original on the home chain.
 - A **TeleporterRegistry** on each chain points the ICTT contracts at the ICM messenger predeploy
-  (`0x253b…5fcf`). The relayer (started by `pnpm bridge`) carries the messages.
+  (`0x253b…5fcf`). The relayer (started by `npm run bridge`) carries the messages.
 
 ## Architecture
 
-- `scripts/bridge.sh` (`pnpm bridge`) — creates + deploys two L1s, then runs `deploy-bridge.mjs`.
+- `scripts/bridge.sh` (`npm run bridge`) — creates + deploys two L1s, then runs `deploy-bridge.mjs`.
 - `scripts/deploy-bridge.mjs` — deploys the demo ERC-20 + TeleporterRegistry + Home on chain1, a
   TeleporterRegistry + Remote on chain2, and calls `registerWithHome`. Uses viem + the embedded
   artifacts + the public EWOQ dev key, which it reads from `avalanche blockchain describe` at run
@@ -99,9 +99,9 @@ you put in its place must offer both, or the script and the UI must change with 
 
 ## Commands
 
-- `pnpm bridge` — spin up the 2-L1 devnet + deploy the ICTT bridge (writes `bridge.config.json`).
+- `npm run bridge` — spin up the 2-L1 devnet + deploy the ICTT bridge (writes `bridge.config.json`).
   Chains are named `br1`/`br2` (chainIds 2001/2002) so this can run alongside the icm-messenger devnet.
-- `CLEAN=1 pnpm bridge` — wipe any existing local network first, then rebuild (use after a reboot or
+- `CLEAN=1 npm run bridge` — wipe any existing local network first, then rebuild (use after a reboot or
   when a stale network blocks the deploy)
-- `pnpm dev` — dev server (http://localhost:3000 by default)
+- `npm run dev` — dev server (http://localhost:3000 by default)
 - `avalanche network stop | clean` — pause | wipe the local devnet

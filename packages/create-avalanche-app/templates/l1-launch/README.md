@@ -4,17 +4,19 @@ Launch **your own Avalanche L1** with one command, then explore it in a built-in
 
 ## Getting started
 
-> Requires a Unix-like shell (macOS, Linux, or **WSL2** on Windows): `pnpm l1` runs bash +
+> Requires a Unix-like shell (macOS, Linux, or **WSL2** on Windows): `npm run l1` runs bash +
 > avalanche-cli. The pure-Fuji templates work on native Windows; this one needs WSL.
+
+The commands are written for npm; pnpm, yarn and bun work as well.
 
 ```bash
 # 1. launch your L1 (needs avalanche-cli; downloads avalanchego on first run)
-pnpm l1
+npm run l1
 #    → creates a Subnet-EVM chain, deploys it locally, writes l1.config.json
-#    optional: L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 pnpm l1
+#    optional: L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 npm run l1
 
 # 2. run the app
-pnpm dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then: import the printed EWOQ dev key into your wallet (pre-funded on your chain, local-only) →
@@ -22,7 +24,7 @@ Then: import the printed EWOQ dev key into your wallet (pre-funded on your chain
 
 ## Tooling status
 
-`pnpm l1` and `pnpm l1:fuji` (`scripts/l1.sh`, `scripts/l1-fuji.sh`) drive **Avalanche CLI** (the
+`npm run l1` and `npm run l1:fuji` (`scripts/l1.sh`, `scripts/l1-fuji.sh`) drive **Avalanche CLI** (the
 `avalanche` command, from [ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli)). What to know
 before you rely on it:
 
@@ -38,8 +40,8 @@ before you rely on it:
 
 ```bash
 avalanche network stop     # pause (keeps state)
-avalanche network clean    # wipe (new blockchain ID — re-run pnpm l1)
-CLEAN=1 pnpm l1            # wipe + rebuild in one step (use if a stale network blocks the deploy)
+avalanche network clean    # wipe (new blockchain ID — re-run npm run l1)
+CLEAN=1 npm run l1         # wipe + rebuild in one step (use if a stale network blocks the deploy)
 ```
 
 A wipe creates a brand-new chain, so the demo token you deployed is gone. The app notices on its own
@@ -57,14 +59,14 @@ token** again.
 ## Graduate to Fuji (advanced)
 
 ```bash
-FUJI_KEY=mykey pnpm l1:fuji    # mykey = a funded avalanche-cli key (the script explains how to get one)
+FUJI_KEY=mykey npm run l1:fuji    # mykey = a funded avalanche-cli key (the script explains how to get one)
 ```
 
 Launches a **sovereign Proof-of-Authority** version of your chain on the public Fuji testnet: same
 chain ID and token, production defaults, owned by your Fuji key. It is a separate avalanche-cli
 config (named `<name>fuji`) — the local dev chain itself never goes to Fuji, because its genesis
 pre-funds the public EWOQ key. The script never overwrites an existing config and is safe to re-run;
-`pnpm l1` points the app back at the local chain.
+`npm run l1` points the app back at the local chain.
 
 This needs test AVAX and a validator node that **stays running** (your machine can be it) — see
 `CLAUDE.md` for the full walkthrough and caveats.

@@ -4,18 +4,20 @@ Bridge an ERC-20 between two Avalanche L1s with **Interchain Token Transfer (ICT
 
 ## Getting started
 
-> Requires a Unix-like shell (macOS, Linux, or **WSL2** on Windows): `pnpm bridge` runs bash +
+> Requires a Unix-like shell (macOS, Linux, or **WSL2** on Windows): `npm run bridge` runs bash +
 > avalanche-cli. The pure-Fuji templates work on native Windows; this one needs WSL.
+
+The commands are written for npm; pnpm, yarn and bun work as well.
 
 ```bash
 # 1. spin up two L1s + a relayer + the full ICTT bridge (needs avalanche-cli)
-pnpm bridge
+npm run bridge
 #    → creates br1 + br2, deploys a demo ERC-20 + Home + Remote, registers them,
 #      and writes bridge.config.json
 #    (chains are named br1/br2 so this can run alongside the icm-messenger devnet)
 
 # 2. run the app
-pnpm dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then: import the printed EWOQ dev key into your wallet (pre-funded on both chains, local-only) →
@@ -24,7 +26,7 @@ Swap direction to bridge it back.
 
 ## Tooling status
 
-`pnpm bridge` (`scripts/bridge.sh`, `scripts/deploy-bridge.mjs`) drives **Avalanche CLI** (the
+`npm run bridge` (`scripts/bridge.sh`, `scripts/deploy-bridge.mjs`) drives **Avalanche CLI** (the
 `avalanche` command, from [ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli)). What to know
 before you rely on it:
 
@@ -40,8 +42,8 @@ before you rely on it:
 
 ```bash
 avalanche network stop     # pause (keeps state)
-avalanche network clean    # wipe (re-run pnpm bridge)
-CLEAN=1 pnpm bridge        # wipe + rebuild in one step (use if a stale network blocks the deploy)
+avalanche network clean    # wipe (re-run npm run bridge)
+CLEAN=1 npm run bridge     # wipe + rebuild in one step (use if a stale network blocks the deploy)
 ```
 
 ## How it works
@@ -49,11 +51,11 @@ CLEAN=1 pnpm bridge        # wipe + rebuild in one step (use if a stale network 
 - **Home** (br1) locks your ERC-20 and sends an Interchain message.
 - **Remote** (br2) is itself an ERC-20 — it mints a bridged version on arrival, and burns it when
   you bridge back (which unlocks the original on br1).
-- A relayer (started by `pnpm bridge`) carries the messages; a TeleporterRegistry on each chain wires
+- A relayer (started by `npm run bridge`) carries the messages; a TeleporterRegistry on each chain wires
   the ICTT contracts to the ICM messenger.
 
 The bridge contracts are compiled from [ava-labs/icm-contracts](https://github.com/ava-labs/icm-contracts)
-and bundled as bytecode, so `pnpm bridge` deploys them with no Solidity toolchain on your machine.
+and bundled as bytecode, so `npm run bridge` deploys them with no Solidity toolchain on your machine.
 The demo ERC-20 it deploys next to them is AvaKit's own `AvaKitToken` (the `erc20-token`
 template's contract), bundled the same way.
 

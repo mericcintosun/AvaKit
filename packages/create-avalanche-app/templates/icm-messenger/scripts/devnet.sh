@@ -37,9 +37,9 @@ deploy_local() {
   die "Deploy of '$name' failed.
      If it says a blockchain is already deployed, a previous local network is still
      around. Reset it and re-run:
-       avalanche network clean && pnpm devnet
+       avalanche network clean && npm run devnet
      Or wipe automatically on the next run:
-       CLEAN=1 pnpm devnet"
+       CLEAN=1 npm run devnet"
 }
 
 # --- 0. avalanche-cli present? ---------------------------------------------
@@ -51,14 +51,14 @@ if ! command -v avalanche >/dev/null 2>&1; then
 
   # or:  brew install ava-labs/tap/avalanche-cli
 
-Then re-run: pnpm devnet
+Then re-run: npm run devnet
 EOF
   exit 1
 fi
 command -v node >/dev/null 2>&1 || die "node not found (this script uses it to check that ICM is deployed)."
 
 # --- 0b. Opt-in clean slate -------------------------------------------------
-# `CLEAN=1 pnpm devnet` wipes any existing local network first. Off by default
+# `CLEAN=1 npm run devnet` wipes any existing local network first. Off by default
 # so it never silently destroys unrelated local L1s (e.g. an l1-launch chain).
 if [ "${CLEAN:-}" = "1" ]; then
   say "CLEAN=1 → wiping any existing local network…"
@@ -126,7 +126,7 @@ ICM2="$(teleporter_for "$CHAIN2" "$DESC2")"
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 [ "$(lower "$ICM1")" = "$(lower "$ICM2")" ] || die "The two chains use different TeleporterMessenger addresses
      ($CHAIN1: $ICM1 · $CHAIN2: $ICM2), but the app expects one address for both.
-     Rebuild the devnet so both chains run the same ICM version: CLEAN=1 pnpm devnet"
+     Rebuild the devnet so both chains run the same ICM version: CLEAN=1 npm run devnet"
 
 # Is there contract code at address $2 on the chain behind RPC $1?
 # Prints "yes", "no", or "unreachable" (the RPC did not answer).
@@ -200,11 +200,11 @@ Next:
   1. In your wallet (Core / MetaMask), import the EWOQ dev key (pre-funded on both chains):
        $EWOQ_HINT
      (public dev key — local devnet only, never a real network)
-  2. pnpm dev  →  http://localhost:3000 (or the port Next prints)
+  2. npm run dev  →  http://localhost:3000 (or the port Next prints)
   3. Deploy the messenger on both chains, then send a message across.
 
 Stop / reset the devnet:
   avalanche network stop     # pause (keeps state)
-  avalanche network clean    # wipe (new blockchain IDs — re-run pnpm devnet)
-  CLEAN=1 pnpm devnet        # wipe + rebuild in one step
+  avalanche network clean    # wipe (new blockchain IDs — re-run npm run devnet)
+  CLEAN=1 npm run devnet     # wipe + rebuild in one step
 EOF

@@ -7,7 +7,7 @@ Operational guide for AI agents (Claude Code / Cursor) working in this project.
 A one-command flow that spins up **your own Avalanche L1** (a Subnet-EVM blockchain) on a local
 Avalanche network, then hands you a **built-in block explorer + dashboard**: live blocks and
 transactions, your balance, and a "deploy a contract" button — all reading straight from your
-chain's RPC, no third-party explorer or Docker required. `pnpm l1:fuji` launches a sovereign version
+chain's RPC, no third-party explorer or Docker required. `npm run l1:fuji` launches a sovereign version
 of the same chain on the public Fuji testnet (advanced).
 
 ## Stack
@@ -30,8 +30,8 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 ## Architecture
 
-- `scripts/l1.sh` (`pnpm l1`) — creates + deploys a local Subnet-EVM L1 and writes `l1.config.json`.
-- `scripts/l1-fuji.sh` (`pnpm l1:fuji`) — the advanced path: create a separate sovereign
+- `scripts/l1.sh` (`npm run l1`) — creates + deploys a local Subnet-EVM L1 and writes `l1.config.json`.
+- `scripts/l1-fuji.sh` (`npm run l1:fuji`) — the advanced path: create a separate sovereign
   Proof-of-Authority config for your chain (`<name>fuji`) and deploy that to Fuji. It never deploys
   the local dev config and never overwrites an existing one.
 - `l1.config.json` — your chain: `name`, `token`, `evmChainId`, `rpcUrl`, `blockchainIdHex`, and (local only) the pre-funded `faucetAccount`. Written by the scripts.
@@ -47,14 +47,14 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 ## The flow
 
-1. `pnpm l1` — creates the L1, deploys it locally, writes `l1.config.json`.
+1. `npm run l1` — creates the L1, deploys it locally, writes `l1.config.json`.
 2. Import the printed EWOQ dev key into your wallet (pre-funded on your chain — public, local only).
-3. `pnpm dev` → the page becomes your chain dashboard.
+3. `npm run dev` → the page becomes your chain dashboard.
 4. Deploy the demo token → mint → watch the transactions land in the built-in explorer live.
 
 ## The config decisions (explain these to the user when asked)
 
-`pnpm l1` runs `avalanche blockchain create` with these choices — each is a real design decision:
+`npm run l1` runs `avalanche blockchain create` with these choices — each is a real design decision:
 
 - **VM = Subnet-EVM** (`--evm --latest`): an EVM chain, so Solidity/viem/MetaMask all work. The
   alternative is a custom VM (`--custom`) — only needed for non-EVM execution.
@@ -71,7 +71,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
     for a consortium or a chain you run.
   - **PoS native** (`--proof-of-stake-native`): validators stake the native token.
   - **PoS ERC-20** (`--proof-of-stake-erc20`): validators stake a specified ERC-20.
-  The Fuji path (`pnpm l1:fuji`) uses a sovereign PoA L1 owned by your Fuji key. Because the local
+  The Fuji path (`npm run l1:fuji`) uses a sovereign PoA L1 owned by your Fuji key. Because the local
   config is non-sovereign, the script creates a **second** avalanche-cli config for Fuji (named
   `<name>fuji`, same chain ID and token) rather than deploying the local one.
 - **`--test-defaults`**: dev-friendly genesis — the **EWOQ** key is pre-funded, fees are low, finality
@@ -87,7 +87,7 @@ commit a real private key. On Fuji you bring your own funded wallet.
 
 ## Graduating to Fuji (advanced)
 
-`FUJI_KEY=<key> pnpm l1:fuji` puts your chain on the public Fuji testnet. Unlike the local flow this
+`FUJI_KEY=<key> npm run l1:fuji` puts your chain on the public Fuji testnet. Unlike the local flow this
 needs, and the script will walk you through: (1) a Fuji key funded with test AVAX (the official
 faucet, which needs a free Builder Hub sign-in → C-Chain → cross-chain transfer to the P-Chain),
 (2) a **bootstrap validator** — your machine can be it (`--use-local-machine`), but that process
@@ -110,8 +110,8 @@ What the script does, in order:
    (`L1_VALIDATOR_BALANCE` changes the balance).
 4. Rewrites `l1.config.json` (`network: "fuji"`, the Fuji RPC, the hex blockchain ID).
 
-It is safe to re-run: it never passes `--force`, so it cannot erase a config. `pnpm l1` points the app
-back at the local chain and `pnpm l1:fuji` back at the Fuji one.
+It is safe to re-run: it never passes `--force`, so it cannot erase a config. `npm run l1` points the app
+back at the local chain and `npm run l1:fuji` back at the Fuji one.
 
 **Gas on the Fuji L1** is the L1's own token, not AVAX — the Fuji faucet does not help here. With
 `--production-defaults` the owner address (your Fuji key) starts with native tokens, and avalanche-cli
@@ -122,7 +122,7 @@ generates a funded `subnet_<name>_airdrop` key. Import one into the wallet
 
 When the user asks for help getting their L1 onto Fuji, first figure out WHERE they are, then give
 the ONE next command. `<key>` is their avalanche-cli key name and `<fuji>` the Fuji config name
-(`<name>fuji` by default — see above). Steps 3–5 are what `FUJI_KEY=<key> pnpm l1:fuji` does for
+(`<name>fuji` by default — see above). Steps 3–5 are what `FUJI_KEY=<key> npm run l1:fuji` does for
 them; the individual commands are here so you can detect state or drive it by hand. Detect state like
 this:
 
@@ -142,7 +142,7 @@ this:
    `avalanche blockchain create <fuji> --evm --latest --evm-chain-id <id> --evm-token <TOK>
    --proof-of-authority --validator-manager-owner <keyAddr> --proxy-contract-owner <keyAddr>
    --production-defaults` (`<keyAddr>` is the key's C-Chain address from step 1).
-   If it exists with `"Sovereign": false` it is a local dev config from `pnpm l1` (EWOQ-funded
+   If it exists with `"Sovereign": false` it is a local dev config from `npm run l1` (EWOQ-funded
    genesis): **never deploy that one to Fuji** and do not overwrite it with `--force` — use a
    different name for the Fuji config.
 4. **Deploy to Fuji.** `avalanche blockchain deploy <fuji> --fuji --key <key> --use-local-machine
@@ -154,7 +154,7 @@ this:
    fresh name, and retry. The node bootstraps to Fuji first (downloads a multi-hundred-MB archive, a
    few minutes) — that wait is normal, not a hang.
 5. **Verify it's live.** `Networks.Fuji.RPCEndpoints` in the sidecar now holds the RPC (the deploy
-   also prints it as `RPC Endpoint`). Re-run `FUJI_KEY=<key> pnpm l1:fuji` to point this app at it —
+   also prints it as `RPC Endpoint`). Re-run `FUJI_KEY=<key> npm run l1:fuji` to point this app at it —
    or set `l1.config.json` → `network: "fuji"`, `name`, `rpcUrl`, `blockchainIdHex` by hand. Confirm:
    `cast chain-id --rpc-url <rpc>` returns the chain id, `cast block-number` advances after a
    transaction (Subnet-EVM produces no empty blocks), and the blockchain is listed on Fuji's P-Chain
@@ -179,16 +179,16 @@ After changing `contracts/src/AvaKitToken.sol`: `cd contracts && forge build`, t
 - Animations: Framer Motion or GSAP only.
 - The explorer is all read-only viem (`getPublicClient(chain)` → `getBlock`/`getBalance`/…); keep it that way — no server, no indexer.
 - Never hardcode a real private key. The EWOQ key is public/local-only, and even it is not written
-  into this repo: `pnpm l1` reads it from `avalanche blockchain describe` to print it, so secret
+  into this repo: `npm run l1` reads it from `avalanche blockchain describe` to print it, so secret
   scanners stay quiet.
 
 ## Commands
 
-- `pnpm l1` — launch your local L1 (writes `l1.config.json`)
-- `CLEAN=1 pnpm l1` — wipe any existing local network first, then rebuild (use after a reboot or when
+- `npm run l1` — launch your local L1 (writes `l1.config.json`)
+- `CLEAN=1 npm run l1` — wipe any existing local network first, then rebuild (use after a reboot or when
   a stale network blocks the deploy)
-- `pnpm dev` — dev server (http://localhost:3000 by default)
-- `FUJI_KEY=<key> pnpm l1:fuji` — launch a sovereign PoA version of the chain on Fuji (advanced;
+- `npm run dev` — dev server (http://localhost:3000 by default)
+- `FUJI_KEY=<key> npm run l1:fuji` — launch a sovereign PoA version of the chain on Fuji (advanced;
   safe to re-run)
 - `avalanche network stop | clean` — pause | wipe the local network
 - `cd contracts && forge build` — recompile the demo token

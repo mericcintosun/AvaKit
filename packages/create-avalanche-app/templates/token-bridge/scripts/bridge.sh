@@ -29,9 +29,9 @@ deploy_local() {
   die "Deploy of '$name' failed.
      If it says a blockchain is already deployed, a previous local network is still
      around. Reset it and re-run:
-       avalanche network clean && pnpm bridge
+       avalanche network clean && npm run bridge
      Or wipe automatically on the next run:
-       CLEAN=1 pnpm bridge"
+       CLEAN=1 npm run bridge"
 }
 
 if ! command -v avalanche >/dev/null 2>&1; then
@@ -40,13 +40,13 @@ if ! command -v avalanche >/dev/null 2>&1; then
 
   curl -sSfL https://raw.githubusercontent.com/ava-labs/avalanche-cli/main/scripts/install.sh | sh -s -- -b /usr/local/bin
 
-Then re-run: pnpm bridge
+Then re-run: npm run bridge
 EOF
   exit 1
 fi
 
 # --- 0b. Opt-in clean slate -------------------------------------------------
-# `CLEAN=1 pnpm bridge` wipes any existing local network first. Off by default
+# `CLEAN=1 npm run bridge` wipes any existing local network first. Off by default
 # so it never silently destroys unrelated local L1s (e.g. an icm-messenger devnet).
 if [ "${CLEAN:-}" = "1" ]; then
   say "CLEAN=1 → wiping any existing local network…"
@@ -116,11 +116,11 @@ Next:
   1. Import the EWOQ dev key into your wallet (Core / MetaMask), pre-funded on both chains:
        $EWOQ_HINT
      (public dev key, local only)
-  2. pnpm dev  →  http://localhost:3000 (or the port Next prints)
+  2. npm run dev  →  http://localhost:3000 (or the port Next prints)
   3. Mint the demo token on $CHAIN1, then bridge it to $CHAIN2 and watch it arrive.
 
 Reset:
   avalanche network stop     # pause (keeps state)
-  avalanche network clean    # wipe (re-run pnpm bridge)
-  CLEAN=1 pnpm bridge        # wipe + rebuild in one step
+  avalanche network clean    # wipe (re-run npm run bridge)
+  CLEAN=1 npm run bridge     # wipe + rebuild in one step
 EOF

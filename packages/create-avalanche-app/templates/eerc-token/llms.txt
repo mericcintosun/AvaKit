@@ -5,7 +5,7 @@
 ## Project map
 
 - [lib/eerc-config.ts](lib/eerc-config.ts): `EERC_CONTRACT_ADDRESS` (the eERC instance in use; `usesSharedInstance` tells whether it is still the shared demo one) + pinned circuit files with SHA-256 hashes + `loadVerifiedCircuits()` (download → verify → blob URLs, once per page load; tampered CDN copies fail loudly).
-- [scripts/deploy-eerc.mjs](scripts/deploy-eerc.mjs): `pnpm deploy:eerc` — deploy your own standalone instance to Fuji (mint is owner-only, so this is how mint becomes usable) and point the app at it.
+- [scripts/deploy-eerc.mjs](scripts/deploy-eerc.mjs): `npm run deploy:eerc` — deploy your own standalone instance to Fuji (mint is owner-only, so this is how mint becomes usable) and point the app at it.
 - [app/providers.tsx](app/providers.tsx): `<AvaKitProvider>` (wallet) + `<WagmiProvider>` (required by the eERC SDK's internal reads).
 - [components/demo.tsx](components/demo.tsx): register → unlock → mint → confidential transfer → burn.
 - [components/funding.tsx](components/funding.tsx): `useFunding()` + `<FundingNotice />` — polls the balance while the wallet is empty, reports the faucet (`useFaucet()`), and disables transaction buttons only while the balance is really zero.

@@ -9,7 +9,7 @@ export const SHARED_EERC_CONTRACT_ADDRESS: Hex = "0xfB27bcdb845ECF231a36f3d14466
 
 /**
  * The eERC instance this app talks to: the shared one until you run
- * `pnpm deploy:eerc`, which rewrites this line to point at your own instance
+ * `npm run deploy:eerc`, which rewrites this line to point at your own instance
  * (required for minting — `privateMint` is owner-only).
  */
 export const EERC_CONTRACT_ADDRESS: Hex = "0xfB27bcdb845ECF231a36f3d14466e9ce9CF98d58";

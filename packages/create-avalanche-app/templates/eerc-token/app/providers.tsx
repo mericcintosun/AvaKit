@@ -120,7 +120,7 @@ export function Providers({ children }: { children: ReactNode }) {
   // chain from the same __CHAIN_CONST__ AvaKit uses, so the two never diverge.
   //
   // This template is Fuji-only. The shared eERC contract in lib/eerc-config.ts
-  // exists only on Fuji, and `pnpm deploy:eerc` deploys your own instance to
+  // exists only on Fuji, and `npm run deploy:eerc` deploys your own instance to
   // Fuji as well — there is no supported path to another chain. Changing the
   // chain here on its own leaves the app reading an address with no contract
   // behind it; you would first have to deploy the eERC contracts on that chain

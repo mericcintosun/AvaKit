@@ -6,10 +6,10 @@
 # then writes the discovered RPC URL + blockchain ID into l1.config.json so the
 # app can talk to your chain. Everything runs on your machine — no test AVAX, no
 # faucet, no always-on node. To put a sovereign version of this chain on the Fuji
-# testnet, see `pnpm l1:fuji` (scripts/l1-fuji.sh) and CLAUDE.md.
+# testnet, see `npm run l1:fuji` (scripts/l1-fuji.sh) and CLAUDE.md.
 #
 # Configure via env (all optional):
-#   L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 pnpm l1
+#   L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 npm run l1
 #
 # Requires avalanche-cli. It downloads avalanchego + Subnet-EVM on first run.
 
@@ -38,9 +38,9 @@ deploy_local() {
   die "Deploy of '$name' failed.
      If it says a blockchain is already deployed, a previous local network is still
      around. Reset it and re-run:
-       avalanche network clean && pnpm l1
+       avalanche network clean && npm run l1
      Or wipe automatically on the next run:
-       CLEAN=1 pnpm l1"
+       CLEAN=1 npm run l1"
 }
 
 # --- 0. avalanche-cli present? ---------------------------------------------
@@ -52,13 +52,13 @@ if ! command -v avalanche >/dev/null 2>&1; then
 
   # or:  brew install ava-labs/tap/avalanche-cli
 
-Then re-run: pnpm l1
+Then re-run: npm run l1
 EOF
   exit 1
 fi
 
 # --- 0b. Opt-in clean slate -------------------------------------------------
-# `CLEAN=1 pnpm l1` wipes any existing local network first. Off by default so it
+# `CLEAN=1 npm run l1` wipes any existing local network first. Off by default so it
 # never silently destroys unrelated local L1s (e.g. an icm-messenger devnet).
 if [ "${CLEAN:-}" = "1" ]; then
   say "CLEAN=1 → wiping any existing local network…"
@@ -67,13 +67,13 @@ fi
 
 # --- 0c. Never clobber a chain that is live on a public network -------------
 # `create --force` below replaces any existing config with this name — that is
-# what makes `pnpm l1` re-runnable. But if avalanche-cli has that name recorded
+# what makes `npm run l1` re-runnable. But if avalanche-cli has that name recorded
 # as deployed to Fuji or Mainnet, overwriting it would erase the CLI's only
 # record of a live chain (its subnet, validator manager and node).
 SIDECAR="$HOME/.avalanche-cli/subnets/$NAME/sidecar.json"
 if [ -f "$SIDECAR" ] && grep -qE '"(Fuji|Mainnet)"[[:space:]]*:[[:space:]]*\{' "$SIDECAR"; then
-  die "'$NAME' is deployed to a public network, and pnpm l1 would overwrite avalanche-cli's record of it.
-     Pick another name for the local chain, e.g.: L1_NAME=${NAME}local pnpm l1"
+  die "'$NAME' is deployed to a public network, and npm run l1 would overwrite avalanche-cli's record of it.
+     Pick another name for the local chain, e.g.: L1_NAME=${NAME}local npm run l1"
 fi
 
 # --- 1. Create the L1 -------------------------------------------------------
@@ -115,7 +115,7 @@ cat > "$CONFIG" <<EOF
   "evmChainId": $CHAIN_ID,
   "rpcUrl": "$RPC",
   "blockchainIdHex": "${BID:-}",
-  "faucetAccount": { "note": "EWOQ: avalanche-cli's PUBLIC local dev key, pre-funded on every local network. The key itself is printed by pnpm l1 (never written to this file - secret scanners flag committed keys, even public dev ones).", "address": "$EWOQ_ADDR" }
+  "faucetAccount": { "note": "EWOQ: avalanche-cli's PUBLIC local dev key, pre-funded on every local network. The key itself is printed by npm run l1 (never written to this file - secret scanners flag committed keys, even public dev ones).", "address": "$EWOQ_ADDR" }
 }
 EOF
 
@@ -138,14 +138,14 @@ Next:
   1. Import the EWOQ dev key into your wallet (Core / MetaMask) — pre-funded on your chain:
        $EWOQ_HINT
      (public dev key, local only)
-  2. pnpm dev  →  http://localhost:3000 (or the port Next prints)  (your chain dashboard + explorer)
+  2. npm run dev  →  http://localhost:3000 (or the port Next prints)  (your chain dashboard + explorer)
   3. Deploy the demo token, watch blocks and transactions land in real time.
 
 Manage the network:
   avalanche network stop     # pause (keeps state)
-  avalanche network clean    # wipe (new blockchain ID — re-run pnpm l1)
-  CLEAN=1 pnpm l1            # wipe + rebuild in one step
+  avalanche network clean    # wipe (new blockchain ID — re-run npm run l1)
+  CLEAN=1 npm run l1         # wipe + rebuild in one step
 
 Launch a sovereign version on the Fuji testnet (advanced, needs test AVAX + an always-on node):
-  FUJI_KEY=<your avalanche-cli key> pnpm l1:fuji
+  FUJI_KEY=<your avalanche-cli key> npm run l1:fuji
 EOF

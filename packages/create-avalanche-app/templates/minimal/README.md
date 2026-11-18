@@ -4,6 +4,8 @@ An Avalanche dapp scaffolded with [AvaKit](https://github.com/mericcintosun/AvaK
 
 ## Getting started
 
+The commands are written for npm; pnpm, yarn and bun work as well.
+
 ```bash
 # 1. (social login, optional) add your own Web3Auth client ID
 cp .env.example .env.local
@@ -11,7 +13,7 @@ cp .env.example .env.local
 #      for a testnet app, on Sapphire Mainnet for a mainnet app (see .env.example)
 
 # 2. run it
-pnpm dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then connect a wallet, read your balance, and send a first transaction on the chain this app was scaffolded for: `__CHAIN_CONST__` in `app/providers.tsx` (`fuji` is the Avalanche Fuji testnet, `cChain` is Avalanche C-Chain mainnet).

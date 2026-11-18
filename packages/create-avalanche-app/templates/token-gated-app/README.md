@@ -4,13 +4,15 @@ A **token-gated** Avalanche dapp scaffolded with [AvaKit](https://github.com/mer
 
 ## Getting started
 
+The commands are written for npm; pnpm, yarn and bun work as well.
+
 ```bash
 # 1. (social login, optional) add a free Web3Auth client ID
 cp .env.example .env.local
 #    → https://dashboard.web3auth.io (Sapphire Devnet, EVM)
 
 # 2. run it
-pnpm dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (or the port Next prints)
 ```
 
 Then: connect a wallet → **Deploy access-pass contract** → **Mint access pass** → the gated content unlocks. Deploying and minting cost gas; a new wallet gets its first test AVAX from a faucet (see [Test AVAX](#test-avax)), and both buttons wait until it has arrived.

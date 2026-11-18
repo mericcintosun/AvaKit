@@ -74,6 +74,6 @@ Two things to keep when you change this:
 
 ## Commands
 
-- `pnpm dev` — start the dev server (http://localhost:3000 by default)
-- `pnpm build` — production build
-- `pnpm typecheck` — TypeScript check
+- `npm run dev` — start the dev server (http://localhost:3000 by default)
+- `npm run build` — production build
+- `npm run typecheck` — TypeScript check
