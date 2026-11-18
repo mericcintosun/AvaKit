@@ -16,6 +16,7 @@ import {
   isDevnetAction,
   isValidL1Params,
   type L1Params,
+  l1ConfigConflict,
   runDevnetAction,
 } from "./devnet.js";
 import { InputError } from "./errors.js";
@@ -186,6 +187,10 @@ function startRun(runs: RunManager, body: Record<string, unknown>): StartResult 
           "invalid L1: name [a-z][a-z0-9]{1,31}, chainId 1–4294967295, token [A-Z][A-Z0-9]{0,7}",
         );
       }
+      // A config with this name and another chain ID or token would be deployed
+      // as it is, and reported as the chain that was asked for: refuse instead.
+      const conflict = l1ConfigConflict(candidate);
+      if (conflict) throw new InputError(conflict);
       l1 = candidate;
     }
     return runs.start(

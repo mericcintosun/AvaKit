@@ -180,6 +180,38 @@ describe("MCP tools", () => {
     expect(sandbox.calls("avalanche")[0]).toContain("MYL1");
   });
 
+  it("devnet_launch_l1 refuses to pass an existing chain off as the one asked for", async () => {
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    sandbox.addL1("gatel2", { evmChainId: 9999, token: "OLD" });
+
+    const refused = await call("devnet_launch_l1", {
+      name: "gatel2",
+      chainId: "4242",
+      token: "NEW",
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toMatch(
+      /^An L1 config named "gatel2" already exists with chain ID 9999 and token OLD — not the requested chain ID 4242 and token NEW\./,
+    );
+    expect(sandbox.calls("avalanche")).toEqual([]);
+
+    // Asked for as it is, the existing chain is reused — and the log says so.
+    const reused = await call("devnet_launch_l1", {
+      name: "gatel2",
+      chainId: "9999",
+      token: "OLD",
+    });
+    expect(reused.isError).toBe(false);
+    expect(JSON.parse(reused.text)).toEqual({
+      exitCode: 0,
+      tail: [
+        "↳ using the existing config for gatel2 (chain ID 9999 and token OLD) — not creating it again",
+        "$ avalanche blockchain deploy gatel2 --local",
+        "ok",
+      ],
+    });
+  });
+
   it("runs one avalanche-cli action at a time", async () => {
     sandbox.stub(
       "avalanche",

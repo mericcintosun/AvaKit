@@ -169,9 +169,9 @@ describe("prepareFujiAction", () => {
     expect(JSON.stringify(prepared.steps)).not.toContain(key.hex);
   });
 
-  it("skips the create step when the L1 config already exists", () => {
+  it("reuses an existing L1 config that is the one asked for, and says so in the log", () => {
     sandbox.addKey("myfujil1", throwawayKey().hex);
-    sandbox.addL1("myfujil1");
+    sandbox.addL1("myfujil1", { evmChainId: 77777, token: "FUJ" });
     const prepared = prepareFujiAction("deploy", {
       name: "myfujil1",
       chainId: "77777",
@@ -179,6 +179,31 @@ describe("prepareFujiAction", () => {
     });
     if ("error" in prepared) throw new Error(prepared.error);
     expect(prepared.steps.map((s) => s.args.slice(0, 2))).toEqual([["blockchain", "deploy"]]);
+    expect(prepared.steps[0]?.note).toBe(
+      "↳ using the existing config for myfujil1 (chain ID 77777 and token FUJ) — not creating it again",
+    );
+  });
+
+  it("refuses a deploy when the existing config has another chain ID or token", () => {
+    // It used to skip the create, deploy the old chain, and report the new values as done.
+    sandbox.addKey("myl1", throwawayKey().hex);
+    sandbox.addL1("myl1", { evmChainId: 777, token: "TKN" });
+    for (const [chainId, token] of [
+      ["888", "NEW"],
+      ["888", "TKN"],
+      ["777", "NEW"],
+    ] as const) {
+      const prepared = prepareFujiAction("deploy", { name: "myl1", chainId, token });
+      expect(prepared, `${chainId} ${token}`).toEqual({
+        error:
+          'An L1 config named "myl1" already exists with chain ID 777 and token TKN — ' +
+          `not the requested chain ID ${chainId} and token ${token}. ` +
+          "Choose another name, ask for the existing values to reuse that config, or delete it " +
+          "yourself (avalanche blockchain delete myl1) and try again.",
+      });
+    }
+    // The transfer does not depend on the L1's configuration.
+    expect("steps" in prepareFujiAction("transfer", { name: "myl1", amount: "0.3" })).toBe(true);
   });
 });
 

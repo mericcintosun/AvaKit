@@ -13,6 +13,12 @@ export interface Step {
   cmd: string;
   args: string[];
   /**
+   * A line printed just before the command, for something the log would
+   * otherwise leave out — e.g. that an existing L1 config is being reused, so
+   * no `blockchain create` appears.
+   */
+  note?: string;
+  /**
    * Matches the command's final error line when it failed only because the
    * state it was asked for is already there (the blockchain is already
    * deployed, the network is already running). Such a failure is benign and the
@@ -116,6 +122,7 @@ export function runSteps(
       finish(0);
       return;
     }
+    if (step.note) emit(step.note);
     emit(`$ ${step.cmd} ${step.args.join(" ")}`);
 
     let child: ChildProcess;

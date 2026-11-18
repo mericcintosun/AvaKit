@@ -13,6 +13,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { privateKeyToAccount } from "viem/accounts";
+import { l1ConfigConflict, reuseNote } from "./devnet.js";
 import { InputError } from "./errors.js";
 import { keyDir, subnetsDir } from "./paths.js";
 import type { Step } from "./steps.js";
@@ -192,7 +193,11 @@ function transferSteps(name: string, amount: string): Step[] {
 
 function deploySteps(params: FujiParams, ownerAddr: string): Step[] {
   const steps: Step[] = [];
-  if (!existsSync(path.join(subnetsDir(), params.name))) {
+  // An existing config is deployed as it is — only ever when it has the chain
+  // ID and token that were asked for (prepareFujiAction refuses otherwise), and
+  // the log says that it is being reused.
+  const reused = reuseNote(params.name);
+  if (!reused) {
     steps.push({
       cmd: "avalanche",
       args: [
@@ -217,6 +222,7 @@ function deploySteps(params: FujiParams, ownerAddr: string): Step[] {
   }
   steps.push({
     cmd: "avalanche",
+    ...(reused ? { note: reused } : {}),
     args: [
       "blockchain",
       "deploy",
@@ -278,5 +284,9 @@ export function prepareFujiAction(action: FujiAction, request: FujiRequest): Pre
   if (!nameOk || !chainId || !token) return { error: "invalid deploy parameters" };
   const owner = keyAddress(request.name);
   if (!owner) return { error: "key not found — create/fund it first" };
+  // A config with this name and another chain ID or token would be deployed as
+  // it is and reported as the L1 that was asked for: refuse before anything runs.
+  const conflict = l1ConfigConflict({ name: request.name, chainId, token });
+  if (conflict) return { error: conflict };
   return { steps: deploySteps({ name: request.name, chainId, token }, owner), params };
 }

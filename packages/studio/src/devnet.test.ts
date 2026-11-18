@@ -1,11 +1,15 @@
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  existingL1Config,
   getDevnetStatus,
   isDevnetAction,
   isValidChainId,
   isValidL1Name,
   isValidL1Params,
   isValidToken,
+  l1ConfigConflict,
   runDevnetAction,
   runDevnetActionAsync,
 } from "./devnet.js";
@@ -203,6 +207,69 @@ describe("devnet status and actions", () => {
     const { exitCode, log } = await runDevnetActionAsync("create-icm");
     expect(exitCode).toBe(0);
     expect(log.filter((l) => l === "↳ already in place — continuing")).toHaveLength(2);
+  });
+
+  it("refuses create-l1 when a config with that name has another chain ID or token", async () => {
+    // It used to skip the create, deploy the old chain, and end with exit 0 —
+    // "Your L1 is live" for a chain that has neither the new ID nor the new token.
+    sandbox.addL1("gatel2", { evmChainId: 9999, token: "OLD" });
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    const requested = { name: "gatel2", chainId: "4242", token: "NEW" };
+
+    expect(existingL1Config("gatel2")).toEqual({ evmChainId: 9999, token: "OLD" });
+    const conflict = l1ConfigConflict(requested);
+    expect(conflict).toBe(
+      'An L1 config named "gatel2" already exists with chain ID 9999 and token OLD — ' +
+        "not the requested chain ID 4242 and token NEW. " +
+        "Choose another name, ask for the existing values to reuse that config, or delete it " +
+        "yourself (avalanche blockchain delete gatel2) and try again.",
+    );
+    // One differing value is enough.
+    expect(l1ConfigConflict({ ...requested, chainId: "9999" })).toMatch(/token OLD/);
+    expect(l1ConfigConflict({ ...requested, token: "OLD" })).toMatch(/chain ID 9999/);
+
+    // The command builder refuses too, whoever calls it.
+    await expect(runDevnetActionAsync("create-l1", requested)).rejects.toThrow(conflict as string);
+    expect(sandbox.calls("avalanche")).toEqual([]);
+  });
+
+  it("reuses an existing config that is the one asked for, and says so in the log", async () => {
+    sandbox.addL1("gatel2", { evmChainId: 9999, token: "OLD" });
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    const requested = { name: "gatel2", chainId: "9999", token: "OLD" };
+    expect(l1ConfigConflict(requested)).toBeNull();
+
+    const { exitCode, log } = await runDevnetActionAsync("create-l1", requested);
+    expect(exitCode).toBe(0);
+    expect(log).toEqual([
+      "↳ using the existing config for gatel2 (chain ID 9999 and token OLD) — not creating it again",
+      "$ avalanche blockchain deploy gatel2 --local",
+      "ok",
+    ]);
+    expect(sandbox.calls("avalanche")).toEqual([["blockchain", "deploy", "gatel2", "--local"]]);
+  });
+
+  it("does not take a config it cannot read for the chain that was asked for", () => {
+    // A directory avalanche-cli left without a genesis or a sidecar.
+    mkdirSync(path.join(sandbox.home, ".avalanche-cli", "subnets", "halfmade"), {
+      recursive: true,
+    });
+    expect(existingL1Config("halfmade")).toEqual({ evmChainId: null, token: null });
+    expect(l1ConfigConflict({ name: "halfmade", chainId: "9999", token: "MYL1" })).toMatch(
+      /already exists with an unreadable chain ID and an unreadable token/,
+    );
+    // No config at all: nothing in the way.
+    expect(existingL1Config("brandnew")).toBeNull();
+    expect(l1ConfigConflict({ name: "brandnew", chainId: "9999", token: "MYL1" })).toBeNull();
+  });
+
+  it("spin-up says which existing L1 it reuses", async () => {
+    sandbox.addL1("chain1", { evmChainId: 1001, token: "TOK1" });
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    const { log } = await runDevnetActionAsync("create-icm");
+    expect(log.filter((l) => l.startsWith("↳"))).toEqual([
+      "↳ using the existing config for chain1 (chain ID 1001 and token TOK1) — not creating it again",
+    ]);
   });
 
   it("does not let an informational 'already deployed' line hide a real failure", async () => {

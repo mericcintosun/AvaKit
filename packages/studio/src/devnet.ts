@@ -173,22 +173,82 @@ const DEPLOY_LOCAL = (name: string): Step => ({
 const NETWORK_ALREADY_UP =
   /\bnetwork (?:is|has) already (?:been )?(?:running|booted|bootstrapped|started)\b/i;
 
+/** The chain ID and token symbol avalanche-cli has on file for an L1 config. */
+export interface ExistingL1Config {
+  /** Null when the config's genesis has no readable EVM chain ID. */
+  evmChainId: number | null;
+  /** Null when the config's sidecar has no readable token symbol. */
+  token: string | null;
+}
+
+/**
+ * The avalanche-cli config named `name`, or null when there is none. A config
+ * is never overwritten by Studio (see CREATE), so one that exists is what a
+ * deploy under that name will use — whatever chain ID or token was asked for.
+ */
+export function existingL1Config(name: string): ExistingL1Config | null {
+  if (!isValidL1Name(name) || !existsSync(path.join(subnetsDir(), name))) return null;
+  const { evmChainId, token } = readL1(name);
+  return { evmChainId, token: typeof token === "string" ? token : null };
+}
+
+function describeConfig(config: ExistingL1Config): string {
+  const chain =
+    config.evmChainId !== null ? `chain ID ${config.evmChainId}` : "an unreadable chain ID";
+  // The symbol comes from a file on disk: quote no more of it than a symbol can be.
+  const token =
+    config.token !== null ? `token ${config.token.slice(0, 16)}` : "an unreadable token";
+  return `${chain} and ${token}`;
+}
+
+/**
+ * Why an L1 can't be created or deployed under `params.name` as requested, or
+ * null when it can. A config with that name and ANOTHER chain ID or token is
+ * the reason: Studio would skip the create, deploy the existing chain, and
+ * report the requested values as done — for a chain that has neither.
+ */
+export function l1ConfigConflict(params: L1Params): string | null {
+  const existing = existingL1Config(params.name);
+  if (!existing) return null;
+  if (existing.evmChainId === Number(params.chainId) && existing.token === params.token) {
+    return null;
+  }
+  return (
+    `An L1 config named "${params.name}" already exists with ${describeConfig(existing)} — ` +
+    `not the requested chain ID ${params.chainId} and token ${params.token}. ` +
+    "Choose another name, ask for the existing values to reuse that config, or delete it " +
+    `yourself (avalanche blockchain delete ${params.name}) and try again.`
+  );
+}
+
+/** The log line that says an existing config is used as it is, not created again. */
+export function reuseNote(name: string): string | undefined {
+  const existing = existingL1Config(name);
+  return existing
+    ? `↳ using the existing config for ${name} (${describeConfig(existing)}) — not creating it again`
+    : undefined;
+}
+
 /** Idempotent "spin up": create only the missing L1s, then (re)deploy both. */
 function createIcmSteps(): Step[] {
   const existing = new Set(listL1Names());
   return [
     ...(existing.has("chain1") ? [] : [CREATE("chain1", "1001", "TOK1")]),
     ...(existing.has("chain2") ? [] : [CREATE("chain2", "1002", "TOK2")]),
-    DEPLOY_LOCAL("chain1"),
-    DEPLOY_LOCAL("chain2"),
+    { ...DEPLOY_LOCAL("chain1"), note: reuseNote("chain1") },
+    { ...DEPLOY_LOCAL("chain2"), note: reuseNote("chain2") },
   ];
 }
 
 // A single custom L1 — the "launch your own L1" flow. Non-sovereign for a
 // zero-prompt local deploy (same rationale as the ICM chains). Create only if it
-// doesn't exist yet, then deploy locally.
+// doesn't exist yet, then deploy locally. An existing config is reused only
+// when it IS the chain that was asked for; callers check that first
+// (l1ConfigConflict) and refuse the request, so the throw here is a backstop.
 function createL1Steps(params: L1Params): Step[] {
-  const existing = new Set(listL1Names());
+  const conflict = l1ConfigConflict(params);
+  if (conflict) throw new Error(conflict);
+  const note = reuseNote(params.name);
   const create: Step = {
     cmd: "avalanche",
     args: [
@@ -205,7 +265,7 @@ function createL1Steps(params: L1Params): Step[] {
       "--sovereign=false",
     ],
   };
-  return [...(existing.has(params.name) ? [] : [create]), DEPLOY_LOCAL(params.name)];
+  return note ? [{ ...DEPLOY_LOCAL(params.name), note }] : [create, DEPLOY_LOCAL(params.name)];
 }
 
 function stepsFor(action: DevnetAction, params?: L1Params): Step[] {

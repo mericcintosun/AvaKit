@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import http, { type IncomingHttpHeaders } from "node:http";
 import path from "node:path";
@@ -522,6 +523,79 @@ describe("avalanche-cli actions", () => {
     expect(sandbox.calls("avalanche").map((a) => a.slice(0, 3).join(" "))).toEqual([
       "blockchain create mychain",
       "blockchain deploy mychain",
+    ]);
+  });
+
+  it("refuses to reuse an existing L1 config under another chain ID or token", async () => {
+    // Both used to skip the create, deploy the existing chain and end "done"
+    // with the requested values in the run — for a chain that has neither.
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    sandbox.addL1("gatel2", { evmChainId: 9999, token: "OLD" });
+    sandbox.addL1("myl1", { evmChainId: 777, token: "TKN" });
+    // A throwaway key generated for this test run only.
+    sandbox.addKey("myl1", randomBytes(32).toString("hex"));
+
+    const local = await api("/api/run", {
+      body: { kind: "devnet", action: "create-l1", name: "gatel2", chainId: "4242", symbol: "NEW" },
+    });
+    expect(local.status).toBe(400);
+    expect(local.json().error).toMatch(
+      /^An L1 config named "gatel2" already exists with chain ID 9999 and token OLD — not the requested chain ID 4242 and token NEW\. Choose another name, .* \(avalanche blockchain delete gatel2\) and try again\.$/,
+    );
+
+    const fuji = await api("/api/run", {
+      body: { kind: "fuji", action: "deploy", name: "myl1", chainId: "888", symbol: "NEW" },
+    });
+    expect(fuji.status).toBe(400);
+    expect(fuji.json().error).toMatch(
+      /^An L1 config named "myl1" already exists with chain ID 777 and token TKN — not the requested chain ID 888 and token NEW\./,
+    );
+
+    // Refused before anything ran, and no run to report as done.
+    expect(sandbox.calls("avalanche")).toEqual([]);
+    expect(await currentRun()).toBeNull();
+  });
+
+  it("reuses an existing L1 config that is the one asked for, and says so in the log", async () => {
+    sandbox.stub("avalanche", '() => ({ out: "ok\\n" })');
+    sandbox.addL1("gatel2", { evmChainId: 9999, token: "OLD" });
+    sandbox.addL1("myl1", { evmChainId: 777, token: "TKN" });
+    sandbox.addKey("myl1", randomBytes(32).toString("hex"));
+    const logOf = async () => {
+      const stream = openStream();
+      await waitFor(stream.ended, (ended) => ended);
+      return stream.lines();
+    };
+
+    const local = await api("/api/run", {
+      body: { kind: "devnet", action: "create-l1", name: "gatel2", chainId: "9999", symbol: "OLD" },
+    });
+    expect(local.status).toBe(200);
+    expect(await runDone()).toMatchObject({
+      exitCode: 0,
+      params: { name: "gatel2", chainId: "9999", symbol: "OLD" },
+    });
+    expect(await logOf()).toEqual([
+      "↳ using the existing config for gatel2 (chain ID 9999 and token OLD) — not creating it again",
+      "$ avalanche blockchain deploy gatel2 --local",
+      "ok",
+    ]);
+
+    const fuji = await api("/api/run", {
+      body: { kind: "fuji", action: "deploy", name: "myl1", chainId: "777", symbol: "TKN" },
+    });
+    expect(fuji.status).toBe(200);
+    expect(await runDone()).toMatchObject({
+      exitCode: 0,
+      params: { name: "myl1", chainId: "777", symbol: "TKN" },
+    });
+    expect((await logOf()).slice(0, 2)).toEqual([
+      "↳ using the existing config for myl1 (chain ID 777 and token TKN) — not creating it again",
+      "$ avalanche blockchain deploy myl1 --fuji --key myl1 --use-local-machine --num-bootstrap-validators 1 --balance 0.1 --vmc-L1",
+    ]);
+    expect(sandbox.calls("avalanche").map((a) => a.slice(0, 3).join(" "))).toEqual([
+      "blockchain deploy gatel2",
+      "blockchain deploy myl1",
     ]);
   });
 

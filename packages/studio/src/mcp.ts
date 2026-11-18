@@ -15,6 +15,7 @@ import {
   getDevnetStatus,
   isValidL1Params,
   type L1Params,
+  l1ConfigConflict,
   runDevnetActionAsync,
 } from "./devnet.js";
 import { deployMessengers, getIcmState, MAX_MESSAGE_BYTES, sendIcmMessage } from "./icm.js";
@@ -91,7 +92,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Launch your own L1",
       description:
-        "Create a single custom Subnet-EVM L1 and deploy it locally. Returns the exit code and log tail; read the chain's RPC afterwards with devnet_status. Idempotent (won't recreate an existing chain). Takes a few minutes on first run.",
+        "Create a single custom Subnet-EVM L1 and deploy it locally. Returns the exit code and log tail; read the chain's RPC afterwards with devnet_status. Idempotent: an existing chain with this name is reused (the log says so) when its chain id and token are the ones asked for, and the call is refused — naming the existing values — when they are not. Takes a few minutes on first run.",
       inputSchema: {
         name: z
           .string()
@@ -111,6 +112,10 @@ export function createMcpServer(): McpServer {
     async ({ name, chainId, token }) => {
       const params = { name, chainId, token };
       if (!isValidL1Params(params)) return text("invalid L1 parameters", true);
+      // An existing config with another chain ID or token is not the chain
+      // that was asked for: say so instead of deploying it under that name.
+      const conflict = l1ConfigConflict(params);
+      if (conflict) return text(conflict, true);
       return devnetAction("create-l1", 12, params);
     },
   );
