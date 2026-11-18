@@ -9,8 +9,8 @@ exists so CI can actually compile and test that Solidity.
 
 ```bash
 cd contracts-ci
-node scripts/sync.mjs              # copy template contracts into src/ + copy-identity check
-forge test                         # compile (pinned solc) + run the test suite
+node scripts/sync.mjs              # copy template contracts into src/ + consistency checks
+forge test                         # compile (pinned compiler) + run the test suite
 node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the source
 ```
 
@@ -18,7 +18,8 @@ node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the sour
   templates that ship the same contract have drifted apart (`erc20-token` /
   `l1-launch` share `AvaKitToken.sol`; `nft-mint` / `token-gated-app` share
   `AvaKitNFT.sol`). `src/` is generated — never edit it here; edit the template
-  copies (both of them) instead.
+  copies (both of them) instead. It also fails if any `foundry.toml` in the
+  repo compiles with different settings than this harness (see Toolchain).
 - **`test/`** covers mint/transfer/allowance for the token, mint + on-chain
   `tokenURI` for the NFT, and send/receive (incl. the Teleporter caller check)
   for the ICM messenger.
@@ -46,7 +47,18 @@ is an example app, not a template, and is not covered here.
 ## Toolchain
 
 Foundry pinned to the same stable version locally and in CI (see
-`.github/workflows/ci.yml`), solc pinned in `foundry.toml`. The pin matters
-beyond the tests: `lib/*-artifact.ts` bytecode is compared against this exact
-compiler's output, so bumping the pin means regenerating the artifacts in the
-same commit.
+`.github/workflows/ci.yml`). The compiler is pinned in `foundry.toml`: solc
+version, EVM version (`cancun`, what Avalanche has run since the Etna upgrade)
+and optimizer settings. Each of them is part of the metadata hash at the end
+of the bytecode, so the EVM version is spelled out instead of left to Foundry's
+default, which changes between releases.
+
+The pin matters beyond the tests. Every template that ships a contract, and
+`examples/web3auth-demo`, has its own `contracts/foundry.toml`, because a
+scaffolded app has to compile on its own; `scripts/sync.mjs` fails unless each
+of them carries exactly the compiler settings of this harness (only the
+directory layout may differ). That is what makes one statement true for the
+whole repo: the bytecode the tests run against, the bytecode `forge build`
+produces in a scaffolded app and the bytecode in the shipped artifacts are the
+same compiler output. Changing a setting means changing it in every
+`foundry.toml` and regenerating the artifacts in the same commit.

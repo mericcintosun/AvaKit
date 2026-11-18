@@ -2,16 +2,25 @@
 # package — templates stay zero-dependency; this directory exists so CI can
 # actually compile and test the Solidity the templates ship.
 #
-# The solc pin matters: lib/*-artifact.ts files are checked against output of
-# THIS compiler version (scripts/check-artifacts.mjs), so bumping it means
-# regenerating every artifact in the same commit.
+# The compiler settings below are the pin for every contract in the repo.
+# scripts/sync.mjs fails unless each foundry.toml that builds a shipped artifact
+# (the templates and examples/web3auth-demo) carries exactly these values, so
+# the bytecode the tests run against, the bytecode `forge build` gives a
+# scaffolded app and the bytecode in the *-artifact.ts files
+# (scripts/check-artifacts.mjs) all come from one compiler configuration.
+# Changing a value means changing it in every foundry.toml and regenerating
+# every artifact in the same commit (node scripts/check-artifacts.mjs --write).
 [profile.default]
 src = "src"
 test = "test"
 out = "out"
 libs = []
-# 0.8.28 matches the compiler the shipped artifacts were generated with
-# (solc version is embedded in the bytecode's CBOR metadata tail).
+# The solc version is embedded in the bytecode's CBOR metadata tail.
 solc_version = "0.8.28"
+# Spelled out rather than left to Foundry's default, which moves with every
+# release (and is then clamped to what the pinned solc supports): the target is
+# part of the bytecode's metadata hash. cancun is what Avalanche has run since
+# the Etna upgrade.
+evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
