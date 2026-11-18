@@ -13,7 +13,11 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const release = readFileSync(join(root, ".github", "workflows", "release.yml"), "utf8");
+// Line endings are normalised so a checkout with CRLF reads the same.
+const release = readFileSync(join(root, ".github", "workflows", "release.yml"), "utf8").replace(
+  /\r\n/g,
+  "\n",
+);
 
 /** The workflow's steps in order, each as the text from its `- name:` line to the next one. */
 const steps = release.split(/^(?= +- name:)/m).slice(1);
