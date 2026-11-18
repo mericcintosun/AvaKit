@@ -47,6 +47,13 @@ jobs:
           node --test scripts/*.test.mjs
           node scripts/check-template-deps.mjs
 
+      # @avakit/mcp is published with @avakit/core bundled inside it, so core is
+      # a devDependency of the server and Changesets no longer releases the
+      # server when core is released. This fails when a pending changeset bumps
+      # @avakit/core and none bumps @avakit/mcp, naming the changesets.
+      - name: Changesets · a bundled package is released with the package that contains it
+        run: node scripts/check-changesets.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -107,15 +114,57 @@ jobs:
       - name: Scaffold + typecheck + build "${{ matrix.template }}"
         run: bash scripts/smoke-template.sh "${{ matrix.template }}" "$RUNNER_TEMP/smoke"
 
+  # Install @avakit/mcp the way a user's machine does and drive the installed
+  # server. The package's own tests run against the source; this is the only
+  # check of the tarball. It packs create-avalanche-app and @avakit/mcp, installs
+  # both with npm into an empty project with an EMPTY npm cache, and fails if
+  # viem, zod, the MCP SDK or @avakit/core were installed as packages: they must
+  # be bundled into the server's dist/index.js, because every package is a
+  # download between `npx -y @avakit/mcp` and the server's first answer, and an
+  # MCP client only waits 30 seconds for that. It then runs `avakit-mcp
+  # --version`, speaks JSON-RPC to the installed server over stdio (initialize,
+  # tools/list, list_templates, scaffold_app) and prints what the install cost:
+  # packages, megabytes, seconds.
+  #
+  # The script contacts the npm registry only, and switches telemetry off itself.
+  smoke-mcp:
+    name: Smoke · @avakit/mcp install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @avakit/core, the scaffolder and the MCP server
+        run: pnpm --filter "@avakit/core" --filter create-avalanche-app --filter "@avakit/mcp" build
+
+      - name: Pack + install with an empty npm cache + drive the installed server
+        run: bash scripts/smoke-mcp.sh "$RUNNER_TEMP/smoke-mcp"
+
   # Compile and test the Solidity the repo ships, and verify that every bytecode
   # artifact generated from it still matches its source: each template's
-  # lib/*-artifact.ts, the messenger bytecode Studio deploys, the contract the
-  # website's /new page deploys and the example app's artifact. The artifacts
-  # live away from their sources, so nothing else guards against silent drift.
+  # lib/*-artifact.ts, the demo token inside token-bridge's
+  # lib/ictt-artifacts.json (it is the erc20-token contract), the messenger
+  # bytecode Studio deploys, the contract the website's /new page deploys and
+  # the example app's artifact. The artifacts live away from their sources, so
+  # nothing else guards against silent drift.
   # The sync step also fails when templates that share a contract no longer ship
   # identical copies, or when any foundry.toml compiles with different settings
   # than contracts-ci: the tested and the shipped bytecode must come from the
-  # same compiler. See contracts-ci/README.md. Foundry is pinned to a stable
+  # same compiler. The last step tests the two guard scripts themselves: each
+  # is run against a copy of the files it reads with one thing changed, and has
+  # to notice. See contracts-ci/README.md. Foundry is pinned to a stable
   # release so local and CI builds emit identical bytecode (the compiler itself
   # is pinned in the foundry.toml files).
   contracts:
@@ -146,6 +195,10 @@ jobs:
       - name: Artifact parity (every shipped artifact vs its source)
         working-directory: contracts-ci
         run: node scripts/check-artifacts.mjs
+
+      - name: Guard self-tests (sync and artifact parity still catch what they are for)
+        working-directory: contracts-ci
+        run: node --test scripts/guards.test.mjs
 
   # The two Cloudflare Workers are standalone npm projects outside the pnpm
   # workspace, each with its own package-lock.json, so `pnpm test` in the verify
