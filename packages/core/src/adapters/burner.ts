@@ -10,6 +10,7 @@ import { generatePrivateKey, type PrivateKeyAccount, privateKeyToAccount } from 
 import { type AvaChain, fuji, isMainnet } from "../chains.js";
 import { toViemChain } from "../clients.js";
 import { WalletConnectionError } from "../errors.js";
+import type { AvaChainSwitcher } from "../network.js";
 import type { WalletAdapter, WalletConnection } from "./types.js";
 
 /**
@@ -57,8 +58,29 @@ function readStoredKey(storageKey: string): Hex | null {
   return value && PK_RE.test(value) ? (value as Hex) : null;
 }
 
-/** An EIP-1193 provider backed by a local key, plus an internal chain switch. */
-type BurnerProvider = EIP1193Provider & { setChain(chain: AvaChain): void };
+/**
+ * The burner key lives in localStorage in the clear, so it must never touch a
+ * mainnet. Enforced in code, not just docs, on every route into the wallet:
+ * connecting, the adapter's switchChain, and the provider's own chain switch.
+ * (audit A8)
+ */
+function assertTestnet(chain: AvaChain, action: "connect on" | "switch to"): void {
+  if (isMainnet(chain)) {
+    throw new WalletConnectionError(
+      `The temporary (burner) wallet is testnet-only and cannot ${action} ${chain.name}. ` +
+        "Connect a real wallet (injected / social) to use mainnet.",
+    );
+  }
+}
+
+/**
+ * An EIP-1193 provider backed by a local key. `avakitSwitchChain` is its real
+ * chain switch: unlike `wallet_switchEthereumChain` it receives the whole
+ * `AvaChain`, so it knows which RPC to talk to and can refuse a mainnet.
+ * `ensureChain()` calls it, which is what makes "await ensureChain, then send"
+ * work with a burner.
+ */
+type BurnerProvider = EIP1193Provider & AvaChainSwitcher;
 
 /**
  * Build an EIP-1193 provider that signs with a local account and forwards every
@@ -103,8 +125,11 @@ function createBurnerProvider(account: PrivateKeyAccount, initialChain: AvaChain
         return numberToHex(chain.id);
       case "net_version":
         return String(chain.id);
-      // The burner follows the app's chain via setChain(); accept switch/add so
-      // callers that fall back to EIP-1193 chain RPCs don't error.
+      // These standard requests cannot move the burner: they carry a chain id
+      // (and, for add, an RPC URL) but not the testnet flag the burner enforces.
+      // They are accepted as no-ops so generic EIP-1193 callers don't error; the
+      // real switch is avakitSwitchChain() below, which ensureChain() and the
+      // adapter's switchChain() both go through.
       case "wallet_switchEthereumChain":
       case "wallet_addEthereumChain":
         return null;
@@ -149,15 +174,20 @@ function createBurnerProvider(account: PrivateKeyAccount, initialChain: AvaChain
       listeners.get(event)?.delete(cb);
       return provider;
     },
-    setChain(next: AvaChain) {
+    async avakitSwitchChain(next: AvaChain) {
+      assertTestnet(next, "switch to");
+      const changed = next.id !== chain.id;
       chain = next;
       wallet = createWalletClient({
         account,
         chain: toViemChain(next),
         transport: http(next.rpcUrl),
       });
-      for (const cb of listeners.get("chainChanged") ?? []) {
-        cb(numberToHex(next.id));
+      // EIP-1193: announce a chain change, not a repeat of the current chain.
+      if (changed) {
+        for (const cb of listeners.get("chainChanged") ?? []) {
+          cb(numberToHex(next.id));
+        }
       }
     },
   };
@@ -186,14 +216,7 @@ export function burnerAdapter(options: BurnerAdapterOptions = {}): WalletAdapter
     },
 
     async connect(): Promise<WalletConnection> {
-      // The burner key lives in localStorage in the clear, so it must never
-      // touch mainnet. Enforce testnet-only in code, not just docs. (audit A8)
-      if (isMainnet(initialChain)) {
-        throw new WalletConnectionError(
-          `The temporary (burner) wallet is testnet-only and cannot connect on ${initialChain.name}. ` +
-            "Connect a real wallet (injected / social) to use mainnet.",
-        );
-      }
+      assertTestnet(initialChain, "connect on");
       const key = options.privateKey ?? (persist ? readStoredKey(storageKey) : null);
       const pk = key ?? generatePrivateKey();
       if (persist && !options.privateKey && pk !== key) {
@@ -222,13 +245,10 @@ export function burnerAdapter(options: BurnerAdapterOptions = {}): WalletAdapter
     },
 
     async switchChain(chain: AvaChain) {
-      if (isMainnet(chain)) {
-        throw new WalletConnectionError(
-          `The temporary (burner) wallet is testnet-only and cannot switch to ${chain.name}. ` +
-            "Connect a real wallet to use mainnet.",
-        );
-      }
-      provider?.setChain(chain);
+      // Checked here as well, so a mainnet is refused even before connect(),
+      // while there is no provider to ask yet.
+      assertTestnet(chain, "switch to");
+      await provider?.avakitSwitchChain(chain);
     },
   };
 }

@@ -84,4 +84,4 @@ export {
   requestFaucet,
 } from "./faucet.js";
 // Network switching
-export { ensureChain } from "./network.js";
+export { type AvaChainSwitcher, ensureChain } from "./network.js";

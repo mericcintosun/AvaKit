@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cChain, defineChain, fuji } from "./chains.js";
 import { deployContract, getBytecode } from "./deploy.js";
 import { DeployFailedError, MainnetConfirmationError } from "./errors.js";
-import { stubRpc } from "./testing/rpc.js";
+import { endpoint, stubRpc } from "./testing/rpc.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -165,6 +165,6 @@ describe("deployContract result", () => {
     expect(result.address).toBe("0x5FbDB2315678afecb367f032d93F642f64180aa3");
     // The receipt was read from the L1's own RPC.
     expect(calls.length).toBeGreaterThan(0);
-    expect(calls.every((call) => call.url === freshL1.rpcUrl)).toBe(true);
+    expect(calls.every((call) => call.url === endpoint(freshL1.rpcUrl))).toBe(true);
   });
 });

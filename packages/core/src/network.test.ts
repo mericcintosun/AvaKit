@@ -110,6 +110,35 @@ describe("ensureChain", () => {
     ]);
   });
 
+  // The burner provider exposes its own switch because EIP-3326 cannot carry
+  // the RPC URL or the testnet flag it needs (see AvaChainSwitcher).
+  it("uses the provider's own avakitSwitchChain when it has one", async () => {
+    const avakitSwitchChain = vi.fn(async () => {});
+    const provider = Object.assign(
+      providerWith(async () => null),
+      { avakitSwitchChain },
+    );
+
+    await ensureChain(provider, freshL1);
+
+    expect(avakitSwitchChain).toHaveBeenCalledWith(freshL1);
+    expect(methodsCalled(provider)).toEqual([]);
+  });
+
+  it("surfaces a refusal from the provider's own switch", async () => {
+    const provider = Object.assign(
+      providerWith(async () => null),
+      {
+        avakitSwitchChain: async () => {
+          throw new Error("testnet-only");
+        },
+      },
+    );
+
+    await expect(ensureChain(provider, freshL1)).rejects.toThrow("testnet-only");
+    expect(methodsCalled(provider)).toEqual([]);
+  });
+
   it("rethrows errors that are not 4902 (e.g. user rejection)", async () => {
     const provider = providerWith(async () => {
       throw { code: 4001 };

@@ -16,8 +16,29 @@ function errorCode(error: unknown): number | undefined {
   return undefined;
 }
 
-/** Switch the wallet to `chain`, adding it first if unknown (EIP-3085/3326). */
+/**
+ * A provider that can switch to a full `AvaChain` by itself (non-standard).
+ *
+ * `wallet_switchEthereumChain` carries nothing but a chain id. AvaKit's burner
+ * provider needs more than that to really switch: the chain's RPC URL, and the
+ * `testnet` flag it enforces (it refuses every mainnet). So it exposes this
+ * method, and `ensureChain` prefers it over the EIP-3326 request when present.
+ */
+export interface AvaChainSwitcher {
+  avakitSwitchChain(chain: AvaChain): Promise<void>;
+}
+
+/**
+ * Switch the wallet to `chain`, adding it first if unknown (EIP-3085/3326).
+ * Resolves once the wallet is on the chain, so a transaction can be sent right
+ * after awaiting it.
+ */
 export async function ensureChain(provider: EIP1193Provider, chain: AvaChain): Promise<void> {
+  const direct = (provider as Partial<AvaChainSwitcher>).avakitSwitchChain;
+  if (typeof direct === "function") {
+    await direct.call(provider, chain);
+    return;
+  }
   const chainId = `0x${chain.id.toString(16)}` as const;
   try {
     await provider.request({

@@ -8,10 +8,18 @@
 import { vi } from "vitest";
 
 export interface RpcCall {
-  /** RPC endpoint the request was sent to. */
+  /** RPC endpoint the request was sent to, normalised (see `endpoint`). */
   url: string;
   method: string;
   params: unknown[];
+}
+
+/**
+ * Normalise an RPC URL the way `fetch` sees it ("https://host" becomes
+ * "https://host/"), so a chain's `rpcUrl` can be compared with `RpcCall.url`.
+ */
+export function endpoint(rpcUrl: string): string {
+  return new URL(rpcUrl).href;
 }
 
 /**
@@ -51,7 +59,9 @@ export function stubRpc(handlers: RpcHandlers): RpcCall[] {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" || input instanceof URL ? String(input) : input.url;
+      const url = endpoint(
+        typeof input === "string" || input instanceof URL ? String(input) : input.url,
+      );
       const body = JSON.parse(String(init?.body)) as RpcRequest | RpcRequest[];
       const payload = Array.isArray(body)
         ? body.map((request) => answer(request, url))

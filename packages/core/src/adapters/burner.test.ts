@@ -1,8 +1,11 @@
-import type { EIP1193Provider } from "viem";
-import { numberToHex } from "viem";
+import type { EIP1193Provider, Hex } from "viem";
+import { numberToHex, parseTransaction, recoverTransactionAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cChain, defineChain, fuji } from "../chains.js";
+import { getWalletClient } from "../clients.js";
+import { ensureChain } from "../network.js";
+import { endpoint, stubRpc } from "../testing/rpc.js";
 import { burnerAdapter, clearBurner } from "./burner.js";
 
 // A well-known throwaway test key (Hardhat/anvil account #0). Never real funds.
@@ -86,6 +89,100 @@ describe("burnerAdapter", () => {
     const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
     await adapter.connect();
     await expect(adapter.switchChain?.(cChain)).rejects.toThrow(/testnet-only/);
+  });
+
+  it("stays quiet when asked to switch to the chain it is already on", async () => {
+    const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
+    const { provider } = await adapter.connect();
+    const seen: unknown[] = [];
+    (provider as EIP1193Provider).on("chainChanged", (id) => seen.push(id));
+
+    await adapter.switchChain?.(fuji);
+    await ensureChain(provider, fuji);
+
+    expect(seen).toEqual([]);
+    expect(await provider.request({ method: "eth_chainId" })).toBe(numberToHex(fuji.id));
+  });
+
+  // Templates that work across two chains do exactly this: await ensureChain()
+  // for the second chain, then send on it straight away. EIP-3326's switch
+  // request carries only a chain id, which the burner cannot act on, so
+  // ensureChain has to reach the burner's real switch.
+  describe("ensureChain", () => {
+    it("moves the burner, so a transaction sent right after lands on the second chain", async () => {
+      const txHash = `0x${"ab".repeat(32)}` as const;
+      const secondChainRpc = endpoint(otherTestnet.rpcUrl);
+      const calls = stubRpc({
+        eth_chainId: (_params, url) =>
+          numberToHex(url === secondChainRpc ? otherTestnet.id : fuji.id),
+        eth_getTransactionCount: () => "0x0",
+        eth_estimateGas: () => "0x5208",
+        eth_getBlockByNumber: () => ({ number: "0x10", baseFeePerGas: "0x3b9aca00" }),
+        eth_maxPriorityFeePerGas: () => "0x1",
+        eth_gasPrice: () => "0x3b9aca00",
+        eth_sendRawTransaction: () => txHash,
+      });
+      const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
+      const { address, provider } = await adapter.connect();
+
+      await ensureChain(provider, otherTestnet);
+
+      expect(await provider.request({ method: "eth_chainId" })).toBe(numberToHex(otherTestnet.id));
+      // The wallet client checks the wallet's chain before sending, so this
+      // threw a chain-mismatch error while ensureChain was a no-op for the burner.
+      const wallet = getWalletClient(otherTestnet, provider);
+      const sent = await wallet.sendTransaction({
+        account: address,
+        to: address,
+        value: 0n,
+      } as Parameters<typeof wallet.sendTransaction>[0]);
+
+      expect(sent).toBe(txHash);
+      const broadcast = calls.filter((call) => call.method === "eth_sendRawTransaction");
+      expect(broadcast).toHaveLength(1);
+      expect(broadcast[0]?.url).toBe(secondChainRpc);
+      // Signed by the burner for the second chain, and nothing went to Fuji.
+      const raw = broadcast[0]?.params[0] as Hex;
+      expect(parseTransaction(raw).chainId).toBe(otherTestnet.id);
+      expect(
+        await recoverTransactionAddress({
+          serializedTransaction: raw as Parameters<
+            typeof recoverTransactionAddress
+          >[0]["serializedTransaction"],
+        }),
+      ).toBe(TEST_ADDRESS);
+      expect(calls.every((call) => call.url === secondChainRpc)).toBe(true);
+    });
+
+    it("tells chainChanged listeners about the switch", async () => {
+      const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
+      const { provider } = await adapter.connect();
+      const seen: unknown[] = [];
+      (provider as EIP1193Provider).on("chainChanged", (id) => seen.push(id));
+
+      await ensureChain(provider, otherTestnet);
+
+      expect(seen).toEqual([numberToHex(otherTestnet.id)]);
+    });
+
+    it("refuses to move the burner to a mainnet", async () => {
+      const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
+      const { provider } = await adapter.connect();
+      const customMainnet = defineChain({
+        id: 43113002,
+        name: "Some L1 Mainnet",
+        rpcUrl: "https://rpc.some-l1.example",
+        explorerUrl: "https://explorer.some-l1.example",
+        nativeCurrency: { name: "Some", symbol: "SOME", decimals: 18 },
+        testnet: false,
+      });
+
+      await expect(ensureChain(provider, cChain)).rejects.toThrow(/testnet-only/);
+      await expect(ensureChain(provider, customMainnet)).rejects.toThrow(/testnet-only/);
+
+      // Still on the testnet it was created with.
+      expect(await provider.request({ method: "eth_chainId" })).toBe(numberToHex(fuji.id));
+    });
   });
 
   it("persists the key so reconnecting restores the same address", async () => {
