@@ -12,14 +12,18 @@ export async function startWorker(bindings) {
   process.env.WRANGLER_SEND_METRICS = "false";
   process.env.CLOUDFLARE_CF_FETCH_ENABLED = "false";
 
-  const server = createTestHarness({
+  // Handed over as secrets, which win over a developer's own .dev.vars.
+  const options = (secrets) => ({
     root: fileURLToPath(new URL("../..", import.meta.url)),
-    // Handed over as secrets, which win over a developer's own .dev.vars.
-    workers: [{ configPath: "./wrangler.toml", secrets: bindings }],
+    workers: [{ configPath: "./wrangler.toml", secrets }],
   });
+
+  const server = createTestHarness(options(bindings));
   await server.listen();
   return {
     fetch: (...args) => server.fetch(...args),
+    /** Reload the Worker with different bindings. Storage is kept. */
+    configure: (next) => server.update(options(next)),
     close: () => server.close(),
   };
 }

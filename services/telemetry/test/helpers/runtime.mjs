@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { registerHooks } from "node:module";
 import { DatabaseSync } from "node:sqlite";
 
@@ -20,14 +21,21 @@ registerHooks({
   },
 });
 
-/** A Durable Object's `ctx.storage.sql` over an in-memory SQLite database. */
-function memorySql() {
+// workerd puts its constant-time comparison on SubtleCrypto; Node keeps the
+// same thing in node:crypto. Same contract: two buffers of equal length.
+crypto.subtle.timingSafeEqual ??= (a, b) => timingSafeEqual(a, b);
+
+/** A Durable Object's `ctx.storage`: SQLite, and transactions over it. */
+function memoryStorage() {
   const db = new DatabaseSync(":memory:");
   const sql = {
     /** How many statements have been executed — to prove a call ran none. */
     executed: 0,
+    /** Set to `(query) => boolean` to make matching statements fail. */
+    failOn: null,
     exec(query, ...bindings) {
       sql.executed += 1;
+      if (sql.failOn?.(query)) throw new Error("simulated storage failure");
       const rows = db.prepare(query).all(...bindings);
       return {
         toArray: () => rows,
@@ -41,7 +49,21 @@ function memorySql() {
       };
     },
   };
-  return sql;
+  return {
+    sql,
+    /** Everything `closure` writes is kept, or — if it throws — none of it. */
+    transactionSync(closure) {
+      db.exec("BEGIN");
+      try {
+        const result = closure();
+        db.exec("COMMIT");
+        return result;
+      } catch (e) {
+        db.exec("ROLLBACK");
+        throw e;
+      }
+    },
+  };
 }
 
 /**
@@ -49,20 +71,21 @@ function memorySql() {
  * way a stub reaches it — asynchronously, with arguments and results copied.
  */
 function fakeNamespace(Counters, env) {
-  const sql = memorySql();
+  const storage = memoryStorage();
   let object = null;
   const namespace = {
-    sql,
+    sql: storage.sql,
     /** How many times each method was called through a stub. */
-    calls: { record: 0, stats: 0 },
+    calls: { record: 0, stats: 0, purge: 0 },
     idFromName: (name) => name,
     get: () => ({
       record: (...args) => namespace.call("record", args),
       stats: (...args) => namespace.call("stats", args),
+      purge: (...args) => namespace.call("purge", args),
     }),
     async call(method, args) {
       namespace.calls[method] += 1;
-      object ??= new Counters({ storage: { sql } }, env);
+      object ??= new Counters({ storage }, env);
       return structuredClone(object[method](...structuredClone(args)));
     },
     /** Evict the object: the next call builds a new instance over the same storage. */

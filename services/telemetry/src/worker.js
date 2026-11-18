@@ -10,6 +10,8 @@ import { TEMPLATES } from "./templates.js";
  *   POST /e      { event: "scaffold", anonymousId, template, … } → 202
  *   GET  /stats                                                  → the aggregate
  *   GET  /health                                                 → { ok }
+ *   POST /admin/purge  { day, installId?, dryRun? }              → what was removed
+ *        (maintainer only, and off unless TELEMETRY_ADMIN_TOKEN is set)
  *
  * Counting lives in a single SQLite-backed Durable Object rather than in KV. KV
  * would need a read-modify-write per counter, which both races (concurrent
@@ -254,6 +256,61 @@ export class Counters extends DurableObject {
       firstDay: this.sql.exec("SELECT MIN(first_day) AS d FROM installs").one().d,
     };
   }
+
+  /**
+   * Delete what was counted on `day`: every scaffold row for it and, if
+   * `idHash` is given, that install's row — but only an install first seen
+   * that day. One seen earlier is a real install that also ran that day, and
+   * stays. All of it is one transaction: the day goes completely or not at all.
+   *
+   * The rows are aggregates with nothing in them to tell one sender from
+   * another, so this cannot take one machine's events out of a day and leave
+   * the rest. It removes the day.
+   *
+   * @returns `rows` (scaffold rows removed), `events` (the sum of their
+   *   counts) and `succeeded` (the successful ones among those events), plus
+   *   `install` when an id was given. With `dryRun` the numbers are what a
+   *   real call would remove, and nothing is.
+   */
+  purge({ day, idHash, dryRun = false }) {
+    const removed = this.ctx.storage.transactionSync(() => {
+      const counted = this.sql
+        .exec(
+          `SELECT COUNT(*) AS row_count,
+                  COALESCE(SUM(n), 0) AS all_n,
+                  COALESCE(SUM(CASE WHEN ok = 1 THEN n ELSE 0 END), 0) AS ok_n
+           FROM scaffolds WHERE day = ?`,
+          day,
+        )
+        .one();
+      if (!dryRun) this.sql.exec("DELETE FROM scaffolds WHERE day = ?", day);
+
+      const scaffolds = {
+        rows: Number(counted.row_count),
+        events: Number(counted.all_n),
+        succeeded: Number(counted.ok_n),
+      };
+      if (!idHash) return scaffolds;
+
+      const [install] = this.sql
+        .exec("SELECT first_day FROM installs WHERE id = ?", idHash)
+        .toArray();
+      if (!install) return { ...scaffolds, install: { found: false, removed: false } };
+
+      const remove = install.first_day === day && !dryRun;
+      if (remove) {
+        this.sql.exec("DELETE FROM installs WHERE id = ? AND first_day = ?", idHash, day);
+      }
+      return {
+        ...scaffolds,
+        install: { found: true, firstDay: install.first_day, removed: remove },
+      };
+    });
+
+    // The memoised aggregate still has the day in it.
+    if (!dryRun) this.cached = null;
+    return removed;
+  }
 }
 
 // ── HTTP ────────────────────────────────────────────────────────────────────
@@ -322,6 +379,156 @@ async function publicStats(env, now) {
   return statsCopy;
 }
 
+function notFound() {
+  return json({ error: "Not found." }, 404);
+}
+
+// ── Maintenance ─────────────────────────────────────────────────────────────
+
+/**
+ * The shortest TELEMETRY_ADMIN_TOKEN that switches the admin route on. The
+ * route deletes published numbers, so a token somebody could guess must not
+ * be enough to reach it: `openssl rand -hex 32` gives 64 characters.
+ */
+const ADMIN_TOKEN_MIN_LENGTH = 32;
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const PURGE_FIELDS = ["day", "installId", "dryRun"];
+
+/**
+ * An answer from the admin route: never cached, and without the CORS headers
+ * the public routes carry — it is for curl, not for a web page. Hence the
+ * newline at the end, too: it keeps the shell prompt off the answer.
+ */
+function adminJson(body, status, headers) {
+  return new Response(`${JSON.stringify(body)}\n`, {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store", ...headers },
+  });
+}
+
+/** The token from `Authorization: Bearer <token>`, or "" if there isn't one. */
+function bearerToken(request) {
+  return /^Bearer +(\S+)$/i.exec(request.headers.get("authorization") ?? "")?.[1] ?? "";
+}
+
+/**
+ * Whether two secrets are the same, in time that does not depend on how much
+ * of a wrong guess was right. Both are hashed first, so what is compared is
+ * always 32 bytes — the length of a guess changes nothing either.
+ */
+async function sameSecret(guess, secret) {
+  const encoder = new TextEncoder();
+  const [a, b] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(guess)),
+    crypto.subtle.digest("SHA-256", encoder.encode(secret)),
+  ]);
+  return crypto.subtle.timingSafeEqual(a, b);
+}
+
+/** True for a real calendar day written YYYY-MM-DD. */
+function isDay(value) {
+  if (typeof value !== "string" || !DAY.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+/**
+ * POST /admin/purge — take one day back out of the counts. It exists for the
+ * maintainer: a smoke-test session with a locally built CLI reports to the live
+ * collector like any other scaffold, and those are not usage.
+ *
+ *   { "day": "YYYY-MM-DD", "installId"?: "<uuid>", "dryRun"?: true }
+ *     → { day, dryRun, rows, events, succeeded, install? }
+ *
+ * Off unless TELEMETRY_ADMIN_TOKEN is set (404), and then only for whoever
+ * sends it (401 otherwise). A body it does not fully understand is a 400. It
+ * can remove counts, never add them.
+ */
+async function purge(request, env) {
+  const secret = env.TELEMETRY_ADMIN_TOKEN;
+  if (typeof secret !== "string" || secret.length < ADMIN_TOKEN_MIN_LENGTH) {
+    if (secret) {
+      console.warn(
+        JSON.stringify({
+          message: `TELEMETRY_ADMIN_TOKEN is shorter than ${ADMIN_TOKEN_MIN_LENGTH} characters, so /admin/purge stays off`,
+        }),
+      );
+    }
+    // No secret, no route: the same answer as for any other unknown path.
+    return notFound();
+  }
+  if (!(await sameSecret(bearerToken(request), secret))) {
+    return adminJson({ error: "Unauthorized." }, 401, { "www-authenticate": "Bearer" });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return adminJson({ error: "Invalid JSON body." }, 400);
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return adminJson({ error: "Expected a JSON object." }, 400);
+  }
+  // Strict on purpose: this deletes, so a request it only half understands
+  // (`"dry_run": true`, `"dryRun": "yes"`) is refused rather than guessed at.
+  const unknown = Object.keys(body).find((field) => !PURGE_FIELDS.includes(field));
+  if (unknown !== undefined) {
+    return adminJson({ error: `Unknown field ${JSON.stringify(unknown)}.` }, 400);
+  }
+  if (!isDay(body.day)) {
+    return adminJson({ error: "day must be a date written YYYY-MM-DD." }, 400);
+  }
+  const { installId } = body;
+  if (installId !== undefined && (typeof installId !== "string" || !UUID.test(installId))) {
+    return adminJson({ error: "installId must be a uuid." }, 400);
+  }
+  if (body.dryRun !== undefined && typeof body.dryRun !== "boolean") {
+    return adminJson({ error: "dryRun must be true or false." }, 400);
+  }
+  const dryRun = body.dryRun === true;
+
+  let idHash;
+  if (installId !== undefined) {
+    if (!env.TELEMETRY_SALT) return adminJson({ error: "Collector not configured." }, 500);
+    // Hashed exactly as ingestion hashes `anonymousId`, so it finds that row.
+    idHash = await saltedHash(installId, env.TELEMETRY_SALT);
+  }
+
+  let removed;
+  try {
+    removed = await counters(env).purge({ day: body.day, idHash, dryRun });
+  } catch (e) {
+    console.error(
+      JSON.stringify({
+        message: "purge failed",
+        day: body.day,
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+    return adminJson(
+      { error: "Purge failed. Run it again with dryRun to see what is stored." },
+      500,
+    );
+  }
+
+  // This isolate's copy of the aggregate still has the day in it. (Copies held
+  // by other isolates run out on their own, within STATS_TTL_MS.)
+  if (!dryRun) statsCopy = null;
+
+  // The trail of what was deleted and when, for `wrangler tail`. Never the
+  // token, and never the install id.
+  console.log(
+    JSON.stringify({
+      message: dryRun ? "purge dry run" : "purged a day",
+      day: body.day,
+      ...removed,
+    }),
+  );
+  return adminJson({ day: body.day, dryRun, ...removed }, 200);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -381,6 +588,10 @@ export default {
       return new Response(null, { status: counted ? 202 : 429, headers: CORS });
     }
 
-    return json({ error: "Not found." }, 404);
+    if (request.method === "POST" && url.pathname === "/admin/purge") {
+      return purge(request, env);
+    }
+
+    return notFound();
   },
 };
