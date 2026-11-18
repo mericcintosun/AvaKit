@@ -1,0 +1,116 @@
+# End to end on a clean machine: install, scaffold, deploy and mint.
+#
+# What this proves
+#   - The PUBLISHED packages work. @avakit/mcp comes from npm through npx, and
+#     the app it scaffolds installs from npm with the versions the scaffolder
+#     pins. Nothing is built from this repository: the checkout fetches a single
+#     file, the script that drives the run.
+#   - On a machine that is not the maintainer's. Every leg is a fresh
+#     GitHub-hosted runner (Linux, macOS, Windows): no dependency cache is
+#     restored and nothing of AvaKit is on it beforehand.
+#   - With Node.js and npm only. The workflow installs nothing else (no pnpm, no
+#     Foundry) and the script uses nothing else. Runner images bring tools of
+#     their own; the script prints which of pnpm, yarn, bun and forge it finds
+#     on PATH, and needs none of them.
+#   - Through the agent path. An MCP client scaffolds the nft-mint template and
+#     then, on one leg, deploys its contract to the Fuji testnet, mints a token
+#     and reads the owner back from the chain, making the tool calls an AI agent
+#     would make and reading no file of the project itself.
+#
+# What it does not prove
+#   - It is not a person. Nobody opens the app in a browser, connects a wallet
+#     or clicks Deploy: the scaffolded app is built, not used.
+#   - It does not run `npm create avalanche-app`. The scaffolder is reached
+#     through the MCP server's scaffold_app tool, not through its own CLI.
+#   - The on-chain half runs on one leg only (ubuntu-latest, Node 24), so that a
+#     run costs the shared faucet a single drip. It signs with a throwaway test
+#     wallet funded from the hosted Fuji faucet, and it fails when that faucet
+#     is empty or rate-limited or when Fuji's public RPC is down. A red on-chain
+#     leg is therefore not by itself a broken package: read the failing step's
+#     output, which the job summary carries. The other legs stop after the build.
+#   - One template (nft-mint), one chain (Fuji). Mainnet is never touched.
+#
+# To repeat it on your own machine, with Node.js 22 or 24 and nothing else:
+#   node scripts/e2e-fuji.mjs --source npm
+name: E2E · Fuji · published packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The @avakit/mcp version or dist-tag to test
+        type: string
+        default: latest
+  schedule:
+    # Daily, away from the top of the hour.
+    - cron: "23 5 * * *"
+
+permissions:
+  contents: read
+
+# One run at a time: the faucet is shared, and so is its rate limit.
+concurrency:
+  group: e2e-fuji
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: ${{ matrix.os }} · Node ${{ matrix.node }} · ${{ matrix.chain && 'with the on-chain half' || 'up to the build' }}
+    # A fork that enables scheduled workflows should not draw on the faucet every day.
+    if: github.event_name != 'schedule' || github.repository == 'mericcintosun/AvaKit'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: 22
+            chain: false
+          - os: ubuntu-latest
+            node: 24
+            chain: true
+          - os: macos-latest
+            node: 24
+            chain: false
+          - os: windows-latest
+            node: 24
+            chain: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Only the script. The packages under test come from npm, not from here.
+      - name: Fetch the script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/e2e-fuji.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # Node.js and the npm that ships with it. No cache, and no pnpm.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+
+      # The script appends its summary table to $GITHUB_STEP_SUMMARY.
+      - name: ${{ matrix.chain && 'Install, scaffold, build, deploy and mint' || 'Install, scaffold and build' }}
+        env:
+          VERSION: ${{ inputs.version || 'latest' }}
+          ON_CHAIN: ${{ matrix.chain }}
+        run: |
+          if [ "$ON_CHAIN" = "true" ]; then
+            node scripts/e2e-fuji.mjs --source npm --version "$VERSION" --json e2e-summary.json
+          else
+            node scripts/e2e-fuji.mjs --source npm --version "$VERSION" --skip-chain --json e2e-summary.json
+          fi
+
+      - name: Upload the summary
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-fuji-${{ matrix.os }}-node${{ matrix.node }}
+          path: e2e-summary.json
+          if-no-files-found: warn
