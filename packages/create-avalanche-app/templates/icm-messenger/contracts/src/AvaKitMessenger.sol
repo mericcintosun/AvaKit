@@ -58,6 +58,21 @@ contract AvaKitMessenger is ITeleporterReceiver {
     /// The deployer. Only the owner can register trusted remotes.
     address public immutable owner;
 
+    /// The longest message `sendMessage` accepts, in bytes of UTF-8 (so fewer
+    /// characters when they are not all ASCII). Delivery runs on a fixed gas
+    /// budget and storing a string costs gas for every 32 bytes of it, so
+    /// without a cap a long message would send fine and then run out of gas on
+    /// the other chain: the Teleporter keeps such a message for a manual retry,
+    /// and it never arrives on its own.
+    uint256 public constant MAX_MESSAGE_LENGTH = 256;
+
+    /// The gas the destination chain's Teleporter forwards to
+    /// `receiveTeleporterMessage`. Storing the longest message for the first
+    /// time — when every storage slot it fills is still empty — takes about
+    /// 275,000 gas; the rest is headroom. If you raise MAX_MESSAGE_LENGTH or
+    /// make receiving do more work, raise this with it.
+    uint256 private constant REQUIRED_GAS_LIMIT = 350_000;
+
     /// The AvaKitMessenger this contract accepts messages from, per source
     /// chain: blockchain ID (bytes32, NOT the EVM chainId) => contract address.
     /// Unset (address(0)) means messages from that chain are rejected — all
@@ -101,17 +116,22 @@ contract AvaKitMessenger is ITeleporterReceiver {
     /// @param destinationBlockchainID The destination L1's blockchain ID — a
     /// bytes32, NOT an EVM chainId. Get it from `avalanche blockchain describe`.
     /// @param destinationAddress The AvaKitMessenger address on the destination L1.
+    /// @param message The text to deliver, at most MAX_MESSAGE_LENGTH bytes.
     function sendMessage(
         bytes32 destinationBlockchainID,
         address destinationAddress,
         string calldata message
     ) external returns (bytes32 messageID) {
+        require(
+            bytes(message).length <= MAX_MESSAGE_LENGTH,
+            "AvaKitMessenger: message too long"
+        );
         messageID = TELEPORTER.sendCrossChainMessage(
             TeleporterMessageInput({
                 destinationBlockchainID: destinationBlockchainID,
                 destinationAddress: destinationAddress,
                 feeInfo: TeleporterFeeInfo({feeTokenAddress: address(0), amount: 0}),
-                requiredGasLimit: 250000,
+                requiredGasLimit: REQUIRED_GAS_LIMIT,
                 allowedRelayerAddresses: new address[](0),
                 message: abi.encode(message)
             })
