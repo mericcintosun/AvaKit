@@ -641,6 +641,45 @@ describe("one faucet state for every caller", () => {
     expect(view.statuses).toEqual(["idle", "funding", "success"]);
   });
 
+  // The other order: the visitor clicks while the automatic drip is still
+  // reading the balance. The drip then finds a request under way and joins it.
+  it("lets the automatic drip join a fund() that started during its balance read", async () => {
+    let answerBalance: (balance: bigint) => void = () => {};
+    vi.mocked(getBalance).mockReturnValue(
+      new Promise<bigint>((resolve) => {
+        answerBalance = resolve;
+      }),
+    );
+    const faucet = stubPendingFaucet();
+    const view = renderFaucet();
+    await connect(view);
+    expect(faucet.spy).not.toHaveBeenCalled();
+
+    let manual: Promise<FaucetResult> = Promise.resolve({});
+    act(() => {
+      manual = view.result.current.faucet.fund();
+    });
+    await waitFor(() => {
+      expect(view.result.current.faucet.status).toBe("funding");
+    });
+    expect(faucet.spy).toHaveBeenCalledTimes(1);
+
+    // The balance read comes back empty: without the request under way, this
+    // would be the moment the automatic drip sends its own.
+    await act(async () => {
+      answerBalance(0n);
+    });
+    await settle();
+    expect(faucet.spy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      faucet.answer(drip());
+      await manual;
+    });
+    expect(view.result.current.faucet.status).toBe("success");
+    expect(faucet.spy).toHaveBeenCalledTimes(1);
+  });
+
   it("sends a separate request for another address", async () => {
     const faucet = stubFaucet(drip);
     const view = renderFaucet();

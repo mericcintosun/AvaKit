@@ -92,7 +92,8 @@ export class InsufficientFundsError extends AvaKitError {
  * - `"empty"`: the faucet has run out of funds (503, as the faucet's own answer).
  * - `"invalid"`: the request itself was refused, and sending it again will not
  *   help: a bad address, a chain the faucet does not serve, a missing or
- *   rejected captcha token (400 and every other 4xx).
+ *   rejected captcha token (400 and every other 4xx), or a URL that answers
+ *   with a web page instead of a faucet's JSON.
  * - `"unavailable"`: the faucet failed on its side: it could not send the
  *   drip, is busy, misconfigured or down (500, 502 and every other 5xx).
  * - `"network"`: no answer arrived: the request could not be sent, timed out
@@ -130,7 +131,8 @@ export class FaucetError extends AvaKitError {
   /**
    * Whether sending the same request again may work: true for `"unavailable"`
    * and `"network"`, false for a refusal (`"rate_limited"`, `"empty"`,
-   * `"invalid"`). `requestFaucet` retries only these.
+   * `"invalid"`). `requestFaucet` itself retries nothing but a retryable
+   * failure.
    */
   readonly retryable: boolean;
   /**
