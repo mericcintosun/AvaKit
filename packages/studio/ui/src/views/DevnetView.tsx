@@ -1,33 +1,17 @@
-import { ArrowRight, Eraser, Rocket, Terminal } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  type DevnetAction,
-  type DevnetStatus,
-  type L1Info,
-  type L1Params,
-  streamAction,
-} from "../api";
+import { ArrowRight, Rocket } from "lucide-react";
+import { useCallback, useState } from "react";
+import type { DevnetAction, DevnetStatus, L1Info, L1Params } from "../api";
+import { BusyElsewhere } from "../components/BusyElsewhere";
+import { Console } from "../components/Console";
 import { CopyButton } from "../components/copy-button";
 import type { View } from "../components/Sidebar";
 import { useToast } from "../components/toast";
 import { Dot } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
+import { cancelWarning, consoleLines, LOST_NOTE, startFailureNotice } from "../lib/run-messages";
 import { shortHex } from "../lib/utils";
-
-const DONE_TOAST: Record<DevnetAction, { title: string; description: string }> = {
-  "create-icm": {
-    title: "Devnet is ready",
-    description:
-      "Two L1s are running with ICM and a relayer. Head to Interchain to send a message.",
-  },
-  "create-l1": {
-    title: "Your L1 is live",
-    description: "It's deployed locally. Its RPC is on the card above — point a dapp at it.",
-  },
-  start: { title: "Network started", description: "Your local L1s are back up." },
-  stop: { title: "Network stopped", description: "State is preserved — start it again anytime." },
-};
+import { useRun } from "../run";
 
 function L1Card({ l1 }: { l1: L1Info }) {
   const state = l1.running ? "live" : l1.deployed ? "on" : "off";
@@ -105,59 +89,48 @@ function Field({
 
 export function DevnetView({
   status,
-  refresh,
   hasCli,
   navigate,
 }: {
   status: DevnetStatus | null;
-  refresh: () => void;
   hasCli: boolean;
   navigate: (v: View) => void;
 }) {
   const toast = useToast();
-  const [log, setLog] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
+  // The action, its log and "busy" live in the run store, above this view: they
+  // are still here after navigating away and back, or reloading the page.
+  const { run, log, busy, lost, start, cancel, dismiss } = useRun();
   const [form, setForm] = useState({ name: "mychain", chainId: "9999", token: "MYL1" });
-  const termRef = useRef<HTMLPreElement>(null);
 
   const nameOk = /^[a-z][a-z0-9]{1,31}$/.test(form.name);
   const chainIdOk = /^[1-9][0-9]{0,9}$/.test(form.chainId) && Number(form.chainId) <= 4294967295;
   const tokenOk = /^[A-Z][A-Z0-9]{0,7}$/.test(form.token);
   const formOk = nameOk && chainIdOk && tokenOk;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run to auto-scroll as the log grows
-  useEffect(() => {
-    if (termRef.current) termRef.current.scrollTop = termRef.current.scrollHeight;
-  }, [log]);
+  // This view's own run (the one whose console is shown here), if any.
+  const mine = run?.kind === "devnet" ? run : null;
+  const working = busy && mine !== null;
 
-  const run = useCallback(
-    (action: DevnetAction, params?: L1Params) => {
-      if (busy) return;
-      setBusy(true);
-      setLog([`▸ ${action}`]);
-      streamAction(
-        action,
-        (line) => setLog((l) => [...l, line]),
-        (code) => {
-          setLog((l) => [...l, code === 0 ? "✔ done" : `✖ exited (${code})`]);
-          setBusy(false);
-          refresh();
-          if (code === 0) toast({ ...DONE_TOAST[action], variant: "success" });
-          else
-            toast({
-              title: "Something went wrong",
-              description: "See the console below for the full output.",
-              variant: "error",
-            });
-        },
-        params,
-      );
+  const launch = useCallback(
+    async (action: DevnetAction, params?: L1Params) => {
+      try {
+        await start({
+          kind: "devnet",
+          action,
+          name: params?.name,
+          chainId: params?.chainId,
+          symbol: params?.token,
+        });
+      } catch (e) {
+        toast(startFailureNotice(e));
+      }
     },
-    [busy, refresh, toast],
+    [start, toast],
   );
 
   const l1s = status?.l1s ?? [];
-  const live = Boolean(status?.running) && l1s.filter((l) => l.running).length >= 2;
+  const icmReady = l1s.filter((l) => l.running && l.teleporterReady).length;
+  const live = Boolean(status?.running) && icmReady >= 2;
 
   return (
     <div className="flex flex-col gap-4">
@@ -167,7 +140,8 @@ export function DevnetView({
             <Dot state="live" />
             <p className="text-sm font-medium">Your devnet is live.</p>
             <span className="text-muted-foreground text-sm">
-              Two L1s with a relayer — ready for a cross-chain message.
+              {icmReady === 2 ? "Two" : icmReady} L1s with a relayer — ready for a cross-chain
+              message.
             </span>
           </div>
           <Button size="sm" variant="outline" onClick={() => navigate("interchain")}>
@@ -236,11 +210,15 @@ export function DevnetView({
                 `Create and deploy L1 “${form.name}” (chain ${form.chainId}) locally? This runs avalanche-cli and can take a few minutes.`,
               )
             )
-              run("create-l1", { name: form.name, chainId: form.chainId, token: form.token });
+              void launch("create-l1", {
+                name: form.name,
+                chainId: form.chainId,
+                token: form.token,
+              });
           }}
         >
           <Rocket className="size-4" />
-          {busy ? "Working…" : "Launch L1"}
+          {working && mine?.action === "create-l1" ? "Working…" : "Launch L1"}
         </Button>
         {!formOk && (
           <p className="text-muted-foreground mt-2 text-xs">
@@ -259,27 +237,30 @@ export function DevnetView({
                 "Create two local L1s with ICM + a relayer? This runs avalanche-cli and can take a few minutes.",
               )
             )
-              run("create-icm");
+              void launch("create-icm");
           }}
         >
-          {busy ? "Working…" : "Spin up ICM devnet"}
+          {working && mine?.action === "create-icm" ? "Working…" : "Spin up ICM devnet"}
         </Button>
         {l1s.length > 0 && (
           <Button
             size="sm"
             variant="outline"
             disabled={busy || !hasCli}
-            onClick={() => run(status?.running ? "stop" : "start")}
+            onClick={() => void launch(status?.running ? "stop" : "start")}
           >
             {status?.running ? "Stop network" : "Start network"}
           </Button>
         )}
-        {busy && (
+        {working && (
           <span className="text-muted-foreground text-xs">
-            Running avalanche-cli — this can take a few minutes.
+            Running avalanche-cli — this can take a few minutes. It keeps going if you leave this
+            view or reload the page.
           </span>
         )}
       </div>
+
+      <BusyElsewhere view="devnet" navigate={navigate} />
 
       {!hasCli && (
         <p className="text-muted-foreground text-xs">
@@ -287,31 +268,16 @@ export function DevnetView({
         </p>
       )}
 
-      {log.length > 0 && (
-        <div className="overflow-hidden rounded-xl border">
-          <div className="bg-muted/40 flex items-center justify-between border-b px-3 py-2">
-            <span className="text-muted-foreground flex items-center gap-1.5 font-mono text-xs">
-              <Terminal className="size-3.5" /> console
-            </span>
-            <div className="flex items-center gap-3">
-              <CopyButton value={log.join("\n")} label="Copy" />
-              <button
-                type="button"
-                onClick={() => setLog([])}
-                disabled={busy}
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs disabled:opacity-40"
-              >
-                <Eraser className="size-3.5" /> Clear
-              </button>
-            </div>
-          </div>
-          <pre
-            ref={termRef}
-            className="max-h-96 overflow-auto bg-black p-4 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-neutral-200"
-          >
-            {log.join("\n")}
-          </pre>
-        </div>
+      {mine && (
+        <Console
+          log={consoleLines(mine, log)}
+          busy={busy}
+          note={lost ? LOST_NOTE : undefined}
+          onClear={() => void dismiss().catch(() => {})}
+          onCancel={() => {
+            if (window.confirm(cancelWarning(mine))) void cancel().catch(() => {});
+          }}
+        />
       )}
     </div>
   );

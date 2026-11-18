@@ -2,21 +2,21 @@
  * Fuji L1 launch — the "graduate your L1 to the public testnet" flow, driven
  * step by step from the Studio UI instead of avalanche-cli's interactive prompts.
  *
- * Same security posture as devnet.ts: spawn avalanche-cli with FIXED argument
- * arrays (never a shell string); the only request-derived values are the L1
+ * Same security posture as devnet.ts: spawn avalanche-cli with argument ARRAYS
+ * (never a shell string); the only request-derived values are the L1
  * name / chain id / token / amount, each strictly whitelist-validated before it
  * can reach argv. Reuses the validators from devnet.ts.
  */
 
-import { type ChildProcess, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
 import { privateKeyToAccount } from "viem/accounts";
 import { isValidChainId, isValidL1Name, isValidToken } from "./devnet.js";
+import { InputError } from "./errors.js";
+import { keyDir, subnetsDir } from "./paths.js";
+import type { Step } from "./steps.js";
 
-const KEY_DIR = path.join(homedir(), ".avalanche-cli", "key");
-const SUBNETS_DIR = path.join(homedir(), ".avalanche-cli", "subnets");
 const FUJI_C_RPC = "https://api.avax-test.network/ext/bc/C/rpc";
 const FUJI = "Fuji";
 
@@ -26,15 +26,12 @@ export interface FujiParams {
   token: string;
 }
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: strip ANSI
-const ANSI = /\x1b\[[0-9;]*[a-zA-Z]/g;
-
 /** The key's C-Chain (0x) address, derived from avalanche-cli's stored key. */
 function keyAddress(name: string): `0x${string}` | null {
   // Never let a request-derived name reach a filesystem path unvalidated
   // (defence-in-depth: /api/fuji/balance passes `name` straight here).
   if (!isValidL1Name(name)) return null;
-  const file = path.join(KEY_DIR, `${name}.pk`);
+  const file = path.join(keyDir(), `${name}.pk`);
   if (!existsSync(file)) return null;
   try {
     const hex = readFileSync(file, "utf8").trim().replace(/^0x/, "");
@@ -47,8 +44,8 @@ function keyAddress(name: string): `0x${string}` | null {
 
 /** Create the CLI key if it doesn't exist yet, and return its C-Chain address. */
 export async function ensureFujiKey(name: string): Promise<{ address: string | null }> {
-  if (!isValidL1Name(name)) throw new Error("invalid L1 name");
-  if (!existsSync(path.join(KEY_DIR, `${name}.pk`))) {
+  if (!isValidL1Name(name)) throw new InputError("invalid L1 name");
+  if (!existsSync(path.join(keyDir(), `${name}.pk`))) {
     await new Promise<void>((resolve) => {
       const child = spawn("avalanche", ["key", "create", name], {
         stdio: ["ignore", "ignore", "ignore"],
@@ -60,12 +57,20 @@ export async function ensureFujiKey(name: string): Promise<{ address: string | n
   return { address: keyAddress(name) };
 }
 
+export interface FujiBalance {
+  address: string | null;
+  /** AVAX on the C-Chain. "0" when unknown — check `error` before trusting it. */
+  cBalance: string;
+  /** Why the balance could not be read (the RPC failed), or null when it was. */
+  error: string | null;
+}
+
 /** C-Chain AVAX balance of the key's address on Fuji (the faucet target). */
-export async function getFujiKeyBalance(
-  name: string,
-): Promise<{ address: string | null; cBalance: string }> {
+export async function getFujiKeyBalance(name: string): Promise<FujiBalance> {
   const address = keyAddress(name);
-  if (!address) return { address: null, cBalance: "0" };
+  if (!address) return { address: null, cBalance: "0", error: null };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(FUJI_C_RPC, {
       method: "POST",
@@ -76,13 +81,25 @@ export async function getFujiKeyBalance(
         method: "eth_getBalance",
         params: [address, "latest"],
       }),
+      signal: controller.signal,
     });
-    const wei = BigInt(((await res.json()) as { result?: string }).result ?? "0x0");
+    const json = (await res.json()) as { result?: unknown; error?: { message?: string } };
+    if (!res.ok || typeof json.result !== "string") {
+      // An RPC error is NOT a zero balance — say so instead of showing "0".
+      return {
+        address,
+        cBalance: "0",
+        error: json.error?.message ?? `the Fuji RPC answered ${res.status}`,
+      };
+    }
+    const wei = BigInt(json.result);
     // AVAX with a few decimals, no bignum dep.
     const avax = Number(wei / 1_000_000_000_000n) / 1_000_000;
-    return { address, cBalance: avax.toFixed(4) };
+    return { address, cBalance: avax.toFixed(4), error: null };
   } catch {
-    return { address, cBalance: "0" };
+    return { address, cBalance: "0", error: "could not reach the Fuji RPC" };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -104,7 +121,7 @@ export async function getFujiL1(name: string): Promise<FujiL1Status> {
     running: false,
   };
   if (!isValidL1Name(name)) return empty;
-  const dir = path.join(SUBNETS_DIR, name);
+  const dir = path.join(subnetsDir(), name);
   let sidecar: Record<string, unknown> = {};
   let genesis: Record<string, unknown> = {};
   try {
@@ -156,11 +173,11 @@ export function isValidAmount(v: string): boolean {
   return /^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,9})?$/.test(v) && Number(v) > 0 && Number(v) <= 1000;
 }
 
-function transferSteps(name: string, amount: string): [string, string[]][] {
+function transferSteps(name: string, amount: string): Step[] {
   return [
-    [
-      "avalanche",
-      [
+    {
+      cmd: "avalanche",
+      args: [
         "key",
         "transfer",
         "--key",
@@ -171,16 +188,16 @@ function transferSteps(name: string, amount: string): [string, string[]][] {
         "--amount",
         amount,
       ],
-    ],
+    },
   ];
 }
 
-function deploySteps(params: FujiParams, ownerAddr: string): [string, string[]][] {
-  const steps: [string, string[]][] = [];
-  if (!existsSync(path.join(SUBNETS_DIR, params.name))) {
-    steps.push([
-      "avalanche",
-      [
+function deploySteps(params: FujiParams, ownerAddr: string): Step[] {
+  const steps: Step[] = [];
+  if (!existsSync(path.join(subnetsDir(), params.name))) {
+    steps.push({
+      cmd: "avalanche",
+      args: [
         "blockchain",
         "create",
         params.name,
@@ -198,11 +215,11 @@ function deploySteps(params: FujiParams, ownerAddr: string): [string, string[]][
         "--production-defaults",
         "--force",
       ],
-    ]);
+    });
   }
-  steps.push([
-    "avalanche",
-    [
+  steps.push({
+    cmd: "avalanche",
+    args: [
       "blockchain",
       "deploy",
       params.name,
@@ -219,92 +236,49 @@ function deploySteps(params: FujiParams, ownerAddr: string): [string, string[]][
       // L1 still deploys (the relayer only affects Interchain Messaging).
       "--vmc-L1",
     ],
-  ]);
+  });
   return steps;
 }
 
-export interface RunHandle {
-  cancel: () => void;
+export interface FujiRequest {
+  name: string;
+  chainId?: string;
+  token?: string;
+  amount?: string;
 }
 
-/** Run a Fuji action's fixed command sequence, streaming each line. */
-export function runFujiAction(
-  action: FujiAction,
-  params: { name: string; chainId?: string; token?: string; amount?: string },
-  onLine: (line: string) => void,
-  onDone: (exitCode: number) => void,
-): RunHandle {
-  let steps: [string, string[]][];
-  if (action === "transfer") {
-    if (!isValidL1Name(params.name) || !params.amount || !isValidAmount(params.amount)) {
-      onLine("✖ invalid transfer parameters");
-      onDone(1);
-      return { cancel: () => {} };
+export type PreparedFujiAction =
+  | {
+      steps: Step[];
+      /** The request values that passed validation — safe to store and show. */
+      params: Record<string, string>;
     }
-    steps = transferSteps(params.name, params.amount);
-  } else {
-    if (
-      !isValidL1Name(params.name) ||
-      !params.chainId ||
-      !isValidChainId(params.chainId) ||
-      !params.token ||
-      !isValidToken(params.token)
-    ) {
-      onLine("✖ invalid deploy parameters");
-      onDone(1);
-      return { cancel: () => {} };
-    }
-    const owner = keyAddress(params.name);
-    if (!owner) {
-      onLine("✖ key not found — create/fund it first");
-      onDone(1);
-      return { cancel: () => {} };
-    }
-    steps = deploySteps({ name: params.name, chainId: params.chainId, token: params.token }, owner);
-  }
+  | { error: string };
 
-  let current: ChildProcess | null = null;
-  let cancelled = false;
-  const emit = (chunk: Buffer) => {
-    const text = chunk.toString("utf8").replace(ANSI, "").replace(/\r/g, "\n");
-    for (const line of text.split("\n")) {
-      const t = line.trim();
-      if (t) onLine(t);
-    }
+/**
+ * Validate a Fuji action's parameters and build its command sequence (run it
+ * with `runSteps`). Nothing is spawned here; an `error` means the request must
+ * be refused.
+ */
+export function prepareFujiAction(action: FujiAction, request: FujiRequest): PreparedFujiAction {
+  const nameOk = isValidL1Name(request.name);
+  const chainId = request.chainId && isValidChainId(request.chainId) ? request.chainId : null;
+  const token = request.token && isValidToken(request.token) ? request.token : null;
+  const amount = request.amount && isValidAmount(request.amount) ? request.amount : null;
+  // Only validated values are ever echoed back.
+  const params: Record<string, string> = {
+    ...(nameOk ? { name: request.name } : {}),
+    ...(chainId ? { chainId } : {}),
+    ...(token ? { symbol: token } : {}),
+    ...(amount ? { amount } : {}),
   };
-  const runStep = (i: number): void => {
-    if (cancelled) return;
-    const step = steps[i];
-    if (!step) {
-      onDone(0);
-      return;
-    }
-    const [cmd, args] = step;
-    onLine(`$ ${cmd} ${args.join(" ")}`);
-    // `detached` so a Fuji validator node the CLI boots survives Studio restarts.
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
-    current = child;
-    child.stdout?.on("data", emit);
-    child.stderr?.on("data", emit);
-    child.on("error", (e) => {
-      onLine(`error: ${e.message}`);
-      onDone(1);
-    });
-    child.on("close", (code) => {
-      if (cancelled) return;
-      if (code && code !== 0) {
-        onLine(`✖ exited with code ${code}`);
-        onDone(code);
-        return;
-      }
-      runStep(i + 1);
-    });
-  };
-  runStep(0);
-  return {
-    cancel: () => {
-      cancelled = true;
-      current?.kill();
-    },
-  };
+
+  if (action === "transfer") {
+    if (!nameOk || !amount) return { error: "invalid transfer parameters" };
+    return { steps: transferSteps(request.name, amount), params };
+  }
+  if (!nameOk || !chainId || !token) return { error: "invalid deploy parameters" };
+  const owner = keyAddress(request.name);
+  if (!owner) return { error: "key not found — create/fund it first" };
+  return { steps: deploySteps({ name: request.name, chainId, token }, owner), params };
 }

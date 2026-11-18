@@ -3,7 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type DevnetStatus, type Inventory } from "./api";
 import { BootSplash } from "./components/BootSplash";
 import { Sidebar, type View } from "./components/Sidebar";
+import { useToast } from "./components/toast";
+import { Dot } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
+import { useFujiWizard } from "./hooks/useFujiWizard";
+import { finishNotice, runHome, runLabel } from "./lib/run-messages";
+import { useRunStatus } from "./run";
 import { DataPanel } from "./views/DataView";
 import { DevnetView } from "./views/DevnetView";
 import { EnvironmentView } from "./views/EnvironmentView";
@@ -53,11 +58,17 @@ function useTheme() {
 
 export function App() {
   const { dark, toggle } = useTheme();
+  const toast = useToast();
   const [env, setEnv] = useState<Inventory | null>(null);
   const [status, setStatus] = useState<DevnetStatus | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
   const [staleToken, setStaleToken] = useState(false);
   const [view, setView] = useState<View>("overview");
+
+  // State that must outlive a view lives here, above the view switch: the
+  // avalanche-cli action in flight (run store) and the Fuji wizard's progress.
+  const { run, busy, lost, onFinished } = useRunStatus();
+  const wizard = useFujiWizard(run, view === "fuji");
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -83,6 +94,26 @@ export function App() {
     return () => clearInterval(timer);
   }, [refreshStatus]);
 
+  // An action ending is announced wherever the user happens to be.
+  useEffect(
+    () =>
+      onFinished((finished) => {
+        void refreshStatus();
+        toast(finishNotice(finished));
+      }),
+    [onFinished, refreshStatus, toast],
+  );
+
+  useEffect(() => {
+    if (!lost) return;
+    toast({
+      title: "Lost the connection to Studio",
+      description:
+        "The action in flight may still be running. Is Studio still running in your terminal?",
+      variant: "error",
+    });
+  }, [lost, toast]);
+
   const hasCli = env?.tools.some((t) => t.name === "avalanche-cli" && t.installed) ?? false;
   const meta = TITLES[view];
 
@@ -100,6 +131,17 @@ export function App() {
             <p className="text-muted-foreground text-xs">{meta.sub}</p>
           </div>
           <div className="flex items-center gap-2">
+            {busy && run && (
+              <button
+                type="button"
+                onClick={() => setView(runHome(run))}
+                title="Show the running action"
+                className="hover:bg-accent flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors"
+              >
+                <Dot state="live" />
+                {runLabel(run)}
+              </button>
+            )}
             <span className="text-muted-foreground flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs">
               <span
                 className={`size-1.5 rounded-full ${online ? "bg-foreground" : "bg-muted-foreground/40"}`}
@@ -133,14 +175,9 @@ export function App() {
           ) : view === "overview" ? (
             <OverviewView env={env} status={status} navigate={setView} />
           ) : view === "devnet" ? (
-            <DevnetView
-              status={status}
-              refresh={refreshStatus}
-              hasCli={hasCli}
-              navigate={setView}
-            />
+            <DevnetView status={status} hasCli={hasCli} navigate={setView} />
           ) : view === "fuji" ? (
-            <FujiView hasCli={hasCli} />
+            <FujiView hasCli={hasCli} wizard={wizard} navigate={setView} />
           ) : view === "interchain" ? (
             <InterchainView />
           ) : view === "data" ? (

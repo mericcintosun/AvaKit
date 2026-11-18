@@ -1,3 +1,8 @@
+import type { FujiBalance, FujiL1 } from "./lib/fuji-wizard";
+import type { RunBackend, RunInfo } from "./lib/run-store";
+
+export type { FujiBalance, FujiL1 } from "./lib/fuji-wizard";
+
 declare global {
   interface Window {
     __AVAKIT_STUDIO__?: { token: string };
@@ -21,30 +26,85 @@ export class ApiError extends Error {
   }
 }
 
+/** The JSON of a successful response; otherwise an ApiError with the server's reason. */
+async function parse<T>(res: Response): Promise<T> {
+  if (res.ok) return (await res.json()) as T;
+  let message: string | undefined;
+  try {
+    const body = (await res.json()) as { error?: unknown };
+    // A 401 keeps its own, more helpful wording.
+    if (res.status !== 401 && typeof body.error === "string") message = body.error;
+  } catch {
+    /* not JSON */
+  }
+  throw new ApiError(res.status, message);
+}
+
 export async function api<T>(path: string): Promise<T> {
-  const res = await fetch(path, { headers: { "x-studio-token": TOKEN } });
-  if (!res.ok) throw new ApiError(res.status);
-  return (await res.json()) as T;
+  return parse<T>(await fetch(path, { headers: { "x-studio-token": TOKEN } }));
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "x-studio-token": TOKEN, "content-type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    let msg: string | undefined;
-    try {
-      const j = (await res.json()) as { error?: string };
-      if (j.error) msg = j.error;
-    } catch {
-      /* ignore */
-    }
-    throw new ApiError(res.status, msg);
-  }
-  return (await res.json()) as T;
+  return parse<T>(
+    await fetch(path, {
+      method: "POST",
+      headers: { "x-studio-token": TOKEN, "content-type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+  );
 }
+
+/**
+ * The server side of the run store: start an avalanche-cli action with a POST,
+ * then follow it over a separate event stream. The action belongs to the
+ * server, so closing the stream (or this tab) never stops it.
+ */
+export const runBackend: RunBackend = {
+  fetchRun: async () => (await api<{ run: RunInfo | null }>("/api/run")).run,
+
+  async startRun(request) {
+    const res = await fetch("/api/run", {
+      method: "POST",
+      headers: { "x-studio-token": TOKEN, "content-type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    if (res.status === 409) {
+      // Another action is in flight; the server says which.
+      const body = (await res.json()) as { error: string; run: RunInfo };
+      return { started: false, run: body.run, error: body.error };
+    }
+    return { started: true, run: (await parse<{ run: RunInfo }>(res)).run };
+  },
+
+  cancelRun: async () => {
+    await apiPost("/api/run/cancel");
+  },
+
+  dismissRun: async () => {
+    await apiPost("/api/run/dismiss");
+  },
+
+  openStream(handlers) {
+    // EventSource cannot set headers, so the session token travels in the query.
+    const es = new EventSource(`/api/run/stream?token=${encodeURIComponent(TOKEN)}`);
+    const data = (e: Event) => JSON.parse((e as MessageEvent<string>).data);
+    es.addEventListener("snapshot", (e) => {
+      const { run, log } = data(e) as { run: RunInfo; log: string[] };
+      handlers.onSnapshot(run, log);
+    });
+    es.addEventListener("line", (e) => handlers.onLine((data(e) as { line: string }).line));
+    es.addEventListener("done", (e) => {
+      // Close first: the server ends the stream after `done`, and an open
+      // EventSource would take that as a dropped connection and reconnect.
+      es.close();
+      handlers.onDone((data(e) as { run: RunInfo }).run);
+    });
+    // CLOSED means the server refused the stream (Studio restarted, no run):
+    // the browser will not retry. Anything else is a blip it retries itself.
+    es.onerror = () => handlers.onError(es.readyState === EventSource.CLOSED);
+    return { close: () => es.close() };
+  },
+};
 
 export type DevnetAction = "start" | "stop" | "create-icm" | "create-l1";
 
@@ -55,75 +115,15 @@ export interface L1Params {
   token: string;
 }
 
-/** Open the SSE action log. Returns a stop() that closes the stream. */
-export function streamAction(
-  action: DevnetAction,
-  onLine: (line: string) => void,
-  onDone: (exitCode: number) => void,
-  params?: L1Params,
-): () => void {
-  const extra = params
-    ? `&name=${encodeURIComponent(params.name)}&chainId=${encodeURIComponent(params.chainId)}&symbol=${encodeURIComponent(params.token)}`
-    : "";
-  const es = new EventSource(
-    `/api/devnet/stream?action=${action}&token=${encodeURIComponent(TOKEN)}${extra}`,
-  );
-  es.addEventListener("line", (e) => onLine(JSON.parse((e as MessageEvent).data).line as string));
-  es.addEventListener("done", (e) => {
-    onDone(JSON.parse((e as MessageEvent).data).exitCode as number);
-    es.close();
-  });
-  es.onerror = () => {
-    es.close();
-    onDone(-1);
-  };
-  return () => es.close();
-}
-
-// --- Fuji L1 wizard ----------------------------------------------------------
-
-export type FujiAction = "transfer" | "deploy";
-
 export interface FujiKey {
   address: string | null;
 }
-export interface FujiBalance {
-  address: string | null;
-  cBalance: string;
-}
-export interface FujiL1 {
-  deployed: boolean;
-  rpcUrl: string | null;
-  blockchainId: string | null;
-  evmChainId: number | null;
-  running: boolean;
-}
 
-/** Stream a Fuji wizard action (transfer C->P, or create+deploy to Fuji). */
-export function streamFuji(
-  action: FujiAction,
-  params: { name: string; chainId?: string; token?: string; amount?: string },
-  onLine: (line: string) => void,
-  onDone: (exitCode: number) => void,
-): () => void {
-  // `token` carries the session auth; the L1 native-token symbol travels as
-  // `symbol` so it can't clobber the auth token (that broke the deploy step).
-  const q = new URLSearchParams({ action, token: TOKEN, name: params.name });
-  if (params.chainId) q.set("chainId", params.chainId);
-  if (params.token) q.set("symbol", params.token);
-  if (params.amount) q.set("amount", params.amount);
-  const es = new EventSource(`/api/fuji/stream?${q.toString()}`);
-  es.addEventListener("line", (e) => onLine(JSON.parse((e as MessageEvent).data).line as string));
-  es.addEventListener("done", (e) => {
-    onDone(JSON.parse((e as MessageEvent).data).exitCode as number);
-    es.close();
-  });
-  es.onerror = () => {
-    es.close();
-    onDone(-1);
-  };
-  return () => es.close();
-}
+export const fujiApi = {
+  createKey: (name: string) => apiPost<FujiKey>("/api/fuji/key", { name }),
+  balance: (name: string) => api<FujiBalance>(`/api/fuji/balance?name=${encodeURIComponent(name)}`),
+  l1: (name: string) => api<FujiL1>(`/api/fuji/l1?name=${encodeURIComponent(name)}`),
+};
 
 export interface ToolInfo {
   name: string;
@@ -176,8 +176,19 @@ export interface IcmChain {
 
 export interface IcmState {
   ready: boolean;
+  /** Only the running, Teleporter-ready L1s of the local network. */
   chains: IcmChain[];
+  /** The longest message the server accepts, in UTF-8 bytes. */
+  maxMessageBytes: number;
 }
+
+export interface IcmSendResult {
+  txHash: string;
+  /** The destination's delivery count just before the send. */
+  receivedBefore: number | null;
+}
+
+export type DataSection = "native" | "tokens" | "nfts" | "transactions";
 
 export interface DataSummary {
   native: { symbol: string; balance: string; decimals: number } | null;
@@ -191,4 +202,6 @@ export interface DataSummary {
     method: string | null;
     status: string;
   }[];
+  /** Sections that could not be loaded, with the reason — unknown, NOT empty. */
+  errors: Partial<Record<DataSection, string>>;
 }
