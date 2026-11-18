@@ -42,9 +42,12 @@ no browser-deploy step, unlike AvaKit's other templates.
 
 ## Architecture
 
-- `lib/eerc-config.ts` — the deployed `EncryptedERC` contract address (standalone, name "Test",
-  symbol "TEST", 2 decimals), the pinned circuit files + SHA-256 hashes, and
-  `loadVerifiedCircuits()` (download → verify → blob URLs).
+- `lib/eerc-config.ts` — `EERC_CONTRACT_ADDRESS`, the `EncryptedERC` instance the app talks to
+  (standalone, name "Test", symbol "TEST", 2 decimals; `pnpm deploy:eerc` rewrites this line),
+  `usesSharedInstance` (true while it still equals `SHARED_EERC_CONTRACT_ADDRESS`), the pinned
+  circuit files + SHA-256 hashes, and `loadVerifiedCircuits()` (download → verify → blob URLs,
+  done once per page load and shared by every caller; needs https or `http://localhost`, because
+  browsers only provide WebCrypto there).
 - `scripts/deploy-eerc.mjs` (`pnpm deploy:eerc`) — deploys YOUR OWN standalone instance to Fuji
   (clones the official repo pinned to the circuits' commit, never vendors it) and rewrites
   `EERC_CONTRACT_ADDRESS` to point at it.
