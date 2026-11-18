@@ -66,8 +66,8 @@ export default function DocsHome() {
         social login, and a browser wallet (Core / MetaMask).
       </P>
       <Note>
-        AvaKit is tested on Node.js 22 and 24. On Node 20 the CLI still runs but warns, because Node
-        20 reached end of life in April 2026.
+        AvaKit is tested on Node.js 22 and 24. The CLI needs Node.js 22 or newer and stops with one
+        line on anything older; Node 20 reached end of life in April 2026.
       </Note>
       <Note>
         Social login works on localhost with a bundled demo key, so there is nothing to configure to

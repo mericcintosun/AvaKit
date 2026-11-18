@@ -69,7 +69,7 @@ export interface TemplateInfo {
   title: string;
   description: string;
   contracts: boolean;
-  /** One-time setup command to run before `dev` (e.g. `pnpm devnet`), if any. */
+  /** One-time setup command to run before `dev` (e.g. `npm run devnet`), if any. */
   setup?: string;
   /**
    * The chains this template can be scaffolded for, from `chains` in its

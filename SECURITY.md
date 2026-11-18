@@ -36,8 +36,13 @@ up: the five Fuji templates on Fuji, the other three on their local devnet.
 - **What limits it.** It is refused on any mainnet, in the adapter itself and again in
   `<AvaKitProvider>`, which also disconnects a burner if the app switches to a mainnet.
   A chain counts as a mainnet unless its definition says `testnet: true`, and chain id
-  43114 always does. A template scaffolded for C-Chain does not offer the burner at
-  all. `clearBurner()` deletes the key, and `persist: false` keeps it in memory only.
+  43114 always does. The definition's label is not trusted on its own: before the
+  first transaction on a chain, the burner asks the node behind the chain's `rpcUrl`
+  which chain it serves and refuses unless it is the one the definition names, and it
+  signs every transaction for that chain id only. A testnet label on a mainnet RPC
+  therefore gets "Nothing was signed or sent" instead of a mainnet transaction. A
+  template scaffolded for C-Chain does not offer the burner at all. `clearBurner()`
+  deletes the key, and `persist: false` keeps it in memory only.
 - **What it must never be used for.** It is a throwaway testnet identity holding a
   faucet drip, and nothing else. Never send real funds to a burner address, and never
   present a burner as a way to hold value. Treat it as a session, not a wallet.

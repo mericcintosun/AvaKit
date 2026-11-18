@@ -171,9 +171,10 @@ tarballs, so `@avakit/react`'s dependency on `@avakit/core` resolves for consume
 
 ## Notes
 
-- Node `>=20.11` is declared via `engines`. The scaffolder reads that floor from its own
-  `package.json` and refuses to run below it; on Node 20 and 21 it runs after one
-  warning. The published flow is run on Node 22 and 24 (`e2e-fuji.yml`).
+- `create-avalanche-app` declares Node `>=22` via `engines` (its wizard library, `ink`,
+  requires 22). The scaffolder reads that floor from its own `package.json` and refuses
+  to run below it with one line. The other packages declare `>=20.11`. The published
+  flow is run on Node 22 and 24 (`e2e-fuji.yml`).
 - `files[]` in `package.json` **overrides `.gitignore`** — if a package needs to exclude
   something from its tarball, add a negated pattern (`"!templates/**/.next/**"`) to
   `files` itself, as `create-avalanche-app` does. Its old `.npmignore` is gone. (This

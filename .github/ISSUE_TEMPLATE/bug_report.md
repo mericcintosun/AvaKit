@@ -37,7 +37,7 @@ assignees: ""
 ## Environment
 
 - OS:
-- Node version: <!-- `node --version` (AvaKit requires >= 20.11) -->
+- Node version: <!-- `node --version` (the scaffolder needs >= 22; the libraries >= 20.11) -->
 - Package manager: <!-- pnpm / npm / yarn / bun + version -->
 
 ## Additional context

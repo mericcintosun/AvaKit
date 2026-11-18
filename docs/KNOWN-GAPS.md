@@ -407,7 +407,7 @@ F2. **`eerc-token` demo Mint reverted for most users — FIXED in the UI.** The 
    still points at a *shared* pre-deployed Fuji eERC whose `privateMint` is
    `onlyOwner`, but it no longer offers a button that can only fail: the demo reads
    the instance's owner, disables Mint for everyone else and says why, and
-   `pnpm deploy:eerc` (`scripts/deploy-eerc.mjs`) deploys an instance of your own,
+   `npm run deploy:eerc` (`scripts/deploy-eerc.mjs`) deploys an instance of your own,
    which makes you the owner.
    **Still true:** circuits are fetched from a commit-pinned jsDelivr CDN (2–14 MB,
    network-dependent), and `wagmi` is pinned to 2.x, intentionally off the repo's
