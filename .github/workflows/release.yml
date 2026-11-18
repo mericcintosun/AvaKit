@@ -50,6 +50,25 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Gate: nothing is versioned or published from a red tree.
+      #
+      # ci.yml runs the same checks on this push, but as a separate workflow that
+      # this one does not wait for, and the "chore: version packages" PR never
+      # gets a CI run of its own (GitHub starts no workflows for a pull request
+      # opened with GITHUB_TOKEN). Without these steps, merging that PR published
+      # whatever built, tests failing or not. So the checks run here as well, on
+      # the exact commit that is about to be versioned or published, and a failure
+      # stops the job before changesets/action runs. `pnpm release` below still
+      # does the full build.
+      - name: Lint (Biome)
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
       # When changesets exist on main, opens/updates a "Version Packages" PR.
       # When that PR is merged (versions bumped, changesets consumed), publishes.
       #

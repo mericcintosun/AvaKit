@@ -32,13 +32,30 @@ exchange is also what produces the **provenance attestation** on each tarball
    bumps and rewrites the changelogs. Nothing is published yet.
 
 3. **Check the PR, then merge it.** Merging it is the publish trigger: the workflow
-   runs again, finds no changesets, and publishes whatever is newer than npm.
+   runs again, passes the checks below, finds no changesets, and publishes whatever
+   is newer than npm.
 
 4. **Verify.** `npm view <pkg> version`, and smoke-test the real thing in a clean dir:
    ```bash
    npm create avalanche-app@latest my-app
    cd my-app && pnpm install && pnpm build
    ```
+
+## Nothing is published from a red tree
+
+Before it opens the version PR or publishes, the release job runs `pnpm lint`,
+`pnpm typecheck` and `pnpm test` on the commit it is about to release, and stops if
+any of them fails. Releases rely on that gate, because nothing else covers them:
+
+- `ci.yml` runs on the same push, but as a separate workflow that the release job
+  does not wait for.
+- The **"chore: version packages"** PR shows **no checks at all**. That is expected:
+  the PR is opened with `GITHUB_TOKEN`, and GitHub starts no workflows for a pull
+  request created with that token. Its changes are checked when you merge it — in
+  the release job, before anything is published.
+
+If the gate fails, nothing was versioned or published. Fix `main`; the next push runs
+the release job again.
 
 ## Before merging the version PR — check this
 
@@ -77,6 +94,8 @@ npm 12's output.
 The workflow publishing *nothing* is the normal steady state — a push with no pending
 changesets should log `No unpublished projects to publish` and go green. If it's red:
 
+- The `Lint`, `Typecheck` or `Test` step failed → the gate above did its job and
+  nothing was versioned or published. Fix `main`.
 - `You cannot publish over the previously published versions` → the npm-12 bug above.
 - `is being published because our local version has not been published on npm` for a
   package that *is* published → same bug.
