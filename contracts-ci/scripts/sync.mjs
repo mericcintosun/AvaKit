@@ -26,7 +26,8 @@ const harnessConfig = resolve(here, "..", "foundry.toml");
 
 // canonical: the copy the harness compiles. duplicates: must be byte-identical.
 // examples/web3auth-demo ships a different, simpler AvaKitNFT on purpose — it
-// is an example app, not a template, and is deliberately not covered here.
+// is an example app, not a template, so it is deliberately not synced or tested
+// here. Its compiler settings and its artifact are checked like the others.
 const CONTRACTS = [
   {
     name: "AvaKitToken.sol",

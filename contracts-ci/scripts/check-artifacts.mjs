@@ -79,6 +79,12 @@ const ARTIFACTS = [
     contract: "AvaKitNFT",
     file: "apps/web/lib/nft-artifact.ts",
   },
+  // The example app ships its own, simpler AvaKitNFT.
+  {
+    source: "examples/web3auth-demo/contracts",
+    contract: "AvaKitNFT",
+    file: "examples/web3auth-demo/lib/nft-artifact.ts",
+  },
 ];
 
 const ABI_LITERAL = /(export const abi = )(\[[\s\S]*?\])( as const)/;

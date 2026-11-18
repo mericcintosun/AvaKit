@@ -27,9 +27,12 @@ contract AvaKitNFT {
     }
 
     /// @notice Minimal on-chain metadata.
+    /// @dev The `#` in the name is written as `%23`: a raw `#` starts a URI
+    ///      fragment, so anything that loads this data URI as a URL (a wallet
+    ///      calling fetch, say) would cut the JSON off right there.
     function tokenURI(uint256 tokenId) external pure returns (string memory) {
         return string.concat(
-            'data:application/json;utf8,{"name":"AvaKit #', _toString(tokenId), '"}'
+            'data:application/json;utf8,{"name":"AvaKit %23', _toString(tokenId), '"}'
         );
     }
 
