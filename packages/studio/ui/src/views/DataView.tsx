@@ -1,5 +1,5 @@
-import { Coins, ExternalLink, Image, Receipt, Search } from "lucide-react";
-import { useCallback, useState } from "react";
+import { Coins, ExternalLink, Image, Receipt, RotateCw, Search } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
 import { api, type DataSummary } from "../api";
 import { CopyButton } from "../components/copy-button";
 import { useToast } from "../components/toast";
@@ -11,6 +11,15 @@ const NETWORKS = [
   { id: 43113, label: "Fuji", explorer: "https://testnet.snowtrace.io" },
   { id: 43114, label: "C-Chain", explorer: "https://snowtrace.io" },
 ] as const;
+
+type Network = (typeof NETWORKS)[number];
+
+/** What is on screen: the data together with the address and network it is FOR. */
+interface Result {
+  address: string;
+  net: Network;
+  data: DataSummary;
+}
 
 function timeAgo(ts: number): string {
   const s = Math.floor(Date.now() / 1000) - ts;
@@ -42,36 +51,57 @@ function Section({
   );
 }
 
+/** A section the Data API did not answer for: unknown, which is not the same as empty. */
+function Unavailable({ what, reason }: { what: string; reason: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-sm">Couldn't load {what}.</p>
+      <p className="text-muted-foreground mt-0.5 text-xs break-words">{reason}</p>
+    </div>
+  );
+}
+
 export function DataPanel() {
   const toast = useToast();
   const [address, setAddress] = useState("");
   const [chainId, setChainId] = useState<number>(43113);
-  const [data, setData] = useState<DataSummary | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(false);
+  // Only the latest lookup may put its answer on screen.
+  const latest = useRef(0);
 
-  const net = NETWORKS.find((n) => n.id === chainId) ?? NETWORKS[0];
+  const selected = NETWORKS.find((n) => n.id === chainId) ?? NETWORKS[0];
 
   const lookup = useCallback(
-    async (addr: string) => {
+    async (addr: string, net: Network) => {
       if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
         toast({ title: "Invalid address", description: "Enter a 0x… address.", variant: "error" });
         return;
       }
+      const id = ++latest.current;
       setLoading(true);
+      // Whatever was on screen belongs to another address or network.
+      setResult(null);
       try {
-        setData(await api<DataSummary>(`/api/data?address=${addr}&chainId=${chainId}`));
+        const data = await api<DataSummary>(`/api/data?address=${addr}&chainId=${net.id}`);
+        if (id === latest.current) setResult({ address: addr, net, data });
       } catch (e) {
-        toast({
-          title: "Lookup failed",
-          description: e instanceof Error ? e.message : String(e),
-          variant: "error",
-        });
+        if (id === latest.current) {
+          toast({
+            title: "Lookup failed",
+            description: e instanceof Error ? e.message : String(e),
+            variant: "error",
+          });
+        }
       } finally {
-        setLoading(false);
+        if (id === latest.current) setLoading(false);
       }
     },
-    [chainId, toast],
+    [toast],
   );
+
+  const errors = result?.data.errors ?? {};
+  const failed = Object.keys(errors).length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -80,7 +110,7 @@ export function DataPanel() {
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value.trim())}
-            onKeyDown={(e) => e.key === "Enter" && lookup(address)}
+            onKeyDown={(e) => e.key === "Enter" && lookup(address, selected)}
             placeholder="0x… address"
             className="border-input bg-background min-w-0 flex-1 rounded-md border px-3 py-2 font-mono text-sm outline-none"
           />
@@ -89,7 +119,13 @@ export function DataPanel() {
               <button
                 key={n.id}
                 type="button"
-                onClick={() => setChainId(n.id)}
+                onClick={() => {
+                  if (n.id === chainId) return;
+                  setChainId(n.id);
+                  // Results are for ONE network: look the same address up on
+                  // the new one rather than leave the old rows under its name.
+                  if (result) void lookup(result.address, n);
+                }}
                 className={cn(
                   "rounded px-2.5 py-1 text-xs font-medium transition-colors",
                   chainId === n.id ? "bg-background shadow-sm" : "text-muted-foreground",
@@ -99,29 +135,64 @@ export function DataPanel() {
               </button>
             ))}
           </div>
-          <Button size="sm" disabled={loading || !address} onClick={() => lookup(address)}>
+          <Button
+            size="sm"
+            disabled={loading || !address}
+            onClick={() => lookup(address, selected)}
+          >
             <Search className="size-4" /> {loading ? "Looking up…" : "Look up"}
           </Button>
         </div>
-        {!data && (
+        {!result && (
           <p className="text-muted-foreground text-xs">
-            Paste any {net.label} address to see its balances, NFTs, and transactions — via the
+            Paste any {selected.label} address to see its balances, NFTs, and transactions — via the
             AvaCloud Data API, no indexer.
           </p>
         )}
       </div>
 
-      {data && (
+      {result && (
         <div className="flex flex-col gap-6">
+          {failed > 0 && (
+            <div className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+              <p className="text-sm">
+                {failed === 4
+                  ? "The Data API did not answer — nothing below is known yet."
+                  : "Part of this could not be loaded. Those sections are unknown, not empty."}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={loading}
+                onClick={() => lookup(result.address, result.net)}
+              >
+                <RotateCw className="size-3.5" /> Retry
+              </Button>
+            </div>
+          )}
+
           <Section icon={Coins} title="Balances">
             <Card>
               <CardRow>
-                <span className="font-medium">{data.native?.symbol ?? "AVAX"}</span>
-                <span className="font-mono text-sm">
-                  {data.native ? formatUnits(data.native.balance, data.native.decimals) : "0"}
-                </span>
+                {errors.native ? (
+                  <Unavailable what="the AVAX balance" reason={errors.native} />
+                ) : (
+                  <>
+                    <span className="font-medium">{result.data.native?.symbol ?? "AVAX"}</span>
+                    <span className="font-mono text-sm">
+                      {result.data.native
+                        ? formatUnits(result.data.native.balance, result.data.native.decimals)
+                        : "0"}
+                    </span>
+                  </>
+                )}
               </CardRow>
-              {data.tokens.map((t) => (
+              {errors.tokens && (
+                <CardRow>
+                  <Unavailable what="token balances" reason={errors.tokens} />
+                </CardRow>
+              )}
+              {result.data.tokens.map((t) => (
                 <CardRow key={t.address}>
                   <span className="flex items-center gap-1.5">
                     <span className="font-medium">{t.symbol}</span>
@@ -133,13 +204,21 @@ export function DataPanel() {
             </Card>
           </Section>
 
-          <Section icon={Image} title="NFTs" count={data.nfts.length}>
-            {data.nfts.length ? (
+          <Section
+            icon={Image}
+            title="NFTs"
+            count={errors.nfts ? undefined : result.data.nfts.length}
+          >
+            {errors.nfts ? (
+              <Card className="p-4">
+                <Unavailable what="NFTs" reason={errors.nfts} />
+              </Card>
+            ) : result.data.nfts.length ? (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {data.nfts.map((n) => (
+                {result.data.nfts.map((n) => (
                   <a
                     key={`${n.address}-${n.tokenId}`}
-                    href={`${net.explorer}/token/${n.address}`}
+                    href={`${result.net.explorer}/token/${n.address}`}
                     target="_blank"
                     rel="noreferrer"
                     className="bg-card hover:border-foreground/30 rounded-lg border p-3 transition-colors"
@@ -151,15 +230,23 @@ export function DataPanel() {
               </div>
             ) : (
               <Card className="p-4">
-                <p className="text-muted-foreground text-sm">No NFTs held on {net.label}.</p>
+                <p className="text-muted-foreground text-sm">No NFTs held on {result.net.label}.</p>
               </Card>
             )}
           </Section>
 
-          <Section icon={Receipt} title="Recent transactions" count={data.transactions.length}>
+          <Section
+            icon={Receipt}
+            title="Recent transactions"
+            count={errors.transactions ? undefined : result.data.transactions.length}
+          >
             <Card>
-              {data.transactions.length ? (
-                data.transactions.map((tx) => (
+              {errors.transactions ? (
+                <CardRow>
+                  <Unavailable what="transactions" reason={errors.transactions} />
+                </CardRow>
+              ) : result.data.transactions.length ? (
+                result.data.transactions.map((tx) => (
                   <CardRow key={tx.txHash}>
                     <span className="flex min-w-0 items-center gap-2">
                       <span
@@ -170,7 +257,7 @@ export function DataPanel() {
                       />
                       <span className="font-mono text-xs">{tx.method || "transfer"}</span>
                       <a
-                        href={`${net.explorer}/tx/${tx.txHash}`}
+                        href={`${result.net.explorer}/tx/${tx.txHash}`}
                         target="_blank"
                         rel="noreferrer"
                         className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-xs"
@@ -191,11 +278,12 @@ export function DataPanel() {
             </Card>
           </Section>
 
-          <p className="text-muted-foreground flex items-center gap-2 text-xs">
-            <span className="font-mono">{shortHex(address, 8)}</span>
-            <CopyButton value={address} label="" />
+          <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-mono">{shortHex(result.address, 8)}</span>
+            <CopyButton value={result.address} label="" />
+            <span>· {result.net.label} ·</span>
             <a
-              href={`${net.explorer}/address/${address}`}
+              href={`${result.net.explorer}/address/${result.address}`}
               target="_blank"
               rel="noreferrer"
               className="hover:text-foreground inline-flex items-center gap-1"
