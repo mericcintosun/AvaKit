@@ -48,6 +48,7 @@ The old namespace is no longer bound and can be deleted with
 | Where | Name | Default | What |
 | --- | --- | --- | --- |
 | secret | `AVAKIT_FAUCET_KEY` | — (required) | 0x private key holding Fuji test AVAX |
+| secret | `TURNSTILE_SECRET` | — (off) | Set it and `POST /fund` requires a Turnstile token — see [Turnstile](#turnstile-optional) |
 | var | `FAUCET_DRIP_AVAX` | `0.02` (set in `wrangler.toml`) | Amount per drip |
 | var | `FAUCET_CORS_ORIGIN` | `*` | Left open on purpose: CORS is a browser rule, not a security boundary, and locking it down only breaks local dev and preview deploys |
 | var | `FAUCET_FUJI_RPC` | public Fuji RPC | Override the RPC. A keyed URL is fine: it is never returned to a caller and is redacted from the log |
@@ -55,8 +56,10 @@ The old namespace is no longer bound and can be deleted with
 
 ## Endpoints
 
-- `POST /fund` — `{ "address": "0x…", "chainId"?: 43113 }` → `{ txHash, amount, chainId }`
-- `GET /health` — `{ ok, address, chainId, balance }`
+- `POST /fund` — `{ "address": "0x…", "chainId"?: 43113, "turnstileToken"?: "…" }`
+  → `{ txHash, amount, chainId }`
+- `GET /health` — `{ ok, address, chainId, balance, turnstile }`. `turnstile` is
+  `true` when `POST /fund` expects a token.
 
 Anything else answers `{ "error": "…", "code": "…" }`. The message is fixed text
 for people; branch on `code`:
@@ -64,10 +67,11 @@ for people; branch on `code`:
 | Status | `code` | Meaning |
 | --- | --- | --- |
 | 400 | `invalid_json`, `invalid_address`, `unsupported_chain` | The request is wrong; retrying won't help |
+| 403 | `turnstile_required`, `turnstile_failed` | No token, or one that is forged, expired or already used |
 | 404 | `not_found` | Not one of the two endpoints |
 | 429 | `address_limited`, `ip_limited` | Over a limit. `Retry-After` says how many seconds until it clears |
 | 502 | `drip_failed` | The RPC or the chain refused the transaction. Nothing was charged to the caller's limits; retry shortly |
-| 503 | `faucet_empty`, `faucet_busy` | Out of funds, or too many drips in flight |
+| 503 | `faucet_empty`, `faucet_busy`, `turnstile_unavailable` | Out of funds, too many drips in flight, or Cloudflare's verification is unreachable |
 | 500 | `misconfigured`, `internal` | The Worker's own setup (key, drip amount) or a bug |
 
 A failed drip never returns the upstream error. viem's messages include the RPC
@@ -96,9 +100,26 @@ URL and the raw request, so the detail goes to the Worker log instead
   it came from for one hour. Its alarm deletes both on schedule, so an IP
   address is gone an hour after its drip even if that was the day's last.
 
-These bound what one network can take. They do not stop a thousand networks:
-**add [Turnstile](https://developers.cloudflare.com/turnstile/) in front before
-advertising this widely.**
+These bound what one network can take. They do not stop a thousand networks —
+that is what Turnstile is for.
+
+### Turnstile (optional)
+
+**Turn it on before advertising the faucet widely.** It is enforced only when
+`TURNSTILE_SECRET` is set, so it needs no code change:
+
+1. Add a [Turnstile](https://developers.cloudflare.com/turnstile/) widget in
+   the Cloudflare dashboard for the hostnames that call the faucet. It gives
+   you a site key (public) and a secret key.
+2. Render the widget with the site key on the page that calls the faucet, and
+   send the token it produces as `turnstileToken` in the `POST /fund` body.
+3. `npx wrangler secret put TURNSTILE_SECRET` with the secret key.
+
+From step 3 on, a request without a valid token gets a `403` — so do it last,
+once every client of this faucet sends one. A token is single-use and expires
+after five minutes; ask the widget for a fresh one per request. If Cloudflare's
+verification cannot be reached the faucet answers `503` rather than letting
+everyone through.
 
 ## Local
 

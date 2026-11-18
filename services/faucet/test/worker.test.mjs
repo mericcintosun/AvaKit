@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { after, beforeEach, describe, it } from "node:test";
+import { after, before, beforeEach, describe, it } from "node:test";
 import { parseEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { CHAIN_ID, startMockChain } from "./helpers/mock-chain.mjs";
+import { startMockTurnstile } from "./helpers/mock-turnstile.mjs";
 import { startWorker } from "./helpers/workerd.mjs";
 
 /**
@@ -24,6 +25,8 @@ const env = (overrides = {}) => ({
   FAUCET_FUJI_RPC: chain.url,
   FAUCET_DRIP_AVAX: "0.02",
   FAUCET_CORS_ORIGIN: "*",
+  TURNSTILE_SECRET: "",
+  TURNSTILE_VERIFY_URL: "",
   ...overrides,
 });
 const worker = await startWorker(env());
@@ -85,6 +88,7 @@ describe("GET /health", () => {
       address: faucetAddress,
       chainId: CHAIN_ID,
       balance: parseEther("10").toString(),
+      turnstile: false,
     });
   });
 });
@@ -305,6 +309,77 @@ describe("a drip that fails", () => {
 
     chain.balance = parseEther("10");
     assert.equal((await fund({ ip, address })).status, 200);
+  });
+});
+
+describe("with TURNSTILE_SECRET set", () => {
+  const SECRET = "turnstile-test-secret";
+  let turnstile;
+
+  before(async () => {
+    turnstile = await startMockTurnstile({ secret: SECRET });
+    await worker.configure(env({ TURNSTILE_SECRET: SECRET, TURNSTILE_VERIFY_URL: turnstile.url }));
+  });
+  after(async () => {
+    await worker.configure(env());
+    await turnstile.close();
+  });
+  beforeEach(() => {
+    turnstile.requests.length = 0;
+    turnstile.down = false;
+  });
+
+  it("says in /health that a token is expected", async () => {
+    assert.equal((await call("/health")).body.turnstile, true);
+  });
+
+  it("refuses a request without a token before doing any work", async () => {
+    const refused = await fund();
+
+    assert.equal(refused.status, 403);
+    assert.deepEqual(refused.body, { error: "Verification required.", code: "turnstile_required" });
+    assert.equal(turnstile.requests.length, 0);
+    assert.deepEqual(chain.calls, []);
+  });
+
+  it("funds a caller whose token Cloudflare vouches for", async () => {
+    const ip = someIp();
+    const token = turnstile.issue("good-token-1");
+
+    const funded = await fund({ ip, turnstileToken: token });
+
+    assert.equal(funded.status, 200);
+    assert.deepEqual(turnstile.requests, [{ secret: SECRET, response: token, remoteip: ip }]);
+    assert.equal(chain.accepted.length, 1);
+  });
+
+  it("refuses a token that is wrong or already spent", async () => {
+    const token = turnstile.issue("good-token-2");
+    assert.equal((await fund({ turnstileToken: token })).status, 200);
+
+    const results = await Promise.all([
+      fund({ turnstileToken: token }),
+      fund({ turnstileToken: "forged" }),
+    ]);
+
+    for (const refused of results) {
+      assert.equal(refused.status, 403);
+      assert.deepEqual(refused.body, {
+        error: "Verification failed. Try again.",
+        code: "turnstile_failed",
+      });
+    }
+    assert.equal(chain.accepted.length, 1);
+  });
+
+  it("refuses everyone while verification is down", async () => {
+    turnstile.down = true;
+
+    const refused = await fund({ turnstileToken: turnstile.issue("good-token-3") });
+
+    assert.equal(refused.status, 503);
+    assert.equal(refused.body.code, "turnstile_unavailable");
+    assert.equal(chain.accepted.length, 0);
   });
 });
 

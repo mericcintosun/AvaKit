@@ -36,6 +36,7 @@ new_sqlite_classes = ["Faucet"]
 enabled = true
 invocation_logs = false
 
-# AVAKIT_FAUCET_KEY is a secret, never a var:
-#   npx wrangler secret put AVAKIT_FAUCET_KEY
-# For `wrangler dev`, put it in .dev.vars instead (gitignored).
+# Secrets, never vars:
+#   npx wrangler secret put AVAKIT_FAUCET_KEY   (required — a throwaway Fuji key)
+#   npx wrangler secret put TURNSTILE_SECRET    (optional — turns the captcha on)
+# For `wrangler dev`, put them in .dev.vars instead (gitignored).

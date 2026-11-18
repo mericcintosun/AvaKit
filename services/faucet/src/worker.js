@@ -11,26 +11,26 @@ import {
   FaucetConfigError,
   FaucetEmptyError,
 } from "./sender.js";
+import { verifyTurnstile } from "./turnstile.js";
 
 /**
  * AvaKit faucet — a Cloudflare Worker that drips testnet AVAX so a new user's
  * first transaction is funded with no wallet setup. It holds the funding key as a
  * Worker secret, so AvaKit client code never touches a private key.
  *
- *   POST /fund   { address, chainId? }  → { txHash, amount, chainId }
- *   GET  /health                        → { ok, address, chainId, balance }
+ *   POST /fund   { address, chainId?, turnstileToken? }  → { txHash, amount, chainId }
+ *   GET  /health                        → { ok, address, chainId, balance, turnstile }
  *
  * Point a dapp at it: <AvaKitProvider faucetUrl="https://<worker>/fund">
  *
- * The Worker itself is stateless: it validates the request and hands the drip
- * to the `Faucet` Durable Object. That object is the one place that both counts
- * drips and signs them, which is what makes the rate limits exact and keeps two
- * drips off the same nonce.
+ * The Worker itself is stateless: it validates the request, checks a Turnstile
+ * token if one is required, and hands the drip to the `Faucet` Durable Object.
+ * That object is the one place that both counts drips and signs them, which is
+ * what makes the rate limits exact and keeps two drips off the same nonce.
  *
  * ⚠️ Testnet only. CHAINS is an allowlist, so this can never drip real funds.
- *    Add a captcha (Cloudflare Turnstile) in front before advertising it widely —
- *    the rate limits bound what one network can take; a captcha is what stops a
- *    thousand of them.
+ *    Set TURNSTILE_SECRET before advertising it widely — the rate limits bound
+ *    what one network can take; a captcha is what stops a thousand of them.
  */
 
 /**
@@ -42,6 +42,9 @@ const REFUSALS = {
   invalid_json: [400, "Invalid JSON body."],
   invalid_address: [400, "A valid 0x address is required."],
   unsupported_chain: [400, "Unsupported or non-testnet chainId."],
+  turnstile_required: [403, "Verification required."],
+  turnstile_failed: [403, "Verification failed. Try again."],
+  turnstile_unavailable: [503, "Verification is unavailable. Try again shortly."],
   not_found: [404, "Not found."],
   address_limited: [429, "This address was funded recently. Try again later."],
   ip_limited: [429, "Rate limit reached. Try again later."],
@@ -106,6 +109,8 @@ async function health(env) {
       address: account.address,
       chainId: DEFAULT_CHAIN_ID,
       balance: balance != null ? balance.toString() : null,
+      // Whether POST /fund expects a `turnstileToken`.
+      turnstile: Boolean(env.TURNSTILE_SECRET),
     },
     200,
     env,
@@ -134,6 +139,19 @@ async function fund(request, env, ctx) {
   }
 
   const ip = request.headers.get("cf-connecting-ip");
+
+  // Opt-in: enforced only once the operator has set the secret. It runs here,
+  // at the edge, so a bot never gets as far as the Durable Object.
+  if (env.TURNSTILE_SECRET) {
+    if (!body.turnstileToken) return refuse({ code: "turnstile_required" }, env);
+    const verdict = await verifyTurnstile({
+      secret: env.TURNSTILE_SECRET,
+      token: body.turnstileToken,
+      ip,
+      url: env.TURNSTILE_VERIFY_URL || undefined,
+    });
+    if (verdict !== "ok") return refuse({ code: `turnstile_${verdict}` }, env);
+  }
 
   // One object per chain: it owns that chain's limits and the account's nonce.
   const faucet = env.FAUCET.get(env.FAUCET.idFromName(String(chainId)));
