@@ -16,10 +16,19 @@ Teleporter), against a local 2-L1 devnet.
 - Deploy the same contract on both chains (constructor takes the chain's
   TeleporterMessenger address — the UI passes it from `icm.config.json`).
 - Link: `setTrustedRemote(otherBlockchainID, otherMessenger)` on BOTH sides (owner-only) —
-  receiving rejects unregistered sources.
+  receiving rejects unregistered sources. A registered remote must be non-zero;
+  `setTrustedRemote(blockchainID, address(0))` stops trusting that chain.
 - Send: `sendMessage(destinationBlockchainID, destinationAddress, text)` on the source chain.
+  `text` is at most 256 UTF-8 bytes (`MAX_MESSAGE_LENGTH`) — the contract reverts with
+  `AvaKitMessenger: message too long` above that, and the UI checks the same limit
+  (`MAX_MESSAGE_BYTES`, counted with `TextEncoder`) first. Keep the two in sync, and do not read
+  the limit from the chain: older deployments have no getter.
+- Delivery gas is fixed at 350,000 (`REQUIRED_GAS_LIMIT`), enough to store the longest message.
+  Raise it together with the size limit, or long messages run out of gas on the destination.
 - Receive: the relayer delivers; the destination contract's `receiveTeleporterMessage`
-  verifies the source and stores it. The UI polls `lastMessage()`.
+  verifies the source and stores it. The UI polls the destination and treats
+  `messagesReceived()` going up as the arrival; after 30 seconds without one it reports the
+  message as not delivered instead of showing "in flight" forever.
 
 ## The one detail that trips everyone up
 

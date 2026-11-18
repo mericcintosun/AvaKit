@@ -30,12 +30,15 @@ Then in your wallet (Core / MetaMask), **import the EWOQ dev key** (pre-funded o
 
 1. **Deploy the messenger** on both chains — `icm1` and `icm2` (one click each — deploys from your browser).
 2. **Link them** — each side registers the other as its **trusted remote** (one click, two transactions, one per chain). Receiving rejects unregistered sources, so this unlocks sending.
-3. **Send** a message from one chain to the other.
-4. The relayer delivers it; the destination contract checks the source is trusted and stores it. The app polls and shows it **arrive** on the other L1.
+3. **Send** a message from one chain to the other (up to 256 bytes — the contract rejects longer ones, and the app tells you before you send).
+4. The relayer delivers it; the destination contract checks the source is trusted and stores it. The app polls and shows it **arrive** on the other L1. If it has not arrived after 30 seconds the app says so instead of waiting forever — usually the relayer is not running (`avalanche network status`).
 
 ## How it works
 
-- `contracts/src/AvaKitMessenger.sol` — one self-contained contract that both **sends** (`TeleporterMessenger.sendCrossChainMessage`) and **receives** (`ITeleporterReceiver.receiveTeleporterMessage`). Deployed on both chains and linked: each side only accepts messages from its registered **trusted remote** (owner-set), and the Teleporter address is an immutable constructor parameter.
+- `contracts/src/AvaKitMessenger.sol` — one self-contained contract that both **sends** (`TeleporterMessenger.sendCrossChainMessage`) and **receives** (`ITeleporterReceiver.receiveTeleporterMessage`). Deployed on both chains and linked: each side only accepts messages from its registered **trusted remote** (owner-set), and the Teleporter address is an immutable constructor parameter. Three limits are built in:
+  - **Message size:** at most 256 bytes of UTF-8 (`MAX_MESSAGE_LENGTH`). `sendMessage` reverts with `AvaKitMessenger: message too long` above that, and the app counts bytes the same way before it lets you send (most emoji are four bytes, not one).
+  - **Delivery gas:** the destination chain runs `receiveTeleporterMessage` with 350,000 gas — enough to store the longest message. That fixed budget is why the size is capped; if you raise one, raise the other.
+  - **Trust:** a chain is trusted only while a non-zero remote is registered for it. `setTrustedRemote(blockchainID, address(0))` stops accepting messages from that chain again.
 - `scripts/devnet.sh` — creates two subnet-EVM L1s, deploys them locally, and lets avalanche-cli wire the TeleporterMessenger + relayer automatically. It then writes each chain's RPC URL and **hex blockchain ID** into `icm.config.json`.
 - `lib/devnet.ts` — turns that config into AvaKit chains and exposes `blockchainIdOf(chain)`.
 

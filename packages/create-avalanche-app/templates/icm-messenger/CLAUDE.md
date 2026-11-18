@@ -44,8 +44,19 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
    (one `setTrustedRemote` transaction per chain, owner-only). Receiving rejects
    unregistered sources, so sending only works after this.
 5. Send: on the source chain, call `sendMessage(destinationBlockchainID, destinationAddress, text)`.
+   `text` may be at most **256 UTF-8 bytes** (`MAX_MESSAGE_LENGTH` in the contract): a longer one
+   reverts with `AvaKitMessenger: message too long`, and the UI checks the same limit
+   (`MAX_MESSAGE_BYTES`, counted with `TextEncoder`) before sending. The cap exists because
+   delivery runs on a fixed budget of **350,000 gas** (`REQUIRED_GAS_LIMIT`) — enough to store the
+   longest message — so an uncapped string would send fine and then run out of gas on the
+   destination instead of arriving. If you raise one, raise the other. The UI keeps its own
+   constant rather than reading `MAX_MESSAGE_LENGTH()` from the chain, because a messenger
+   deployed from an older artifact has neither the getter nor the cap.
 6. The relayer delivers it; the destination contract's `receiveTeleporterMessage` verifies the
-   source and stores it. The UI polls `lastMessage()` and shows it arrive.
+   source and stores it. The UI polls the destination and treats `messagesReceived()` going up as
+   the arrival. A send only proves the message left the source chain: if nothing arrives within
+   30 seconds (`DELIVERY_TIMEOUT_MS`) the UI stops saying "in flight" and says it was not
+   delivered — the relayer is down, or the destination rejected it (e.g. the link was changed).
 
 ## The one detail that trips everyone up
 
@@ -61,8 +72,11 @@ the EVM `chainId` (1001/1002). Get it from `avalanche blockchain describe <name>
   2. `trustedRemote[sourceBlockchainID] == originSenderAddress` — the Teleporter delivers
      messages from ANY contract on ANY ICM-enabled chain, so without this allowlist any
      stranger contract could write to this message board through the real Teleporter.
-     Unregistered sources are rejected.
-- Only the deployer (`owner`) can call `setTrustedRemote`.
+     Unregistered sources are rejected: the registered remote must also be **non-zero**, because
+     a chain with no remote reads as `address(0)` and would otherwise match a message whose
+     origin sender is `address(0)`.
+- Only the deployer (`owner`) can call `setTrustedRemote`. Passing `address(0)` as the remote
+  stops trusting that chain again.
 - The TeleporterMessenger address is an **immutable constructor parameter**, not a hardcoded
   constant: the canonical predeploy is `0x253b…5fcf`, but a chain can run a different
   Teleporter version — read the real address from `avalanche blockchain describe` (the UI

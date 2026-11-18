@@ -18,11 +18,14 @@
 - `destinationBlockchainID` is a **bytes32 hex blockchain ID**, NOT the EVM chainId. Use `blockchainIdOf(chain)`.
 - TeleporterMessenger canonical predeploy: `0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf` — passed to the messenger's constructor (immutable), the UI reads it from `icm.config.json`.
 - The receiver requires BOTH `msg.sender == TELEPORTER` AND `trustedRemote[sourceBlockchainID] == originSenderAddress` — deploy, then link both sides (`setTrustedRemote`, owner-only) before sending.
+- A message is at most 256 bytes of UTF-8 (`MAX_MESSAGE_LENGTH`): `sendMessage` reverts with `AvaKitMessenger: message too long` above that. The UI enforces the same limit with its own constant (`MAX_MESSAGE_BYTES`, counted with `TextEncoder`) — it does not read the getter, which older deployments lack.
+- Delivery gas is fixed at 350,000 (`REQUIRED_GAS_LIMIT`), enough to store the longest message. Raise it together with the size limit.
+- A registered remote must be non-zero: a chain with no remote set is rejected, and `setTrustedRemote(blockchainID, address(0))` stops trusting a chain.
 
 ## Key APIs
 
-- Send: `AvaKitMessenger.sendMessage(destinationBlockchainID, destinationAddress, text)`
-- Link: `AvaKitMessenger.setTrustedRemote(sourceBlockchainID, remoteMessenger)` (owner-only, once per side)
+- Send: `AvaKitMessenger.sendMessage(destinationBlockchainID, destinationAddress, text)` — `text` is at most 256 UTF-8 bytes (the contract rejects longer messages; the UI checks first). Delivery = the destination's `messagesReceived()` going up; the UI reports "not delivered" after 30 seconds.
+- Link: `AvaKitMessenger.setTrustedRemote(sourceBlockchainID, remoteMessenger)` (owner-only, once per side; `address(0)` unlinks)
 - Receive: `receiveTeleporterMessage(sourceBlockchainID, originSender, message)` (verifies the source, stores `lastMessage`)
 - Deploy/read/write: `deployContract`, `getWalletClient`, `readContract`, `ensureChain` from `@avakit/core`
 - Wallet: `<ConnectAvalanche />`, `useAvaChain().setChain` to switch between the two L1s

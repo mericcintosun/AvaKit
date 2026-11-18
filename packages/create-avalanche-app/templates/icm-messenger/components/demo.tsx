@@ -30,9 +30,27 @@ import { abi, bytecode } from "@/lib/messenger-artifact";
 // over from before a devnet reset is never used (see lib/deployed-contract.ts).
 const MESSENGER_STORAGE_KEY = "icm-messenger:messenger";
 const CHAINS: [AvaChain, AvaChain] = [chain1, chain2];
+// The messenger contract rejects a message longer than this many UTF-8 bytes
+// (MAX_MESSAGE_LENGTH in contracts/src/AvaKitMessenger.sol). The Teleporter
+// delivers with a fixed gas limit, so a longer message would run out of gas on
+// the destination chain instead of arriving.
+const MAX_MESSAGE_BYTES = 256;
+// The relayer delivers within a few seconds on the local devnet. After this
+// long, the UI stops saying "in flight" and says the message has not arrived.
+const DELIVERY_TIMEOUT_MS = 30_000;
 
 type ChainStatus = { online: boolean; block: bigint; icmReady: boolean };
 type Inbox = { message: string; count: bigint };
+/** A message that was sent on the source chain and is awaited on the destination. */
+type Flight = {
+  text: string;
+  source: AvaChain;
+  destination: AvaChain;
+  /** The destination messenger's delivery count just before the send. */
+  receivedBefore: bigint;
+  /** True once the relayer has had more than enough time to deliver it. */
+  overdue: boolean;
+};
 
 /** Re-verify a remembered contract when its chain comes back after being unreachable. */
 function useRecheckWhenOnline(contract: DeployedContract, online: boolean) {
@@ -59,13 +77,18 @@ export function Demo() {
   const [busy, setBusy] = useState<string | null>(null);
   const [text, setText] = useState("gm from the other chain");
   const [source, setSource] = useState<AvaChain>(chain1);
-  const [inFlight, setInFlight] = useState<string | null>(null);
+  const [flight, setFlight] = useState<Flight | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const destination = source.id === chain1.id ? chain2 : chain1;
   const messengerOf = (chain: AvaChain) => (chain.id === chain1.id ? messenger1 : messenger2);
   const bothDeployed = Boolean(addr1 && addr2);
   const bothLinked = Boolean(linked[chain1.id] && linked[chain2.id]);
+  // The contract counts bytes, not characters: "é" is two, most emoji are four.
+  const messageBytes = new TextEncoder().encode(text).length;
+  const tooLong = messageBytes > MAX_MESSAGE_BYTES;
+  // One message at a time, so "one more delivery" always means this message.
+  const awaitingDelivery = flight !== null && !flight.overdue;
 
   // A messenger that could not be verified because its chain was down is
   // checked again as soon as the chain answers (e.g. after `avalanche network start`).
@@ -135,10 +158,32 @@ export function Demo() {
     };
   }, [addr1, addr2]);
 
-  // Clear the in-flight banner once the destination inbox shows the message.
+  // The message has landed once the destination messenger has counted another
+  // delivery. (Counting deliveries, rather than comparing text, also works when
+  // the same text is sent twice in a row.)
   useEffect(() => {
-    if (inFlight && inbox[destination.id]?.message === inFlight) setInFlight(null);
-  }, [inFlight, inbox, destination.id]);
+    if (flight && (inbox[flight.destination.id]?.count ?? 0n) > flight.receivedBefore) {
+      setFlight(null);
+    }
+  }, [flight, inbox]);
+
+  // A successful send only puts the message on the source chain: delivery is up
+  // to the relayer and the destination contract. If nothing arrives, stop
+  // saying "in flight" and say so — a late arrival is still picked up above.
+  useEffect(() => {
+    if (!flight || flight.overdue) return;
+    const timer = setTimeout(
+      () => setFlight((current) => (current === flight ? { ...flight, overdue: true } : current)),
+      DELIVERY_TIMEOUT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [flight]);
+
+  // A different messenger on either side starts a new count, so stop waiting.
+  // (addr1 / addr2 are dependencies only to re-run this when one changes.)
+  useEffect(() => {
+    setFlight(null);
+  }, [addr1, addr2]);
 
   const remember1 = messenger1.remember;
   const remember2 = messenger2.remember;
@@ -206,27 +251,45 @@ export function Demo() {
     if (!provider || !address) return;
     const from = source.id === chain1.id ? addr1 : addr2;
     const to = destination.id === chain1.id ? addr1 : addr2;
-    if (!from || !to) return;
+    if (!from || !to || tooLong) return;
     setBusy("send");
     setError(null);
+    setFlight(null);
     try {
       await ensureChain(provider, source);
       setChain(source);
+      // Delivery is detected by the destination's counter going up, so read it
+      // right before sending (falling back to the last polled value).
+      let receivedBefore = inbox[destination.id]?.count ?? 0n;
+      try {
+        receivedBefore = (await readContract(destination, {
+          address: to,
+          abi,
+          functionName: "messagesReceived",
+        })) as bigint;
+      } catch {
+        // the destination did not answer just now; the polled count will do
+      }
       const wallet = getWalletClient(source, provider);
-      await wallet.writeContract({
+      const hash = await wallet.writeContract({
         address: from,
         abi,
         functionName: "sendMessage",
         args: [blockchainIdOf(destination), to, text],
         account: address,
       } as never);
-      setInFlight(text);
+      // Only a transaction that succeeded on the source chain is on its way.
+      const receipt = await getPublicClient(source).waitForTransactionReceipt({ hash });
+      if (receipt.status === "reverted") {
+        throw new Error(`The send transaction reverted on ${source.name}, so no message was sent.`);
+      }
+      setFlight({ text, source, destination, receivedBefore, overdue: false });
     } catch (e) {
       setError(humanizeError(e));
     } finally {
       setBusy(null);
     }
-  }, [provider, address, addr1, addr2, source, destination, text, setChain]);
+  }, [provider, address, addr1, addr2, source, destination, text, tooLong, inbox, setChain]);
 
   if (!isConfigured) {
     return (
@@ -255,7 +318,7 @@ export function Demo() {
             messenger={messengerOf(chain)}
             inbox={inbox[chain.id]}
             linked={linked[chain.id]}
-            isDestination={inFlight != null && chain.id === destination.id}
+            isDestination={awaitingDelivery && chain.id === flight.destination.id}
             busy={busy === `deploy:${chain.id}`}
             canDeploy={isConnected && !!address}
             locked={busy !== null}
@@ -277,8 +340,19 @@ export function Demo() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Message to send cross-chain"
+          aria-invalid={tooLong}
           className="border-input bg-background rounded-lg border px-3 py-2 text-sm outline-none"
         />
+        {tooLong ? (
+          <p className="border-destructive text-destructive rounded-md border px-3 py-2 text-xs font-medium">
+            This message is {messageBytes} bytes, and the messenger contract accepts at most{" "}
+            {MAX_MESSAGE_BYTES}. Shorten it to send.
+          </p>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            {messageBytes} / {MAX_MESSAGE_BYTES} bytes
+          </p>
+        )}
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -290,7 +364,15 @@ export function Demo() {
           </Button>
           <Button
             onClick={sendMessage}
-            disabled={!bothDeployed || !bothLinked || !isConnected || busy === "send" || !text}
+            disabled={
+              !bothDeployed ||
+              !bothLinked ||
+              !isConnected ||
+              busy === "send" ||
+              awaitingDelivery ||
+              !text ||
+              tooLong
+            }
             className="flex-1"
           >
             {busy === "send" ? "Sending…" : `Send to ${destination.name}`}
@@ -316,11 +398,28 @@ export function Demo() {
             </p>
           </div>
         ) : null}
-        {inFlight ? (
+        {flight && !flight.overdue ? (
           <p className="flex items-center gap-2 text-sm">
-            <span className="bg-foreground size-2 animate-ping rounded-full" />
-            In flight to {destination.name} — the relayer is delivering “{inFlight}”…
+            <span className="bg-foreground size-2 shrink-0 animate-ping rounded-full" />
+            <span className="break-words">
+              In flight to {flight.destination.name} — the relayer is delivering “{flight.text}”…
+            </span>
           </p>
+        ) : null}
+        {flight?.overdue ? (
+          <div className="flex flex-col items-start gap-2 rounded-lg border border-dashed p-3">
+            <p className="text-sm font-medium">Not delivered to {flight.destination.name} yet</p>
+            <p className="text-muted-foreground text-xs break-words">
+              “{flight.text}” was sent on {flight.source.name}, but {flight.destination.name} has
+              not received it after {DELIVERY_TIMEOUT_MS / 1000} seconds. Either the relayer is not
+              running (check <span className="font-mono">avalanche network status</span>), or the
+              destination messenger rejected it — for example because the two are no longer
+              linked. If it still arrives, it will show up in the card above.
+            </p>
+            <Button variant="ghost" size="sm" onClick={() => setFlight(null)}>
+              Dismiss
+            </Button>
+          </div>
         ) : null}
       </section>
 
