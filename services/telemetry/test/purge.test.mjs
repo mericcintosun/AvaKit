@@ -12,9 +12,10 @@ import { loadWorker } from "./helpers/runtime.mjs";
 // Made up for each run, so nothing that looks like a credential is written down.
 const TOKEN = randomBytes(32).toString("hex");
 
-/** The day `clock()` starts on, and the one after it. */
+/** The day `clock()` starts on, and the two after it. */
 const FIRST_DAY = "2026-11-18";
 const SECOND_DAY = "2026-11-19";
+const THIRD_DAY = "2026-11-20";
 
 // The route logs what it removed. That is for `wrangler tail`, not for the test
 // output; the test that reads the trail puts its own mock on top of this one.
@@ -57,13 +58,17 @@ describe("POST /admin/purge", () => {
     const collector = await withAdmin();
     await scaffold(collector, { template: "minimal" });
     await scaffold(collector, { template: "nft-mint" });
-    const firstDay = stored(collector, "scaffolds");
     tick(DAY);
     await scaffold(collector, { template: "minimal" });
     await scaffold(collector, { template: "minimal" });
     await scaffold(collector, { template: "token-bridge" });
     await scaffold(collector, { ok: false, errorKind: "scaffold-failed" });
-    assert.equal((await stats(collector)).scaffolds.total, 6);
+    tick(DAY);
+    await scaffold(collector, { template: "eerc-token" });
+    // The day before and the day after the one that goes.
+    const otherDays = stored(collector, "scaffolds").filter((row) => row.day !== SECOND_DAY);
+    assert.equal(otherDays.length, 3);
+    assert.equal((await stats(collector)).scaffolds.total, 7);
 
     const purged = await purge(collector, { day: SECOND_DAY });
 
@@ -83,19 +88,22 @@ describe("POST /admin/purge", () => {
     assert.equal(purged.headers.get("access-control-allow-origin"), null);
     assert.ok(purged.text.endsWith("}\n"));
 
-    // The other day is exactly as it was, at rest and in the aggregate.
-    assert.deepEqual(stored(collector, "scaffolds"), firstDay);
+    // The other days are exactly as they were, at rest and in the aggregate.
+    assert.deepEqual(stored(collector, "scaffolds"), otherDays);
     const after = await stats(collector);
     assert.deepEqual(after.scaffolds, {
-      total: 2,
-      succeeded: 2,
-      last30d: 2,
-      byTemplate: { minimal: 1, "nft-mint": 1 },
-      byDay: [{ day: FIRST_DAY, n: 2 }],
+      total: 3,
+      succeeded: 3,
+      last30d: 3,
+      byTemplate: { minimal: 1, "nft-mint": 1, "eerc-token": 1 },
+      byDay: [
+        { day: FIRST_DAY, n: 2 },
+        { day: THIRD_DAY, n: 1 },
+      ],
     });
     assert.deepEqual(after.failures, {});
     // Installs are only touched when one is named.
-    assert.equal(after.installs, 6);
+    assert.equal(after.installs, 7);
   });
 
   it("only reports what it would remove on a dry run", async (t) => {
@@ -144,7 +152,9 @@ describe("POST /admin/purge", () => {
     await scaffold(collector, { anonymousId: regular });
     await scaffold(collector, { anonymousId: smokeRun });
     await scaffold(collector, { anonymousId: smokeRun });
+    await scaffold(collector); // somebody else whose first day this is; never named
     const installs = () => stored(collector, "installs").length;
+    assert.equal(installs(), 3);
 
     // An install that was already there the day before is a real one. It stays.
     const kept = await purge(collector, { day: SECOND_DAY, installId: regular });
@@ -152,11 +162,11 @@ describe("POST /admin/purge", () => {
       day: SECOND_DAY,
       dryRun: false,
       rows: 1,
-      events: 3,
-      succeeded: 3,
+      events: 4,
+      succeeded: 4,
       install: { found: true, firstDay: FIRST_DAY, removed: false },
     });
-    assert.equal(installs(), 2);
+    assert.equal(installs(), 3);
 
     // The id is hashed with the salt exactly as ingestion hashes it — raw, so
     // the same uuid in another case is another id, there as here.
@@ -165,8 +175,9 @@ describe("POST /admin/purge", () => {
       installId: smokeRun.toUpperCase(),
     });
     assert.deepEqual(otherCase.body.install, { found: false, removed: false });
-    assert.equal(installs(), 2);
+    assert.equal(installs(), 3);
 
+    // Only the install that was named goes, not everyone first seen that day.
     const removed = await purge(collector, { day: SECOND_DAY, installId: smokeRun });
     assert.deepEqual(removed.body, {
       day: SECOND_DAY,
@@ -176,13 +187,13 @@ describe("POST /admin/purge", () => {
       succeeded: 0,
       install: { found: true, firstDay: SECOND_DAY, removed: true },
     });
-    assert.equal(installs(), 1);
+    assert.equal(installs(), 2);
 
     const again = await purge(collector, { day: SECOND_DAY, installId: smokeRun });
     assert.deepEqual(again.body.install, { found: false, removed: false });
 
     const after = await stats(collector);
-    assert.equal(after.installs, 1);
+    assert.equal(after.installs, 2);
     assert.equal(after.firstDay, FIRST_DAY);
     assert.equal(after.scaffolds.total, 1);
   });
