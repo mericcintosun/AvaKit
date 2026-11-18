@@ -22,14 +22,16 @@
 
 ## 4. Color & theming
 
-- Until the product is complete (**all three milestones M1–M3 done**), use **black and white only**. No accent/brand colors yet.
+- The original rule here — **black and white only** until all three milestones (M1–M3) were done — was **lifted by the project owner in 2026-07**.
+- **The website (`apps/web`) uses a brand color: "Ember Crimson"**, a distinct crimson that evokes Avalanche's red/dark energy without copying it. Surfaces stay near-black/white; crimson is an accent (primary buttons, focus rings, links, eyebrow ticks, `$`/checkmarks).
+- **Colors live only in the design tokens in `apps/web/app/globals.css`.** Components never hardcode a color.
+- **The scaffolder templates stay visually neutral/grayscale** (users brand their own apps) unless the owner says otherwise.
 - **Dark/light theme is wired from day one** (via `next-themes` + Tailwind `dark` variant + CSS variables). Every screen must work in both themes.
-- Color is added **last**, after M3, on top of the already-themed black/white foundation. Design with theme tokens so colorizing later is a token swap, not a refactor.
 
 ## 5. Design quality
 
 - Target a **2026-modern, professional devtools aesthetic**: clean typography, generous spacing, crisp borders, subtle motion, keyboard-friendly, accessible (Radix gives a11y for free).
-- Reference bar: the polish level of tools like Vercel/shadcn dashboards, Linear, Resend — minus color, for now.
+- Reference bar: the polish level of tools like Vercel/shadcn dashboards, Linear, Resend.
 
 ## 6. Versions
 
@@ -46,7 +48,7 @@
 
 - [ ] Built with shadcn/ui primitives only
 - [ ] Works in both dark and light theme
-- [ ] Black & white only (no color)
+- [ ] Color only through design tokens: the Ember Crimson accent on the website (`apps/web/app/globals.css`), neutral/grayscale in the templates
 - [ ] Animations via Framer Motion / GSAP only
 - [ ] Latest stable versions
 - [ ] English throughout
