@@ -82,3 +82,63 @@ browser libs), removing the manual sync step from the release process entirely.
 `create-avalanche-app@0.1.8`, `@avakit/mcp@0.1.8`, `@avakit/studio@0.1.5`.
 `@avakit/core@0.1.2` and `@avakit/react@0.1.3` unchanged (version value identical; the
 source refactor ships on their next release).
+
+---
+
+# Addendum — November 2026 review (2026-11-18)
+
+A second review covered all five packages, the eight templates, the two Workers under
+`services/` and the release pipeline, in two rounds. This addendum lists what it found
+and what changed, by package. The detail is in the changesets named in the last column:
+they are the files in [`.changeset/`](../.changeset) until the release is versioned,
+and from then on the entries at the top of each package's `CHANGELOG.md`.
+
+## Findings and fixes, by package
+
+| Package | What the review found | What changed | Changesets |
+| --- | --- | --- | --- |
+| [`@avakit/core`](../packages/core/CHANGELOG.md) | `deployContract` reported a deployment whose transaction had reverted. A confirmed mainnet deploy had no balance check. A chain definition without a `testnet` flag was not treated as a mainnet. A faucet request could hang, and a failure carried no code to tell a refusal from an outage. | A deployment is accepted only with a successful receipt and code at the address (`waitForDeployment`). A confirmed mainnet deploy checks the balance first. Only `testnet: true` makes a testnet. `requestFaucet` has typed failures, a bounded retry and a time limit. | `core-react-core-hardening`, `r2-core-react-faucet-deploy-links` |
+| [`@avakit/react`](../packages/react/CHANGELOG.md) | The published bundle had lost its `"use client"` directive. The provider did not follow the wallet's account, network and disconnect events, and could keep a burner wallet connected on a mainnet. The data hooks showed a previous account's items. | The directive is kept and checked at build time, with a server-safe `@avakit/react/utils` entry. The provider follows the wallet's events and drops a burner on a mainnet. The data hooks page and reset per account. | `core-react-react-hardening`, `r2-core-react-faucet-deploy-links` |
+| [`create-avalanche-app`](../packages/create-avalanche-app/CHANGELOG.md) (CLI) | A failed install was still reported as done. Unknown flags and values were replaced by defaults. Any template could be scaffolded for C-Chain. Build output or `.env` files left in a template directory could be published and copied into new apps. | Every spawned command is checked and a failed install exits non-zero. Unknown flags and values are errors. Only `minimal` lists `c-chain`. `files` in `package.json` excludes build output and env files, replacing the `.npmignore` this document's section B introduced. Node.js below 20.11 is refused in one line. | `cli-mcp-scaffolder-hardening`, `r2-e2e-node-preflight` |
+| `create-avalanche-app` (templates and their contracts) | A mainnet scaffold offered the burner wallet and the shared demo Web3Auth client ID. The ICM messenger accepted a zero origin sender from an unregistered chain and had no message length cap. The devnet scripts hardcoded the public EWOQ key. `foundry.toml` did not pin the EVM version, so `forge build` could not reproduce the bundled bytecode. The NFT's on-chain description made claims that were not true of every deployment. | A mainnet scaffold has neither. The messenger rejects that sender and caps messages at 256 bytes. The scripts read the key from avalanche-cli. Every `foundry.toml` pins solc and `cancun`. The description is neutral. | `templates-app-and-script-fixes`, `contracts-template-hardening`, `gatefix-contracts`, `r2-templates-fuji-faucet` |
+| [`@avakit/mcp`](../packages/mcp/CHANGELOG.md) | `deploy_contract` returned the address of a contract that was never created when the transaction reverted. `scaffold_app` could create a project anywhere the user could write. The mainnet gate `AVAKIT_ALLOW_MAINNET` was not documented. The registry listing advertised minting when no tool could mint. | A reverted or code-less deployment is an error. `scaffold_app` and `artifactPath` are confined to the working directory or `AVAKIT_MCP_ROOT`. The gate is documented and also applies to the new `write_contract`. A test ties the listing's wording to what the tools do. | `cli-mcp-server-hardening`, `r2-mcp-zero-setup-fuji` |
+| [`@avakit/studio`](../packages/studio/CHANGELOG.md) | A malformed request could crash Studio. A failed step was reported as success. An action belonged to the browser tab that started it and was started from a GET. The messenger bytecode was copied in by hand. | Requests are validated and answered with an error. A failed step is reported as one. Actions belong to the server, run one at a time and start from a JSON POST. The messenger bytecode is generated and checked in CI. | `studio-review-hardening`, `contracts-studio-messenger` |
+
+Not npm packages, so no changeset; the changes are in the repository:
+
+| Area | What the review found | What changed |
+| --- | --- | --- |
+| `services/faucet` | Rate limits were counted in KV, where parallel requests can all pass before any is recorded. Concurrent drips could sign the same nonce. A contract recipient could make a drip burn gas. Refusals had no machine-readable code. | Limits and the send queue live in a Durable Object. A transaction whose answer was lost is looked up by hash. Contract recipients are refused. Every refusal is `{ error, code }`. A Turnstile check is optional. **Not deployed on 2026-11-18.** |
+| `services/telemetry` | The collector counted any well-formed template id, and there was no way to remove the project's own test events. | Only known template ids are accepted. `POST /admin/purge`, behind `TELEMETRY_ADMIN_TOKEN`, removes a day. **Not deployed on 2026-11-18.** |
+| `contracts-ci` | The artifact check covered the five templates' own artifacts only. Studio's messenger bytecode, the website's and the example app's artifacts and `token-bridge`'s demo token were compared with nothing. | `check-artifacts.mjs` compares nine artifacts in CI, fails on an artifact file it has not been told about, and regenerates them with `--write`. `sync.mjs` refuses a `foundry.toml` whose compiler settings differ from the harness's. |
+| `.github/workflows` | The release job published whatever built, and the version PR gets no CI run of its own. | The release job runs lint, typecheck and tests before it versions or publishes. `e2e-fuji.yml` runs the published packages end to end. |
+
+## What the release adds that touches keys
+
+This document's Phase 1 summary rests on "AvaKit code never handles a private key"
+with one exception, the in-browser burner wallet. The release that follows this review
+adds a second: `@avakit/mcp` signs Fuji transactions with a **session test wallet**
+when `AVAKIT_DEPLOYER_KEY` is not set. The key is generated in the server's memory, is
+never written to disk, logged or returned, signs for chain id 43113 only, never sends
+value, and is gone when the server stops. [`SECURITY.md`](../SECURITY.md) describes
+both exceptions and their limits.
+
+## Corrections to the Phase 1 text above
+
+- **Section B.** The `.npmignore` it describes is gone. The same exclusions, and more,
+  are negated entries of `files` in `packages/create-avalanche-app/package.json`,
+  tested by `src/pack.test.ts`.
+- **Section C.** "Fixed argument arrays" is not exact. Studio runs external tools with
+  argument arrays **built from validated values**, never through a shell. An
+  Interchain message is checked (non-empty, at most 256 bytes of UTF-8, no leading
+  `-`) and reaches `cast` only as ABI-encoded calldata.
+- **Section D.** The `DemoToken` entry of `token-bridge`'s `lib/ictt-artifacts.json`
+  is now rebuilt and compared in CI. The three `ava-labs/icm-contracts` entries are
+  still covered only by the manual recompile described there.
+
+## Still open
+
+The review did not close everything. What is open on the day of the release is listed
+in [`KNOWN-GAPS.md`](KNOWN-GAPS.md), under "Open on 2026-11-18": among others the
+faucet and collector changes that are not deployed, the public EWOQ key literal in
+Studio, and the dependence of three templates and Studio on Avalanche CLI.

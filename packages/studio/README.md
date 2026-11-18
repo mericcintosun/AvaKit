@@ -35,8 +35,18 @@ Tools: `avalanche_env`, `devnet_status`, `devnet_spin_up`, `devnet_launch_l1`, `
 
 ## Requirements
 
-- [avalanche-cli](https://build.avax.network/docs/tooling/avalanche-cli/get-avalanche-cli) for devnet control (Studio detects it and shows the install command if missing).
+- [Avalanche CLI](https://github.com/ava-labs/avalanche-cli) (the `avalanche` command) for the Devnet, Launch on Fuji and Interchain views (Studio detects it and shows the install command if missing).
 - [Foundry](https://getfoundry.sh) (`cast`) for the Interchain view.
+
+The Data and Environment views work without either.
+
+## Tooling status
+
+To create, start and stop devnets and L1s, Studio runs Avalanche CLI and reads what it prints. What to know before you rely on it:
+
+- Ava Labs put Avalanche CLI in maintenance mode in December 2025, and on 2026-10-06 removed its pages from the Avalanche documentation in favour of Platform CLI.
+- The Devnet, Launch on Fuji and Interchain views were last proven end to end in July 2026. Studio has changed since then (see `CHANGELOG.md`), and the changed version is covered by unit tests with a stand-in for the CLI, not by a full run against a live network. Another CLI version may print something Studio does not expect.
+- Moving Studio to the supported toolchain has not been done.
 
 ## Why it's safe
 
