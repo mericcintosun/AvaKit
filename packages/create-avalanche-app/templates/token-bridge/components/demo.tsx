@@ -102,7 +102,12 @@ function Bridge({ addrs }: { addrs: NonNullable<typeof bridge.bridge> }) {
       setChain(homeChain);
       const wallet = getWalletClient(homeChain, provider!);
       const hash = await wallet.writeContract({ address: addrs.demoToken, abi: erc20Abi, functionName: "mint", account: address as Address } as never);
-      await getPublicClient(homeChain).waitForTransactionReceipt({ hash });
+      // A reverted transaction is mined too: only a receipt with status
+      // "success" means the tokens were minted.
+      const receipt = await getPublicClient(homeChain).waitForTransactionReceipt({ hash });
+      if (receipt.status === "reverted") {
+        throw new Error(`The mint transaction reverted on ${homeChain.name}, so no tokens were minted.`);
+      }
     });
 
   const doBridge = () =>
@@ -126,7 +131,10 @@ function Bridge({ addrs }: { addrs: NonNullable<typeof bridge.bridge> }) {
       const approveToken = toRemote ? addrs.demoToken : addrs.remote;
       const approveAbi = toRemote ? erc20Abi : remoteAbi;
       const approveHash = await wallet.writeContract({ address: approveToken, abi: approveAbi, functionName: "approve", args: [transferrer, value], account: address as Address } as never);
-      await pub.waitForTransactionReceipt({ hash: approveHash });
+      const approved = await pub.waitForTransactionReceipt({ hash: approveHash });
+      if (approved.status === "reverted") {
+        throw new Error(`The approve transaction reverted on ${source.name}, so nothing was sent.`);
+      }
 
       const input = {
         destinationBlockchainID: blockchainIdOf(destination),
@@ -145,7 +153,11 @@ function Bridge({ addrs }: { addrs: NonNullable<typeof bridge.bridge> }) {
         args: [input, value],
         account: address as Address,
       } as never);
-      await pub.waitForTransactionReceipt({ hash: sendHash });
+      // Only a send that succeeded on the source chain is on its way.
+      const sent = await pub.waitForTransactionReceipt({ hash: sendHash });
+      if (sent.status === "reverted") {
+        throw new Error(`The send transaction reverted on ${source.name}, so no tokens were bridged.`);
+      }
       setInFlight(true);
       setTimeout(() => setInFlight(false), 12000);
     });
