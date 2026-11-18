@@ -20,12 +20,14 @@ Then: connect a wallet → **Deploy NFT contract** → **Mint NFT**. Deploying a
 - `contracts/src/AvaKitNFT.sol` — a minimal, self-contained ERC-721 (no external deps; compiles with `forge build` out of the box).
 - `lib/nft-artifact.ts` — the compiled ABI + bytecode, bundled so the app can deploy straight from the browser via `useAvaDeploy()`.
 
-To change the contract:
+To change the contract, edit `contracts/src/AvaKitNFT.sol`, then regenerate the bundled artifact (needs Foundry):
 
 ```bash
-cd contracts && forge build
-# copy out/AvaKitNFT.sol/AvaKitNFT.json (abi + bytecode.object) into lib/nft-artifact.ts
+# from the repository root
+cd contracts-ci && node scripts/check-artifacts.mjs --write
 ```
+
+That rebuilds the contract with the repository's pinned compiler settings and rewrites the ABI and bytecode in `lib/nft-artifact.ts` in place. Do not copy them over by hand: CI runs the same script without `--write` and fails when the artifact no longer matches the source.
 
 ## Stack
 

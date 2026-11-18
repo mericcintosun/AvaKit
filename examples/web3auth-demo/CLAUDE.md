@@ -22,12 +22,14 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 ## Editing the contract
 
-The bundled `lib/nft-artifact.ts` is generated from the Solidity source. After changing `contracts/src/AvaKitNFT.sol`:
+The bundled `lib/nft-artifact.ts` is generated from the Solidity source. After changing `contracts/src/AvaKitNFT.sol`, regenerate it (needs Foundry):
 
 ```bash
-cd contracts && forge build
-# then copy out/AvaKitNFT.sol/AvaKitNFT.json's abi + bytecode.object into lib/nft-artifact.ts
+# from the repository root
+cd contracts-ci && node scripts/check-artifacts.mjs --write
 ```
+
+The script rebuilds the contract with the repository's pinned compiler settings and rewrites the ABI and bytecode in `lib/nft-artifact.ts` in place. Never edit that file or copy the values over by hand: CI runs the same script without `--write` and fails when the artifact no longer matches the source.
 
 ## Rules
 
@@ -42,4 +44,5 @@ cd contracts && forge build
 
 - `pnpm dev` — dev server (http://localhost:3000)
 - `pnpm build` — production build
-- `cd contracts && forge build` — recompile the contract
+- `cd contracts && forge build` — compile the contract (a quick check that it still builds)
+- `cd contracts-ci && node scripts/check-artifacts.mjs --write` (from the repository root) — regenerate `lib/nft-artifact.ts` from the contract source

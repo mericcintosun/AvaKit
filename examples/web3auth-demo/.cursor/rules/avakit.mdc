@@ -17,7 +17,7 @@ This is an Avalanche NFT dapp built with AvaKit. It deploys an ERC-721 from the 
 ## Contract
 
 - Source: `contracts/src/AvaKitNFT.sol` (minimal, self-contained ERC-721 — no external deps).
-- After editing, recompile: `cd contracts && forge build`, then update `lib/nft-artifact.ts` with the new abi + bytecode.object.
+- After editing, regenerate `lib/nft-artifact.ts` from the repository root: `cd contracts-ci && node scripts/check-artifacts.mjs --write` (needs Foundry). Never edit the artifact or copy the abi + bytecode by hand; CI runs the same script without `--write` and fails when the artifact and the source differ.
 
 ## UI
 

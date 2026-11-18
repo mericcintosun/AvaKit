@@ -17,12 +17,14 @@
 - Wallet: `<ConnectAvalanche />`, `useAvaAccount()`, `useAvaChain()`
 - Core: `deployContract`, `getWalletClient`, `ensureChain` from `@avakit/core`
 
-## Recompile the contract
+## Change the contract
+
+Edit `contracts/src/AvaKitNFT.sol`, then regenerate `lib/nft-artifact.ts` from the repository root (needs Foundry):
 
 ```
-cd contracts && forge build
+cd contracts-ci && node scripts/check-artifacts.mjs --write
 ```
-Then copy abi + bytecode.object from `out/AvaKitNFT.sol/AvaKitNFT.json` into `lib/nft-artifact.ts`.
+The script rebuilds the contract with the repository's pinned compiler settings and rewrites the abi + bytecode in place. Do not copy them by hand: CI runs the same script without `--write` and fails when the artifact and the source differ.
 
 ## External docs
 
