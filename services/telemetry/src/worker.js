@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { clientKey } from "./ip.js";
 import { TEMPLATES } from "./templates.js";
 
 /**
@@ -18,9 +19,9 @@ import { TEMPLATES } from "./templates.js";
  * against KV's 1k writes/day.
  *
  * Privacy is the product here, so the rules are strict:
- *  - No IP is ever stored. Rate limiting keys off a SHA-256 of (IP + secret salt
- *    + today), which is discarded the next day and can't be walked back to an IP
- *    without the salt.
+ *  - No IP is ever stored. Rate limiting keys off a SHA-256 of (client + secret
+ *    salt + today), which is discarded the next day and can't be walked back to
+ *    an IP without the salt. The client is an IPv4 address or an IPv6 /64.
  *  - `anonymousId` is a random uuid the CLI generated; we store only a salted
  *    hash of it, so even the raw id never lands at rest.
  *  - Everything else is a bounded enum (template, wallet, chain, pm, platform).
@@ -30,7 +31,7 @@ import { TEMPLATES } from "./templates.js";
  * download count next to it is the independent cross-check.
  */
 
-/** Per-IP daily cap. A human doesn't scaffold 60 apps a day; a loop does. */
+/** Per-client daily cap. A human doesn't scaffold 60 apps a day; a loop does. */
 const IP_DAILY_MAX = 60;
 
 /**
@@ -43,7 +44,7 @@ const STATS_TTL_MS = 5 * 60 * 1000;
  * Bounds on what a client may report. Anything failing these becomes "other"
  * rather than being rejected — a new template shipping shouldn't stop counting,
  * but an attacker shouldn't be able to invent rows, or labels, either. The
- * per-IP cap is what actually bounds cardinality; these keep the data
+ * per-client cap is what actually bounds cardinality; these keep the data
  * readable and, for `template`, keep it to names we chose (see templates.js).
  */
 const SHAPES = {
@@ -358,9 +359,11 @@ export default {
       };
 
       const salt = env.TELEMETRY_SALT;
-      const ip = request.headers.get("cf-connecting-ip") || "unknown";
+      // An IPv6 client is capped per /64 — it owns all of it, so a cap per
+      // address would be no cap at all.
+      const client = clientKey(request.headers.get("cf-connecting-ip"));
       const [ipHash, idHash] = await Promise.all([
-        saltedHash(`${ip}:${today()}`, salt),
+        saltedHash(`${client}:${today()}`, salt),
         saltedHash(String(body.anonymousId), salt),
       ]);
 

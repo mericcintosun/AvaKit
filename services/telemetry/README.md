@@ -140,9 +140,9 @@ there was no activity.
 | --- | --- | --- |
 | `scaffolds` | one per (day, template, wallet, chain, pm, cli, platform, ok) | a count |
 | `installs` | one per install | salted hash of the CLI's random id, first/last day, count |
-| `rate` | one per (IP, day), pruned daily | salted hash, a count |
+| `rate` | one per (client, day), pruned daily | salted hash, a count |
 
-**No IP is ever stored.** Rate limiting keys off `SHA-256(salt + IP + today)`,
+**No IP is ever stored.** Rate limiting keys off `SHA-256(salt + client + today)`,
 which is deleted the next day and can't be walked back to an IP without the
 salt. The CLI's `anonymousId` is a random uuid with nothing derived from the
 machine, and even that is hashed before it lands.
@@ -156,8 +156,9 @@ reported as `"other"` as well.
 
 ## Limits
 
-- **60 events per IP per day.** A human doesn't scaffold 60 apps a day; a loop
-  does.
+- **60 events per client per day.** A human doesn't scaffold 60 apps a day; a
+  loop does. A client is an IPv4 address or an IPv6 /64 — one subscriber is
+  handed a whole /64, so a cap per IPv6 address would be no cap.
 - This is **self-reported by a client we don't control**, so the number is a
   floor with a spoofable ceiling. `/stats` says exactly that, and the npm
   download count sitting next to it is the independent cross-check. Treat it as

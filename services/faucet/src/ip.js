@@ -4,6 +4,9 @@
  * An IPv4 address is its own key. An IPv6 client is keyed by its /64: a single
  * subscriber is routinely handed a whole /64 (2^64 addresses), so keying by the
  * full address would give it a fresh allowance on every request.
+ *
+ * (services/telemetry/src/ip.js is a copy — the two Workers deploy on their
+ * own and share no code. Change both.)
  */
 export function clientKey(ip) {
   const address = String(ip ?? "")

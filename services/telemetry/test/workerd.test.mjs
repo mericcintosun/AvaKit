@@ -78,6 +78,16 @@ describe("the collector in workerd", () => {
     assert.ok(maxAge > 240 && maxAge <= 300, `cache-control was ${again.cacheControl}`);
   });
 
+  it("caps an IPv6 /64 as a single client", async () => {
+    const statuses = [];
+    for (let host = 1; host <= 61; host += 1) {
+      statuses.push(await scaffold({ ip: `2001:db8:1:1::${host.toString(16)}` }));
+    }
+
+    assert.deepEqual(statuses, [...Array(60).fill(202), 429]);
+    assert.equal(await scaffold({ ip: "2001:db8:1:2::1" }), 202);
+  });
+
   it("answers /health", async () => {
     const response = await worker.fetch("/health");
     assert.deepEqual([response.status, await response.json()], [200, { ok: true }]);

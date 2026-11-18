@@ -259,6 +259,23 @@ describe("the daily cap", () => {
     assert.equal(installs, 61);
   });
 
+  it("treats an IPv6 /64 as one client", async (t) => {
+    // Whoever holds one address in a /64 holds all 2^64 of them: capped per
+    // address, the same machine got a fresh 60 with every new suffix.
+    clock(t);
+    const collector = await loadWorker();
+
+    for (let host = 1; host <= 60; host += 1) {
+      const ip = `2001:db8:1:1::${host.toString(16)}`;
+      assert.equal((await scaffold(collector, { ip })).status, 202);
+    }
+    assert.equal(
+      (await scaffold(collector, { ip: "2001:db8:1:1:aaaa:bbbb:cccc:dddd" })).status,
+      429,
+    );
+    assert.equal((await scaffold(collector, { ip: "2001:db8:1:2::1" })).status, 202);
+  });
+
   it("starts over the next day", async (t) => {
     const tick = clock(t);
     const collector = await loadWorker();
