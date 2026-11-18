@@ -8,7 +8,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import pc from "picocolors";
-import { type ChainId, listTemplates, scaffoldApp } from "./api.js";
+import { assertSafeProjectName, type ChainId, listTemplates, scaffoldApp } from "./api.js";
 import { type CliOptions, parseArgs, UsageError } from "./args.js";
 import { banner, bannerColor } from "./banner.js";
 import {
@@ -90,18 +90,39 @@ const TEMPLATE_ORDER = [
   "l1-launch",
 ];
 
-/** Resolve options without prompting (non-interactive / `--yes` / non-TTY). */
+/**
+ * Resolve options without prompting (non-interactive / `--yes` / non-TTY).
+ * Everything in `opts` is already validated, so a default only ever stands in
+ * for a flag that was not passed — never for one that was wrong.
+ */
 function resolveDefaults(
   opts: CliOptions,
-  templateIds: string[],
   detectedPm: PackageManager | null,
 ): { projectName: string; template: string; chain: ChainId; pm: PackageManager } {
   return {
     projectName: opts.projectName ?? "my-avax-app",
-    template: opts.template && templateIds.includes(opts.template) ? opts.template : "minimal",
+    template: opts.template ?? "minimal",
     chain: opts.chain ?? "fuji",
     pm: opts.pm ?? detectedPm ?? DEFAULT_PACKAGE_MANAGER,
   };
+}
+
+/**
+ * Why `name` cannot be the project directory, or null when it can. The one rule
+ * for a name wherever it comes from: the command line, the wizard's prompt, or
+ * the API (which enforces the same `assertSafeProjectName`).
+ */
+export function projectNameProblem(name: string, cwd: string): string | null {
+  try {
+    assertSafeProjectName(name);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  const targetDir = path.resolve(cwd, name);
+  if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
+    return `Directory "${name}" already exists and is not empty.`;
+  }
+  return null;
 }
 
 /**
@@ -145,7 +166,13 @@ function installHint(install: RunResult, pm: PackageManager): string[] {
 }
 
 async function main(ctx: CliContext): Promise<number> {
-  const parsed = parseArgs(ctx.argv);
+  const templates = listTemplates().sort(
+    (a, b) => TEMPLATE_ORDER.indexOf(a.id) - TEMPLATE_ORDER.indexOf(b.id),
+  );
+  const parsed = parseArgs(
+    ctx.argv,
+    templates.map((t) => t.id),
+  );
   if (parsed.command === "help") {
     ctx.stdout.write(helpText());
     return 0;
@@ -156,10 +183,6 @@ async function main(ctx: CliContext): Promise<number> {
   }
   const opts = parsed.options;
   const { cwd } = ctx;
-  const templates = listTemplates().sort(
-    (a, b) => TEMPLATE_ORDER.indexOf(a.id) - TEMPLATE_ORDER.indexOf(b.id),
-  );
-  const templateIds = templates.map((t) => t.id);
   // The package manager the user launched us with (`npm create`, `pnpm create`,
   // `yarn create`, `bun create`) is one they certainly have, so it is the default.
   const detectedPm = detectPackageManager(ctx.env.npm_config_user_agent);
@@ -177,7 +200,7 @@ async function main(ctx: CliContext): Promise<number> {
   if (!interactive) {
     ctx.stdout.write(banner(bannerColor(ctx.stdout)));
     printFirstRunNotice(telemetry, ctx.stdout);
-    const r = resolveDefaults(opts, templateIds, detectedPm);
+    const r = resolveDefaults(opts, detectedPm);
     const targetDir = path.resolve(cwd, r.projectName);
     const choices = { template: r.template, chain: r.chain, pm: r.pm };
     if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
@@ -230,6 +253,13 @@ async function main(ctx: CliContext): Promise<number> {
     return 0;
   }
 
+  // A name given on the command line skips the wizard's own prompt, so check it
+  // here — before any question is asked, not after all of them.
+  if (opts.projectName !== undefined) {
+    const problem = projectNameProblem(opts.projectName, cwd);
+    if (problem) throw new Error(problem);
+  }
+
   printFirstRunNotice(telemetry, ctx.stdout);
 
   const { runWizard } = await import("./ui/wizard.js");
@@ -249,10 +279,11 @@ async function main(ctx: CliContext): Promise<number> {
     detectedPackageManager: detectedPm,
     presets: {
       ...(opts.projectName ? { projectName: opts.projectName } : {}),
-      ...(opts.template && templateIds.includes(opts.template) ? { template: opts.template } : {}),
+      ...(opts.template ? { template: opts.template } : {}),
       ...(opts.chain ? { chain: opts.chain } : {}),
       ...(opts.pm ? { pm: opts.pm } : {}),
     },
+    validateName: (name) => projectNameProblem(name, cwd),
     scaffold: async (a) => {
       const choices = { template: a.template, chain: a.chain, pm: a.pm };
       const targetDir = path.resolve(cwd, a.projectName);

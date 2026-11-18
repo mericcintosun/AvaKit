@@ -44,6 +44,11 @@ export type WizardProps = {
   /** The manager the CLI was launched with, if known — labelled in the list. */
   detectedPackageManager: string | null;
   presets: Partial<Answers>;
+  /**
+   * Why a typed project name cannot be used, or null when it can. The same rule
+   * the scaffolder applies, so a name accepted here never fails afterwards.
+   */
+  validateName: (name: string) => string | null;
   scaffold: (a: Answers) => Promise<{ created: number }>;
   /** Installs the dependencies, or null when the user passed --no-install. */
   install: ((a: Answers) => Promise<InstallOutcome>) | null;
@@ -77,8 +82,6 @@ const LABELS: Record<StepKey, string> = {
   pm: "Package manager",
 };
 const HINT = "↑/↓ to navigate · Enter to confirm";
-
-const NAME_RE = /^[a-z0-9][a-z0-9._-]*$/;
 
 // ── Banner ────────────────────────────────────────────────────────────────
 function Banner() {
@@ -264,8 +267,9 @@ function App(props: AppProps) {
                     defaultValue={(answers.projectName as string) ?? ""}
                     onSubmit={(v) => {
                       const val = v.trim() || "my-avax-app";
-                      if (!NAME_RE.test(val)) {
-                        setNameError("Use lowercase letters, digits, and - . _");
+                      const problem = props.validateName(val);
+                      if (problem) {
+                        setNameError(problem);
                         return;
                       }
                       setNameError(null);
@@ -280,7 +284,9 @@ function App(props: AppProps) {
                 <Text color={C.crimson}>{nameError}</Text>
               ) : (
                 <Text color={C.dim}>
-                  {currentKey === "projectName" ? "lowercase, e.g. my-avax-app" : HINT}
+                  {currentKey === "projectName"
+                    ? "letters, digits, and . _ -  ·  e.g. my-avax-app"
+                    : HINT}
                 </Text>
               )}
             </Box>

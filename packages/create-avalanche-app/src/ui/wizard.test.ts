@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { projectNameProblem } from "../cli.js";
 import { fakeTerminal, KEY } from "../testing/fake-terminal.js";
 import { type InstallOutcome, runWizard, type StartCommand, type WizardProps } from "./wizard.js";
 
@@ -24,6 +28,7 @@ function props(overrides: Partial<WizardProps> = {}): WizardProps {
     packageManagers: ["pnpm", "npm", "yarn", "bun"],
     detectedPackageManager: null,
     presets: { projectName: "app", template: "minimal", chain: "fuji", pm: "pnpm" },
+    validateName: () => null,
     scaffold: async () => ({ created: 12 }),
     install: async () => OK,
     nextSteps: (a, installed) => [
@@ -167,5 +172,80 @@ describe("wizard package manager step", () => {
     expect(term.frame()).toMatch(/Package manager\s+yarn/);
     term.press("n");
     await expect(done).resolves.toEqual({ outcome: "cancelled", start: null });
+  });
+});
+
+describe("wizard project name step", () => {
+  let cwd: string;
+  beforeEach(() => {
+    cwd = mkdtempSync(path.join(tmpdir(), "caa-wizard-"));
+  });
+  afterEach(() => rmSync(cwd, { recursive: true, force: true }));
+
+  /** A wizard that only asks for the name, validated by the CLI's real rule. */
+  function askName() {
+    const term = fakeTerminal();
+    const done = runWizard(
+      props({
+        presets: { template: "minimal", chain: "fuji", pm: "pnpm" },
+        validateName: (name) => projectNameProblem(name, cwd),
+        install: null,
+      }),
+      term.renderOptions,
+    );
+    return { term, done };
+  }
+
+  it("rejects a name the scaffolder would reject, and lets the user fix it", async () => {
+    const { term, done } = askName();
+    await term.waitFor("Project name");
+
+    // The wizard's old pattern accepted a trailing dash; the scaffolder never
+    // did, so the run failed only after every other question had been answered.
+    term.press("my-app-");
+    await term.waitFor("my-app-");
+    term.press(KEY.enter);
+    await term.waitFor('Invalid project name "my-app-"');
+    expect(term.frame()).not.toContain("Create the app now?");
+
+    term.press("x");
+    await term.waitFor("my-app-x");
+    term.press(KEY.enter);
+    await term.waitFor("Create the app now?");
+    expect(term.frame()).toMatch(/Project name\s+my-app-x/);
+    term.press("n");
+    await expect(done).resolves.toEqual({ outcome: "cancelled", start: null });
+  });
+
+  it("accepts a name the scaffolder accepts, capitals included", async () => {
+    const { term, done } = askName();
+    await term.waitFor("Project name");
+    term.press("App123");
+    await term.waitFor("App123");
+    term.press(KEY.enter);
+    await term.waitFor("Create the app now?");
+    expect(term.frame()).toMatch(/Project name\s+App123/);
+    term.press("n");
+    await done;
+  });
+
+  it("says straight away when the directory is already taken", async () => {
+    mkdirSync(path.join(cwd, "taken"));
+    writeFileSync(path.join(cwd, "taken", "notes.txt"), "keep me");
+
+    const { term, done } = askName();
+    await term.waitFor("Project name");
+    term.press("taken");
+    await term.waitFor("taken");
+    term.press(KEY.enter);
+    await term.waitFor('Directory "taken" already exists and is not empty.');
+    expect(term.frame()).not.toContain("Create the app now?");
+
+    term.press("2");
+    await term.waitFor("taken2");
+    term.press(KEY.enter);
+    await term.waitFor("Create the app now?");
+    term.press("n");
+    await done;
   });
 });

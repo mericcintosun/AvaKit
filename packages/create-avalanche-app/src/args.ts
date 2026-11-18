@@ -2,9 +2,15 @@
  * Command-line parsing for create-avalanche-app. Pure: it never reads the
  * environment, prints, or exits — it returns what was asked for, or throws a
  * `UsageError` that the caller reports.
+ *
+ * Strict on purpose. A typo used to be swallowed (`--tempalte nft-mint`) or
+ * quietly replaced with a default (`--template nft` became `minimal`,
+ * `--chain mainnet` became Fuji), so a script got a different app than it asked
+ * for, and exit code 0. Anything not understood is now an error that names the
+ * valid values.
  */
 
-import type { ChainId } from "./api.js";
+import { assertSafeProjectName, CHAIN_IDS, type ChainId, isChainId } from "./api.js";
 import { isPackageManager, PACKAGE_MANAGERS, type PackageManager } from "./pm.js";
 
 /** The invocation itself is wrong (bad flag or value). Reported with exit code 1. */
@@ -29,68 +35,130 @@ export type ParsedArgs =
   | { command: "version" }
   | { command: "create"; options: CliOptions };
 
-/** @param args The arguments after the node binary and the script path. */
-export function parseArgs(args: readonly string[]): ParsedArgs {
+type ValueFlag = "template" | "chain" | "pm" | "wallet";
+
+/**
+ * Flags that take a value, by every spelling. A Map rather than an object, so
+ * that a project called `constructor` or `toString` is looked up as a name.
+ */
+const VALUE_FLAGS = new Map<string, ValueFlag>([
+  ["--template", "template"],
+  ["-t", "template"],
+  ["--chain", "chain"],
+  ["-c", "chain"],
+  ["--pm", "pm"],
+  // `--wallet` was removed: every scaffold now ships all three wallets (burner,
+  // injected, web3auth), so the flag chose nothing. It is still accepted, with
+  // its value, so an old invocation keeps working instead of failing as unknown.
+  ["--wallet", "wallet"],
+  ["-w", "wallet"],
+]);
+
+/** Flags that take no value, and what each one sets. */
+const SWITCHES = new Map<string, Partial<CliOptions>>([
+  ["--yes", { yes: true }],
+  ["-y", { yes: true }],
+  ["--local", { local: true }],
+  ["--no-install", { install: false }],
+  ["--no-telemetry", { telemetry: false }],
+  ["--telemetry", { telemetry: true }],
+]);
+
+function list(values: readonly string[]): string {
+  return values.join(", ");
+}
+
+/**
+ * @param args The arguments after the node binary and the script path.
+ * @param templateIds The templates that exist, to check `--template` against.
+ */
+export function parseArgs(args: readonly string[], templateIds: readonly string[]): ParsedArgs {
+  // Asking for help or the version always works, even next to a mistyped flag.
+  if (args.includes("--help") || args.includes("-h")) return { command: "help" };
+  if (args.includes("--version") || args.includes("-v")) return { command: "version" };
+
+  const valid: Record<Exclude<ValueFlag, "wallet">, readonly string[]> = {
+    template: templateIds,
+    chain: CHAIN_IDS,
+    pm: PACKAGE_MANAGERS,
+  };
   const opts: CliOptions = { yes: false, local: false, install: true };
+  const values: { template?: string; chain?: string; pm?: string } = {};
+
   for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    const next = () => args[++i];
-    switch (arg) {
-      case "--yes":
-      case "-y":
-        opts.yes = true;
-        break;
-      case "--local":
-        opts.local = true;
-        break;
-      case "--no-install":
-        opts.install = false;
-        break;
-      case "--no-telemetry":
-        opts.telemetry = false;
-        break;
-      case "--telemetry":
-        opts.telemetry = true;
-        break;
-      case "--template":
-      case "-t":
-        opts.template = next();
-        break;
-      // `--wallet` was removed: every scaffold now ships all three wallets
-      // (burner, injected, web3auth), so the flag chose nothing. Still consume
-      // its argument if an old invocation passes it, so `-w injected` can't be
-      // mistaken for the project name.
-      case "--wallet":
-      case "-w":
-        next();
-        break;
-      case "--chain":
-      case "-c":
-        opts.chain = next() as ChainId;
-        break;
-      case "--pm": {
-        // Validated here, before anything can run it: the name becomes the
-        // command we spawn (through a shell on Windows) and a telemetry field.
-        const value = next();
-        if (!isPackageManager(value)) {
-          throw new UsageError(
-            `Unknown package manager "${value ?? ""}". Valid package managers: ${PACKAGE_MANAGERS.join(", ")}.`,
-          );
-        }
-        opts.pm = value;
-        break;
+    const arg = args[i] as string;
+    // `npm create avalanche-app name -- --yes` strips the separator itself; some
+    // launchers pass it through. Either way the flags after it are still ours.
+    if (arg === "--") continue;
+
+    // `--flag=value` is the same as `--flag value`.
+    const equals = arg.startsWith("--") ? arg.indexOf("=") : -1;
+    const flag = equals === -1 ? arg : arg.slice(0, equals);
+    const inline = equals === -1 ? undefined : arg.slice(equals + 1);
+
+    const valueFlag = VALUE_FLAGS.get(flag);
+    if (valueFlag) {
+      // The next argument is the value, unless it is itself a flag.
+      const following = args[i + 1];
+      const value =
+        inline ?? (following !== undefined && !following.startsWith("-") ? following : undefined);
+      if (inline === undefined && value !== undefined) i++;
+      if (valueFlag === "wallet") continue;
+      if (value === undefined) {
+        throw new UsageError(`Option ${flag} needs a value: ${list(valid[valueFlag])}.`);
       }
-      case "--version":
-      case "-v":
-        return { command: "version" };
-      case "--help":
-      case "-h":
-        return { command: "help" };
-      default:
-        if (arg && !arg.startsWith("-") && !opts.projectName) {
-          opts.projectName = arg;
-        }
+      values[valueFlag] = value;
+      continue;
+    }
+
+    const toggled = SWITCHES.get(flag);
+    if (toggled) {
+      if (inline !== undefined) throw new UsageError(`Option ${flag} does not take a value.`);
+      Object.assign(opts, toggled);
+      continue;
+    }
+
+    if (arg.startsWith("-")) throw new UsageError(`Unknown option "${arg}".`);
+
+    if (opts.projectName !== undefined) {
+      throw new UsageError(
+        `Unexpected argument "${arg}": the project name is already "${opts.projectName}".`,
+      );
+    }
+    opts.projectName = arg;
+  }
+
+  if (opts.projectName !== undefined) {
+    try {
+      assertSafeProjectName(opts.projectName);
+    } catch (error) {
+      throw new UsageError(error instanceof Error ? error.message : String(error));
     }
   }
+  if (values.template !== undefined) {
+    if (!templateIds.includes(values.template)) {
+      throw new UsageError(
+        `Unknown template "${values.template}". Valid templates: ${list(templateIds)}.`,
+      );
+    }
+    opts.template = values.template;
+  }
+  if (values.chain !== undefined) {
+    if (!isChainId(values.chain)) {
+      throw new UsageError(`Unknown chain "${values.chain}". Valid chains: ${list(CHAIN_IDS)}.`);
+    }
+    opts.chain = values.chain;
+  }
+  if (values.pm !== undefined) {
+    // The name becomes the command we spawn (through a shell on Windows) and a
+    // telemetry field, so nothing but the four known managers gets past here.
+    if (!isPackageManager(values.pm)) {
+      throw new UsageError(
+        `Unknown package manager "${values.pm}". Valid package managers: ${list(PACKAGE_MANAGERS)}.`,
+      );
+    }
+    opts.pm = values.pm;
+  }
+
   return { command: "create", options: opts };
 }

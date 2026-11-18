@@ -80,7 +80,13 @@ export function listTemplates(): TemplateInfo[] {
     });
 }
 
-export type ChainId = "fuji" | "c-chain";
+/** The chains a template can be scaffolded for. */
+export const CHAIN_IDS = ["fuji", "c-chain"] as const;
+export type ChainId = (typeof CHAIN_IDS)[number];
+
+export function isChainId(value: unknown): value is ChainId {
+  return typeof value === "string" && (CHAIN_IDS as readonly string[]).includes(value);
+}
 
 export interface ScaffoldAppOptions {
   projectName: string;

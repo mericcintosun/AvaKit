@@ -1,8 +1,16 @@
-import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { run } from "./cli.js";
+import { projectNameProblem, run } from "./cli.js";
 import { canFakeBin, FAKE_BIN_TIMEOUT_MS, type FakeBin, fakeBin } from "./testing/fake-bin.js";
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI colour codes.
@@ -17,8 +25,8 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(cwd, { recursive: true, force: true }));
 
-/** Run the CLI in-process, non-interactively, and collect what it printed. */
-async function invoke(argv: string[], env: NodeJS.ProcessEnv = {}) {
+/** Run the CLI in-process and collect what it printed. Non-interactive unless `tty`. */
+async function invoke(argv: string[], env: NodeJS.ProcessEnv = {}, tty = false) {
   let stdout = "";
   let stderr = "";
   const code = await run({
@@ -27,11 +35,55 @@ async function invoke(argv: string[], env: NodeJS.ProcessEnv = {}) {
     env,
     stdout: { write: (text) => (stdout += text) },
     stderr: { write: (text) => (stderr += text) },
-    stdinIsTTY: false,
+    stdinIsTTY: tty,
     platform: process.platform,
   });
   return { code, stdout: stdout.replace(ANSI, ""), stderr: stderr.replace(ANSI, "") };
 }
+
+describe("projectNameProblem", () => {
+  it("accepts a safe name whose directory is free or empty", () => {
+    expect(projectNameProblem("my-app", cwd)).toBeNull();
+    mkdirSync(path.join(cwd, "empty"));
+    expect(projectNameProblem("empty", cwd)).toBeNull();
+  });
+
+  it("explains an unsafe name with the scaffolder's own message", () => {
+    for (const name of ["my-app-", "app.", "../evil", "a".repeat(65)]) {
+      expect(projectNameProblem(name, cwd), name).toContain("Invalid project name");
+    }
+  });
+
+  it("reports a directory that already has files", () => {
+    mkdirSync(path.join(cwd, "taken"));
+    writeFileSync(path.join(cwd, "taken", "notes.txt"), "keep me");
+    expect(projectNameProblem("taken", cwd)).toBe(
+      'Directory "taken" already exists and is not empty.',
+    );
+  });
+});
+
+describe("create-avalanche-app (interactive)", () => {
+  it("checks a name from the command line before asking any question", async () => {
+    mkdirSync(path.join(cwd, "taken"));
+    writeFileSync(path.join(cwd, "taken", "notes.txt"), "keep me");
+
+    // Had this got as far as the wizard, the test would hang on its first prompt.
+    const taken = await invoke(["taken"], {}, true);
+    expect(taken.code).toBe(1);
+    expect(taken.stderr).toContain('Error: Directory "taken" already exists and is not empty.');
+
+    const unsafe = await invoke(["my-app-"], {}, true);
+    expect(unsafe.code).toBe(1);
+    expect(unsafe.stderr).toContain('Invalid project name "my-app-"');
+  });
+
+  it("rejects a bad flag value rather than silently asking again", async () => {
+    const result = await invoke(["app", "--template", "nft"], {}, true);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Unknown template "nft". Valid templates:');
+  });
+});
 
 describe("create-avalanche-app (non-interactive)", () => {
   it("prints the version and the help without scaffolding", async () => {
@@ -69,6 +121,50 @@ describe("create-avalanche-app (non-interactive)", () => {
     expect(result.stderr).toContain('Unknown package manager "/usr/local/bin/pnpm"');
     expect(result.stderr).toContain("Valid package managers: pnpm, npm, yarn, bun.");
     expect(existsSync(path.join(cwd, "app"))).toBe(false);
+  });
+
+  it("rejects an unknown template instead of scaffolding the minimal one", async () => {
+    // The published 0.4.1 created the `minimal` app here and exited 0.
+    const result = await invoke(["app", "--template", "nft", "--yes", "--no-install"]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Error: Unknown template "nft". Valid templates: minimal,');
+    expect(result.stderr).toContain("Run with --help to see the available options.");
+    expect(result.stdout).toBe("");
+    expect(existsSync(path.join(cwd, "app"))).toBe(false);
+  });
+
+  it("rejects an unknown chain instead of falling back to Fuji", async () => {
+    const result = await invoke(["app", "--chain", "mainnet", "--yes", "--no-install"]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Error: Unknown chain "mainnet". Valid chains: fuji, c-chain.');
+    expect(existsSync(path.join(cwd, "app"))).toBe(false);
+  });
+
+  it("rejects a mistyped flag instead of ignoring it", async () => {
+    const result = await invoke(["app", "--tempalte", "nft-mint", "--yes", "--no-install"]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Error: Unknown option "--tempalte".');
+    expect(existsSync(path.join(cwd, "app"))).toBe(false);
+  });
+
+  it("rejects an unsafe project name before creating anything", async () => {
+    const result = await invoke(["../outside", "--yes", "--no-install"]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Invalid project name "../outside"');
+    expect(existsSync(path.join(cwd, "..", "outside"))).toBe(false);
+  });
+
+  it("scaffolds the template and chain that were asked for", async () => {
+    const result = await invoke([
+      "app",
+      "--template=minimal",
+      "--chain=c-chain",
+      "--yes",
+      "--no-install",
+    ]);
+    expect(result.code).toBe(0);
+    const providers = readFileSync(path.join(cwd, "app", "app", "providers.tsx"), "utf8");
+    expect(providers).toContain("chains={[cChain]}");
   });
 
   it("refuses a directory that already has files in it", async () => {
