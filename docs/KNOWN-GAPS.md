@@ -13,6 +13,12 @@
 > fallback it warned about no longer exists). **F1** is fixed. **F4 has graduated
 > from a smell to a real defect** and is rewritten. Item 5's "29 tests" is now 45.
 > Beware: this file has been wrong in both directions — verify before trusting it.
+>
+> **2026-11-18 re-verification:** a review found that several bodies below still
+> described closed gaps as open — among them items 2, 4, 5 and 12, which the note
+> above says were corrected. They are corrected in place now, each one re-checked
+> against the code: items **2, 4, 5, 12**, **B1**, **E6**, **F1**, **F2**, **F3**,
+> **F4** and **F6**. Nothing was added in this pass.
 
 ## Critical / user-visible
 
@@ -44,8 +50,11 @@
      `getPublicClient(chain).waitForTransactionReceipt({ hash })`, throw on
      `status === "reverted"`, then refresh. Applied to `nft-mint` +
      `token-gated-app` templates and `examples/web3auth-demo`. Smoke-tested.
-   - **Still open:** `erc20-token` still uses the raw `write` pattern; the durable
-     fix is to bake receipt-waiting into `useContract` in `@avakit/react`.
+   - `erc20-token` now does the same: its `run()` helper waits for the receipt and
+     throws on `reverted` for both mint and transfer (`components/demo.tsx`).
+   - **Still open (hardening, not a defect):** each template repeats that pattern
+     by hand; the durable fix is to bake receipt-waiting into `useContract` in
+     `@avakit/react`.
 
 3. **Mainnet deploy guard was not enforced in core — FIXED.**
    - Before: `deployContract` had no testnet check, so a browser/`@avakit/react`
@@ -58,15 +67,23 @@
 
 ## Testing
 
-4. **`@avakit/react` had zero tests — PARTIALLY FIXED.**
-   - Added `utils.test.ts` (11 tests) covering `cn`, `shortenAddress`, and every
-     `humanizeError` branch. The provider/hooks/component render paths are still
-     untested (would need a jsdom + Testing Library harness) — follow-up.
+4. **`@avakit/react` had zero tests — FIXED for the main render paths.**
+   - `utils.test.ts` (11 tests) covers `cn`, `shortenAddress`, and every
+     `humanizeError` branch.
+   - `provider.test.tsx` (7 tests, jsdom + Testing Library) renders the real
+     components: `AvaKitProvider` with `useAvaKit` (connect, disconnect, use outside
+     the provider), `useBalance`, and `ConnectAvalanche` (an available adapter, an
+     unavailable one with its reason, and the burner-first layout).
+   - **Still untested:** `TransactionButton`, the data hooks (`data-hooks.ts`), and
+     `useContract` / `useAvaDeploy` / `useSendTransaction` / `useFaucet`.
 
 5. **`@avakit/core` coverage was thin — IMPROVED.**
    - Added `errors.test.ts`, `network.test.ts` (`ensureChain`), and
      `adapters/web3auth.test.ts`, plus the mainnet-guard cases in `deploy.test.ts`.
-     Core is now at 29 tests (was 15). Still untested: `data.ts` (RPC helpers).
+   - Since then `data.test.ts` covers the RPC helpers in `data.ts` — the gap this
+     item used to end on — and `chains`, `clients`, `data-api`, `coinbase` and the
+     burner and injected adapters have test files of their own. Core stood at 49
+     tests in 11 files on 2026-11-18 (it was 15 tests).
 
 6. **No integration / e2e coverage.** Smoke tests only scaffold→install→
    typecheck→build. No test drives connect → deploy → mint against a chain, so a
@@ -99,8 +116,9 @@
 11. **Stale build artifacts.** `.turbo/turbo-test.log` files lag the package
     versions — harmless cache drift, gitignored.
 
-12. **`data-api.ts` past 404 bug** (chain-object vs id) is only documented in a
-    comment; worth a regression test given the API surface evolved.
+12. **`data-api.ts` past 404 bug** (chain-object vs id) — **FIXED.** It used to be
+    documented only in a comment; `data-api.test.ts` now carries the regression
+    test ("normalizes a chain object to its numeric id (no [object Object]/404)").
 
 13. **Version constant only correct in built artifacts.** `VERSION` is injected
     at build time; raw `tsc`/`vitest` yields `"0.0.0-dev"`. Expected.
@@ -153,13 +171,17 @@ A2. **`AVAKIT_DEP_VERSION` is a hand-maintained magic constant** decoupled from
 
 ## B. Testing (whole packages untested)
 
-B1. **`create-avalanche-app`, `@avakit/mcp`, and `@avakit/studio` have zero
-   tests.** No `*.test.*` / `vitest.config.*` under any of the three; all declare
-   `"test": "vitest run --passWithNoTests"`, so `pnpm test` is a green no-op that
-   masks the gap. This is despite security-sensitive logic: Studio arg
-   validation, path-traversal guard, session-token gating, CB58 decoding; the
-   scaffolder's placeholder replacement and dot-segment renaming; the MCP tools.
-   Typecheck is the only real gate.
+B1. **`create-avalanche-app`, `@avakit/mcp`, and `@avakit/studio` had zero tests —
+   PARTIALLY FIXED.** Each now has a first test file, aimed at a security guard:
+   `create-avalanche-app/src/api.test.ts` (project-name validation, and
+   `scaffoldApp` refusing an unsafe name before it touches the filesystem),
+   `mcp/src/guards.test.ts` (the two-key mainnet gate and the bytecode pattern) and
+   `studio/src/server.test.ts` (the session-token comparison). `pnpm test` is no
+   longer a green no-op for them, although all three still declare
+   `"test": "vitest run --passWithNoTests"`.
+   **Still untested:** Studio's argument validation, path-traversal guard and CB58
+   decoding; the scaffolder's placeholder replacement and dot-segment renaming;
+   the MCP tool handlers themselves.
 
 B2. **No integration / e2e coverage anywhere** (carried over from item 6). Nothing
    drives connect → deploy → mint against a chain, or scaffold → install → run.
@@ -231,29 +253,42 @@ E4. **shadcn "style-only" shipping model** (ADR-012): `@avakit/react` emits
 E5. **`ReadContractParams` (`data.ts`) and `ChainRef` (`data-api.ts`) are not
    exported**, so consumers can't name them.
 
-E6. **No AvaCloud WaaS wallet adapter.** ADR-004 lists it as an opt-in wallet, but
-   only `injected` and `web3auth` exist; "AvaCloud" ships solely as the Glacier
-   Data API. Either build the adapter or drop it from the positioning docs.
+E6. **No AvaCloud WaaS wallet adapter — still open; the adapter list is corrected.**
+   ADR-001 lists WaaS as an opt-in wallet (this item used to cite ADR-004, which is
+   about contract tooling) and it was never built. This item also used to say only
+   `injected` and `web3auth` exist; today the adapters are `burner` and `injected`
+   (main entry), `web3auth` (`@avakit/core/web3auth`) and Coinbase Smart Wallet
+   (`@avakit/core/coinbase`). "AvaCloud" still ships solely as the Glacier Data
+   API. `CLAUDE.md` no longer names WaaS as an option; `docs/04-adr.md` still does.
+   Either build the adapter or drop it there too.
 
 ## F. Templates
 
-F1. **`l1-launch` stale references a non-existent file.** `templates/l1-launch/lib/l1.ts`
-   and its `CLAUDE.md` point at `components/explorer.tsx`, but the explorer is
-   inlined in `components/demo.tsx` — no such file exists.
+F1. **`l1-launch` stale references to a non-existent file — FIXED.**
+   `templates/l1-launch/lib/l1.ts` and its `CLAUDE.md` pointed at
+   `components/explorer.tsx`, but the explorer is inlined in `components/demo.tsx`.
+   Nothing in the template refers to `explorer.tsx` any more.
 
-F2. **`eerc-token` demo Mint reverts for most users.** It points at a *shared*
-   pre-deployed Fuji eERC whose `privateMint` is `onlyOwner`; minting only works
-   if you deploy your own instance and connect as its deployer (documented, but
-   the Mint button will fail out of the box). Also: circuits are fetched from a
-   commit-pinned jsDelivr CDN (2–14 MB, network-dependent), and `wagmi` is pinned
-   to 2.x, intentionally off the repo's "latest stable" rule.
+F2. **`eerc-token` demo Mint reverted for most users — FIXED in the UI.** The app
+   still points at a *shared* pre-deployed Fuji eERC whose `privateMint` is
+   `onlyOwner`, but it no longer offers a button that can only fail: the demo reads
+   the instance's owner, disables Mint for everyone else and says why, and
+   `pnpm deploy:eerc` (`scripts/deploy-eerc.mjs`) deploys an instance of your own,
+   which makes you the owner.
+   **Still true:** circuits are fetched from a commit-pinned jsDelivr CDN (2–14 MB,
+   network-dependent), and `wagmi` is pinned to 2.x, intentionally off the repo's
+   "latest stable" rule.
 
-F3. **Cross-chain "in flight" UX is timing-heuristic.** `token-bridge` uses a
-   hardcoded `setTimeout(…, 12000)` and `deploy-bridge.mjs` a fixed `sleep(8000)`;
-   `icm-messenger` clears the banner when the destination inbox string matches, so
-   sending identical text twice can clear it prematurely.
+F3. **Cross-chain "in flight" UX is timing-heuristic — PARTIALLY FIXED.**
+   `deploy-bridge.mjs` no longer sleeps a fixed 8 s: it polls the home contract
+   until the remote is registered, and stops with a clear error after 90 s.
+   **Still open:** the `token-bridge` UI clears its banner on a hardcoded
+   `setTimeout(…, 12000)`, and `icm-messenger` clears its banner when the
+   destination inbox string matches, so sending identical text twice can clear it
+   prematurely.
 
-F4. **Source/artifact duplication — the drift it warned about already happened.**
+F4. **Source/artifact duplication — the drift it warned about already happened; a
+   CI check now guards against the next one.**
    `AvaKitToken.sol` is still byte-identical between `erc20-token` and `l1-launch`
    (a clean copy, low risk). The NFT half went wrong: `nft-mint`'s contract was
    rewritten (on-chain SVG art) and its artifact regenerated, and **that artifact was
@@ -264,19 +299,26 @@ F4. **Source/artifact duplication — the drift it warned about already happened
    — but its `CLAUDE.md` tells the agent to edit that source and recompile, which
    would have silently replaced the deployed contract.
    **2026-07-15: realigned** `token-gated-app`'s source to the artifact it ships.
-   The underlying gap stands: two copies with no shared source of truth, and nothing
-   that fails when a `.sol` and its `lib/*-artifact.ts` disagree. A check that
-   recompiles and diffs the artifact would catch the next one.
+   The underlying gap stood then: two copies with no shared source of truth, and
+   nothing that fails when a `.sol` and its `lib/*-artifact.ts` disagree.
+   **FIXED since:** `contracts-ci/` is that check, and CI runs it (the `contracts`
+   job). `scripts/sync.mjs` fails when two templates' copies of a contract differ,
+   `forge test` tests the canonical copies, and `scripts/check-artifacts.mjs`
+   recompiles each template's contract and fails unless its `lib/*-artifact.ts`
+   matches the build.
 
 F5. **Setup templates need external tooling and only run locally.** `icm-messenger`,
    `l1-launch`, `token-bridge` require `avalanche-cli` and ship
    `*.config.json` as `configured:false` placeholders (a `SetupPanel` blocks the
    app until the one-command script runs). Scripts use `set -uo pipefail` (no `-e`).
 
-F6. **Bundled Solidity is intentionally minimal (not production).** `AvaKitNFT.sol`
-   is deliberately not a full ERC-721 (no transfer/approve); the ERC-20 `mint` is a
-   public faucet with no access control. Fine for demos; flag before anyone copies
-   it to prod.
+F6. **Bundled Solidity is intentionally minimal (not production).** The ERC-20
+   `mint` is a public faucet with no access control, and the NFT's `mint` is open
+   to anyone. Fine for demos; flag before anyone copies it to prod.
+   **No longer true:** that `AvaKitNFT.sol` "is deliberately not a full ERC-721 (no
+   transfer/approve)". The template contract now has the transfer and approval
+   surface: `approve`, `setApprovalForAll`, `transferFrom`, both `safeTransferFrom`
+   overloads and `supportsInterface`.
 
 ## G. `apps/web` (website)
 
