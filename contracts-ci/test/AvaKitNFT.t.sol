@@ -343,6 +343,32 @@ contract AvaKitNFTTest is TestBase {
         nft.tokenURI(999);
     }
 
+    function test_NetworkLabelNamesTheChainTheContractIsOn() public {
+        vm.prank(ALICE);
+        uint256 id = nft.mint();
+
+        vm.chainId(43113);
+        assertTrue(
+            _contains(nft.tokenURI(id), ">AVALANCHE FUJI</text>"),
+            "Fuji label on 43113"
+        );
+
+        vm.chainId(43114);
+        assertTrue(
+            _contains(nft.tokenURI(id), ">AVALANCHE C-CHAIN</text>"),
+            "C-Chain label on 43114"
+        );
+        assertTrue(!_contains(nft.tokenURI(id), "FUJI"), "no Fuji claim on C-Chain");
+
+        // Anything else is an Avalanche L1 (or a local devnet standing in for one).
+        vm.chainId(9999);
+        assertTrue(
+            _contains(nft.tokenURI(id), ">AVALANCHE L1</text>"),
+            "L1 label elsewhere"
+        );
+        assertTrue(!_contains(nft.tokenURI(id), "FUJI"), "no Fuji claim on an L1");
+    }
+
     // ---- helpers ----
 
     function _contains(

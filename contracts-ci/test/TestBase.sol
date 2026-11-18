@@ -12,6 +12,9 @@ interface Vm {
     /// Replaces the code at `target` with `code`.
     function etch(address target, bytes calldata code) external;
 
+    /// Sets block.chainid.
+    function chainId(uint256 newChainId) external;
+
     /// Expects the next external call to revert with exact `revertData`.
     function expectRevert(bytes calldata revertData) external;
 

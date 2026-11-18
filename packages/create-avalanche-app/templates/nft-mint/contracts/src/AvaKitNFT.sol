@@ -168,7 +168,7 @@ contract AvaKitNFT {
             "<rect width='600' height='600' fill='url(%2523g)'/>",
             "<rect x='32' y='32' width='536' height='536' fill='none' stroke='rgb(39,39,42)'/>",
             _fox(accent, muzzle),
-            _type(tokenId, accent, paletteName)
+            _type(tokenId, accent, paletteName, _network())
         );
 
         return string.concat(
@@ -220,17 +220,20 @@ contract AvaKitNFT {
     ///      so it is percent-decoded twice (once reading tokenURI, once when the
     ///      browser loads the image). Single-encoding would leak a raw `#` into the
     ///      image src and truncate the SVG.
-    function _type(uint256 tokenId, string memory accent, string memory paletteName)
-        private
-        pure
-        returns (string memory)
-    {
+    function _type(
+        uint256 tokenId,
+        string memory accent,
+        string memory paletteName,
+        string memory network
+    ) private pure returns (string memory) {
         string memory f =
             " font-family='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'";
         return string.concat(
             "<text x='64' y='78'",
             f,
-            " font-size='13' letter-spacing='3' fill='rgb(113,113,122)'>AVALANCHE FUJI</text>",
+            " font-size='13' letter-spacing='3' fill='rgb(113,113,122)'>",
+            network,
+            "</text>",
             "<text x='536' y='78' text-anchor='end'",
             f,
             " font-size='13' letter-spacing='3' fill='",
@@ -250,6 +253,16 @@ contract AvaKitNFT {
             _pad3(tokenId),
             "</text></svg>"
         );
+    }
+
+    /// @dev The network line on the card, read from the chain the contract is
+    ///      actually running on, so a token never claims Fuji from the C-Chain
+    ///      or from an L1 of your own. 43113 is Fuji and 43114 the C-Chain; any
+    ///      other chain id is an Avalanche L1 (your own, or a local devnet).
+    function _network() private view returns (string memory) {
+        if (block.chainid == 43113) return "AVALANCHE FUJI";
+        if (block.chainid == 43114) return "AVALANCHE C-CHAIN";
+        return "AVALANCHE L1";
     }
 
     /// @dev Zero-padded to three digits, so the card reads `#007`, not `#7`.
