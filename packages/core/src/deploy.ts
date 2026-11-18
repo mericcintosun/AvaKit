@@ -188,21 +188,23 @@ async function assertCodeAt(
   // second time: if the RPC was merely further behind than this waited for, the
   // contract is there after all.
   const where = chain.explorerUrl ? ` (${chain.explorerUrl}/address/${address})` : "";
+  // Both messages open with the verdict and the address, so they survive a UI
+  // that shows only the start of an error.
   if (failure !== undefined) {
     throw new DeployFailedError(
-      `Deployment transaction ${txHash} succeeded on ${chain.name} and names ${address} as the ` +
-        `new contract, but its code could not be read back to confirm it (${reads} attempts). ` +
-        `Check the address${where} before using it or deploying again. The last read failed ` +
-        `with: ${reason(failure)}${nodeDetails(failure)}`,
+      `Unconfirmed deployment: the code at ${address} could not be read back. Its ` +
+        `transaction ${txHash} succeeded on ${chain.name}, but ${reads} attempts to read the ` +
+        `code failed. Check the address${where} before using it or deploying again. The last ` +
+        `read failed with: ${reason(failure)}${nodeDetails(failure)}`,
       { cause: failure },
     );
   }
   throw new DeployFailedError(
-    `Deployment transaction ${txHash} succeeded on ${chain.name}, but no contract code could ` +
-      `be read at ${address} (${reads} reads over ${CODE_CHECK_SECONDS} seconds). Most likely ` +
-      "the creation left none: the artifact must hold creation bytecode, and the constructor " +
-      "must not self-destruct. If the RPC is only behind, the contract will appear at that " +
-      `address, so check it${where} before deploying again.`,
+    `No contract code could be read at ${address}, although deployment transaction ${txHash} ` +
+      `succeeded on ${chain.name} (${reads} reads over ${CODE_CHECK_SECONDS} seconds). Most ` +
+      "likely the creation left none: the artifact must hold creation bytecode, and the " +
+      "constructor must not self-destruct. If the RPC is only behind, the contract will appear " +
+      `at that address, so check it${where} before deploying again.`,
   );
 }
 

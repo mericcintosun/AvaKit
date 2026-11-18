@@ -392,10 +392,12 @@ describe("deployContract result", () => {
 
       expect(result).toBeNull();
       expect(error).toBeInstanceOf(DeployFailedError);
+      // The verdict and the address come first, so they survive UIs that only
+      // show the start of a message.
       expect(error?.message).toMatch(
-        /no contract code could be read at 0x5FbDB2315678afecb367f032d93F642f64180aa3/,
+        /^No contract code could be read at 0x5FbDB2315678afecb367f032d93F642f64180aa3/,
       );
-      expect(error?.message).toContain(txHash);
+      expect(error?.message.slice(0, 200)).toContain(txHash);
       expect(error?.message).toContain("5 reads over 2 seconds");
       // The transaction succeeded, so before anyone deploys again the message
       // points at where the contract would be if the RPC was only behind.
@@ -469,9 +471,10 @@ describe("deployContract result", () => {
       const { error } = await outcome;
 
       expect(error).toBeInstanceOf(DeployFailedError);
-      expect(error?.message).toMatch(/could not be read back/);
-      expect(error?.message).toContain("0x5FbDB2315678afecb367f032d93F642f64180aa3");
-      expect(error?.message).toContain(txHash);
+      expect(error?.message).toMatch(
+        /^Unconfirmed deployment: the code at 0x5FbDB2315678afecb367f032d93F642f64180aa3 could not be read back/,
+      );
+      expect(error?.message.slice(0, 200)).toContain(txHash);
       expect(error?.message).toContain(
         `${fuji.explorerUrl}/address/0x5FbDB2315678afecb367f032d93F642f64180aa3`,
       );
@@ -494,7 +497,7 @@ describe("deployContract result", () => {
       const { error } = await outcome;
 
       expect(error).toBeInstanceOf(DeployFailedError);
-      expect(error?.message).toMatch(/no contract code/);
+      expect(error?.message).toMatch(/^No contract code could be read at /);
     });
 
     it("names no explorer in the error on a chain without one", async () => {
@@ -514,7 +517,7 @@ describe("deployContract result", () => {
       const { error } = await outcome;
 
       expect(error).toBeInstanceOf(DeployFailedError);
-      expect(error?.message).toMatch(/no contract code/);
+      expect(error?.message).toMatch(/^No contract code could be read at /);
       expect(error?.message).not.toMatch(/https?:\/\//);
       expect(error?.message).not.toContain("()");
     });
@@ -570,7 +573,7 @@ describe("deployContract result", () => {
       const error = await outcome;
 
       expect(error).toBeInstanceOf(DeployFailedError);
-      expect(error?.message).toMatch(/no contract code/);
+      expect(error?.message).toMatch(/^No contract code could be read at /);
       expect(calls.filter((call) => call.method === "eth_getCode")).toHaveLength(5);
     });
   });
