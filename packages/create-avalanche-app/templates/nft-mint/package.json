@@ -12,7 +12,7 @@
   "dependencies": {
     "@avakit/core": "__AVAKIT_CORE_DEP__",
     "@avakit/react": "__AVAKIT_REACT_DEP__",
-    "lucide-react": "1.73.0",
+    "lucide-react": "1.74.0",
     "next": "16.4.6",
     "next-themes": "0.4.6",
     "react": "19.3.1",
