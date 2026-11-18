@@ -1,8 +1,12 @@
 # Listing `@avakit/mcp` on the MCP registries
 
 Why this matters: the official Avalanche MCP surface is **docs-retrieval only**. Ours
-acts — scaffold, deploy, mint, estimate gas, read chain. Being findable in the places
+acts — scaffold, deploy, estimate gas, read chain. Being findable in the places
 agents look is the whole point (see `docs/strategy/execution-plan.md`, W5).
+
+Describe only what the tools do. The listing once promised "mint", which no tool has
+ever done. `src/registry.test.ts` now checks that every action named in the sentence
+above, and in `server.json`'s description, is the verb of a real tool.
 
 ## Status
 
@@ -23,14 +27,36 @@ which will bite you:
    the registry checks `mcpName` on the **package published to npm** — not the repo. So
    a listing change that touches `mcpName` needs a **release first**, or publishing
    fails with *"NPM package is missing required 'mcpName' field"*.
-2. **`server.json`'s `version` must match the published npm version**, and
+2. **`server.json`'s `version` must be a version that is published on npm**, and
    `description` is capped at **100 characters** (a longer one 422s).
+
+### Keeping the version current
+
+The registry is satisfied by *any* published version, so nothing there stops the listing
+from going stale — and a stale listing keeps pointing clients that honour the pinned
+version at an old build. It once sat two releases behind, on a version that predated a
+round of security hardening. So the rule in this repo is stricter than the registry's:
+
+**`server.json` always carries the same version as `packages/mcp/package.json`.**
+
+- `pnpm --filter @avakit/mcp run sync:server-json` copies the version across (both the
+  top-level `version` and the npm package entry). Run it right after `changeset version`
+  bumps the package and commit the result with the bump; ideally the repo's
+  `version-packages` script runs it, so the "version packages" PR already contains it.
+- `src/registry.test.ts` runs with the package's tests and fails while the two differ, so
+  a forgotten sync shows up as a red build rather than as a stale listing.
+
+Changing `server.json` in the repo does not change the live listing — that still takes
+the manual publish below, after the npm release.
 
 ### Publishing an update
 
 ```bash
 brew install mcp-publisher
 cd packages/mcp
+
+# server.json must list the version that was just published to npm.
+node scripts/sync-server-json.mjs --check
 
 # Ownership of the dev.avakit namespace is proven by the public key at
 # apps/web/public/.well-known/mcp-registry-auth, which avakit.dev serves.
