@@ -5,8 +5,8 @@
 # Creates a Subnet-EVM blockchain and deploys it to a local Avalanche network,
 # then writes the discovered RPC URL + blockchain ID into l1.config.json so the
 # app can talk to your chain. Everything runs on your machine — no test AVAX, no
-# faucet, no always-on node. To graduate the same chain to the Fuji testnet, see
-# `pnpm l1:fuji` (scripts/l1-fuji.sh) and CLAUDE.md.
+# faucet, no always-on node. To put a sovereign version of this chain on the Fuji
+# testnet, see `pnpm l1:fuji` (scripts/l1-fuji.sh) and CLAUDE.md.
 #
 # Configure via env (all optional):
 #   L1_NAME=mychain L1_CHAIN_ID=9999 L1_TOKEN=MYL1 pnpm l1
@@ -62,6 +62,17 @@ fi
 if [ "${CLEAN:-}" = "1" ]; then
   say "CLEAN=1 → wiping any existing local network…"
   avalanche network clean >/dev/null 2>&1 || true
+fi
+
+# --- 0c. Never clobber a chain that is live on a public network -------------
+# `create --force` below replaces any existing config with this name — that is
+# what makes `pnpm l1` re-runnable. But if avalanche-cli has that name recorded
+# as deployed to Fuji or Mainnet, overwriting it would erase the CLI's only
+# record of a live chain (its subnet, validator manager and node).
+SIDECAR="$HOME/.avalanche-cli/subnets/$NAME/sidecar.json"
+if [ -f "$SIDECAR" ] && grep -qE '"(Fuji|Mainnet)"[[:space:]]*:[[:space:]]*\{' "$SIDECAR"; then
+  die "'$NAME' is deployed to a public network, and pnpm l1 would overwrite avalanche-cli's record of it.
+     Pick another name for the local chain, e.g.: L1_NAME=${NAME}local pnpm l1"
 fi
 
 # --- 1. Create the L1 -------------------------------------------------------
@@ -124,6 +135,6 @@ Manage the network:
   avalanche network clean    # wipe (new blockchain ID — re-run pnpm l1)
   CLEAN=1 pnpm l1            # wipe + rebuild in one step
 
-Graduate to the Fuji testnet (advanced, needs test AVAX + an always-on node):
-  pnpm l1:fuji
+Launch a sovereign version on the Fuji testnet (advanced, needs test AVAX + an always-on node):
+  FUJI_KEY=<your avalanche-cli key> pnpm l1:fuji
 EOF

@@ -8,7 +8,7 @@ import { humanizeError,
   useAvaAccount,
   useAvaKit,
 } from "@avakit/react";
-import { Blocks, Check, Copy, ExternalLink, Moon, Rocket, Sun, Wallet } from "lucide-react";
+import { Blocks, Check, Copy, Moon, Rocket, Sun, Wallet } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 import { type Address, type Hash, formatEther, formatUnits } from "viem";
@@ -320,16 +320,21 @@ function NextSteps({ hasToken }: { hasToken: boolean }) {
           </Button>
         </StepRow>
 
-        <StepRow n={2} label={isFuji ? "Get gas — fund your wallet with test AVAX" : "Get gas — import the EWOQ dev key"}>
+        {/* Gas on your L1 is its own token, not AVAX — so on Fuji the AVAX faucet
+            does not help here. --production-defaults pre-funds the owner (your
+            Fuji key) in the genesis; import that key to transact. */}
+        <StepRow
+          n={2}
+          label={
+            isFuji
+              ? `Get gas — import a key that holds ${l1.token}`
+              : "Get gas — import the EWOQ dev key"
+          }
+        >
           {isFuji ? (
-            <a
-              href="https://build.avax.network/console/primary-network/faucet"
-              target="_blank"
-              rel="noreferrer"
-              className="text-muted-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
-            >
-              Fuji faucet <ExternalLink className="size-3" />
-            </a>
+            <span className="text-muted-foreground text-xs">
+              Your Fuji key is pre-funded (<span className="font-mono">avalanche key export</span>).
+            </span>
           ) : (
             <span className="text-muted-foreground text-xs">
               EWOQ key is pre-funded (printed by <span className="font-mono">pnpm l1</span>).

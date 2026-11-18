@@ -39,11 +39,17 @@ CLEAN=1 pnpm l1            # wipe + rebuild in one step (use if a stale network 
 ## Graduate to Fuji (advanced)
 
 ```bash
-pnpm l1:fuji
+FUJI_KEY=mykey pnpm l1:fuji    # mykey = a funded avalanche-cli key (the script explains how to get one)
 ```
 
-Deploys the same L1 to the public Fuji testnet. This needs test AVAX and a validator node that
-**stays running** (your machine can be it) — see `CLAUDE.md` for the full walkthrough and caveats.
+Launches a **sovereign Proof-of-Authority** version of your chain on the public Fuji testnet: same
+chain ID and token, production defaults, owned by your Fuji key. It is a separate avalanche-cli
+config (named `<name>fuji`) — the local dev chain itself never goes to Fuji, because its genesis
+pre-funds the public EWOQ key. The script never overwrites an existing config and is safe to re-run;
+`pnpm l1` points the app back at the local chain.
+
+This needs test AVAX and a validator node that **stays running** (your machine can be it) — see
+`CLAUDE.md` for the full walkthrough and caveats.
 
 ## Stack
 

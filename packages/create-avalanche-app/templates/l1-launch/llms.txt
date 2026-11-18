@@ -5,7 +5,7 @@
 ## Project map
 
 - [scripts/l1.sh](scripts/l1.sh): `pnpm l1` — create + deploy a local Subnet-EVM L1, write l1.config.json.
-- [scripts/l1-fuji.sh](scripts/l1-fuji.sh): `pnpm l1:fuji` — deploy the L1 to the Fuji testnet (advanced).
+- [scripts/l1-fuji.sh](scripts/l1-fuji.sh): `FUJI_KEY=<key> pnpm l1:fuji` — create a separate sovereign PoA config (`<name>fuji`, production defaults, owned by the Fuji key) and deploy it to the Fuji testnet (advanced). Never deploys the local dev config, never overwrites a config, safe to re-run.
 - [l1.config.json](l1.config.json): your chain (name, token, evmChainId, rpcUrl, blockchainIdHex, faucetAccount).
 - [lib/l1.ts](lib/l1.ts): config → AvaKit chain (`defineChain`) + `isConfigured`.
 - [components/demo.tsx](components/demo.tsx): the dashboard/explorer — polls RPC for blocks/txs/gas/balance, deploys + mints the demo token.
@@ -22,7 +22,14 @@
 ## Config decisions
 
 Subnet-EVM VM, EVM chain id (default 9999), native token symbol, `--sovereign=false` for a
-zero-prompt local chain (Fuji path uses a sovereign PoA L1), `--test-defaults` (EWOQ pre-funded).
+zero-prompt local chain, `--test-defaults` (EWOQ pre-funded). The Fuji path uses a second config:
+sovereign, `--proof-of-authority`, `--production-defaults` (no EWOQ; the owner address is pre-funded).
+
+## Fuji CLI facts
+
+- C-Chain → P-Chain: `avalanche key transfer --key <key> --fuji --c-chain-sender --p-chain-receiver --amount <x>`.
+- Validator balance: `avalanche validator getBalance --fuji --l1 <name>` / `avalanche validator increaseBalance --fuji --l1 <name> --key <key> --balance <avax>`.
+- Gas on the Fuji L1 is the L1's own token (not AVAX): the owner key and `subnet_<name>_airdrop` hold it.
 
 ## External docs
 

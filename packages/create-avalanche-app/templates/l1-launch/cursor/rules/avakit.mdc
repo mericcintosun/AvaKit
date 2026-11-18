@@ -15,7 +15,10 @@ Launch your own Avalanche L1, then explore it in a built-in dashboard.
 - `components/demo.tsx` is the explorer: poll `getPublicClient(chain)` for `getBlockNumber`,
   `getGasPrice`, `getBlock({ blockNumber, includeTransactions: true })`, `getBalance`.
 - Deploy the demo token: `deployContract({ artifact: { abi, bytecode }, chain, provider, account })`.
-- `pnpm l1:fuji` deploys the same L1 to Fuji (advanced; needs test AVAX + an always-on validator).
+- `FUJI_KEY=<key> pnpm l1:fuji` launches a sovereign PoA version of the chain on Fuji (advanced; needs
+  test AVAX + an always-on validator). It uses a separate avalanche-cli config (`<name>fuji`,
+  `--proof-of-authority --production-defaults`): never deploy the local dev config (non-sovereign,
+  EWOQ-funded genesis) to a public network, and never `create --force` over a config that is live.
 
 ## L1 config decisions
 
@@ -33,4 +36,6 @@ See CLAUDE.md for the full explainer — surface it when the user asks "what doe
 - shadcn/ui only; black & white for now; dark/light via next-themes; both must work.
 - Animations: Framer Motion or GSAP only.
 - EWOQ (`0x56289e…8027`) is a PUBLIC local-only dev key — never use it or commit a real key on Fuji/mainnet.
-- Deploying/minting cost gas — on local, import the EWOQ key; on Fuji, fund your own wallet.
+- Deploying/minting cost gas in the L1's own token — on local, import the EWOQ key; on a Fuji L1,
+  import the owner key (pre-funded by `--production-defaults`). The AVAX faucet only pays for the
+  P-Chain deploy, not for gas on the L1.
