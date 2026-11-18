@@ -12,6 +12,7 @@ cd contracts-ci
 node scripts/sync.mjs              # copy template contracts into src/ + consistency checks
 forge test                         # compile (pinned compiler) + run the test suite
 node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the source
+node --test scripts/guards.test.mjs  # the two scripts above still catch what they are for
 ```
 
 - **`scripts/sync.mjs`** copies each template contract into `src/` and fails if
@@ -20,6 +21,12 @@ node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the sour
   `AvaKitNFT.sol`). `src/` is generated — never edit it here; edit the template
   copies (both of them) instead. It also fails if any `foundry.toml` in the
   repo compiles with different settings than this harness (see Toolchain).
+  It reads the `[profile.default]` table and nothing else, so it stops on
+  everything else forge would apply to the default profile instead of
+  skipping it: a sub-table or array table (`[profile.default.optimizer_details]`,
+  `[[profile.default.compilation_restrictions]]`), the header in any other
+  spelling (quoted keys, extra spaces), the legacy `[default]` table and a key
+  above the first table.
 - **`test/`** covers mint/transfer/allowance for the token; mint, the ERC-721
   transfer and approval surface and the on-chain `tokenURI` (unchanged by
   transfers, labelled with the chain it is on) for the NFT; and send/receive

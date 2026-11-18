@@ -57,22 +57,49 @@ const REQUIRED_PINS = ["solc_version", "evm_version"];
 
 /** The compiler-relevant `key = value` pairs of a foundry.toml's
  * [profile.default] table. Deliberately tiny: that table holds nothing but
- * single-line values here, and anything else is rejected rather than misread. */
+ * single-line values here, and anything else is rejected rather than misread.
+ *
+ * The same goes for everything outside that table that forge would also apply
+ * to the default profile. Only the header spelled exactly `[profile.default]`
+ * is read; any other table that names the default profile, and any key above
+ * the first table, stops the run instead of being skipped. Skipping one is how
+ * a file gets reported as pinned while forge compiles it with other settings. */
 function compilerSettings(file) {
   const settings = new Map();
-  let table = "";
+  let table; // undefined above the first table header
   for (const raw of readFileSync(file, "utf8").split("\n")) {
     const line = stripComment(raw).trim();
     if (line === "") continue;
-    const header = line.match(/^\[(.+)\]$/);
-    if (header) {
-      table = header[1].trim();
-      // e.g. [profile.default.optimizer_details]: compiler settings this
-      // reader would silently leave out of the comparison.
-      if (table.startsWith("profile.default.")) {
-        throw new Error(`${file}: [${table}] is not compared; extend scripts/sync.mjs first`);
+    // The lines of a multi-line string are not TOML, but would be read as it.
+    if (line.includes('"""') || line.includes("'''")) {
+      throw new Error(
+        `${file}: \`${line}\` has a multi-line string, which is not read; ` +
+          "extend scripts/sync.mjs first",
+      );
+    }
+    if (line.startsWith("[")) {
+      if (line === "[profile.default]") {
+        table = "profile.default";
+        continue;
       }
+      const path = tablePath(line);
+      if (!path) throw new Error(`${file}: cannot read the table header \`${line}\``);
+      if (namesDefaultProfile(path)) {
+        throw new Error(
+          `${file}: \`${line}\` is not compared: it names the default profile, and ` +
+            "[profile.default] is the only table read. Set the option there, or " +
+            "extend scripts/sync.mjs first",
+        );
+      }
+      table = path.join(".");
       continue;
+    }
+    if (table === undefined) {
+      throw new Error(
+        `${file}: \`${line}\` is not compared: it is above the first table, where forge ` +
+          "reads a `default` key as the default profile. Set the option in " +
+          "[profile.default], or extend scripts/sync.mjs first",
+      );
     }
     if (table !== "profile.default") continue;
     const pair = line.match(/^([A-Za-z0-9_-]+)\s*=\s*(.+)$/);
@@ -80,6 +107,32 @@ function compilerSettings(file) {
     if (!LAYOUT_KEYS.has(pair[1])) settings.set(pair[1], pair[2]);
   }
   return settings;
+}
+
+/** The key of a table header as its parts, in every spelling TOML allows for
+ * one: `[a.b]`, the array table `[[a.b]]`, quoted parts (`["a".'b']`) and
+ * spaces around the dots all give ["a", "b"]. Undefined when the line is not a
+ * header this reader can take apart (an escape inside a quoted part, say). */
+function tablePath(line) {
+  const key = line.match(/^\[\[(.*)\]\]$/)?.[1] ?? line.match(/^\[(.*)\]$/)?.[1];
+  if (key === undefined) return undefined;
+  const part = /\s*(?:"([^"\\]*)"|'([^']*)'|([A-Za-z0-9_-]+))\s*(\.|$)/y;
+  const path = [];
+  while (part.lastIndex < key.length) {
+    const match = part.exec(key);
+    if (!match) return undefined;
+    path.push(match[1] ?? match[2] ?? match[3]);
+  }
+  return path.length > 0 ? path : undefined;
+}
+
+/** Whether a table holds, or can hold, settings of the default profile:
+ * `profile.default` and everything under it, `profile` itself (its keys can
+ * be `default.<option>`), and `default`, the spelling from before profiles
+ * moved under `profile.`, which forge still applies to the default profile. */
+function namesDefaultProfile(path) {
+  if (path[0] === "default") return true;
+  return path[0] === "profile" && (path.length === 1 || path[1] === "default");
 }
 
 /** Drop a trailing `# comment`, leaving a `#` inside a quoted string alone. */
