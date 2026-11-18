@@ -26,13 +26,29 @@ Content is gated behind ownership of an **access-pass NFT**. If `balanceOf(addre
 ## The gate
 
 ```ts
-const contract = useContract({ address, abi });
-const balance = (await contract.read("balanceOf", [address])) as bigint;
+// In the component body — hooks are never called inside a callback or after an await.
+const { address } = useAvaAccount(); // the visitor
+const { read } = useContract({ address: passAddress, abi }); // the access-pass contract
+
+// In an effect or handler:
+const balance = (await read("balanceOf", [address])) as bigint;
 const hasAccess = balance > 0n; // render gated content only when true
 ```
 
+`passAddress` is the pass contract and `address` the visitor — two different things.
+
+A balance that is still loading, or whose read failed, is **unknown** — never "no pass".
+`components/demo.tsx` keeps a `Gate` state for that (`checking` | `error` | `ready` with the balance):
+
+- it goes back to `checking` whenever the account or the contract changes, so one holder's access
+  never carries over to the next wallet;
+- a failed read becomes `error` (with a "Try again" button), not the locked view with a mint prompt;
+- answers that arrive for a previous account are ignored.
+
+Keep those three properties when you change the gate.
+
 - Deploy: `useAvaDeploy().deploy({ abi, bytecode })`
-- Mint a pass: `contract.write("mint", [])`
+- Mint a pass: `write("mint", [])` (from the same `useContract({ address: passAddress, abi })`)
 
 In this demo the pass contract is whichever one **this browser** deployed (`useDeployedContract`), so
 every visitor starts by deploying their own. For a real app, deploy the pass once and use that fixed

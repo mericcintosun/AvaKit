@@ -13,7 +13,7 @@ import {
 } from "@avakit/react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatUnits, parseUnits } from "viem";
 import { useDeployedContract } from "@/lib/deployed-contract";
 import { abi, bytecode } from "@/lib/token-artifact";
@@ -55,18 +55,27 @@ export function Demo() {
   const [busy, setBusy] = useState<null | "mint" | "transfer">(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Identifies the newest read, so numbers that arrive for a previous account
+  // or contract are never shown for the current one.
+  const latestRead = useRef(0);
+
   const refresh = useCallback(async () => {
+    const request = ++latestRead.current;
     if (!contractAddress || !address) return;
     try {
       const [bal, total] = await Promise.all([read("balanceOf", [address]), read("totalSupply")]);
+      if (request !== latestRead.current) return;
       setBalance(bal as bigint);
       setSupply(total as bigint);
     } catch {
-      // not ready
+      // The read did not come back: the numbers stay "…" until the next one does.
     }
   }, [read, contractAddress, address]);
 
   useEffect(() => {
+    // A different account or contract: drop the previous one's numbers first.
+    setBalance(null);
+    setSupply(null);
     void refresh();
   }, [refresh]);
 
@@ -103,8 +112,6 @@ export function Demo() {
   // e.g. to deploy the new bytecode after editing the contract.
   function startOver() {
     deployed.forget();
-    setBalance(null);
-    setSupply(null);
     setError(null);
   }
 

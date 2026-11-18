@@ -14,9 +14,15 @@
 ## The gate
 
 ```ts
-const balance = (await useContract({ address, abi }).read("balanceOf", [address])) as bigint;
+// Component body (hooks are not called inside callbacks or after an await):
+const { address } = useAvaAccount(); // the visitor
+const { read } = useContract({ address: passAddress, abi }); // the access-pass contract
+// Effect or handler:
+const balance = (await read("balanceOf", [address])) as bigint;
 const hasAccess = balance > 0n;
 ```
+
+A pending or failed read is "unknown", not "no pass": the demo's `Gate` state is `checking` | `error` | `ready`, and it resets to `checking` whenever the account or contract changes.
 
 ## Key APIs
 

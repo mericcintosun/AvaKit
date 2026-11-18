@@ -19,12 +19,21 @@ The app remembers the pass contract you deployed (in your browser, per chain), s
 
 ## How the gate works
 
-The gated section renders only when `balanceOf(address) > 0`:
+The gated section renders only when the visitor's `balanceOf` on the pass contract is above zero:
 
 ```ts
-const balance = (await useContract({ address, abi }).read("balanceOf", [address])) as bigint;
+// In the component body:
+const { address } = useAvaAccount(); // the visitor
+const { read } = useContract({ address: passAddress, abi }); // the access-pass contract
+
+// In an effect or handler:
+const balance = (await read("balanceOf", [address])) as bigint;
 const hasAccess = balance > 0n;
 ```
+
+While that read is pending, or if it fails, the demo shows a "checking" or "could not check" state
+instead of the locked view — an unknown balance is not the same as holding no pass — and it asks
+again whenever the connected account changes.
 
 - `contracts/src/AvaKitNFT.sol` — the access-pass ERC-721 (self-contained).
 - `lib/nft-artifact.ts` — compiled ABI + bytecode, bundled for browser deploy.

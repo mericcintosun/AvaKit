@@ -13,7 +13,7 @@ import {
 } from "@avakit/react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDeployedContract } from "@/lib/deployed-contract";
 import { abi, bytecode } from "@/lib/nft-artifact";
 
@@ -54,21 +54,30 @@ export function Demo() {
   const [owned, setOwned] = useState<bigint | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Identifies the newest read, so numbers that arrive for a previous account
+  // or contract are never shown for the current one.
+  const latestRead = useRef(0);
+
   const refreshCounts = useCallback(async () => {
+    const request = ++latestRead.current;
     if (!contractAddress || !address) return;
     try {
       const [total, balance] = await Promise.all([
         read("totalSupply"),
         read("balanceOf", [address]),
       ]);
+      if (request !== latestRead.current) return;
       setSupply(total as bigint);
       setOwned(balance as bigint);
     } catch {
-      // contract not ready yet
+      // The read did not come back: the numbers stay "…" until the next one does.
     }
   }, [read, contractAddress, address]);
 
   useEffect(() => {
+    // A different account or contract: drop the previous one's numbers first.
+    setSupply(null);
+    setOwned(null);
     void refreshCounts();
   }, [refreshCounts]);
 
@@ -109,8 +118,6 @@ export function Demo() {
   function startOver() {
     deployed.forget();
     setMintHash(null);
-    setSupply(null);
-    setOwned(null);
     setError(null);
   }
 

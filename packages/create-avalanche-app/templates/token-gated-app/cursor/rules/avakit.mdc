@@ -11,12 +11,20 @@ Content is gated behind ownership of an access-pass NFT (`balanceOf(address) > 0
 ## Gate pattern
 
 ```ts
-const balance = (await useContract({ address, abi }).read("balanceOf", [address])) as bigint;
+// Component body (hooks are not called inside callbacks or after an await):
+const { address } = useAvaAccount(); // the visitor
+const { read, write } = useContract({ address: passAddress, abi }); // the access-pass contract
+// Effect or handler:
+const balance = (await read("balanceOf", [address])) as bigint;
 const hasAccess = balance > 0n; // only render gated content when true
 ```
 
-- Deploy the pass: `useAvaDeploy().deploy({ abi, bytecode })` (artifact in `lib/nft-artifact.ts`).
-- Mint a pass: `useContract({ address, abi }).write("mint", [])`.
+- A pending or failed read is **unknown**, not "no pass". Keep the demo's `Gate` state
+  (`checking` | `error` | `ready`): reset it to `checking` when the account or contract changes,
+  show the error with a retry instead of the locked view, and ignore answers for a previous account.
+- Deploy the pass: `useAvaDeploy().deploy({ abi, bytecode })` (artifact in `lib/nft-artifact.ts`),
+  then `useDeployedContract(...).remember(address)` (`lib/deployed-contract.ts`) so a reload keeps it.
+- Mint a pass: `write("mint", [])`.
 - To gate on a different token, point `useContract` at its address/ABI and adjust the threshold.
 
 ## Contract
