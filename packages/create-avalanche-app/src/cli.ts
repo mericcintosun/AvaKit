@@ -29,6 +29,7 @@ import {
   runPackageManagerQuietly,
 } from "./pm.js";
 import { TELEMETRY_DOCS_URL, Telemetry } from "./telemetry.js";
+import type { WizardResult } from "./ui/wizard.js";
 
 // The CLI's own version — read from package.json at runtime (single source of
 // truth, can never drift). dist/index.js ships next to package.json.
@@ -183,6 +184,56 @@ export function nextSteps(
   ];
 }
 
+/** The shell's status for a command the user stopped with Ctrl+C (128 + SIGINT). */
+export const INTERRUPTED_EXIT_CODE = 130;
+
+/** How the wizard ended. A type import only: the UI itself is loaded on demand. */
+export type WizardOutcome = WizardResult["outcome"];
+
+/** What the wizard's callbacks had done when it ended, as the CLI saw it. */
+export interface WizardProgress {
+  /** The project's directory name once scaffolding has started writing it; null before. */
+  projectName: string | null;
+  /** Whether that scaffold finished. */
+  scaffolded: boolean;
+  /** Whether the install succeeded; null when none ran to the end (skipped or not reached). */
+  installed: boolean | null;
+}
+
+/**
+ * The exit code for how the wizard ended, and the one line (if any) that tells
+ * the user what is on disk.
+ *
+ * - `failed`: 1. The wizard has already shown the error.
+ * - `declined`: 0. The user answered No to "Create the app now?"; nothing exists.
+ * - `interrupted`: 130, the shell's code for Ctrl+C, whatever was done by then, so
+ *   a `&&` chain stops. The line says whether a project directory exists.
+ * - `created`: 0, or 1 when the install failed (the wizard has said so).
+ *
+ * `toStderr` is true for the line of an unsuccessful run.
+ */
+export function wizardExit(
+  outcome: WizardOutcome,
+  progress: WizardProgress,
+): { code: number; line: string | null; toStderr: boolean } {
+  if (outcome === "failed") return { code: 1, line: null, toStderr: true };
+  if (outcome === "declined") return { code: 0, line: "Nothing was created.", toStderr: false };
+  if (outcome === "interrupted") {
+    const dir = progress.projectName === null ? null : `./${progress.projectName}`;
+    let line: string;
+    if (dir === null) line = "Cancelled. Nothing was created.";
+    else if (!progress.scaffolded) {
+      line = `Cancelled while ${dir} was being created: its files may be incomplete.`;
+    } else if (progress.installed === true) {
+      line = `Cancelled. The project was created in ${dir} and its dependencies are installed.`;
+    } else {
+      line = `Cancelled. The project was created in ${dir}, but its dependencies are not installed.`;
+    }
+    return { code: INTERRUPTED_EXIT_CODE, line, toStderr: true };
+  }
+  return { code: progress.installed === false ? 1 : 0, line: null, toStderr: false };
+}
+
 /** Show the one-time telemetry disclosure, if this user hasn't seen it yet. */
 function printFirstRunNotice(telemetry: Telemetry, stdout: Output): void {
   const notice = telemetry.firstRunNotice();
@@ -311,7 +362,9 @@ async function main(ctx: CliContext): Promise<number> {
   };
   // With nothing detected, lead with the manager the plain run falls back to.
   const preferredPm = detectedPm ?? DEFAULT_PACKAGE_MANAGER;
-  let installFailed = false;
+  // Kept by the callbacks below, so that however the wizard ends, the exit code
+  // and the last line can say what is on disk.
+  const progress: WizardProgress = { projectName: null, scaffolded: false, installed: null };
   const result = await runWizard({
     version: VERSION,
     templates: templates.map((t) => ({
@@ -338,6 +391,7 @@ async function main(ctx: CliContext): Promise<number> {
         telemetry.record({ ...choices, ok: false, errorKind: "dir-exists" });
         throw new Error(taken);
       }
+      progress.projectName = a.projectName;
       try {
         const { files } = await scaffoldApp({
           projectName: a.projectName,
@@ -346,6 +400,7 @@ async function main(ctx: CliContext): Promise<number> {
           chain: a.chain as ChainId,
           local: opts.local,
         });
+        progress.scaffolded = true;
         telemetry.record({ ...choices, ok: true });
         return { created: files.length };
       } catch (error) {
@@ -359,7 +414,7 @@ async function main(ctx: CliContext): Promise<number> {
             cwd: path.resolve(cwd, a.projectName),
             ...runOptions,
           });
-          installFailed = !install.ok;
+          progress.installed = install.ok;
           return install;
         }
       : null,
@@ -382,7 +437,14 @@ async function main(ctx: CliContext): Promise<number> {
   // terminal over and only returns when the user stops it, which could be hours.
   await telemetry.flush();
 
-  if (result.outcome === "failed") return 1;
+  // Failed, declined or interrupted: done here, with the line that says what
+  // exists. Ctrl+C at a prompt reaches the wizard as a key press rather than as
+  // SIGINT, so this is where it becomes the 130 a killed command would give.
+  const ending = wizardExit(result.outcome, progress);
+  if (ending.line) {
+    (ending.toStderr ? ctx.stderr : ctx.stdout).write(`\n${ending.line}\n`);
+  }
+  if (result.outcome !== "created") return ending.code;
 
   // The user opted in — run it for them (inherits the terminal; Ctrl+C stops it).
   if (result.start) {
@@ -401,7 +463,7 @@ async function main(ctx: CliContext): Promise<number> {
 
   // The wizard has already told the user that the install failed and what to
   // run; the exit code is how a wrapping script finds out.
-  return installFailed ? 1 : 0;
+  return ending.code;
 }
 
 export async function run(ctx: CliContext): Promise<number> {

@@ -60,9 +60,11 @@ export type WizardProps = StepContext & {
 export type WizardResult = {
   /**
    * `created`: the app was scaffolded (its install may still have failed).
-   * `failed`: scaffolding itself failed. `cancelled`: the user backed out.
+   * `failed`: scaffolding itself failed. `declined`: the user answered No to
+   * "Create the app now?", so nothing was written. `interrupted`: the wizard
+   * ended without reaching any of those (Ctrl+C), at whatever point it was.
    */
-  outcome: "created" | "failed" | "cancelled";
+  outcome: "created" | "failed" | "declined" | "interrupted";
   /** The command the user chose to run next, or null. */
   start: StartCommand | null;
 };
@@ -297,7 +299,7 @@ function App(props: AppProps) {
               <ConfirmInput
                 onConfirm={() => setPhase("scaffolding")}
                 onCancel={() => {
-                  props.onFinish({ outcome: "cancelled", start: null });
+                  props.onFinish({ outcome: "declined", start: null });
                   exit();
                 }}
               />
@@ -397,7 +399,8 @@ function App(props: AppProps) {
 
 /**
  * Render the interactive wizard and resolve with how it ended once it exits.
- * Leaving without finishing (Ctrl+C) counts as cancelled.
+ * Leaving without finishing counts as interrupted: at a prompt the terminal is
+ * in raw mode, so Ctrl+C arrives as a key press and Ink exits on it.
  *
  * @param renderOptions Ink render options; tests pass fake streams here.
  */
@@ -405,7 +408,7 @@ export async function runWizard(
   props: WizardProps,
   renderOptions?: RenderOptions,
 ): Promise<WizardResult> {
-  let result: WizardResult = { outcome: "cancelled", start: null };
+  let result: WizardResult = { outcome: "interrupted", start: null };
   const instance = render(
     <App
       {...props}

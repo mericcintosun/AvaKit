@@ -171,7 +171,7 @@ describe("wizard package manager step", () => {
     await term.waitFor("Create the app now?");
     expect(term.frame()).toMatch(/Package manager\s+yarn/);
     term.press("n");
-    await expect(done).resolves.toEqual({ outcome: "cancelled", start: null });
+    await expect(done).resolves.toEqual({ outcome: "declined", start: null });
   });
 });
 
@@ -297,7 +297,7 @@ describe("wizard project name step", () => {
     await term.waitFor("Create the app now?");
     expect(term.frame()).toMatch(/Project name\s+my-app-x/);
     term.press("n");
-    await expect(done).resolves.toEqual({ outcome: "cancelled", start: null });
+    await expect(done).resolves.toEqual({ outcome: "declined", start: null });
   });
 
   it("accepts a name the scaffolder accepts, capitals included", async () => {
@@ -330,5 +330,77 @@ describe("wizard project name step", () => {
     await term.waitFor("Create the app now?");
     term.press("n");
     await done;
+  });
+});
+
+describe("leaving the wizard", () => {
+  /** Ctrl+C as a terminal in raw mode delivers it: one byte of input, not a signal. */
+  const CTRL_C = "\u0003";
+
+  it("reports Ctrl+C at the first prompt as interrupted, before anything is scaffolded", async () => {
+    const scaffold = vi.fn(props().scaffold);
+    const term = fakeTerminal();
+    const done = runWizard(
+      props({ presets: { template: "minimal", chain: "fuji", pm: "pnpm" }, scaffold }),
+      // Ink's own Ctrl+C handling, which the real CLI keeps on.
+      { ...term.renderOptions, exitOnCtrlC: true },
+    );
+
+    await term.waitFor("Project name");
+    term.press(CTRL_C);
+    await expect(done).resolves.toEqual({ outcome: "interrupted", start: null });
+    expect(scaffold).not.toHaveBeenCalled();
+  });
+
+  it("reports Ctrl+C at the review as interrupted, not as a No", async () => {
+    const scaffold = vi.fn(props().scaffold);
+    const term = fakeTerminal();
+    const done = runWizard(
+      props({ presets: { projectName: "app", template: "minimal", chain: "fuji" }, scaffold }),
+      { ...term.renderOptions, exitOnCtrlC: true },
+    );
+
+    await term.waitFor("Package manager");
+    term.press(KEY.enter);
+    await term.waitFor("Create the app now?");
+    term.press(CTRL_C);
+    await expect(done).resolves.toEqual({ outcome: "interrupted", start: null });
+    expect(scaffold).not.toHaveBeenCalled();
+  });
+
+  it("reports Ctrl+C at the dev-server offer as interrupted, after the app was made", async () => {
+    const scaffold = vi.fn(props().scaffold);
+    const term = fakeTerminal();
+    const done = runWizard(props({ scaffold }), { ...term.renderOptions, exitOnCtrlC: true });
+
+    await term.waitFor("Start the dev server now?");
+    term.press(CTRL_C);
+    await expect(done).resolves.toEqual({ outcome: "interrupted", start: null });
+    expect(scaffold).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports No to the dev-server offer as created: a finished app, not a cancellation", async () => {
+    const term = fakeTerminal();
+    const done = runWizard(props(), term.renderOptions);
+
+    await term.waitFor("Start the dev server now?");
+    term.press("n");
+    await expect(done).resolves.toEqual({ outcome: "created", start: null });
+  });
+
+  it("reports No to the review as declined", async () => {
+    const scaffold = vi.fn(props().scaffold);
+    const term = fakeTerminal();
+    const done = runWizard(
+      props({ presets: { projectName: "app", template: "minimal", chain: "fuji" }, scaffold }),
+      term.renderOptions,
+    );
+
+    await term.waitFor("Package manager");
+    term.press(KEY.enter);
+    await term.waitFor("Create the app now?");
+    term.press("n");
+    await expect(done).resolves.toEqual({ outcome: "declined", start: null });
+    expect(scaffold).not.toHaveBeenCalled();
   });
 });
