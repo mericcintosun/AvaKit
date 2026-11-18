@@ -5,7 +5,7 @@ import {
   type WalletConnection,
 } from "@avakit/core";
 import { cChain, fuji } from "@avakit/core/chains";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Address, EIP1193Provider } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConnectAvalanche } from "./connect-avalanche.js";
@@ -267,6 +267,238 @@ describe("burner wallet on a mainnet chain", () => {
     await waitFor(() => {
       expect(injected.switchChain).toHaveBeenCalledWith(cChain);
     });
+  });
+});
+
+const OTHER_ADDRESS = "0x00000000000000000000000000000000000000A1" as Address;
+
+/**
+ * An EIP-1193 provider with a working event API, standing in for a browser
+ * wallet. `emit` plays the wallet's side: the user switching account or network,
+ * locking the wallet, or the session ending.
+ */
+function eventedWallet(initialAccounts: Address[] = [TEST_ADDRESS]) {
+  const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+  let accounts = initialAccounts;
+  const provider = {
+    request: vi.fn(async ({ method }: { method: string }) =>
+      method === "eth_accounts" ? accounts : null,
+    ),
+    on: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+      const set = listeners.get(event) ?? new Set();
+      set.add(listener);
+      listeners.set(event, set);
+    }),
+    removeListener: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+      listeners.get(event)?.delete(listener);
+    }),
+  };
+  return {
+    provider: provider as unknown as EIP1193Provider,
+    setAccounts(next: Address[]) {
+      accounts = next;
+    },
+    emit(event: string, ...args: unknown[]) {
+      for (const listener of [...(listeners.get(event) ?? [])]) {
+        listener(...args);
+      }
+    },
+    listenerCount() {
+      let count = 0;
+      for (const set of listeners.values()) count += set.size;
+      return count;
+    },
+  };
+}
+
+/** Connect `wallet` through a mock adapter and wait until the provider reports it. */
+async function renderConnected(
+  wallet: ReturnType<typeof eventedWallet>,
+  options: { chains?: AvaChain[]; adapter?: Partial<WalletAdapter> } = {},
+) {
+  const adapter = makeMockAdapter({
+    id: "injected",
+    name: "Browser Wallet",
+    connect: vi.fn(
+      async (): Promise<WalletConnection> => ({ address: TEST_ADDRESS, provider: wallet.provider }),
+    ),
+    getProvider: () => wallet.provider,
+    ...options.adapter,
+  });
+  const view = render(
+    <AvaKitProvider chains={options.chains ?? [fuji, cChain]} adapters={[adapter]}>
+      <AccountProbe />
+      <ChainProbe next={cChain} />
+    </AvaKitProvider>,
+  );
+  fireEvent.click(screen.getByText("connect"));
+  await waitFor(() => {
+    expect(screen.getByTestId("status").textContent).toBe("connected");
+  });
+  return { adapter, view };
+}
+
+// The wallet, not the app, decides which account and network are active. A
+// provider announces those changes as EIP-1193 events.
+describe("wallet events", () => {
+  it("follows an account switch made in the wallet", async () => {
+    const wallet = eventedWallet();
+    await renderConnected(wallet);
+    expect(screen.getByTestId("address").textContent).toBe(TEST_ADDRESS);
+
+    act(() => wallet.emit("accountsChanged", [OTHER_ADDRESS]));
+
+    expect(screen.getByTestId("address").textContent).toBe(OTHER_ADDRESS);
+    expect(screen.getByTestId("status").textContent).toBe("connected");
+  });
+
+  it("keeps the address when the wallet re-announces the same account in another case", async () => {
+    const wallet = eventedWallet();
+    await renderConnected(wallet);
+
+    act(() => wallet.emit("accountsChanged", [TEST_ADDRESS.toLowerCase()]));
+
+    expect(screen.getByTestId("address").textContent).toBe(TEST_ADDRESS);
+  });
+
+  it("disconnects when the wallet reports no accounts (locked or access revoked)", async () => {
+    const wallet = eventedWallet();
+    const { adapter } = await renderConnected(wallet);
+
+    act(() => wallet.emit("accountsChanged", []));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("disconnected");
+    });
+    expect(screen.getByTestId("address").textContent).toBe("none");
+    expect(screen.getByTestId("adapter").textContent).toBe("none");
+    expect(adapter.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows the wallet to another chain the app supports", async () => {
+    const wallet = eventedWallet();
+    await renderConnected(wallet);
+    expect(screen.getByTestId("chain").textContent).toBe(fuji.name);
+
+    act(() => wallet.emit("chainChanged", `0x${cChain.id.toString(16)}`));
+
+    expect(screen.getByTestId("chain").textContent).toBe(cChain.name);
+    expect(screen.getByTestId("status").textContent).toBe("connected");
+    expect(screen.getByTestId("address").textContent).toBe(TEST_ADDRESS);
+  });
+
+  it("stays on its chain when the wallet moves to one the app does not support", async () => {
+    const wallet = eventedWallet();
+    await renderConnected(wallet);
+
+    act(() => wallet.emit("chainChanged", "0x1"));
+
+    expect(screen.getByTestId("chain").textContent).toBe(fuji.name);
+    expect(screen.getByTestId("status").textContent).toBe("connected");
+  });
+
+  it("disconnects when the wallet ends the session", async () => {
+    const wallet = eventedWallet();
+    const { adapter } = await renderConnected(wallet);
+
+    act(() => wallet.emit("disconnect", { code: 4900, message: "Disconnected" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("disconnected");
+    });
+    expect(screen.getByTestId("address").textContent).toBe("none");
+    expect(adapter.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  // MetaMask emits `disconnect` with code 1013 while it is merely reconnecting
+  // to its network; the user is still signed in.
+  it("keeps the session through a recoverable disconnect while accounts remain", async () => {
+    const wallet = eventedWallet();
+    const { adapter } = await renderConnected(wallet);
+
+    await act(async () => {
+      wallet.emit("disconnect", { code: 1013, message: "Attempting to connect." });
+    });
+
+    expect(wallet.provider.request).toHaveBeenCalledWith({ method: "eth_accounts" });
+    expect(screen.getByTestId("status").textContent).toBe("connected");
+    expect(screen.getByTestId("address").textContent).toBe(TEST_ADDRESS);
+    expect(adapter.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("drops the session on a recoverable disconnect once the accounts are gone", async () => {
+    const wallet = eventedWallet();
+    await renderConnected(wallet);
+    wallet.setAccounts([]);
+
+    await act(async () => {
+      wallet.emit("disconnect", { code: 1013, message: "Attempting to connect." });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("disconnected");
+    });
+  });
+
+  it("stops listening once disconnected, and when unmounted while connected", async () => {
+    const wallet = eventedWallet();
+    const { view } = await renderConnected(wallet);
+    expect(wallet.listenerCount()).toBe(3);
+
+    fireEvent.click(screen.getByText("disconnect"));
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("disconnected");
+    });
+    expect(wallet.listenerCount()).toBe(0);
+
+    // A late event from the wallet must not resurrect the old account.
+    act(() => wallet.emit("accountsChanged", [OTHER_ADDRESS]));
+    expect(screen.getByTestId("address").textContent).toBe("none");
+
+    fireEvent.click(screen.getByText("connect"));
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("connected");
+    });
+    expect(wallet.listenerCount()).toBe(3);
+    view.unmount();
+    expect(wallet.listenerCount()).toBe(0);
+  });
+
+  it("tears down once when the adapter's own logout makes the wallet emit disconnect", async () => {
+    const wallet = eventedWallet();
+    const disconnect = vi.fn(async () => {
+      // An embedded wallet's logout announces the end of the session itself.
+      wallet.emit("accountsChanged", []);
+      wallet.emit("disconnect", { code: 4900, message: "Disconnected" });
+    });
+    await renderConnected(wallet, { adapter: { disconnect } });
+
+    fireEvent.click(screen.getByText("disconnect"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("disconnected");
+    });
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("connects wallets whose provider has no event API", async () => {
+    const provider = { request: vi.fn(async () => null) } as unknown as EIP1193Provider;
+    const adapter = makeMockAdapter({
+      connect: vi.fn(async (): Promise<WalletConnection> => ({ address: TEST_ADDRESS, provider })),
+      getProvider: () => provider,
+    });
+    render(
+      <AvaKitProvider chains={[fuji]} adapters={[adapter]}>
+        <AccountProbe />
+      </AvaKitProvider>,
+    );
+
+    fireEvent.click(screen.getByText("connect"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("status").textContent).toBe("connected");
+    });
+    expect(screen.getByTestId("address").textContent).toBe(TEST_ADDRESS);
   });
 });
 

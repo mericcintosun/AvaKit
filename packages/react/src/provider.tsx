@@ -111,8 +111,11 @@ export function AvaKitProvider({
   const [error, setError] = useState<Error | null>(null);
   const autoBurnerTried = useRef(false);
   const fundedAddresses = useRef<Set<string>>(new Set());
+  const teardown = useRef<Promise<void> | null>(null);
   // Read through a ref so `connect` keeps its identity when the chain changes.
   const chainRef = useLatest(chain);
+  // `chains` is usually an inline array, new on every render of the parent.
+  const chainsRef = useLatest(chains);
 
   const connect = useCallback(
     async (adapterId?: string) => {
@@ -145,20 +148,106 @@ export function AvaKitProvider({
   );
 
   const disconnect = useCallback(async () => {
-    const adapter = adapters.find((a) => a.id === activeAdapterId);
-    if (adapter) {
-      try {
-        await adapter.disconnect();
-      } catch {
-        // best-effort
-      }
+    // One teardown at a time. An adapter's own logout can make the wallet emit
+    // `disconnect` / `accountsChanged([])`, and the wallet listeners below
+    // answer those events by calling this again.
+    if (teardown.current) {
+      return teardown.current;
     }
-    setAddress(null);
-    setProvider(null);
-    setStatus("disconnected");
-    setActiveAdapterId(null);
+    // Mark the teardown as running before the adapter is touched: its
+    // disconnect() may emit those events synchronously.
+    let finish: () => void = () => {};
+    teardown.current = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    try {
+      const adapter = adapters.find((a) => a.id === activeAdapterId);
+      if (adapter) {
+        try {
+          await adapter.disconnect();
+        } catch {
+          // best-effort
+        }
+      }
+      setAddress(null);
+      setProvider(null);
+      setStatus("disconnected");
+      setActiveAdapterId(null);
+    } finally {
+      teardown.current = null;
+      finish();
+    }
   }, [adapters, activeAdapterId]);
   const disconnectRef = useLatest(disconnect);
+
+  // Follow what the user does in the wallet itself. EIP-1193 providers announce
+  // account switches, network switches and the end of a session; without these
+  // listeners the app keeps showing, and signing with, an account the wallet has
+  // already moved on from. Adapter-agnostic: it only needs the provider.
+  useEffect(() => {
+    if (status !== "connected" || !provider) {
+      return;
+    }
+    if (typeof provider.on !== "function" || typeof provider.removeListener !== "function") {
+      return;
+    }
+    let live = true;
+
+    const onAccountsChanged = (accounts: readonly Address[]) => {
+      if (!Array.isArray(accounts)) {
+        return;
+      }
+      const next = accounts[0];
+      if (!next) {
+        // The wallet was locked or the site's access revoked: nothing is
+        // connected any more.
+        void disconnectRef.current();
+        return;
+      }
+      // Wallets report addresses in either case; only a different account counts.
+      setAddress((current) => (current?.toLowerCase() === next.toLowerCase() ? current : next));
+    };
+
+    const onChainChanged = (chainId: string | number) => {
+      const id = Number(chainId);
+      const next = chainsRef.current.find((c) => c.id === id);
+      // Follow the wallet to another chain this app supports. A chain it does
+      // not support is left alone: the app keeps its chain, and the next
+      // transaction reports the mismatch instead of being sent somewhere else.
+      if (next) {
+        setChain((current) => (current.id === id ? current : next));
+      }
+    };
+
+    const onDisconnect = (reason?: { code?: number }) => {
+      // MetaMask emits code 1013 while it is only reconnecting to its network.
+      // The session survives that, so drop it only if the accounts are gone.
+      if (reason?.code === 1013) {
+        provider.request({ method: "eth_accounts" }).then(
+          (accounts) => {
+            if (live && accounts.length === 0) {
+              void disconnectRef.current();
+            }
+          },
+          () => {
+            // Cannot tell yet; keep the session, as the wallet says it is recoverable.
+          },
+        );
+        return;
+      }
+      void disconnectRef.current();
+    };
+
+    provider.on("accountsChanged", onAccountsChanged);
+    provider.on("chainChanged", onChainChanged);
+    provider.on("disconnect", onDisconnect);
+    return () => {
+      live = false;
+      provider.removeListener("accountsChanged", onAccountsChanged);
+      provider.removeListener("chainChanged", onChainChanged);
+      provider.removeListener("disconnect", onDisconnect);
+    };
+  }, [status, provider, chainsRef, disconnectRef]);
 
   // Keep the connected wallet on the active chain (Web3Auth defaults to
   // Sepolia; injected wallets may be elsewhere). Embedded wallets switch via
@@ -201,9 +290,9 @@ export function AvaKitProvider({
     }
     const hasInjected =
       typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
-    if (!hasInjected && !isMainnet(chain) && adapters.some((a) => a.id === "burner")) {
+    if (!hasInjected && !isMainnet(chain) && adapters.some((a) => a.id === BURNER_ADAPTER_ID)) {
       autoBurnerTried.current = true;
-      void connect("burner");
+      void connect(BURNER_ADAPTER_ID);
     }
   }, [autoConnect, status, adapters, connect, chain]);
 
@@ -214,7 +303,7 @@ export function AvaKitProvider({
       !faucetUrl ||
       status !== "connected" ||
       !address ||
-      activeAdapterId !== "burner" ||
+      activeAdapterId !== BURNER_ADAPTER_ID ||
       isMainnet(chain)
     ) {
       return;
