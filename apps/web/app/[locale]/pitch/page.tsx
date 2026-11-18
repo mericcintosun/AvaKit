@@ -18,6 +18,7 @@ import Image from "next/image";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { NFT_MINT_FILE_COUNT } from "@/lib/content";
 
 /* AvaKit pitch deck — a standalone, presentation-style page (no nav, no buttons).
    Full-screen scroll-snap slides with animated content. 8 slides.
@@ -95,15 +96,17 @@ function R({
 const SURFACES = [
   { icon: Boxes, name: "@avakit/core", note: "viem kernel: wallets, deploy, data" },
   { icon: Wallet, name: "@avakit/react", note: "<ConnectAvalanche> + hooks" },
-  { icon: Terminal, name: "create-avalanche-app", note: "batteries-included scaffolder" },
+  { icon: Terminal, name: "create-avalanche-app", note: "one-command scaffolder, 8 templates" },
   { icon: Bot, name: "@avakit/mcp", note: "scaffold, deploy + mint from coding agents" },
   { icon: LayoutDashboard, name: "@avakit/studio", note: "local L1 / ICM dev dashboard" },
 ];
 
-// Slide 04's terminal: lines the create-avalanche-app wizard prints for this
-// command, copied from a real run (see src/ui/wizard.tsx in that package). The
-// file count is what the nft-mint template scaffolds today; recount it when the
-// template changes. Nothing the CLI does not print belongs here.
+// Slide 04's terminal: the lines the create-avalanche-app wizard prints in its
+// result panel for this command with the nft-mint template (see
+// src/ui/wizard.tsx in that package: the four settings padded to one column,
+// then the two checkmarks and the closing line). The file count is
+// NFT_MINT_FILE_COUNT, shared with the landing page. Nothing the CLI does not
+// print belongs here.
 const WIZARD_OUTPUT = `$ npm create avalanche-app@latest my-app
 
 Project name    my-app
@@ -111,7 +114,7 @@ Template        NFT mint
 Network         Fuji testnet
 Package manager npm
 
-✓ Created 20 files
+✓ Created ${NFT_MINT_FILE_COUNT} files
 ✓ Dependencies installed
 
 Your Avalanche dapp is ready.`;

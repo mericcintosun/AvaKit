@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { usePrefersReducedMotion } from "@/components/use-media-query";
 import { Link } from "@/i18n/navigation";
+import { NFT_MINT_FILE_COUNT } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
 /* Standalone, playful terminal-themed page.
@@ -41,15 +42,15 @@ type Tone = "muted" | "ok" | "brand";
 // It follows the real wizard in packages/create-avalanche-app/src/ui/wizard.tsx:
 // its four settings with the same labels and displayed values, then the result
 // lines and next steps it prints. Keep the two in step — in particular the file
-// count, which is what the nft-mint template scaffolds today (every file under
-// templates/nft-mint except manifest.json), and the package manager, which is
-// npm because the command above is `npm create`.
+// count, which is what the nft-mint template scaffolds (NFT_MINT_FILE_COUNT in
+// lib/content.ts, shared with the hero terminal and the pitch deck), and the
+// package manager, which is npm because the command above is `npm create`.
 const OUTPUT: { text: string; tone: Tone; icon: string }[] = [
   { icon: "◇", text: "Project name › my-app", tone: "muted" },
   { icon: "◇", text: "Template › NFT mint", tone: "muted" },
   { icon: "◇", text: "Network › Fuji testnet", tone: "muted" },
   { icon: "◇", text: "Package manager › npm", tone: "muted" },
-  { icon: "✓", text: "Created 20 files", tone: "ok" },
+  { icon: "✓", text: `Created ${NFT_MINT_FILE_COUNT} files`, tone: "ok" },
   { icon: "✓", text: "Dependencies installed", tone: "ok" },
   { icon: "▲", text: "Your Avalanche dapp is ready.", tone: "brand" },
   { icon: "$", text: "cd my-app && npm run dev", tone: "muted" },

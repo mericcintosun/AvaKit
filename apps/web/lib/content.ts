@@ -31,6 +31,19 @@ export const site = {
 // Language-invariant command shown across the site.
 const CREATE_COMMAND = "npm create avalanche-app@latest";
 
+/**
+ * The number in the "Created N files" line that `create-avalanche-app` prints
+ * for the nft-mint template. The hero terminal, the /terminal replay and the
+ * pitch deck all show that line, and all read the number from here.
+ *
+ * It is every file under packages/create-avalanche-app/templates/nft-mint
+ * except manifest.json (which is not copied). Recount whenever that template
+ * gains or loses a file:
+ *
+ *   find packages/create-avalanche-app/templates/nft-mint -type f ! -name manifest.json | wc -l
+ */
+export const NFT_MINT_FILE_COUNT = 20;
+
 // The landing plays a muted, silent preview of the walkthrough (public/
 // avakittutorial.mp4). This is the full, narrated version on YouTube — set the
 // URL (env or here) to reveal a "Watch on YouTube" link under the preview.
@@ -210,13 +223,12 @@ const EN: Strings = {
     // Mirrors what the CLI prints for nft-mint (see create-avalanche-app's
     // wizard): its three choices, its two checkmarks, then the next steps. The
     // package manager is npm because the command above them is `npm create`,
-    // and the file count is what the template scaffolds today: every file under
-    // templates/nft-mint except manifest.json. Recount when that template changes.
+    // and the file count is NFT_MINT_FILE_COUNT (see there for how to recount).
     terminal: [
       "Template · NFT mint",
       "Network · Fuji testnet",
       "Package manager · npm",
-      "Created 20 files",
+      `Created ${NFT_MINT_FILE_COUNT} files`,
       "Dependencies installed",
       "cd my-app && npm run dev",
       "Local: http://localhost:3000",
@@ -601,7 +613,7 @@ const TR: Strings = {
       "Şablon · NFT mint",
       "Ağ · Fuji testnet",
       "Paket yöneticisi · npm",
-      "20 dosya oluşturuldu",
+      `${NFT_MINT_FILE_COUNT} dosya oluşturuldu`,
       "Bağımlılıklar kuruldu",
       "cd my-app && npm run dev",
       "Yerel: http://localhost:3000",
