@@ -218,10 +218,12 @@ export function ScrollVideo({
           }}
           // A new `src` empties the element until that clip has loaded.
           onEmptied={() => setHasFrame(false)}
-          // With no frame to show the video stays out of the picture, so the
-          // poster under it is what is seen, whatever a browser paints for an
-          // empty video; once it has one it covers the poster.
-          className={cn(videoClassName, !hasFrame && "invisible")}
+          // With no frame to show the video is transparent, so the poster under
+          // it is what is seen, whatever a browser paints for an empty video;
+          // once it has one it covers the poster. Opacity rather than
+          // `visibility`, so the element still counts as on screen to a
+          // browser that holds back media it considers hidden.
+          className={cn(videoClassName, !hasFrame && "opacity-0")}
         />
         <div className="from-background/50 via-background/25 to-background/60 pointer-events-none absolute inset-0 bg-gradient-to-b" />
         <div className="bg-background/10 pointer-events-none absolute inset-0" />
