@@ -41,15 +41,41 @@ exchange is also what produces the **provenance attestation** on each tarball
 
 4. **Verify.** `npm view <pkg> version`, and smoke-test the real thing in a clean dir:
    ```bash
-   AVAKIT_TELEMETRY_DISABLED=1 npm create avalanche-app@latest my-app
-   cd my-app && pnpm install && pnpm build
+   AVAKIT_TELEMETRY_DISABLED=1 npm create avalanche-app@latest my-app -- --template nft-mint --yes
+   cd my-app && npm run build
    ```
-   Keep `AVAKIT_TELEMETRY_DISABLED=1` on that command. A maintainer checking a release
-   is not someone using AvaKit, and without it the run is counted as a scaffold on
-   avakit.dev/stats. `SMOKE_USE_NPM=1 scripts/smoke-template.sh <template>` is the
-   scripted variant: it scaffolds with the locally built CLI, installs the published
-   `@avakit/*` versions that CLI pins, then type-checks and builds, with telemetry
-   already off.
+   The CLI installs the dependencies itself, with the package manager that launched it
+   (npm here). Keep `AVAKIT_TELEMETRY_DISABLED=1` on that command. A maintainer checking
+   a release is not someone using AvaKit, and without it the run is counted as a
+   scaffold on avakit.dev/stats. Two scripted variants, both with telemetry already off:
+   - `SMOKE_USE_NPM=1 scripts/smoke-template.sh <template>` scaffolds with the locally
+     built CLI, installs the published `@avakit/*` versions that CLI pins, then
+     type-checks and builds.
+   - `node scripts/e2e-fuji.mjs --source npm --skip-chain` starts the published
+     `@avakit/mcp` with npx, has it scaffold `nft-mint`, and installs and builds the app
+     with npm. Without `--skip-chain` it also deploys and mints on Fuji, which takes one
+     drip from the shared faucet. The **E2E · Fuji · published packages** workflow
+     (`.github/workflows/e2e-fuji.yml`) runs the same script daily and on demand
+     (**Run workflow**, with the version to test) on fresh Linux, macOS and Windows
+     runners; see [`CONTRIBUTING.md`](./CONTRIBUTING.md#end-to-end-run-on-fuji).
+
+5. **Republish the MCP Registry listing by hand.** See the next section.
+
+## What an npm release does not do
+
+- **The MCP Registry listing.** The version PR already carries the new version in
+  `packages/mcp/server.json`, but changing that file does not change the live listing
+  (`dev.avakit/avalanche`). After `@avakit/mcp` is on npm, publish the listing with
+  `mcp-publisher` from your own machine; the steps, and where the signing key lives, are
+  in [`packages/mcp/REGISTRIES.md`](packages/mcp/REGISTRIES.md). It stays manual so that
+  the release pipeline holds no token.
+- **The two Cloudflare Workers.** `services/faucet` and `services/telemetry` are
+  standalone npm projects outside the pnpm workspace. No workflow deploys them: each is
+  deployed by hand with `npx wrangler deploy` from its own directory, following its
+  `README.md`. Code merged to `main` under `services/` is therefore not running until
+  someone deploys it. On 2026-11-18 the faucet and telemetry changes of the review
+  rounds were in the repository and not deployed (see `docs/KNOWN-GAPS.md`).
+- **The website.** `apps/web` is private and is not published to npm.
 
 ## Nothing is published from a red tree
 
@@ -121,15 +147,23 @@ changesets should log `No unpublished projects to publish` and go green. If it's
 - `@avakit/studio` — `dist/` only (the UI is bundled into it; npm adds `README.md` +
   `LICENSE` regardless of `files[]`). Bin: `avakit-studio`.
 - `create-avalanche-app` — `dist/` + `templates/`, `README.md`, `LICENSE`. Bin:
-  `create-avalanche-app`.
+  `create-avalanche-app`. `files` in its `package.json` also excludes what tools leave
+  behind inside a template directory (`node_modules`, `.next`, `.turbo`, Foundry's
+  `contracts/out`, `cache` and `broadcast`, and `.env` files), so a publish from a
+  checkout that has built or run a template does not ship them. `src/pack.test.ts`
+  checks the packed file list.
 
 `pnpm` rewrites `workspace:*` dependencies to the real published versions in the
 tarballs, so `@avakit/react`'s dependency on `@avakit/core` resolves for consumers.
 
 ## Notes
 
-- Node `>=20.11` is declared via `engines`.
+- Node `>=20.11` is declared via `engines`. The scaffolder reads that floor from its own
+  `package.json` and refuses to run below it; on Node 20 and 21 it runs after one
+  warning. The published flow is run on Node 22 and 24 (`e2e-fuji.yml`).
 - `files[]` in `package.json` **overrides `.gitignore`** — if a package needs to exclude
-  something from its tarball, use `.npmignore`. (This once shipped a stray tarball.)
+  something from its tarball, add a negated pattern (`"!templates/**/.next/**"`) to
+  `files` itself, as `create-avalanche-app` does. Its old `.npmignore` is gone. (This
+  once shipped stray Foundry build output inside a template.)
 - `@avakit/core` injects its own version at build time, so `VERSION` is only correct in
   built artifacts, not when running from source.
