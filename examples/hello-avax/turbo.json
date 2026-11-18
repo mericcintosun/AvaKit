@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "typecheck": {
+      // Same race as the website: `tsc --noEmit` reads .next/types while
+      // `next build` rewrites it. Running typecheck after this package's own
+      // build removes it.
+      "dependsOn": ["build"]
+    }
+  }
+}
