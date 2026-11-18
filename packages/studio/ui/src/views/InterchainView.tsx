@@ -1,14 +1,24 @@
 import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { api, apiPost, type IcmChain, type IcmState } from "../api";
+import { api, apiPost, type IcmChain, type IcmSendResult, type IcmState } from "../api";
 import { CopyButton } from "../components/copy-button";
 import { useToast } from "../components/toast";
 import { Dot } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
+import { NativeSelect } from "../components/ui/native-select";
+import {
+  hasArrived,
+  messageBytes,
+  messageProblem,
+  type Pair,
+  resolvePair,
+  withFrom,
+  withTo,
+} from "../lib/interchain";
 import { shortHex } from "../lib/utils";
 
-type InFlight = { message: string; to: string };
+type InFlight = { message: string; to: string; receivedBefore: number | null };
 
 function MessengerCard({ chain, incoming }: { chain: IcmChain; incoming: boolean }) {
   return (
@@ -38,20 +48,25 @@ export function InterchainView() {
   const toast = useToast();
   const [icm, setIcm] = useState<IcmState | null>(null);
   const [busy, setBusy] = useState<null | "deploy" | "send">(null);
-  const [from, setFrom] = useState("");
+  const [picked, setPicked] = useState<Partial<Pair>>({});
   const [msg, setMsg] = useState("gm from the other chain");
   const [inFlight, setInFlight] = useState<InFlight | null>(null);
 
+  // The server lists only running, Teleporter-ready local L1s. Any two of them
+  // that have a messenger can exchange a message; the rest still need a deploy.
   const chains = icm?.chains ?? [];
-  const bothDeployed = chains.length >= 2 && chains.every((c) => c.messenger);
-  const source = chains.find((c) => c.name === from) ?? chains[0];
-  const destination = chains.find((c) => c.name !== source?.name);
+  const missing = chains.filter((c) => !c.messenger);
+  const sendable = chains.filter((c) => c.messenger);
+  const pair = resolvePair(
+    sendable.map((c) => c.name),
+    picked,
+  );
+  const from = pair?.from ?? null;
+  const to = pair?.to ?? null;
 
   const refresh = useCallback(async () => {
     try {
-      const next = await api<IcmState>("/api/icm/state");
-      setIcm(next);
-      setFrom((f) => f || next.chains[0]?.name || "");
+      setIcm(await api<IcmState>("/api/icm/state"));
     } catch {
       /* keep last */
     }
@@ -69,7 +84,7 @@ export function InterchainView() {
   useEffect(() => {
     if (!inFlight || !icm) return;
     const dest = icm.chains.find((c) => c.name === inFlight.to);
-    if (dest?.lastMessage === inFlight.message) {
+    if (dest && hasArrived(inFlight, dest)) {
       toast({
         title: "Delivered",
         description: `“${inFlight.message}” arrived on ${inFlight.to}.`,
@@ -85,7 +100,7 @@ export function InterchainView() {
       setIcm(await apiPost<IcmState>("/api/icm/deploy"));
       toast({
         title: "Messengers deployed",
-        description: "One on each L1. Now send a message.",
+        description: "One on each L1, linked to each other. Now send a message.",
         variant: "success",
       });
     } catch (e) {
@@ -100,14 +115,14 @@ export function InterchainView() {
   }, [toast]);
 
   const send = useCallback(async () => {
-    if (!source || !destination) return;
+    if (!from || !to) return;
     setBusy("send");
     try {
-      await apiPost("/api/icm/send", { from: source.name, to: destination.name, message: msg });
-      setInFlight({ message: msg, to: destination.name });
+      const sent = await apiPost<IcmSendResult>("/api/icm/send", { from, to, message: msg });
+      setInFlight({ message: msg, to, receivedBefore: sent.receivedBefore });
       toast({
         title: "Message sent",
-        description: `Relayer is delivering to ${destination.name}…`,
+        description: `Relayer is delivering to ${to}…`,
         variant: "info",
       });
     } catch (e) {
@@ -120,19 +135,39 @@ export function InterchainView() {
       setBusy(null);
       void refresh();
     }
-  }, [source, destination, msg, refresh, toast]);
+  }, [from, to, msg, refresh, toast]);
 
-  if (!icm?.ready) {
+  if (!icm) {
+    return (
+      <Card className="p-5">
+        <p className="text-muted-foreground text-sm">Looking for running L1s…</p>
+      </Card>
+    );
+  }
+
+  if (!icm.ready) {
     return (
       <Card className="p-5">
         <p className="text-sm font-medium">No running devnet</p>
         <p className="text-muted-foreground mt-1 text-sm">
+          {chains.length === 1 ? (
+            <>
+              Only <span className="font-mono">{chains[0]?.name}</span> is running with Interchain
+              Messaging — a message needs two L1s.{" "}
+            </>
+          ) : null}
           Go to <span className="font-medium">Devnet</span> and spin up (or start) a network with
           two L1s — then come back here to send a message across chains.
         </p>
       </Card>
     );
   }
+
+  const problem = messageProblem(msg, icm.maxMessageBytes);
+  const deployLabel =
+    chains.length === 2 && missing.length === 2
+      ? "Deploy messengers on both chains"
+      : `Deploy the messenger on ${missing.map((c) => c.name).join(", ")}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,53 +177,77 @@ export function InterchainView() {
         ))}
       </div>
 
-      {!bothDeployed ? (
+      {missing.length > 0 && (
         <Card className="flex flex-col gap-3 p-5">
           <div>
             <p className="text-sm font-medium">Deploy the messenger</p>
             <p className="text-muted-foreground mt-1 text-sm">
               One <span className="font-mono">AvaKitMessenger</span> per L1 — it both sends and
-              receives. Studio deploys it for you with the local dev key.
+              receives. Studio deploys it for you with the local dev key, and links the messengers
+              so they accept each other's messages.
             </p>
           </div>
-          <Button size="sm" disabled={busy === "deploy"} onClick={deploy} className="self-start">
-            {busy === "deploy" ? "Deploying…" : "Deploy messengers on both chains"}
+          <Button size="sm" disabled={busy !== null} onClick={deploy} className="self-start">
+            {busy === "deploy" ? "Deploying…" : deployLabel}
           </Button>
         </Card>
-      ) : (
+      )}
+
+      {pair && (
         <Card className="flex flex-col gap-3 p-5">
-          <div className="text-muted-foreground flex items-center gap-2 text-xs">
-            <span className="font-mono">{source?.name}</span>
-            <ArrowRight className="size-3" />
-            <span className="font-mono">{destination?.name}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <NativeSelect
+              aria-label="Source chain"
+              value={pair.from}
+              disabled={busy === "send"}
+              onChange={(e) => setPicked(withFrom(pair, e.target.value))}
+            >
+              {sendable.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </NativeSelect>
+            <ArrowRight className="text-muted-foreground size-4" aria-hidden="true" />
+            <NativeSelect
+              aria-label="Destination chain"
+              value={pair.to}
+              disabled={busy === "send"}
+              onChange={(e) => setPicked(withTo(pair, e.target.value))}
+            >
+              {sendable.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </NativeSelect>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy === "send"}
+              onClick={() => setPicked({ from: pair.to, to: pair.from })}
+            >
+              Swap
+            </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             <input
               value={msg}
               onChange={(e) => setMsg(e.target.value)}
               placeholder="Message to send cross-chain"
+              aria-label="Message"
+              aria-invalid={problem !== null && msg !== ""}
               className="border-input bg-background min-w-0 flex-1 rounded-md border px-3 py-2 text-sm outline-none"
             />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy === "send"}
-              onClick={() => {
-                if (!source || !destination) return;
-                setFrom(destination.name);
-                toast({
-                  title: "Direction swapped",
-                  description: `${destination.name} → ${source.name}`,
-                  variant: "info",
-                });
-              }}
-            >
-              Swap
-            </Button>
-            <Button size="sm" disabled={busy === "send" || !msg} onClick={send}>
+            <Button size="sm" disabled={busy !== null || problem !== null} onClick={send}>
               {busy === "send" ? "Sending…" : "Send"}
             </Button>
           </div>
+          <p className="text-muted-foreground text-xs">
+            {problem && msg !== ""
+              ? problem
+              : `${messageBytes(msg)} / ${icm.maxMessageBytes} bytes`}
+          </p>
           {inFlight && (
             <p className="flex items-center gap-2 text-sm">
               <span className="bg-foreground size-2 animate-ping rounded-full" />

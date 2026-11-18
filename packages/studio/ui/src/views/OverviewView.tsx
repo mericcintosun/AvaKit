@@ -18,7 +18,8 @@ export function OverviewView({
   const l1s = status?.l1s ?? [];
   const running = status?.running ?? false;
   const runningCount = l1s.filter((l) => l.running).length;
-  const icmReady = runningCount >= 2;
+  // Same rule as the Interchain view: a message needs two running L1s that have Teleporter.
+  const icmReady = l1s.filter((l) => l.running && l.teleporterReady).length >= 2;
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
