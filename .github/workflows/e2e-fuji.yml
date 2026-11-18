@@ -136,10 +136,12 @@ jobs:
             console.log("Minted: " + chain.mintTxHash + " on contract " + chain.contractAddress);
           '
 
+      # Every run of the script writes its summary, pass or fail. A leg with no
+      # summary did not run the script to its end, and is not a pass.
       - name: Upload the summary
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-fuji-${{ matrix.os }}-node${{ matrix.node }}
           path: e2e-summary.json
-          if-no-files-found: warn
+          if-no-files-found: error

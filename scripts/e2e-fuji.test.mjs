@@ -1230,6 +1230,8 @@ test("the workflow uses Node.js and npm only, holds no secret and retries nothin
   // A red leg stays red: nothing lets a failure pass or runs the script again.
   assert.doesNotMatch(e2e, /continue-on-error|retry|max-attempts/i);
   assert.match(e2e, /^ {6}fail-fast: false$/m);
+  // A leg whose script wrote no summary did not finish, and is not green.
+  assert.match(e2e, /^ {10}path: e2e-summary\.json\n {10}if-no-files-found: error$/m);
   assert.match(e2e, /^ {2}workflow_dispatch:\n {4}inputs:\n {6}version:/m);
   assert.match(e2e, /^ {2}schedule:\n(?: *\n)* {4}- cron: /m);
 });
