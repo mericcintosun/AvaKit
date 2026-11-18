@@ -32,10 +32,15 @@ const FOUNDRY_OUTPUT = new Set(["out", "cache", "broadcast"]);
  * Whether an entry in a template directory is something a tool or a developer
  * left there, rather than part of the template.
  *
- * The published package never contains these (.npmignore, and a clean checkout
- * in CI), but a scaffold from a working checkout copied them all: megabytes of
- * compiler output, and a local `.env`, which can hold a key. Templates ship
- * their example as `env.example`, so a dotted env file is never one of ours.
+ * A scaffold from a working checkout copied them all: megabytes of compiler
+ * output, and a local `.env`, which can hold a key. Templates ship their
+ * example as `env.example`, so a dotted env file is never one of ours.
+ *
+ * The published package is kept free of the same things by the negated entries
+ * of `files` in package.json, which pack.test.ts holds to this list. Nothing
+ * else did it: a publish from a working tree packed them, because `files` wins
+ * over a root `.npmignore`, and only a clean checkout in CI happened to have
+ * none. Change the two lists together.
  */
 function isLeftBehind(name: string, inContracts: boolean): boolean {
   if (BUILD_OUTPUT.has(name)) return true;

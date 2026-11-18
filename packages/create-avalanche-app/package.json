@@ -15,7 +15,16 @@
   },
   "files": [
     "dist",
-    "templates"
+    "templates",
+    "!templates/**/node_modules/**",
+    "!templates/**/.next/**",
+    "!templates/**/.turbo/**",
+    "!templates/**/contracts/out/**",
+    "!templates/**/contracts/cache/**",
+    "!templates/**/contracts/broadcast/**",
+    "!templates/**/.env",
+    "!templates/**/.env.*",
+    "templates/**/.env.example"
   ],
   "publishConfig": {
     "access": "public"
