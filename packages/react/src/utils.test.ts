@@ -1,5 +1,24 @@
+import {
+  BaseError,
+  InsufficientFundsError,
+  RpcRequestError,
+  TransactionExecutionError,
+  UserRejectedRequestError,
+} from "viem";
 import { describe, expect, it } from "vitest";
 import { cn, humanizeError, shortenAddress } from "./utils.js";
+
+const REJECTED = "You rejected the request in your wallet.";
+const FUND_IT = "Not enough native balance to cover gas. Fund this wallet and try again.";
+
+/** What viem throws from sendTransaction / writeContract, wrapping `cause`. */
+function transactionError(cause: BaseError): TransactionExecutionError {
+  return new TransactionExecutionError(cause, {
+    account: { address: "0x000000000000000000000000000000000000dEaD", type: "json-rpc" },
+    to: "0x00000000000000000000000000000000000000A1",
+    value: 0n,
+  });
+}
 
 describe("cn", () => {
   it("merges class names and resolves Tailwind conflicts (last wins)", () => {
@@ -33,6 +52,70 @@ describe("humanizeError", () => {
 
   it("recognizes insufficient funds", () => {
     expect(humanizeError(new Error("insufficient funds for gas"))).toContain("Fund this wallet");
+  });
+
+  // viem's short message for an unfunded sender reads "The total cost (gas * gas
+  // fee + value) of executing this transaction exceeds the balance of the
+  // account." — no "insufficient funds" in it, so the old text match missed the
+  // very error an empty burner wallet produces.
+  it("recognizes viem's insufficient-funds error from a real send", () => {
+    const fromNode = new RpcRequestError({
+      body: { method: "eth_estimateGas" },
+      url: "https://api.avax-test.network/ext/bc/C/rpc",
+      error: {
+        code: -32000,
+        message: "insufficient funds for gas * price + value: balance 0, tx cost 21000000000000",
+      },
+    });
+    const error = transactionError(new InsufficientFundsError({ cause: fromNode }));
+
+    expect(error.shortMessage).not.toMatch(/insufficient funds/i);
+    expect(humanizeError(error)).toBe(FUND_IT);
+  });
+
+  it("recognizes insufficient funds from the node's wording kept in details", () => {
+    // A wrapper viem did not classify: only `details` still says what happened.
+    const error = new BaseError("An unknown RPC error occurred.", {
+      details: "insufficient funds for gas * price + value: balance 0",
+    });
+    expect(humanizeError(error)).toBe(FUND_IT);
+  });
+
+  it("recognizes AvaKit's own InsufficientFundsError by name", () => {
+    const error = Object.assign(new Error("0x… holds 0 AVAX on Avalanche C-Chain."), {
+      name: "InsufficientFundsError",
+    });
+    expect(humanizeError(error)).toBe(FUND_IT);
+  });
+
+  it("recognizes a rejection by its 4001 code anywhere in the cause chain", () => {
+    // The raw EIP-1193 error a wallet rejects with: the wording is the wallet's own.
+    expect(humanizeError({ code: 4001, message: "Request declined." })).toBe(REJECTED);
+
+    const fromViem = transactionError(
+      new UserRejectedRequestError(new Error("MetaMask Tx Signature: declined.")),
+    );
+    expect(humanizeError(fromViem)).toBe(REJECTED);
+
+    // Wrapped once more by application code, with wording of its own.
+    expect(humanizeError(new Error("Mint failed", { cause: fromViem }))).toBe(REJECTED);
+    expect(humanizeError({ code: "ACTION_REJECTED", message: "rejected by signer" })).toBe(
+      REJECTED,
+    );
+  });
+
+  // "4001" used to be matched anywhere in the text, so any error that happened
+  // to contain those digits was reported as a rejection.
+  it("does not mistake the digits 4001 in an error text for a rejection", () => {
+    expect(humanizeError(new Error("connect ECONNREFUSED 127.0.0.1:4001"))).toBe(
+      "connect ECONNREFUSED 127.0.0.1:4001",
+    );
+    expect(humanizeError(new Error("execution reverted: order 4001 does not exist"))).toBe(
+      "execution reverted: order 4001 does not exist",
+    );
+    expect(humanizeError({ shortMessage: 'Transaction "0x40019c…" could not be found.' })).not.toBe(
+      REJECTED,
+    );
   });
 
   it("recognizes a low token allowance", () => {
