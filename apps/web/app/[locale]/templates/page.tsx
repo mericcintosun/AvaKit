@@ -24,7 +24,8 @@ export async function generateMetadata({
   });
 }
 
-// White-background line art that sits seamlessly on any card in both themes.
+// Black-on-transparent line art that sits seamlessly on the card surface in both
+// themes: multiplied onto it in light, inverted and screened onto it in dark.
 const artClass =
   "object-contain p-6 grayscale mix-blend-multiply dark:invert dark:mix-blend-screen";
 
@@ -50,7 +51,7 @@ export default async function TemplatesPage({ params }: { params: Promise<{ loca
           <Reveal key={t.id}>
             <div className="overflow-hidden rounded-xl border">
               <div className="grid md:grid-cols-[minmax(0,280px)_1fr] md:divide-x">
-                <div className="relative bg-white dark:bg-[#101010]">
+                <div className="bg-card relative">
                   <div className="relative aspect-square w-full">
                     <Image
                       src={t.art}
