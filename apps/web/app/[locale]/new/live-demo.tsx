@@ -536,7 +536,7 @@ export function LiveDemo() {
   const adapters = useMemo(() => [burnerAdapter({ chain: fuji })], []);
 
   return (
-    <main className="relative mx-auto max-w-2xl px-6 py-20 sm:py-28">
+    <div className="relative mx-auto max-w-2xl px-6 py-20 sm:py-28">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <span className="border-primary/35 text-primary inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[11px] tracking-[0.2em] uppercase">
           <Sparkles className="size-3.5" />
@@ -561,6 +561,6 @@ export function LiveDemo() {
       <AvaKitProvider chains={[fuji]} adapters={adapters}>
         <Flow />
       </AvaKitProvider>
-    </main>
+    </div>
   );
 }

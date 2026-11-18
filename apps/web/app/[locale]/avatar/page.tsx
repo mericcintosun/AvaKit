@@ -118,7 +118,7 @@ export default function AvatarPage() {
   };
 
   return (
-    <main
+    <div
       className="dark bg-background text-foreground relative min-h-dvh w-full overflow-hidden"
       style={{
         backgroundImage:
@@ -289,6 +289,6 @@ export default function AvatarPage() {
           </motion.div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

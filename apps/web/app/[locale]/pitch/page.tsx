@@ -116,7 +116,7 @@ const METRICS = [
 
 export default function PitchDeckPage() {
   return (
-    <main className="dark bg-background text-foreground fixed inset-0 z-[100] h-dvh snap-y snap-mandatory overflow-y-auto">
+    <div className="dark bg-background text-foreground fixed inset-0 z-[100] h-dvh snap-y snap-mandatory overflow-y-auto">
       {/* 01 — Cover */}
       <Slide n="01" eyebrow="Team1 Mini Grant">
         <div className="flex flex-col items-center gap-6 text-center">
@@ -416,6 +416,6 @@ export default function PitchDeckPage() {
           </R>
         </div>
       </Slide>
-    </main>
+    </div>
   );
 }
