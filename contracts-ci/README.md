@@ -20,9 +20,11 @@ node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the sour
   `AvaKitNFT.sol`). `src/` is generated — never edit it here; edit the template
   copies (both of them) instead. It also fails if any `foundry.toml` in the
   repo compiles with different settings than this harness (see Toolchain).
-- **`test/`** covers mint/transfer/allowance for the token, mint + on-chain
-  `tokenURI` for the NFT, and send/receive (incl. the Teleporter caller check)
-  for the ICM messenger.
+- **`test/`** covers mint/transfer/allowance for the token; mint, the ERC-721
+  transfer and approval surface and the on-chain `tokenURI` (unchanged by
+  transfers, labelled with the chain it is on) for the NFT; and send/receive
+  for the ICM messenger: the Teleporter caller check, the trusted-remote
+  allowlist, the message length cap and the gas a delivery has to fit in.
 - **`test/TestBase.sol`** inlines the few Foundry cheatcodes the tests need
   instead of pulling in forge-std — the same zero-dependency spirit as the
   contracts themselves.
@@ -33,7 +35,9 @@ node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the sour
   Studio calls the contract with are checked against its ABI too), the
   contract the website's `/new` page deploys (`apps/web/lib/nft-artifact.ts`,
   which has to be the `nft-mint` template's), and the example app's
-  (`examples/web3auth-demo/lib/nft-artifact.ts`).
+  (`examples/web3auth-demo/lib/nft-artifact.ts`). It also fails on any
+  `*-artifact.ts` in the repo that it has not been told about, so a new
+  artifact cannot land unchecked.
 
 `examples/web3auth-demo` ships a different, simpler `AvaKitNFT` on purpose. It
 is an example app, not a template, so its contract is not compiled into this

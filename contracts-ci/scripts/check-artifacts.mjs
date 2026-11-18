@@ -185,6 +185,22 @@ function drift({ bytecode = "bytecode", abi = true }, built, text) {
   return problems;
 }
 
+/** The *-artifact.ts files git knows about that the list above leaves out. */
+function unlisted() {
+  let files;
+  try {
+    files = execFileSync(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "--", "*-artifact.ts"],
+      { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+  } catch {
+    return []; // not a git checkout: nothing to enumerate
+  }
+  const listed = new Set(ARTIFACTS.map((artifact) => artifact.file));
+  return files.split("\n").filter((file) => file !== "" && !listed.has(file));
+}
+
 let failed = false;
 
 for (const artifact of ARTIFACTS) {
@@ -216,6 +232,16 @@ for (const artifact of ARTIFACTS) {
     lines.push("  Regenerate: cd contracts-ci && node scripts/check-artifacts.mjs --write");
   }
   console.error(lines.join("\n"));
+}
+
+// An artifact nobody checks can go stale without anyone noticing — the website
+// once shipped one — so a new one has to be listed before it can land.
+for (const file of unlisted()) {
+  failed = true;
+  console.error(
+    `UNCHECKED ARTIFACT: ${file}\n` +
+      "  Add it to ARTIFACTS in contracts-ci/scripts/check-artifacts.mjs.",
+  );
 }
 
 if (failed) process.exit(1);
