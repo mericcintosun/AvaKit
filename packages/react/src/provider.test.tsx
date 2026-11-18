@@ -364,6 +364,12 @@ async function renderConnected(
   await waitFor(() => {
     expect(screen.getByTestId("status").textContent).toBe("connected");
   });
+  // "connected" is on screen as soon as React commits, but the provider subscribes to
+  // the wallet's events in an effect that can run a moment later. An event emitted in
+  // between is lost, which made the wallet-event tests fail now and then under load.
+  await waitFor(() => {
+    expect(wallet.listenerCount()).toBe(3);
+  });
   return { adapter, view };
 }
 
@@ -649,6 +655,10 @@ describe("ConnectAvalanche", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Available Wallet/i }));
     fireEvent.click(await screen.findByRole("button", { name: /0x0000…dEaD/ }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
+    // The provider subscribes in an effect; emit only once it is listening.
+    await waitFor(() => {
+      expect(wallet.listenerCount()).toBe(3);
+    });
 
     act(() => wallet.emit("accountsChanged", []));
 
