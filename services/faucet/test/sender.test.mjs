@@ -8,6 +8,8 @@ import {
   describeError,
   FaucetConfigError,
   FaucetEmptyError,
+  FaucetRecipientError,
+  MAX_DRIP_GAS,
   MAX_SEND_ATTEMPTS,
   NONCE_SETTLE_MS,
   SENT_LOOKUP_WAITS_MS,
@@ -278,6 +280,40 @@ describe("DripSender", () => {
     await assert.rejects(drip(sender), /invalid chain id for signer/);
     assert.deepEqual(chain.signedFor, [CHAIN_ID]);
     assert.equal(chain.accepted.length, 0);
+  });
+
+  it("refuses a recipient that costs more gas to pay than a wallet does", async () => {
+    // The gas limit used to be whatever the node estimated for the caller's
+    // chosen recipient: a contract with an expensive receive() made a 0.02 drip
+    // burn many times that in gas.
+    const sender = freshFaucet().sender();
+    const greedy = someAddress();
+    chain.contract(greedy, { gas: 15_000_000 });
+
+    await assert.rejects(drip(sender, greedy), FaucetRecipientError);
+    assert.equal(chain.count("eth_sendRawTransaction"), 0);
+
+    // A smart-contract wallet takes a little more than 21,000 and is still paid.
+    const wallet = someAddress();
+    chain.contract(wallet, { gas: Number(MAX_DRIP_GAS) });
+    await drip(sender, wallet);
+    assert.equal(parseTransaction(chain.accepted[0].raw).gas, MAX_DRIP_GAS);
+
+    chain.contract(greedy, { gas: Number(MAX_DRIP_GAS) + 1 });
+    await assert.rejects(drip(sender, greedy), FaucetRecipientError);
+    assert.equal(chain.accepted.length, 1);
+  });
+
+  it("refuses a recipient contract that turns the transfer down, whatever reason it gives", async () => {
+    const sender = freshFaucet().sender();
+    // The second one words its revert like an empty faucet. It is not one.
+    for (const reverts of [true, "insufficient funds for transfer"]) {
+      const contract = someAddress();
+      chain.contract(contract, { reverts });
+
+      await assert.rejects(drip(sender, contract), FaucetRecipientError);
+    }
+    assert.equal(chain.count("eth_sendRawTransaction"), 0);
   });
 
   it("reports an account that cannot afford the drip as empty", async () => {

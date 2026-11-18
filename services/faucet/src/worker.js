@@ -10,6 +10,7 @@ import {
   describeError,
   FaucetConfigError,
   FaucetEmptyError,
+  FaucetRecipientError,
 } from "./sender.js";
 import { verifyTurnstile } from "./turnstile.js";
 
@@ -44,6 +45,10 @@ const REFUSALS = {
   invalid_json: [400, "Invalid JSON body."],
   invalid_address: [400, "A valid 0x address is required."],
   unsupported_chain: [400, "Unsupported or non-testnet chainId."],
+  contract_recipient: [
+    400,
+    "This address is a contract the faucet does not fund. Use a wallet address.",
+  ],
   turnstile_required: [403, "Verification required."],
   turnstile_failed: [403, "Verification failed. Try again."],
   turnstile_unavailable: [503, "Verification is unavailable. Try again shortly."],
@@ -246,6 +251,7 @@ export class Faucet extends DurableObject {
       if (reservation?.id !== undefined) this.limits.release(reservation.id);
 
       if (e instanceof FaucetEmptyError) return { ok: false, code: "faucet_empty" };
+      if (e instanceof FaucetRecipientError) return { ok: false, code: "contract_recipient" };
       if (e instanceof FaucetConfigError) {
         return { ok: false, code: "misconfigured", message: e.message };
       }

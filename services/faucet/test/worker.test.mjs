@@ -246,6 +246,43 @@ describe("concurrent drips", () => {
   });
 });
 
+describe("a recipient that is a contract", () => {
+  const REFUSAL = {
+    error: "This address is a contract the faucet does not fund. Use a wallet address.",
+    code: "contract_recipient",
+  };
+
+  it("is refused when paying it costs more gas than paying a wallet", async () => {
+    // 15,000,000 gas at 25 nAVAX is 0.375 AVAX from the faucet for a 0.02 drip.
+    const address = someAddress();
+    chain.contract(address, { gas: 15_000_000 });
+
+    const refused = await fund({ address });
+
+    assert.equal(refused.status, 400);
+    assert.deepEqual(refused.body, REFUSAL);
+    assert.equal(chain.count("eth_sendRawTransaction"), 0);
+  });
+
+  it("is refused when it turns the transfer down", async () => {
+    const address = someAddress();
+    chain.contract(address, { reverts: true });
+
+    const refused = await fund({ address });
+
+    assert.equal(refused.status, 400);
+    assert.deepEqual(refused.body, REFUSAL);
+    assert.equal(chain.count("eth_sendRawTransaction"), 0);
+  });
+
+  it("is funded when it is no costlier than a smart-contract wallet", async () => {
+    const address = someAddress();
+    chain.contract(address, { gas: 60_000 });
+
+    assert.equal((await fund({ address })).status, 200);
+  });
+});
+
 describe("a drip whose send gets no answer", () => {
   it("is reported as sent, and counted, when the node has the transaction", async () => {
     // The node takes the transaction and its answer is lost on the way back

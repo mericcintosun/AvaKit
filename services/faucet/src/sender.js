@@ -12,6 +12,14 @@ export class FaucetEmptyError extends Error {
   name = "FaucetEmptyError";
 }
 
+/**
+ * The recipient is a contract the faucet does not pay: one that turns a plain
+ * transfer down, or that costs more than MAX_DRIP_GAS to pay.
+ */
+export class FaucetRecipientError extends Error {
+  name = "FaucetRecipientError";
+}
+
 /** The Worker is set up wrong. `message` never carries a secret and may be shown to a caller. */
 export class FaucetConfigError extends Error {
   name = "FaucetConfigError";
@@ -28,6 +36,14 @@ export const NONCE_SETTLE_MS = 15_000;
 export const MAX_SEND_ATTEMPTS = 4;
 
 /**
+ * The most gas a drip may use. Paying a wallet takes 21,000 and a
+ * smart-contract wallet a few thousand more; a recipient that needs more than
+ * this is a contract doing work in its receive(), at the faucet's expense — the
+ * drip's value is fixed, but the gas it burns would be the recipient's choice.
+ */
+export const MAX_DRIP_GAS = 100_000n;
+
+/**
  * When a send gets no answer, the node may hold the transaction all the same.
  * It is then looked up by its hash: this is the wait before each look, so four
  * looks over two seconds — long enough for a node that was still busy with the
@@ -42,6 +58,8 @@ const NONCE_TAKEN = /nonce too low|replacement transaction underpriced/;
 /** …and when it already holds this exact signed transaction. */
 const ALREADY_KNOWN = /already known|transaction already imported/;
 const INSUFFICIENT_FUNDS = /insufficient funds|exceeds transaction sender account balance/;
+/** …and when the recipient's own code refused the transfer. */
+const REVERTED = /execution reverted/;
 
 /**
  * The faucet account and an RPC client for an allowlisted chain, or null for
@@ -99,7 +117,8 @@ export class DripSender {
    * balance covers it. None of that depends on the queue, so concurrent
    * requests prepare in parallel and only the broadcast is serialised.
    *
-   * Throws FaucetEmptyError if the account cannot pay for the drip.
+   * Throws FaucetEmptyError if the account cannot pay for the drip, and
+   * FaucetRecipientError if the recipient is a contract the faucet does not pay.
    */
   async prepare({ to, value }) {
     let balance;
@@ -115,8 +134,13 @@ export class DripSender {
         }),
       ]);
     } catch (e) {
+      const said = nodeSaid(e);
+      // A plain transfer only reverts when the recipient is a contract that
+      // refuses it. Checked first, because a contract words its own revert
+      // reason and could make it read like an empty faucet.
+      if (REVERTED.test(said)) throw new FaucetRecipientError();
       // Estimating gas for a transfer the account cannot afford fails this way.
-      if (INSUFFICIENT_FUNDS.test(nodeSaid(e))) throw new FaucetEmptyError();
+      if (INSUFFICIENT_FUNDS.test(said)) throw new FaucetEmptyError();
       throw e;
     }
 
@@ -128,6 +152,10 @@ export class DripSender {
         `The faucet's RPC answers for chain ${request.chainId}, not ${chainId}.`,
       );
     }
+
+    // The gas limit is the node's estimate for the caller's chosen recipient,
+    // and it is signed as it stands — so it is capped here.
+    if (request.gas > MAX_DRIP_GAS) throw new FaucetRecipientError();
 
     const fee = request.gas * (request.maxFeePerGas ?? request.gasPrice ?? 0n);
     if (balance < value + fee) throw new FaucetEmptyError();

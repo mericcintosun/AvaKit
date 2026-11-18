@@ -67,6 +67,7 @@ for people; branch on `code`:
 | Status | `code` | Meaning |
 | --- | --- | --- |
 | 400 | `invalid_json`, `invalid_address`, `unsupported_chain` | The request is wrong; retrying won't help |
+| 400 | `contract_recipient` | The address is a contract the faucet does not fund: it turns a plain transfer down, or paying it would take more than 100,000 gas. Use a wallet address |
 | 403 | `turnstile_required`, `turnstile_failed` | No token, or one that is forged, expired or already used |
 | 404 | `not_found` | Not one of the two endpoints |
 | 429 | `address_limited`, `ip_limited` | Over a limit. `Retry-After` says how many seconds until it clears |
@@ -97,6 +98,10 @@ URL and the raw request, so the detail goes to the Worker log instead
   Either way the Worker logs `send answer lost` with the hash and `found`.
 - The same object sends the transactions one at a time, so concurrent requests
   never sign the same nonce.
+- A drip pays for at most **100,000 gas** (`MAX_DRIP_GAS` in `src/sender.js`).
+  A wallet takes 21,000 and a smart-contract wallet a little more; a contract
+  whose `receive()` needs more than the cap, or that reverts, is refused with
+  `contract_recipient` instead of burning the faucet's balance on gas.
 - The allowlist in `src/sender.js` only permits Fuji (43113), and every
   transaction is signed for that chain id whatever the RPC says — so the
   faucet cannot drip real funds, even with `FAUCET_FUJI_RPC` pointed at another
