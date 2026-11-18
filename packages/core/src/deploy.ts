@@ -35,6 +35,7 @@ export interface DeployParams {
 export interface DeployResult {
   address: Address;
   txHash: Hex;
+  /** Explorer link for the contract. Empty when the chain has no explorer. */
   explorerUrl: string;
 }
 
@@ -67,6 +68,16 @@ export async function deployContract(params: DeployParams): Promise<DeployResult
   } as Parameters<typeof walletClient.deployContract>[0]);
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  // Mined is not the same as deployed. A creation that ran out of gas or whose
+  // constructor reverted still gets a receipt, and nodes fill `contractAddress`
+  // on it anyway, so check the status before trusting the address: otherwise the
+  // caller is handed an address with no code behind it.
+  if (receipt.status !== "success") {
+    throw new DeployFailedError(
+      `Deployment transaction ${txHash} reverted on ${chain.name}, so no contract was created. ` +
+        "Check the constructor arguments and the gas limit, then try again.",
+    );
+  }
   if (!receipt.contractAddress) {
     throw new DeployFailedError("Deployment transaction did not return a contract address.");
   }
@@ -74,6 +85,8 @@ export async function deployContract(params: DeployParams): Promise<DeployResult
   return {
     address: getAddress(receipt.contractAddress),
     txHash,
-    explorerUrl: `${chain.explorerUrl}/address/${receipt.contractAddress}`,
+    // A fresh L1 has no explorer; an empty string is more honest than a
+    // relative "/address/0x…" link that points back into the app.
+    explorerUrl: chain.explorerUrl ? `${chain.explorerUrl}/address/${receipt.contractAddress}` : "",
   };
 }
