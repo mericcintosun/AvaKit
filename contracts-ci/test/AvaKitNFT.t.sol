@@ -9,16 +9,18 @@ contract GoodReceiver is IERC721Receiver {
     address public lastOperator;
     address public lastFrom;
     uint256 public lastTokenId;
+    bytes public lastData;
 
     function onERC721Received(
         address operator,
         address from,
         uint256 tokenId,
-        bytes calldata
+        bytes calldata data
     ) external returns (bytes4) {
         lastOperator = operator;
         lastFrom = from;
         lastTokenId = tokenId;
+        lastData = data;
         return IERC721Receiver.onERC721Received.selector;
     }
 }
@@ -260,6 +262,32 @@ contract AvaKitNFTTest is TestBase {
         assertEq(receiver.lastOperator(), ALICE, "operator recorded");
         assertEq(receiver.lastFrom(), ALICE, "from recorded");
         assertEq(receiver.lastTokenId(), id, "tokenId recorded");
+        assertEq(receiver.lastData().length, 0, "no data without the 4th argument");
+    }
+
+    function test_SafeTransferByOperatorTellsTheReceiverWhoMovedIt() public {
+        GoodReceiver receiver = new GoodReceiver();
+        vm.prank(ALICE);
+        uint256 id = nft.mint();
+        vm.prank(ALICE);
+        nft.approve(BOB, id);
+
+        // BOB moves ALICE's token. Sent by the owner, `operator` and `from` are
+        // the same address and swapping them would go unnoticed, so this is
+        // the case that tells them apart — along with the data passed through
+        // by the four-argument overload.
+        vm.prank(BOB);
+        nft.safeTransferFrom(ALICE, address(receiver), id, hex"c0ffee");
+
+        assertEq(nft.ownerOf(id), address(receiver), "receiver owns token");
+        assertEq(receiver.lastOperator(), BOB, "operator is the caller");
+        assertEq(receiver.lastFrom(), ALICE, "from is the previous owner");
+        assertEq(receiver.lastTokenId(), id, "tokenId recorded");
+        assertEq(
+            keccak256(receiver.lastData()),
+            keccak256(hex"c0ffee"),
+            "data reaches the receiver intact"
+        );
     }
 
     function test_SafeTransferRevertsForBadReceiver() public {
