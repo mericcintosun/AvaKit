@@ -381,7 +381,7 @@ function Flow() {
         {address ? (
           <p className="text-muted-foreground font-mono text-sm">
             {short(address)}{" "}
-            <span className="text-muted-foreground/70">· temporary, in this browser</span>
+            <span className="text-muted-foreground">· temporary, in this browser</span>
           </p>
         ) : walletError ? (
           <div className="flex flex-col items-start gap-2">
@@ -566,10 +566,8 @@ export function LiveDemo() {
         <p className="text-muted-foreground mt-4 text-base leading-relaxed">
           No install. No signup. No seed phrase. No gas to pay: the temporary wallet is funded with
           test AVAX for you. This runs on the same{" "}
-          <code className="bg-foreground/10 rounded px-1 py-0.5 text-[13px]">@avakit</code> packages{" "}
-          <code className="bg-foreground/10 rounded px-1 py-0.5 text-[13px]">
-            npm create avalanche-app
-          </code>{" "}
+          <code className="bg-muted rounded px-1 py-0.5 text-[13px]">@avakit</code> packages{" "}
+          <code className="bg-muted rounded px-1 py-0.5 text-[13px]">npm create avalanche-app</code>{" "}
           gives you.
         </p>
       </motion.div>

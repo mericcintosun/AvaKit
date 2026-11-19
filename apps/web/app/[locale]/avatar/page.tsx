@@ -259,8 +259,8 @@ export default function AvatarPage() {
             className="text-muted-foreground max-w-md text-base leading-relaxed"
           >
             {active.blurb} glTF&nbsp;2.0, web-ready for{" "}
-            <code className="bg-foreground/10 rounded px-1 py-0.5 text-[13px]">model-viewer</code>{" "}
-            or Three.js.
+            <code className="bg-muted rounded px-1 py-0.5 text-[13px]">model-viewer</code> or
+            Three.js.
           </motion.p>
 
           {/* spec chips */}

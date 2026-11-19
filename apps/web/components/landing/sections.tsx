@@ -86,7 +86,7 @@ export function SurfacesSection() {
                       <div className="bg-muted flex size-9 items-center justify-center rounded-lg border">
                         <s.icon className="text-primary size-4" />
                       </div>
-                      <span className="text-muted-foreground/50 font-mono text-xs">{pad(i)}</span>
+                      <span className="text-muted-foreground font-mono text-xs">{pad(i)}</span>
                     </div>
                     <div className="flex flex-col gap-3">
                       <div>
@@ -148,7 +148,7 @@ export function FeaturesSection() {
               <AccordionItem key={f.title} value={f.title}>
                 <AccordionTrigger className="gap-4 py-5 hover:no-underline">
                   <span className="flex items-baseline gap-4 text-left">
-                    <span className="text-muted-foreground/50 font-mono text-sm tabular-nums">
+                    <span className="text-muted-foreground font-mono text-sm tabular-nums">
                       {pad(i)}
                     </span>
                     <span className="text-lg font-semibold tracking-tight uppercase sm:text-xl">
@@ -238,7 +238,7 @@ export function TemplatesSection() {
                 className="group hover:border-foreground/30 flex h-full flex-col gap-3 overflow-hidden rounded-xl border p-6 transition-colors"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground/50 font-mono text-xs">{pad(i)}</span>
+                  <span className="text-muted-foreground font-mono text-xs">{pad(i)}</span>
                   {t.contracts ? (
                     <Badge variant="outline" className="font-mono text-[10px]">
                       contract

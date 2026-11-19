@@ -56,12 +56,12 @@ function Slide({
     <section
       className={`relative flex min-h-dvh snap-start snap-always flex-col justify-center overflow-hidden px-6 py-16 sm:px-12 lg:px-24 ${className}`}
     >
-      <div className="pointer-events-none absolute top-8 right-6 font-mono text-xs tracking-[0.3em] text-foreground/30 sm:right-12 lg:right-24">
+      <div className="pointer-events-none absolute top-8 right-6 font-mono text-xs tracking-[0.3em] text-foreground/50 sm:right-12 lg:right-24">
         {n} / 08
       </div>
       <div className="pointer-events-none absolute top-8 left-6 flex items-center gap-2 sm:left-12 lg:left-24">
         <Image src="/logo.png" alt="" width={582} height={653} className="h-4 w-auto invert" />
-        <span className="font-mono text-xs tracking-[0.25em] text-foreground/40 uppercase">
+        <span className="font-mono text-xs tracking-[0.25em] text-foreground/50 uppercase">
           {eyebrow}
         </span>
       </div>
@@ -178,7 +178,7 @@ export default function PitchDeckPage() {
             </p>
           </R>
           <R i={3}>
-            <p className="font-mono text-sm tracking-[0.3em] text-foreground/40 uppercase">
+            <p className="font-mono text-sm tracking-[0.3em] text-foreground/50 uppercase">
               avakit.dev
             </p>
           </R>
