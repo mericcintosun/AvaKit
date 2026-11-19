@@ -10,7 +10,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { subnetsDir } from "./paths.js";
-import { type RunHandle, runSteps, type Step } from "./steps.js";
+import { type OnCommand, type RunHandle, runSteps, type Step } from "./steps.js";
 import { isValidChainId, isValidL1Name, isValidToken } from "./validators.js";
 
 const LOCAL = "Local Network";
@@ -286,20 +286,25 @@ export function isDevnetAction(v: string): v is DevnetAction {
   return v === "start" || v === "stop" || v === "create-icm" || v === "create-l1";
 }
 
-/** Run an action's command sequence, streaming each line. Returns a cancel handle. */
+/**
+ * Run an action's command sequence, streaming each line. Returns a cancel
+ * handle. `onCommand` learns each command's pid (see runSteps).
+ */
 export function runDevnetAction(
   action: DevnetAction,
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
   params?: L1Params,
+  onCommand?: OnCommand,
 ): RunHandle {
-  return runSteps(stepsFor(action, params), onLine, onDone);
+  return runSteps(stepsFor(action, params), onLine, onDone, onCommand);
 }
 
 /** Promise variant: run an action to completion, collecting the log (for MCP). */
 export function runDevnetActionAsync(
   action: DevnetAction,
   params?: L1Params,
+  onCommand?: OnCommand,
 ): Promise<{ exitCode: number; log: string[] }> {
   return new Promise((resolve) => {
     const log: string[] = [];
@@ -308,6 +313,7 @@ export function runDevnetActionAsync(
       (line) => log.push(line),
       (exitCode) => resolve({ exitCode, log }),
       params,
+      onCommand,
     );
   });
 }

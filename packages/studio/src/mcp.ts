@@ -38,7 +38,9 @@ export function createMcpServer(): McpServer {
   // One avalanche-cli action at a time: an agent may call tools in parallel, and
   // concurrent runs against the same local network corrupt each other. The lock
   // is the file the dashboard's run manager takes too, so the rule holds across
-  // both faces of Studio, with the same refusal.
+  // both faces of Studio, with the same refusal. The lock records each
+  // avalanche-cli command too, so it stays held while one outlives this process
+  // (the agent's client stops the MCP server half-way through an action).
   async function devnetAction(action: DevnetAction, tail: number, params?: L1Params) {
     let lock: LockAttempt;
     try {
@@ -47,8 +49,9 @@ export function createMcpServer(): McpServer {
       return text(e instanceof Error ? e.message : String(e), true);
     }
     if (!lock.acquired) return text(busyMessage(lock.holder), true);
+    const { setCommand } = lock;
     try {
-      const { exitCode, log } = await runDevnetActionAsync(action, params);
+      const { exitCode, log } = await runDevnetActionAsync(action, params, setCommand);
       return text(toJson({ exitCode, tail: log.slice(-tail) }), exitCode !== 0);
     } finally {
       lock.release();
@@ -151,7 +154,15 @@ export function createMcpServer(): McpServer {
         "Deploy the AvaKitMessenger contract on each running L1 that doesn't have a usable one (none yet, gone with a wiped devnet, or from an older Studio), and link the messengers so they accept each other's messages.",
       inputSchema: {},
     },
-    async () => text(toJson(await deployMessengers())),
+    async () => {
+      // Refused (with the same busy message as every other action) while
+      // another action holds Studio's action lock.
+      try {
+        return text(toJson(await deployMessengers()));
+      } catch (e) {
+        return text(e instanceof Error ? e.message : String(e), true);
+      }
+    },
   );
 
   server.registerTool(

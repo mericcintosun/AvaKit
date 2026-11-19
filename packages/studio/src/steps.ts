@@ -92,6 +92,13 @@ function signalExitCode(signal: NodeJS.Signals | null): number {
 }
 
 /**
+ * Told the pid of each command as soon as it is spawned, and null once it has
+ * exited. The action lock records it: a command is detached, so it can outlive
+ * Studio, and no other action may start while it runs (see lock.ts).
+ */
+export type OnCommand = (pid: number | null) => void;
+
+/**
  * Run `steps` in order, streaming each output line. Stops at the first step
  * that fails. Returns a handle that cancels the command in flight.
  */
@@ -99,6 +106,7 @@ export function runSteps(
   steps: Step[],
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
+  onCommand?: OnCommand,
 ): RunHandle {
   let current: ChildProcess | null = null;
   let cancelled = false;
@@ -129,7 +137,8 @@ export function runSteps(
     try {
       // `detached` puts the CLI in its own process group so the local network
       // (or the Fuji validator node) it boots survives even if Studio is
-      // stopped or restarted.
+      // stopped or restarted — and so that Ctrl+C on Studio, which signals the
+      // terminal's foreground group, never kills a command half-way.
       child = spawn(step.cmd, step.args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
     } catch (e) {
       emit(`error: ${e instanceof Error ? e.message : String(e)}`);
@@ -137,6 +146,9 @@ export function runSteps(
       return;
     }
     current = child;
+    // At once, in the same tick as the spawn: nothing (a signal handler
+    // included) can run in between and miss the command.
+    if (child.pid !== undefined) onCommand?.(child.pid);
 
     // A failed spawn emits `error` and then `close`; this step reports once.
     let settled = false;
@@ -173,6 +185,7 @@ export function runSteps(
     child.on("close", (code, signal) => {
       stdout.end();
       stderr.end();
+      if (child.pid !== undefined) onCommand?.(null);
       if (settled) return;
       settled = true;
       if (cancelled) {

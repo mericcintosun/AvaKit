@@ -20,7 +20,8 @@ import { promisify } from "node:util";
 import { decodeAbiParameters, encodeFunctionData, parseAbi, toFunctionSelector } from "viem/utils";
 import { cb58ToHex } from "./cb58.js";
 import { type DevnetStatus, getDevnetStatus, type L1Info } from "./devnet.js";
-import { InputError } from "./errors.js";
+import { BusyError, InputError } from "./errors.js";
+import { acquireActionLock, busyMessage } from "./lock.js";
 import {
   CONSTRUCTOR_SIG,
   LAST_MESSAGE_SIG,
@@ -388,10 +389,25 @@ async function anyLinkedPair(endpoints: Endpoint[]): Promise<boolean> {
 }
 
 // Every transaction below is signed by the same dev key, so two at once would
-// race on its nonce. Deploys and sends therefore run strictly one after another.
+// race on its nonce. Deploys and sends therefore run strictly one after
+// another: within this process they queue, and each one takes Studio's action
+// lock (lock.ts) while it runs. The lock is what keeps another Studio process
+// (the MCP face, a second dashboard) from sending at the same time, and what
+// keeps a deploy or send from running while an avalanche-cli action changes
+// the network under it, and the other way round. While another action holds
+// it, the deploy or send is refused (BusyError) instead of waiting.
 let queue: Promise<unknown> = Promise.resolve();
-function exclusive<T>(task: () => Promise<T>): Promise<T> {
-  const run = queue.then(task, task);
+function exclusive<T>(action: "icm deploy" | "icm send", task: () => Promise<T>): Promise<T> {
+  const locked = async (): Promise<T> => {
+    const lock = acquireActionLock(action);
+    if (!lock.acquired) throw new BusyError(busyMessage(lock.holder), lock.holder);
+    try {
+      return await task();
+    } finally {
+      lock.release();
+    }
+  };
+  const run = queue.then(locked, locked);
   queue = run.catch(() => {});
   return run;
 }
@@ -423,7 +439,7 @@ async function ensureTrusted(self: Endpoint, other: Endpoint): Promise<void> {
  * remote, so without the link the relayer's delivery reverts.
  */
 export function deployMessengers(): Promise<IcmState> {
-  return exclusive(async () => {
+  return exclusive("icm deploy", async () => {
     const peers = listPeers(await getDevnetStatus());
     const state = readState();
     const endpoints: Endpoint[] = [];
@@ -515,7 +531,7 @@ export async function sendIcmMessage(
   const problem = messageProblem(message);
   if (problem) throw new InputError(problem);
 
-  return exclusive(async () => {
+  return exclusive("icm send", async () => {
     const status = await getDevnetStatus();
     const state = readState();
     const src = requirePeer(status, from);

@@ -19,7 +19,7 @@ import {
   l1ConfigConflict,
   runDevnetAction,
 } from "./devnet.js";
-import { InputError } from "./errors.js";
+import { BusyError, InputError } from "./errors.js";
 import {
   ensureFujiKey,
   getFujiKeyBalance,
@@ -199,7 +199,7 @@ function startRun(runs: RunManager, body: Record<string, unknown>): StartResult 
         action,
         params: l1 ? { name: l1.name, chainId: l1.chainId, symbol: l1.token } : undefined,
       },
-      (onLine, onDone) => runDevnetAction(action, onLine, onDone, l1),
+      (onLine, onDone, onCommand) => runDevnetAction(action, onLine, onDone, l1, onCommand),
     );
   }
 
@@ -212,8 +212,8 @@ function startRun(runs: RunManager, body: Record<string, unknown>): StartResult 
       amount: str(body.amount) || undefined,
     });
     if ("error" in prepared) throw new InputError(prepared.error);
-    return runs.start({ kind, action, params: prepared.params }, (onLine, onDone) =>
-      runSteps(prepared.steps, onLine, onDone),
+    return runs.start({ kind, action, params: prepared.params }, (onLine, onDone, onCommand) =>
+      runSteps(prepared.steps, onLine, onDone, onCommand),
     );
   }
 
@@ -412,6 +412,12 @@ export async function startServer(opts: {
     route(req, res).catch((e: unknown) => {
       if (res.headersSent) {
         res.destroy();
+        return;
+      }
+      // A refusal because another action holds the lock (an Interchain deploy
+      // or send) is a 409 that names the holder, like a refused /api/run.
+      if (e instanceof BusyError) {
+        sendJson(res, 409, { error: e.message, holder: e.holder });
         return;
       }
       const status = e instanceof HttpError ? e.status : e instanceof InputError ? 400 : 500;

@@ -14,6 +14,7 @@ const SANDBOXED = [
   "src/devnet.test.ts",
   "src/fuji.test.ts",
   "src/icm.test.ts",
+  "src/lock.process.test.ts",
   "src/mcp.test.ts",
   "src/server.test.ts",
   "src/steps.test.ts",

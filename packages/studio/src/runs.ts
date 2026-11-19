@@ -5,11 +5,13 @@
  * while one is in flight, because concurrent avalanche-cli runs against the
  * same local network (or the same Fuji deploy) corrupt each other. That holds
  * across Studio processes too (the MCP face, a second dashboard): every run
- * takes the action lock file for as long as it is in flight (see lock.ts).
+ * takes the action lock file for as long as it is in flight, and records the
+ * avalanche-cli command it runs there, so the lock outlives this process while
+ * that command does (see lock.ts).
  */
 
 import { acquireActionLock, actionLockFile, type LockHolder } from "./lock.js";
-import type { RunHandle } from "./steps.js";
+import type { OnCommand, RunHandle } from "./steps.js";
 
 export type RunKind = "devnet" | "fuji";
 
@@ -28,10 +30,14 @@ export interface RunInfo {
   finishedAt: number | null;
 }
 
-/** Starts the action; must call `onDone` exactly once (see runSteps). */
+/**
+ * Starts the action; must call `onDone` exactly once (see runSteps), and passes
+ * `onCommand` on, so the action lock knows which avalanche-cli command runs.
+ */
 export type Launch = (
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
+  onCommand: OnCommand,
 ) => RunHandle;
 
 export interface RunSubscriber {
@@ -165,6 +171,7 @@ export function createRunManager(
         e.handle = launch(
           (line) => push(e, line),
           (exitCode) => finish(e, exitCode),
+          (pid) => lock.setCommand(pid),
         );
       } catch (err) {
         push(e, `error: ${err instanceof Error ? err.message : String(err)}`);

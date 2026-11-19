@@ -41,6 +41,8 @@ export interface FakeCastOptions {
   trustedRemoteError?: string;
   /** How long a `sendMessage` transaction takes (to observe overlap). */
   sendDelayMs?: number;
+  /** How long a `--create` (a messenger deployment) takes (to observe overlap). */
+  deployDelayMs?: number;
   /** The text every messenger's `lastMessage()` holds (default "hello"). */
   lastMessage?: string;
   /** The `status` of every receipt: "0x0" is a transaction that was mined but reverted. */
@@ -223,6 +225,7 @@ function fakeCastSource(stateFile: string, options: FakeCastOptions): string {
 
     if (args[0] === "send" && args.includes("--create")) {
       if (config.deployError) return { err: config.deployError + "\\n", code: 1 };
+      if (config.deployDelayMs) await new Promise((r) => setTimeout(r, config.deployDelayMs));
       update((s) => s.journal.push("create " + chain));
       const contractAddress = (config.deploy ?? {})[chain];
       return { out: JSON.stringify({ status, contractAddress, transactionHash: "0x01" }) + "\\n" };

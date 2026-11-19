@@ -3,7 +3,14 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSyn
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { acquireActionLock, busyMessage, type LockAttempt, releaseAllLocks } from "./lock.js";
+import {
+  acquireActionLock,
+  actionLockFile,
+  busyMessage,
+  type LockAttempt,
+  processStartTime,
+  releaseAllLocks,
+} from "./lock.js";
 
 // Every test gets its own lock file in a temporary directory: the real one
 // (~/.avakit-studio/action.lock) is never touched.
@@ -190,6 +197,174 @@ describe("action lock", () => {
     expect(next.acquired).toBe(true);
   });
 
+  it("records the command an action runs, and stays held for it when this process exits", async () => {
+    const command = await otherProcess();
+    const attempt = acquireActionLock("devnet start", file);
+    if (!attempt.acquired) throw new Error("expected the lock");
+    attempt.setCommand(command.pid);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({
+      pid: process.pid,
+      action: "devnet start",
+      command: { pid: command.pid, processStart: processStartTime(command.pid) },
+    });
+
+    // This process exits (Ctrl+C, SIGTERM) while the command still runs: the
+    // lock stays, and the next process is told what is still running.
+    releaseAllLocks();
+    expect(existsSync(file)).toBe(true);
+    const refused = acquireActionLock("devnet stop", file);
+    expect(refused).toMatchObject({
+      acquired: false,
+      holder: { pid: process.pid, action: "devnet start", orphanedCommandPid: command.pid },
+    });
+    expect(busyMessage(refused.acquired ? null : refused.holder, false, file)).toMatch(
+      /its avalanche-cli command \(pid \d+\) was started by a Studio process \(pid \d+\) that has since exited/,
+    );
+
+    // The command ends: the lock is stale, and taken over.
+    await command.stop();
+    mustAcquire("devnet stop")();
+    expect(existsSync(file)).toBe(false);
+  });
+
+  it("is removed on exit once the recorded command has ended", () => {
+    const attempt = acquireActionLock("devnet start", file);
+    if (!attempt.acquired) throw new Error("expected the lock");
+    attempt.setCommand(deadPid());
+    releaseAllLocks();
+    expect(existsSync(file)).toBe(false);
+
+    const again = acquireActionLock("devnet start", file);
+    if (!again.acquired) throw new Error("expected the lock");
+    attempt.setCommand(process.ppid); // a released attempt changes nothing
+    again.setCommand(process.ppid);
+    again.setCommand(null); // between two commands
+    expect(JSON.parse(readFileSync(file, "utf8")).command).toBeNull();
+    releaseAllLocks();
+    expect(existsSync(file)).toBe(false);
+  });
+
+  it("is removed when the action ends, whatever command it recorded", async () => {
+    const command = await otherProcess();
+    const attempt = acquireActionLock("devnet start", file);
+    if (!attempt.acquired) throw new Error("expected the lock");
+    attempt.setCommand(command.pid);
+    attempt.release();
+    expect(existsSync(file)).toBe(false);
+  });
+
+  it("an owner that has exited holds nothing while its recorded command is gone too", () => {
+    mustAcquire("devnet stop")();
+    writeFileSync(
+      file,
+      JSON.stringify({
+        pid: deadPid(),
+        action: "devnet start",
+        startedAt: 1,
+        token: "other",
+        command: { pid: deadPid(), processStart: null },
+      }),
+    );
+    mustAcquire("devnet start")();
+  });
+
+  it("knows a process by its start time", async () => {
+    const other = await otherProcess();
+    const start = processStartTime(other.pid);
+    if (process.platform === "win32") {
+      expect(start).toBeNull();
+      return;
+    }
+    expect(start).toEqual(expect.any(String));
+    expect(processStartTime(other.pid)).toBe(start);
+    await other.stop();
+    expect(processStartTime(other.pid)).toBeNull();
+    expect(processStartTime(-1)).toBeNull();
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "takes over a lock whose pid now belongs to a process that started at another time",
+    async () => {
+      const other = await otherProcess();
+      mustAcquire("devnet stop")(); // creates the directory, leaves no lock behind
+      const lock = (processStart: string) =>
+        writeFileSync(
+          file,
+          JSON.stringify({
+            pid: other.pid,
+            processStart,
+            action: "devnet start",
+            startedAt: 1,
+            token: "x",
+          }),
+        );
+
+      // The recorded process is the one still running under that pid: held.
+      lock(processStartTime(other.pid) as string);
+      expect(acquireActionLock("devnet stop", file)).toEqual({
+        acquired: false,
+        holder: { pid: other.pid, action: "devnet start", startedAt: 1 },
+      });
+
+      // The pid was reused (pid 1, in the gatekeeper's report): not the owner.
+      lock("Thu Jan  1 00:00:00 1970");
+      mustAcquire("devnet stop")();
+      expect(existsSync(file)).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "takes over a lock whose recorded command's pid now belongs to another process",
+    async () => {
+      const other = await otherProcess();
+      mustAcquire("devnet stop")();
+      const write = (processStart: string) =>
+        writeFileSync(
+          file,
+          JSON.stringify({
+            pid: deadPid(),
+            action: "devnet start",
+            startedAt: 1,
+            token: "x",
+            command: { pid: other.pid, processStart },
+          }),
+        );
+      write(processStartTime(other.pid) as string);
+      expect(acquireActionLock("devnet stop", file)).toMatchObject({
+        acquired: false,
+        holder: { orphanedCommandPid: other.pid },
+      });
+      write("Thu Jan  1 00:00:00 1970");
+      mustAcquire("devnet stop")();
+    },
+  );
+
+  it("never trusts a malformed command or start time", () => {
+    mustAcquire("devnet stop")();
+    for (const bad of [
+      { command: { pid: "1" } },
+      { command: { pid: 1, processStart: 7 } },
+      { processStart: "x".repeat(65) },
+    ]) {
+      writeFileSync(
+        file,
+        JSON.stringify({
+          pid: process.ppid,
+          action: "devnet start",
+          startedAt: 1,
+          token: "t",
+          ...bad,
+        }),
+      );
+      expect(acquireActionLock("devnet start", file), JSON.stringify(bad)).toEqual({
+        acquired: false,
+        holder: null,
+      });
+      age(file, 60);
+      mustAcquire("devnet start")();
+    }
+  });
+
   it("fails loudly when the lock file cannot be written at all", () => {
     // A regular file where the state directory should be.
     writeFileSync(path.join(dir, "state"), "");
@@ -200,21 +375,37 @@ describe("action lock", () => {
 });
 
 describe("busyMessage", () => {
-  it("is one sentence for every face, with the process named when it is another one", () => {
-    expect(busyMessage({ action: "devnet start" })).toBe(
+  const lockPath = "/home/dev/.avakit-studio/action.lock";
+  const leftover = ` If no other Studio and no avalanche-cli command is running, the lock file ${lockPath} is left over: delete it and retry.`;
+
+  it("is one sentence for this process's own action", () => {
+    expect(busyMessage({ action: "devnet start" }, false, lockPath)).toBe(
       "Another action (devnet start) is still running — wait for it to finish, then retry.",
     );
-    expect(busyMessage({ action: "devnet start", pid: process.pid })).toBe(
+    expect(busyMessage({ action: "devnet start", pid: process.pid }, false, lockPath)).toBe(
       "Another action (devnet start) is still running — wait for it to finish, then retry.",
     );
-    expect(busyMessage({ action: "fuji deploy" }, true)).toBe(
+    expect(busyMessage({ action: "fuji deploy" }, true, lockPath)).toBe(
       "Another action (fuji deploy) is still running — wait for it to finish, or cancel it.",
     );
-    expect(busyMessage({ action: "devnet stop", pid: process.ppid })).toBe(
-      `Another action (devnet stop) is still running in another Studio process (pid ${process.ppid}) — wait for it to finish, then retry.`,
+  });
+
+  it("names the other process and the lock file, and says when the file may be deleted", () => {
+    expect(busyMessage({ action: "devnet stop", pid: process.ppid }, false, lockPath)).toBe(
+      `Another action (devnet stop) is still running in another Studio process (pid ${process.ppid}) — wait for it to finish, then retry.${leftover}`,
     );
-    expect(busyMessage(null)).toBe(
-      "Another action is still running in another Studio process — wait for it to finish, then retry.",
+    expect(busyMessage(null, false, lockPath)).toBe(
+      `Another action is still running in another Studio process — wait for it to finish, then retry.${leftover}`,
+    );
+    // Studio's own lock file by default.
+    expect(busyMessage(null)).toContain(actionLockFile());
+  });
+
+  it("says when only the command of a Studio that has exited is still running", () => {
+    expect(
+      busyMessage({ action: "devnet start", pid: 4242, orphanedCommandPid: 5151 }, false, lockPath),
+    ).toBe(
+      `Another action (devnet start) is still running: its avalanche-cli command (pid 5151) was started by a Studio process (pid 4242) that has since exited — wait for the command to finish, then retry.${leftover}`,
     );
   });
 });
