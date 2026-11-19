@@ -1,5 +1,14 @@
 # @avakit/core
 
+## 0.2.2
+
+### Patch Changes
+
+- 54b59ec: Hardens wallets and deploys: `ensureChain` no longer sends an empty block explorer URL (which wallets reject for a fresh L1) and now really switches the burner wallet, `deployContract` rejects a reverted deployment and checks the balance before a confirmed mainnet deploy, and a chain that does not say `testnet: true` is treated as a mainnet. `coinbaseAdapter` loads `@coinbase/wallet-sdk` through an import that bundlers can follow and reports failures by their real cause, `web3authAdapter` retries a failed initialisation instead of staying broken until the page is reloaded, and a burner wallet created with `persist: false` keeps its address across reconnects.
+- 34ff1b4: Scaffolded apps start on current dependency versions: every template now pins Next.js 16.4.6, React 19.3.1, viem 2.58.0, Tailwind CSS 4.3.5, lucide-react 1.74.0 and `@web3auth/modal` 11.4.3, all within the major versions they were already on. The packages' own dependencies move to the same versions: `@avakit/core` depends on viem 2.58.0, `@avakit/react` on `@radix-ui/react-dialog` 1.3.1, lucide-react 1.74.0 and tailwind-merge 3.7.0, `@avakit/mcp` and `@avakit/studio` on `@modelcontextprotocol/sdk` 1.32.2, zod 4.6.7 and viem 2.58.0, and the scaffolder itself on Ink 7.1.1 and React 19.3.1.
+- 1ea2122: The temporary (burner) wallet now asks the chain's RPC which chain it serves before its first transaction on that chain, and signs a transaction only for the chain id its definition names: a chain defined as a testnet whose `rpcUrl` points at a mainnet (or any other chain) is refused with an error that starts "Nothing was signed or sent:", and `humanizeError` shows that message instead of viem's "An unknown RPC error occurred.". In `@avakit/react`, a `fund()` that joins a faucet request already in flight (for example after `reset()`) now reports "funding" and the outcome through `useFaucet()` instead of leaving it at "idle", and calling `fetchMore()` twice from the same render no longer fetches and appends the same page twice.
+- 2ce3645: Faucet requests now fail with a typed `FaucetError` (`code`, `retryable`, `retryAfterMs`), retry a temporary failure a bounded number of times and give up on a faucet that hangs, and `useFaucet()` shows the automatic burner drip as well as a manual `fund()` while leaving a wallet that already holds funds alone. `deployContract` resolves only once the contract's code is on chain (the same check is available as `waitForDeployment`), the built-in explorer and faucet links point straight at Builder Hub instead of redirecting there, and the hosted faucet endpoint is exported as `AVAKIT_FAUCET_URL`.
+
 ## 0.2.1
 
 ### Patch Changes

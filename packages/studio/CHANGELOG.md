@@ -1,5 +1,22 @@
 # @avakit/studio
 
+## 0.1.14
+
+### Patch Changes
+
+- 7eb0ec4: Studio now deploys the hardened ICM messenger: it rejects a zero origin sender
+  from an unregistered chain, and refuses a message longer than 256 bytes when it
+  is sent instead of letting it run out of gas on delivery and never arrive.
+- 34ff1b4: Scaffolded apps start on current dependency versions: every template now pins Next.js 16.4.6, React 19.3.1, viem 2.58.0, Tailwind CSS 4.3.5, lucide-react 1.74.0 and `@web3auth/modal` 11.4.3, all within the major versions they were already on. The packages' own dependencies move to the same versions: `@avakit/core` depends on viem 2.58.0, `@avakit/react` on `@radix-ui/react-dialog` 1.3.1, lucide-react 1.74.0 and tailwind-merge 3.7.0, `@avakit/mcp` and `@avakit/studio` on `@modelcontextprotocol/sdk` 1.32.2, zod 4.6.7 and viem 2.58.0, and the scaffolder itself on Ink 7.1.1 and React 19.3.1.
+- 8575b2e: Stopping Studio (Ctrl+C, or an agent's client ending `avakit-studio mcp`) while an avalanche-cli command it started is still running no longer frees the action lock: the command keeps running, as before, and every other Studio refuses new actions until it has finished, saying which command is still running. Deploying the Interchain messengers and sending a message now take the same lock, so they can no longer overlap with each other, across the dashboard and the MCP server, or with a devnet start or stop. A lock left by a crashed Studio whose pid now belongs to another process no longer blocks anything, and every refusal from another Studio names the lock file and says when it is safe to delete it.
+- 0caa99e: Studio's one-action-at-a-time rule now holds across every Studio process: the dashboard and `avakit-studio mcp` share a lock file (`~/.avakit-studio/action.lock`), so an agent and a click in the dashboard can no longer run avalanche-cli at the same time, and both refuse with the same "Another action (…) is still running" message. Launching a local L1 or deploying to Fuji under a name whose existing config has another chain ID or token is refused with the existing values named, instead of deploying the old chain and reporting the new values as done; a matching config is reused and the log says so. The Fuji wizard only moves on (and only transfers testnet AVAX) once the name, chain ID, token and amount pass the server's own rules, and the chain ID and token stay editable until the deploy has run. Interchain's `ready` (dashboard, `/api/icm/state` and the `icm_state` tool) is now true only when two messengers are deployed and linked — the new `hasPeers` says that two L1s are running — and the Overview card and Devnet banner say "deploy the messengers to send a message" until then. An open tab shows a stopped or restarted Studio as disconnected within one status poll.
+- 21f77a2: Studio's Interchain view now works with any number of local L1s: it lists only the running, ICM-ready ones, lets you pick source and destination, links messengers that share an address, replaces a messenger that went with a devnet reset or predates the 256-byte message limit, and delivers a message exactly as typed (checked against that limit before it is sent). avalanche-cli actions now belong to the Studio server (one at a time, with a Cancel button), so a run and its log survive switching views, reloading or closing the tab; a malformed request can no longer crash Studio, a failed step is no longer reported as success, and a Data lookup shows an API failure as a failure instead of an empty wallet.
+- Updated dependencies [54b59ec]
+- Updated dependencies [34ff1b4]
+- Updated dependencies [1ea2122]
+- Updated dependencies [2ce3645]
+  - @avakit/core@0.2.2
+
 ## 0.1.13
 
 ### Patch Changes

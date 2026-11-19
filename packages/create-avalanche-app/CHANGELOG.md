@@ -1,5 +1,62 @@
 # create-avalanche-app
 
+## 0.4.2
+
+### Patch Changes
+
+- 431c3c9: The CLI now installs with the package manager you launched it with (falling back to
+  npm), and when that manager is missing or the install fails it says so, prints the
+  commands to run by hand and exits non-zero instead of printing "Done". Unknown flags,
+  templates, chains and package managers are rejected with the list of valid values
+  rather than silently replaced, each template can only be scaffolded for the chains its
+  manifest lists (only `minimal` supports `c-chain`), and a hand-written telemetry
+  opt-out is no longer overwritten.
+
+  On Windows the package manager is started through a shell, as the `.cmd` shims of npm,
+  pnpm and yarn require. A scaffold that fails part-way removes what it wrote instead of
+  blocking the retry, and build output or local `.env` files left inside a template
+  directory are no longer copied into the new app.
+
+- 7eb0ec4: Harden the contracts the templates ship: the NFT keeps its on-chain art when it
+  is transferred, names the network it is actually deployed on and reverts
+  `balanceOf` for the zero address and `getApproved` for a missing token as
+  ERC-721 requires, while the ICM messenger rejects a zero origin sender from an
+  unregistered chain and caps messages at 256 bytes so a delivery always fits its
+  gas budget. Each template's `foundry.toml` now pins the EVM version (`cancun`)
+  beside solc, so `forge build` reproduces the bundled bytecode byte for byte.
+- 34ff1b4: Scaffolded apps start on current dependency versions: every template now pins Next.js 16.4.6, React 19.3.1, viem 2.58.0, Tailwind CSS 4.3.5, lucide-react 1.74.0 and `@web3auth/modal` 11.4.3, all within the major versions they were already on. The packages' own dependencies move to the same versions: `@avakit/core` depends on viem 2.58.0, `@avakit/react` on `@radix-ui/react-dialog` 1.3.1, lucide-react 1.74.0 and tailwind-merge 3.7.0, `@avakit/mcp` and `@avakit/studio` on `@modelcontextprotocol/sdk` 1.32.2, zod 4.6.7 and viem 2.58.0, and the scaffolder itself on Ink 7.1.1 and React 19.3.1.
+- 40c8fc5: The CLI now needs Node.js 22 or newer (`engines.node` is `>=22`). The library that draws the
+  interactive wizard already required Node.js 22, so on Node.js 20 or 21 npm warned about it and
+  stricter installers refused the CLI; such a Node.js now gets one line that names the version it
+  found and the one it needs, and nothing is created.
+
+  Pressing Ctrl+C at a wizard prompt now exits with status 130 instead of 0, after one line that
+  says whether anything was created, so a command chained with `&&` stops. Answering No to
+  "Create the app now?" still exits with 0 and now says "Nothing was created."
+
+- f71bacd: Tokens minted from the `nft-mint` and `token-gated-app` templates no longer
+  claim to have been minted at avakit.dev/new with no install and no gas: the
+  on-chain description now reads "Generated on-chain by the AvaKitNFT contract.
+  The art is derived from the token and never changes.", which holds wherever
+  the contract is deployed. The demo token the `token-bridge` template deploys is
+  rebuilt from the `erc20-token` contract with the pinned compiler settings (its
+  behaviour is unchanged; only the metadata hash at the end of the bytecode
+  differs).
+- d8cdb7e: Every command a scaffolded app shows is now written for npm (`npm install`, `npm run dev`, `npm run devnet`, `npm run l1`, `npm run bridge`, `npm run deploy:eerc`), so it works on a machine with only Node.js; pnpm, yarn and bun work as well. The NFT demo shows a mint as "Mint sent" until its receipt succeeds and never puts a check mark on a mint that reverted, and the token bridge demo reports a reverted mint, approve or send as an error instead of showing the tokens in flight. When the confidential-token demo cannot download its proving circuits, it says which host was blocked and offers "Try again", while a circuit file that fails its integrity check is still refused.
+- 742c047: The CLI now checks the Node.js version before it does anything else. Below the supported
+  floor (`>=20.11`) it stops with one line that names the version it found and the one it
+  needs, instead of failing part-way through with a stack trace; on Node.js 20 or 21 it
+  still runs, after one warning that Node.js 20 reached end-of-life in April 2026 and that
+  AvaKit is tested on Node.js 22 and 24.
+
+  The published package can no longer carry what tools leave in a template directory: Foundry
+  build output (`contracts/out`, `cache`, `broadcast`), `node_modules`, `.next`, `.turbo` and
+  `.env` files are now excluded by `files` itself. Until now only a publish from a clean
+  checkout was free of them.
+
+- 290b9d2: Freshly scaffolded Fuji apps (`minimal`, `nft-mint`, `token-gated-app`, `erc20-token`, `eerc-token`) can now pay for their first transaction: a new temporary wallet gets test AVAX from AvaKit's shared, rate-limited Fuji faucet, the app says what the faucet is doing and how to carry on when it refuses, and `NEXT_PUBLIC_AVAKIT_FAUCET_URL` points it at your own faucet or switches it off. The local-devnet templates now say plainly that they depend on Avalanche CLI (in maintenance mode, last proven with 1.9.6 in July 2026), the confidential-token template states the EncryptedERC commit it is pinned to, and the faucet links name the Builder Hub faucet and its free sign-in.
+- d13b8b8: Scaffolded apps are sturdier: a mainnet scaffold no longer offers the burner wallet or the shared demo Web3Auth key, a deployed contract survives a reload and is dropped after a devnet reset, the token gate shows an unknown balance as "checking" or "failed" instead of "locked", and the ICM demo refuses messages over 256 bytes and reports a message that is not delivered instead of showing it in flight forever. `npm run l1:fuji` now creates and deploys a separate sovereign Proof-of-Authority config instead of the local dev chain, the devnet scripts read the Teleporter address and the public EWOQ dev key from avalanche-cli instead of hardcoding them, and `npm run deploy:eerc` only reuses its cached clone when it is at the pinned commit.
+
 ## 0.4.1
 
 ### Patch Changes

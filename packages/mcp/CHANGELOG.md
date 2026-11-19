@@ -1,5 +1,39 @@
 # @avakit/mcp
 
+## 0.2.0
+
+### Minor Changes
+
+- d963a43: An agent can now go from a prompt to a minted NFT on Fuji with no key to create: `deploy_contract` and the new `write_contract` sign with a session test wallet that lives only in the server's memory, works on Fuji only and is funded by the AvaKit faucet, contracts are passed by file with `artifactPath` (the paths `scaffold_app` now returns as `artifacts`), and the new `wallet_status` shows which wallet signs and what it holds.
+  Mainnet still needs your own `AVAKIT_DEPLOYER_KEY`, `confirm: true` and `AVAKIT_ALLOW_MAINNET=1`, and `AVAKIT_TEST_WALLET=0` turns the session wallet off.
+  `deploy_contract` now returns an address only once there is code at it, with its EIP-55 checksum, and every tool is annotated as read-only or not so a client can ask before a write.
+
+### Patch Changes
+
+- 431c3c9: `deploy_contract` now reports a deployment whose transaction reverted as an error
+  instead of returning the address of a contract that was never created, and
+  `scaffold_app` only creates projects inside the server's working directory (or
+  `AVAKIT_MCP_ROOT`) and refuses a chain the template does not support. A server started
+  in the filesystem root, as Claude Desktop does on macOS, has no project folder, so
+  there `scaffold_app` needs `AVAKIT_MCP_ROOT` to name one. The mainnet gate
+  `AVAKIT_ALLOW_MAINNET=1` is now documented in the README and in the tool description,
+  and the registry listing no longer advertises minting.
+- 34ff1b4: Scaffolded apps start on current dependency versions: every template now pins Next.js 16.4.6, React 19.3.1, viem 2.58.0, Tailwind CSS 4.3.5, lucide-react 1.74.0 and `@web3auth/modal` 11.4.3, all within the major versions they were already on. The packages' own dependencies move to the same versions: `@avakit/core` depends on viem 2.58.0, `@avakit/react` on `@radix-ui/react-dialog` 1.3.1, lucide-react 1.74.0 and tailwind-merge 3.7.0, `@avakit/mcp` and `@avakit/studio` on `@modelcontextprotocol/sdk` 1.32.2, zod 4.6.7 and viem 2.58.0, and the scaffolder itself on Ink 7.1.1 and React 19.3.1.
+- 2ae6fbb: A file under the 2 MB artifact limit built to make the parser backtrack could keep the server busy for minutes, during which no tool answered; reading an artifact now takes time in proportion to its size. When `scaffold_app` creates a project in a sub-directory (`directory`), its first next step now changes into that path from where the agent stands, instead of into the project's name.
+- cdfe3b1: The first `npx -y @avakit/mcp` on a machine is now a small download, so an MCP client no longer times out waiting for the server to connect: the server ships as one file with the MCP SDK, viem, zod and `@avakit/core` bundled into it (their licences are in `dist/THIRD_PARTY_LICENSES.txt`), and installs 48 packages instead of about 150.
+  `avakit-mcp --version` prints the version and `avakit-mcp --help` a short usage text; on a slow network, run `npx -y @avakit/mcp --version` once before adding the server to a client.
+- 2ee2ec4: `scaffold_app` now gives its next steps with npm (`npm install`, `npm run dev`). They used to say `pnpm install`, which fails on a machine that has only Node.js, and an agent follows those lines literally. `read_chain` takes a contract's ABI the way `write_contract` does: as `artifactPath` (one of the files `scaffold_app` returned) or as `abi`, which can be just the signature of the function. It picks overloads by full signature, refuses a state-changing function with a pointer to `write_contract`, and reports a failed read in one line.
+- Updated dependencies [431c3c9]
+- Updated dependencies [7eb0ec4]
+- Updated dependencies [34ff1b4]
+- Updated dependencies [40c8fc5]
+- Updated dependencies [f71bacd]
+- Updated dependencies [d8cdb7e]
+- Updated dependencies [742c047]
+- Updated dependencies [290b9d2]
+- Updated dependencies [d13b8b8]
+  - create-avalanche-app@0.4.2
+
 ## 0.1.27
 
 ### Patch Changes
