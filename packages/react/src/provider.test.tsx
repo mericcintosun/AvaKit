@@ -481,10 +481,12 @@ describe("wallet events", () => {
     expect(wallet.listenerCount()).toBe(3);
 
     fireEvent.click(screen.getByText("disconnect"));
+    // The listeners come and go in an effect, which can run a moment after the
+    // status is on screen: wait for both, as renderConnected() does.
     await waitFor(() => {
       expect(screen.getByTestId("status").textContent).toBe("disconnected");
+      expect(wallet.listenerCount()).toBe(0);
     });
-    expect(wallet.listenerCount()).toBe(0);
 
     // A late event from the wallet must not resurrect the old account.
     act(() => wallet.emit("accountsChanged", [OTHER_ADDRESS]));
@@ -493,8 +495,8 @@ describe("wallet events", () => {
     fireEvent.click(screen.getByText("connect"));
     await waitFor(() => {
       expect(screen.getByTestId("status").textContent).toBe("connected");
+      expect(wallet.listenerCount()).toBe(3);
     });
-    expect(wallet.listenerCount()).toBe(3);
     view.unmount();
     expect(wallet.listenerCount()).toBe(0);
   });
