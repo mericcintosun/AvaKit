@@ -1,5 +1,5 @@
 import { burnerAdapter, defineChain, ensureChain, getWalletClient } from "@avakit/core";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import type { Hex } from "viem";
 import { parseTransaction } from "viem";
@@ -123,6 +123,17 @@ function TwoChainDemo() {
   );
 }
 
+/**
+ * Run the effects the connect left pending. "connected" is on screen as soon as
+ * React commits, but the provider subscribes to the wallet and keeps it on the
+ * app's chain in effects that can run a moment later; one that runs after the
+ * click below would move the wallet back to the first chain. A person clicks
+ * long after that; a test does not.
+ */
+async function settled() {
+  await act(async () => {});
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -144,6 +155,7 @@ describe("burner wallet across two chains", () => {
     await waitFor(() => {
       expect(screen.getByTestId("status").textContent).toBe("connected");
     });
+    await settled();
     expect(screen.getByTestId("chain").textContent).toBe("icm1");
 
     fireEvent.click(screen.getByText("send on chain 2"));
@@ -186,6 +198,7 @@ describe("burner wallet across two chains", () => {
     await waitFor(() => {
       expect(screen.getByTestId("status").textContent).toBe("connected");
     });
+    await settled();
 
     fireEvent.click(screen.getByText("send on chain 2"));
 
