@@ -65,8 +65,10 @@ node scripts/sync-server-json.mjs --check
 # apps/web/public/.well-known/mcp-registry-auth, which avakit.dev serves.
 # The private half is at ~/.avakit/mcp-registry-key.pem — outside this repo,
 # never in CI. Back it up; without it you cannot update the listing.
+# The key is Ed25519: its 32 private bytes are the hex lines between "priv:" and
+# "pub:" in openssl's text dump (64 hex characters once joined).
 PRIV="$(openssl pkey -in "$HOME/.avakit/mcp-registry-key.pem" -noout -text \
-        | grep -A3 "priv:" | tail -n +2 | tr -d ' :\n')"
+        | awk '/^priv:/{f=1;next} /^pub:/{f=0} f' | tr -d ' :\n')"
 mcp-publisher login http --domain avakit.dev --private-key "$PRIV"
 
 mcp-publisher validate     # catches the 100-char description and schema errors
