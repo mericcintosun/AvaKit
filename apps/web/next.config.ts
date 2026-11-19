@@ -43,6 +43,13 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },
+      {
+        // The /avatar page offers an embed snippet that loads these models from
+        // other sites, and <model-viewer> fetches a .glb with CORS: without this
+        // header another origin's page gets nothing. Public brand assets only.
+        source: "/3d/:path*",
+        headers: [{ key: "Access-Control-Allow-Origin", value: "*" }],
+      },
     ];
   },
 };

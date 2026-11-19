@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { usePrefersReducedMotion } from "@/components/use-media-query";
 import { Link } from "@/i18n/navigation";
+import { SITE_URL } from "@/lib/content";
+import { embedSnippet } from "@/lib/embed-snippet";
 
 /* AvaKit 3D mascots — a standalone showcase page for the two branded assets:
    the AvaFox mascot and the Obsidian Core. Interactive glTF (Draco) rendered
@@ -101,14 +103,8 @@ function useModelViewer() {
   return ready;
 }
 
-const embedSnippet = (a: Asset) => `<model-viewer
-  src="${a.src}"
-  poster="${a.poster}"
-  autoplay animation-name="${a.clip}"
-  camera-controls environment-image="neutral"
-  shadow-intensity="0" exposure="1"
-  alt="${a.title}">
-</model-viewer>`;
+/** Absolute URLs on the site's own origin, plus the viewer script: see lib/embed-snippet.ts. */
+const snippetFor = (a: Asset) => embedSnippet(a, SITE_URL);
 
 export default function AvatarPage() {
   const ready = useModelViewer();
@@ -130,7 +126,7 @@ export default function AvatarPage() {
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(embedSnippet(active));
+      await navigator.clipboard.writeText(snippetFor(active));
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -298,7 +294,7 @@ export default function AvatarPage() {
               </button>
             </div>
             <pre className="border-border bg-background/70 text-muted-foreground overflow-x-auto rounded-xl border p-4 font-mono text-[12px] leading-relaxed">
-              {embedSnippet(active)}
+              {snippetFor(active)}
             </pre>
           </motion.div>
 
