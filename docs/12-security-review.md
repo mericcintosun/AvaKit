@@ -108,8 +108,8 @@ Not npm packages, so no changeset; the changes are in the repository:
 
 | Area | What the review found | What changed |
 | --- | --- | --- |
-| `services/faucet` | Rate limits were counted in KV, where parallel requests can all pass before any is recorded. Concurrent drips could sign the same nonce. A contract recipient could make a drip burn gas. Refusals had no machine-readable code. | Limits and the send queue live in a Durable Object. A transaction whose answer was lost is looked up by hash. Contract recipients are refused. Every refusal is `{ error, code }`. A Turnstile check is optional. **Not deployed on 2026-11-18.** |
-| `services/telemetry` | The collector counted any well-formed template id, and there was no way to remove the project's own test events. | Only known template ids are accepted. `POST /admin/purge`, behind `TELEMETRY_ADMIN_TOKEN`, removes a day. **Not deployed on 2026-11-18.** |
+| `services/faucet` | Rate limits were counted in KV, where parallel requests can all pass before any is recorded. Concurrent drips could sign the same nonce. A contract recipient could make a drip burn gas. Refusals had no machine-readable code. | Limits and the send queue live in a Durable Object. A transaction whose answer was lost is looked up by hash. Contract recipients are refused. Every refusal is `{ error, code }`. A Turnstile check is optional. Deployed on 2026-11-19. |
+| `services/telemetry` | The collector counted any well-formed template id, and there was no way to remove the project's own test events. | Only known template ids are accepted. `POST /admin/purge`, behind `TELEMETRY_ADMIN_TOKEN`, removes a day. Deployed on 2026-11-19, when the 52 test events of 2026-11-18 were removed and the route switched off again. |
 | `contracts-ci` | The artifact check covered the five templates' own artifacts only. Studio's messenger bytecode, the website's and the example app's artifacts and `token-bridge`'s demo token were compared with nothing. | `check-artifacts.mjs` compares nine artifacts in CI, fails on an artifact file it has not been told about, and regenerates them with `--write`. `sync.mjs` refuses a `foundry.toml` whose compiler settings differ from the harness's. |
 | `.github/workflows` | The release job published whatever built, and the version PR gets no CI run of its own. | The release job runs lint, typecheck and tests before it versions or publishes. `e2e-fuji.yml` runs the published packages end to end. |
 
@@ -140,5 +140,6 @@ both exceptions and their limits.
 
 The review did not close everything. What is open on the day of the release is listed
 in [`KNOWN-GAPS.md`](KNOWN-GAPS.md), under "Open on 2026-11-18": among others the
-faucet and collector changes that are not deployed, the public EWOQ key literal in
-Studio, and the dependence of three templates and Studio on Avalanche CLI.
+public EWOQ key literal in Studio and the dependence of three templates and Studio on
+Avalanche CLI. The faucet and collector changes, open on that day, were deployed on
+2026-11-19.

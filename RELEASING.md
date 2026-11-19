@@ -82,8 +82,8 @@ exchange is also what produces the **provenance attestation** on each tarball
   standalone npm projects outside the pnpm workspace. No workflow deploys them: each is
   deployed by hand with `npx wrangler deploy` from its own directory, following its
   `README.md`. Code merged to `main` under `services/` is therefore not running until
-  someone deploys it. On 2026-11-18 the faucet and telemetry changes of the review
-  rounds were in the repository and not deployed (see `docs/KNOWN-GAPS.md`).
+  someone deploys it. The faucet and telemetry changes of the November review rounds
+  were deployed on 2026-11-19.
 - **The website.** `apps/web` is private and is not published to npm.
 
 ## Nothing is published from a red tree

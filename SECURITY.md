@@ -104,19 +104,16 @@ The five Fuji templates and the MCP session test wallet ask AvaKit's shared fauc
   to an address. It is paid for by the maintainer and meant for first runs. Client code
   sends it an address and never sees a key. It is only ever asked on Fuji, and never by
   an app on a mainnet.
-- **Its limits.** One drip per address per 24 hours and an hourly cap per network
-  address, enforced by the Worker. It can be empty, and it can refuse. The apps and the
-  MCP server then show the reason and point to the
+- **Its limits.** Exact limits kept in a Durable Object: one drip per address per 24
+  hours, an hourly cap per client with IPv6 counted by /64, a cap on drips in flight
+  per client and a cap on failed attempts. One transaction is sent at a time, so two
+  requests never sign the same nonce; a transaction whose answer was lost is looked up
+  by hash; contract recipients and mainnet chain ids are refused; a Cloudflare
+  Turnstile check can be switched on. This version has run the hosted faucet since
+  2026-11-19 (Turnstile off). It can be empty, and it can refuse. The apps and the MCP
+  server then show the reason and point to the
   [official Fuji faucet](https://build.avax.network/console/primary-network/faucet),
   which needs a free Builder Hub sign-in.
-- **Not deployed yet.** The Worker in this repository has abuse controls that the
-  running faucet does not have yet: exact limits kept in a Durable Object (per address
-  per 24 hours, per client per hour with IPv6 counted by /64, a cap on drips in flight
-  per client, a cap on failed attempts), one transaction sent at a time so that two
-  requests never sign the same nonce, a lookup by hash when the node's answer is lost,
-  a refusal of contract recipients, and an optional Cloudflare Turnstile check. Until
-  it is deployed, the hosted faucet runs the earlier version, whose rate limits are
-  counted in a KV namespace and can be exceeded by parallel requests.
 - **Turning it off.** Scaffolded apps: set `NEXT_PUBLIC_AVAKIT_FAUCET_URL` to the
   `/fund` URL of your own faucet, or to `off`. MCP server: set `AVAKIT_FAUCET_URL` to
   another faucet, set `AVAKIT_TEST_WALLET=0`, or use your own key. Nothing in

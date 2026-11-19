@@ -42,20 +42,16 @@ the detail where there is any.
   to end in July 2026 (Avalanche CLI 1.9.6); their scripts have changed since
   without a full run on a live network, and the move to the supported toolchain
   has not been done.
-- **The faucet Worker's hardening is not deployed.** `services/faucet` has exact
-  limits in a Durable Object, queued sends, a lookup by hash when the node's answer
-  is lost, a refusal of contract recipients and an optional Turnstile check. The
-  hosted faucet still runs the earlier Worker, whose limits are counted in KV and
-  are a floor, not a guarantee. Deploying is a manual `wrangler deploy` by the
-  owner (`services/faucet/README.md`, "First deploy of this version").
-- **The telemetry collector's changes are not deployed, and test events are in the
-  public count.** On 2026-11-18 local smoke tests wrote 52 scaffold events into the
-  production collector, because `scripts/smoke-template.sh` did not opt out. The
-  script now sets `AVAKIT_TELEMETRY_DISABLED=1` itself. The events are still counted
-  on avakit.dev/stats until the owner deploys `services/telemetry` and removes that
-  day with `POST /admin/purge` (`services/telemetry/README.md`, "Removing test
-  events"). The purge removes a whole UTC day, so real scaffolds of that day go
-  with it.
+- **Closed on 2026-11-19: the Workers are deployed.** The hardened faucet (exact
+  limits in a Durable Object, queued sends, a lookup by hash, refusals of contract
+  recipients and mainnet chain ids) has run the hosted faucet since 2026-11-19, with
+  Turnstile off; a live drip, a repeated drip (`429 address_limited`), a contract
+  recipient and a mainnet chain id were checked against it. The telemetry collector
+  was deployed the same day and the 52 scaffold events that local smoke tests had
+  written on 2026-11-18 were removed with `POST /admin/purge` (dry run first: 52
+  events, all from that test run, and the test install first seen that day); the
+  admin token was deleted again afterwards. `scripts/smoke-template.sh` sets
+  `AVAKIT_TELEMETRY_DISABLED=1` itself, so a smoke run is not counted again.
 - **Single maintainer.** One person reviews and releases, and pays for and
   operates the faucet and the telemetry collector. There is no second reviewer,
   and no response time is promised beyond the intention stated in `SECURITY.md`.
