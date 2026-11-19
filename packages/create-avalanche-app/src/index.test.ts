@@ -65,7 +65,7 @@ describe("the create-avalanche-app entry", () => {
 
       expect(stderr, version).toBe(
         `Error: create-avalanche-app needs Node.js 22 or newer, but this is Node.js ${version}. ` +
-          "Install Node.js 22 or 24 from https://nodejs.org and run the command again.\n",
+          "Install Node.js 22, 24 or 26 from https://nodejs.org and run the command again.\n",
       );
       expect(process.exitCode, version).toBe(1);
     }

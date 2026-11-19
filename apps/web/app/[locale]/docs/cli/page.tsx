@@ -28,7 +28,7 @@ export default function CliDocs() {
       <H2>Requirements</H2>
       <UL>
         <li>
-          Node.js 22 or 24, the versions AvaKit is tested on. The CLI needs Node.js 22 or newer,
+          Node.js 22, 24 or 26, the versions AvaKit is tested on. The CLI needs Node.js 22 or newer,
           because the library that draws its wizard does, and on anything older it stops with one
           line before creating anything. Node 20 reached end of life in April 2026.
         </li>

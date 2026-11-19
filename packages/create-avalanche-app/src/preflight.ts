@@ -26,7 +26,15 @@ import { readFileSync } from "node:fs";
 export type NodeVersion = readonly [number, number, number];
 
 /** The Node.js release lines the whole flow is run on (.github/workflows/e2e-fuji.yml). */
-export const TESTED_NODE_MAJORS = [22, 24] as const;
+export const TESTED_NODE_MAJORS = [22, 24, 26] as const;
+
+/** The tested release lines as a person would list them: "22, 24 or 26". */
+export function testedNodeLines(): string {
+  const lines = TESTED_NODE_MAJORS.map(String);
+  return lines.length > 1
+    ? `${lines.slice(0, -1).join(", ")} or ${lines.at(-1)}`
+    : (lines[0] ?? "");
+}
 
 /**
  * `engines.node` from this package's own package.json: the one place the floor
@@ -104,7 +112,7 @@ export function checkNodeVersion(
       ok: false,
       message:
         `Error: create-avalanche-app needs Node.js ${required} or newer, but this is ${running}. ` +
-        `Install Node.js ${TESTED_NODE_MAJORS.join(" or ")} from https://nodejs.org and run ` +
+        `Install Node.js ${testedNodeLines()} from https://nodejs.org and run ` +
         "the command again.",
     };
   }

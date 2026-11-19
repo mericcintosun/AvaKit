@@ -7,6 +7,7 @@ import {
   nodeFloor,
   parseNodeVersion,
   TESTED_NODE_MAJORS,
+  testedNodeLines,
 } from "./preflight.js";
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
@@ -74,7 +75,7 @@ describe("checkNodeVersion", () => {
       expect(check.ok, found).toBe(false);
       expect(check.message).toBe(
         `Error: create-avalanche-app needs Node.js 22 or newer, but this is Node.js ${found.replace("v", "")}. ` +
-          "Install Node.js 22 or 24 from https://nodejs.org and run the command again.",
+          "Install Node.js 22, 24 or 26 from https://nodejs.org and run the command again.",
       );
     }
   });
@@ -135,7 +136,7 @@ describe("what the messages claim", () => {
 
   it("is what the README documents", () => {
     const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
-    expect(readme).toContain(`Node.js **${TESTED_NODE_MAJORS.join(" or ")}**`);
+    expect(readme).toContain(`Node.js **${testedNodeLines()}**`);
     expect(readme).toContain(`\`engines.node\` (\`${pkg.engines.node}\`)`);
     expect(readme).toContain("Node.js 20 reached end of life in April 2026");
     // The table's rows are the two outcomes of the check, at the same boundary.

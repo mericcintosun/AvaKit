@@ -28,11 +28,11 @@ npm run dev                  # http://localhost:3000
 
 ## Requirements
 
-Node.js **22 or 24**, and a package manager: npm ships with Node.js and is all you need.
+Node.js **22, 24 or 26**, and a package manager: npm ships with Node.js and is all you need.
 
 | Node.js | What the CLI does |
 | --- | --- |
-| 22 or newer | Runs. 22 and 24 are the release lines AvaKit is tested on. |
+| 22 or newer | Runs. 22, 24 and 26 are the release lines AvaKit is tested on. |
 | older than 22 | Stops with one line that names the version it found and the one it needs, creates nothing, and exits with status 1. |
 
 The check is the first thing the CLI does, before it reads its arguments, so an unsupported
@@ -41,12 +41,12 @@ this package's `engines.node` (`>=22`). Node.js 20 reached end of life in April 
 a long time before), and the library that draws the interactive wizard, `ink`, requires Node.js
 22, as do several of the packages it uses. On Node.js 20 or 21, npm therefore prints
 `EBADENGINE` warnings while it fetches the CLI, and an installer that enforces engines (npm with
-`engine-strict`, Yarn 1) refuses to install it. Install Node.js 22 or 24 from
+`engine-strict`, Yarn 1) refuses to install it. Install Node.js 22, 24 or 26 from
 [nodejs.org](https://nodejs.org) instead.
 
 "Tested on" means the
 [end-to-end workflow](https://github.com/mericcintosun/AvaKit/actions/workflows/e2e-fuji.yml):
-every day, on fresh machines with nothing but Node.js and npm (Linux with Node.js 22 and 24,
+every day, on fresh machines with nothing but Node.js and npm (Linux with Node.js 22, 24 and 26,
 macOS and Windows with Node.js 24), it takes the published packages from npm, scaffolds
 `nft-mint` (through `@avakit/mcp`, which uses this package's scaffolder), installs and builds the
 app, and on one machine deploys the contract to Fuji and mints. To repeat it on your own machine,

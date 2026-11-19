@@ -130,8 +130,8 @@ export default function McpDocs() {
       </Note>
       <P>
         You need <A href="https://nodejs.org">Node.js</A> installed (for <C>npx</C>); AvaKit is
-        tested on Node 22 and 24. There's nothing else to install — <C>npx</C> fetches the server on
-        demand — and on Fuji there is no key to create. Follow the steps for your client.
+        tested on Node 22, 24 and 26. There's nothing else to install — <C>npx</C> fetches the
+        server on demand — and on Fuji there is no key to create. Follow the steps for your client.
       </P>
 
       <H2>Claude Code (CLI)</H2>
