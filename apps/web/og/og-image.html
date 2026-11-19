@@ -1,0 +1,188 @@
+<!doctype html>
+<!--
+  Source of apps/web/public/og-image.png, the social card every page points at
+  (OG_IMAGE in lib/metadata.ts).
+
+  Render it at exactly 1200x630, device scale factor 1, in any headless
+  Chromium, straight from this file (the images resolve relative to it), and
+  save the screenshot over public/og-image.png. Then copy the card's text, word
+  for word and in reading order, into OG_IMAGE.alt.
+
+  Every line must stay true for what the card shows: the npm command installs
+  dependencies, so no "no install" beside it, and "about a minute" belongs to
+  the /new mint in the browser, not to a scaffolded app.
+
+  Colors are the dark-theme tokens from app/globals.css and the type is the
+  site's Geist / Geist Mono, so the card matches the site.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=block"
+    />
+    <style>
+      :root {
+        --background: oklch(0.145 0 0);
+        --foreground: oklch(0.985 0 0);
+        --muted-foreground: oklch(0.708 0 0);
+        --primary: oklch(0.66 0.2 25.3);
+        --brand: oklch(0.66 0.2 25.3);
+        --border: oklch(1 0 0 / 10%);
+        --card: oklch(0.205 0 0);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: var(--background);
+      }
+      body {
+        position: relative;
+        font-family: Geist, sans-serif;
+        color: var(--foreground);
+        -webkit-font-smoothing: antialiased;
+      }
+      .grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(to right, oklch(1 0 0 / 3%) 1px, transparent 1px),
+          linear-gradient(to bottom, oklch(1 0 0 / 3%) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: radial-gradient(ellipse 70% 80% at 30% 50%, black 30%, transparent 100%);
+      }
+      .glow {
+        position: absolute;
+        left: 600px;
+        top: -40px;
+        width: 680px;
+        height: 680px;
+        background: radial-gradient(
+          circle at 50% 50%,
+          color-mix(in oklab, var(--brand) 26%, transparent) 0%,
+          transparent 62%
+        );
+      }
+      .fox {
+        position: absolute;
+        right: -30px;
+        top: 24px;
+        width: 600px;
+        height: 600px;
+        mix-blend-mode: lighten;
+      }
+      .copy {
+        position: absolute;
+        left: 72px;
+        top: 96px;
+        width: 640px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        height: 32px;
+        padding: 0 16px;
+        border: 1px solid color-mix(in oklab, var(--primary) 55%, transparent);
+        border-radius: 999px;
+        background: color-mix(in oklab, var(--primary) 10%, transparent);
+        color: var(--primary);
+        font-family: "Geist Mono", monospace;
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .badge svg {
+        width: 10px;
+        height: 9px;
+        fill: currentColor;
+      }
+      h1 {
+        margin-top: 28px;
+        font-size: 58px;
+        font-weight: 800;
+        line-height: 1.04;
+        letter-spacing: -0.045em;
+        white-space: nowrap;
+      }
+      h1 .accent {
+        color: var(--primary);
+      }
+      .lines {
+        margin-top: 26px;
+        color: var(--muted-foreground);
+        font-size: 21px;
+        line-height: 1.5;
+        letter-spacing: -0.01em;
+      }
+      .cmd {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 30px;
+        height: 50px;
+        padding: 0 20px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: color-mix(in oklab, var(--card) 70%, transparent);
+        font-family: "Geist Mono", monospace;
+        font-size: 18px;
+      }
+      .cmd .dollar {
+        color: var(--primary);
+      }
+      .site {
+        position: absolute;
+        left: 72px;
+        bottom: 44px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--muted-foreground);
+        font-family: "Geist Mono", monospace;
+        font-size: 16px;
+      }
+      .site img {
+        width: 20px;
+        height: 22px;
+        filter: invert(1);
+        opacity: 0.75;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid"></div>
+    <div class="glow"></div>
+    <img class="fox" src="../public/brand/avafox.png" alt="" />
+
+    <div class="copy">
+      <span class="badge">
+        <svg viewBox="0 0 10 9" aria-hidden="true"><path d="M5 0l5 9H0z" /></svg>
+        Open source · MIT
+      </span>
+      <h1>
+        Avalanche’s<br />
+        open-source, AI-native<br />
+        <span class="accent">create-next-app</span>.
+      </h1>
+      <p class="lines">
+        A real Fuji transaction in about a minute, in your browser.<br />
+        One command, or one prompt, to a working Avalanche dapp.
+      </p>
+      <div class="cmd"><span class="dollar">$</span> npm create avalanche-app</div>
+    </div>
+
+    <div class="site">
+      <img src="../public/logo.png" alt="" />
+      avakit.dev
+    </div>
+  </body>
+</html>

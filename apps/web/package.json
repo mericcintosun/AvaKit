@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "biome check .",
     "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.mjs\"",
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {

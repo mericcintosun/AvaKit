@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { routing } from "@/i18n/routing";
 import type { Locale } from "@/lib/content";
+import { OG_IMAGE } from "@/lib/og-image";
 
 /**
  * Per-page metadata, built in one place.
@@ -23,12 +24,7 @@ export const withSiteName = (title: string) => `${title} — ${SITE_NAME}`;
 /** The home page leads with the site name instead: "AvaKit — <tagline>". */
 export const homeTitle = (tagline: string) => `${SITE_NAME} — ${tagline}`;
 
-export const OG_IMAGE = {
-  url: "/og-image.png",
-  width: 1200,
-  height: 630,
-  alt: "AvaKit — zero to a live Avalanche app in 60 seconds. No install, no signup, no seed phrase, no gas.",
-};
+export { OG_IMAGE };
 
 const OG_LOCALE: Record<Locale, string> = { en: "en_US", tr: "tr_TR" };
 
