@@ -1,6 +1,6 @@
 {
   "name": "@avakit/react",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "React layer for AvaKit — <ConnectAvalanche> social-login widget and hooks, built on shadcn/ui.",
   "license": "MIT",
   "type": "module",
