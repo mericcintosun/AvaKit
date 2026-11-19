@@ -197,7 +197,7 @@ the detail where there is any.
    agent path against a real chain: through the MCP server it scaffolds
    `nft-mint`, builds it with npm, deploys the contract on Fuji, mints and reads
    `ownerOf(1)` back. `.github/workflows/e2e-fuji.yml` runs it against the
-   published packages daily and on demand (four legs; the on-chain half on one).
+   published packages daily and on demand (five legs; the on-chain half on one).
    It is not part of a pull request's checks, and a faucet refusal turns its
    on-chain leg red.
    **Still open:** no test drives connect → deploy → mint in a browser, so a

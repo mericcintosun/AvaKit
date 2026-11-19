@@ -80,6 +80,10 @@ jobs:
           - os: ubuntu-latest
             node: 24
             chain: true
+          # The current LTS line, which nodejs.org offers a newcomer first.
+          - os: ubuntu-latest
+            node: 26
+            chain: false
           - os: macos-latest
             node: 24
             chain: false

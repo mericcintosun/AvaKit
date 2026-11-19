@@ -119,13 +119,13 @@ pnpm build
 node scripts/e2e-fuji.mjs --source workspace [--skip-chain] [--keep] [--json <file>]
 ```
 
-- **`--source npm`** tests what users get. It is what `.github/workflows/e2e-fuji.yml` runs, daily and from **Run workflow**, on fresh GitHub-hosted runners (Ubuntu with Node 22 and Node 24, macOS, Windows) that have Node.js and npm and nothing of AvaKit. `--version` picks the `@avakit/mcp` version or dist-tag (default `latest`).
+- **`--source npm`** tests what users get. It is what `.github/workflows/e2e-fuji.yml` runs, daily and from **Run workflow**, on fresh GitHub-hosted runners (Ubuntu with Node 22, 24 and 26, macOS, Windows) that have Node.js and npm and nothing of AvaKit. `--version` picks the `@avakit/mcp` version or dist-tag (default `latest`).
 - **`--source workspace`** tests your changes to the MCP server before they are released. The scaffolded app is installed and built only when the `@avakit/core` and `@avakit/react` versions it pins are on npm; otherwise that half is reported as skipped, and `scripts/smoke-template.sh` is what covers it against this checkout.
 
 **The on-chain half spends one drip of the shared Fuji faucet per run.** Without `AVAKIT_DEPLOYER_KEY` in the environment the server signs with its session test wallet and asks AvaKit's faucet to fund it. That faucet is shared and rate-limited, and it is what a newcomer's first run depends on, so:
 
 - Pass **`--skip-chain`** whenever the change you are checking is not about deploying or minting: scaffolding, templates, the build, the install on another operating system. The run then stops after the build, sends no transaction and asks no faucet. The server must still list all five tools.
-- Run the on-chain half when you changed the signing tools, the session wallet, the faucet client or the `nft-mint` contract, and run it once, not in a loop. The workflow does the same: only one of its four legs (Ubuntu, Node 24) goes on chain.
+- Run the on-chain half when you changed the signing tools, the session wallet, the faucet client or the `nft-mint` contract, and run it once, not in a loop. The workflow does the same: only one of its five legs (Ubuntu, Node 24) goes on chain.
 - When the faucet refuses or is empty, the run fails and its summary says that the faucet, not necessarily a package, is what failed. Nothing that signs or asks the faucet is tried a second time. Wait out the rate limit before running it again.
 - With `AVAKIT_DEPLOYER_KEY` set to your own funded Fuji key the faucet is not asked; the summary then says that the session wallet was not exercised.
 

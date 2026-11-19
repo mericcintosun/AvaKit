@@ -151,7 +151,7 @@ The open engineering gaps are listed in [`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.m
 - **Bugs and questions.** Open a [GitHub issue](https://github.com/mericcintosun/AvaKit/issues).
 - **Vulnerabilities.** Report them privately through [GitHub's private vulnerability reporting](https://github.com/mericcintosun/AvaKit/security/advisories/new), not in a public issue. [`SECURITY.md`](SECURITY.md) describes what AvaKit does with keys.
 - **Releases.** Versions and changelogs come from [Changesets](https://github.com/changesets/changesets). Packages are published only by the release workflow, through npm trusted publishing (OIDC) with a provenance attestation, after lint, typecheck and tests pass on the commit being released. See [`RELEASING.md`](RELEASING.md).
-- **Node.js versions.** AvaKit is tested on Node.js 22 and 24. The scaffolder needs Node.js 22 or newer, because the library that draws its wizard does, and on anything older it stops with one line before creating anything (Node.js 20 reached end of life in April 2026). The libraries declare Node.js 20.11 or newer.
+- **Node.js versions.** AvaKit is tested on Node.js 22, 24 and 26. The scaffolder needs Node.js 22 or newer, because the library that draws its wizard does, and on anything older it stops with one line before creating anything (Node.js 20 reached end of life in April 2026). The libraries declare Node.js 20.11 or newer.
 - **Dependency updates.** Dependabot opens weekly pull requests for the workspace, the two Workers and the pinned GitHub Actions. The templates' dependencies are bumped by hand, and CI fails when two templates pin different versions of a dependency they share.
 
 ## Repository layout

@@ -1267,6 +1267,7 @@ test("the workflow runs the chain on one leg only, and never puts an input on a 
   assert.deepEqual(legs, [
     "ubuntu-latest node 22 chain false",
     "ubuntu-latest node 24 chain true",
+    "ubuntu-latest node 26 chain false",
     "macos-latest node 24 chain false",
     "windows-latest node 24 chain false",
   ]);
