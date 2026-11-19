@@ -185,8 +185,9 @@ the detail where there is any.
      item used to end on — and `chains`, `clients`, `data-api`, `coinbase` and the
      burner and injected adapters have test files of their own. Core stood at 49
      tests in 11 files before the November review rounds (it was 15 tests), and at
-     201 tests in 13 files after them, with `faucet.test.ts` and
-     `adapters/web3auth-missing.test.ts` added.
+     222 tests in 14 files on the day of the release (2026-11-19), with
+     `faucet.test.ts`, `adapters/web3auth-missing.test.ts` and
+     `adapters/burner-signer.test.ts` added.
 
 6. **No integration / e2e coverage — PARTIALLY FIXED (2026-11-18).** Smoke tests
    only scaffold→install→typecheck→build. `scripts/e2e-fuji.mjs` now drives the
@@ -282,14 +283,15 @@ A2. **`AVAKIT_DEP_VERSION` is a hand-maintained magic constant** decoupled from
 ## B. Testing (whole packages untested)
 
 B1. **`create-avalanche-app`, `@avakit/mcp`, and `@avakit/studio` had zero tests —
-   FIXED (re-checked 2026-11-18).** After the two review rounds:
-   `create-avalanche-app` has 164 tests in 13 files (argument parsing, the package
+   FIXED (re-checked 2026-11-19).** On the day of the release:
+   `create-avalanche-app` has 177 tests in 14 files (argument parsing, the package
    manager runner, the Node.js preflight, scaffolding and its failure path, the
-   packed file list, telemetry, the wizard), `@avakit/mcp` has 212 tests in 13
-   files (the tool handlers through an in-memory client, the session wallet, the
-   faucet client, artifacts, the guards, the registry listing, stdio) and
-   `@avakit/studio` has 200 tests in 14 files (argument validation, CB58, devnet,
-   Fuji, Interchain, the run manager, the server, its MCP face).
+   wizard's exit codes, the packed file list, telemetry), `@avakit/mcp` has 259
+   tests in 17 files (the tool handlers through an in-memory client, the session
+   wallet, the faucet client, artifacts, the guards, the registry listing, stdio,
+   the bundled build) and `@avakit/studio` has 259 tests in 17 files (argument
+   validation, CB58, devnet, Fuji, Interchain, the run manager, the cross-process
+   lock with real second processes, the server, its MCP face).
    Studio's test script is now `vitest run`. The other four packages
    (`@avakit/core`, `@avakit/react`, `@avakit/mcp`, `create-avalanche-app`) still
    declare `vitest run --passWithNoTests`, which no longer hides anything but
