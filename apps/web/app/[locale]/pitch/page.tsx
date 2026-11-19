@@ -414,10 +414,10 @@ export default function PitchDeckPage() {
                 </div>
                 <ul className="flex flex-col gap-2 text-foreground/70">
                   {[
-                    "A pilot with real builders: external developers complete install, scaffold, deploy and mint on their own machines, with public results.",
-                    "Clean-machine reliability: a nightly end-to-end run of the published packages on fresh machines, and fixes for whatever the pilot surfaces.",
-                    "Off a tool in maintenance mode: move the L1, ICM and bridge templates from Avalanche CLI to the supported tools.",
-                    "A faucet that survives a workshop: abuse controls and funding for the pilot.",
+                    "A pilot with real builders: at least 15 developers outside the project complete install, scaffold, deploy and mint on their own machines, in a public log with their handles and transaction links.",
+                    "A workshop kit in English and Turkish, run as two hands-on sessions that end with a minted NFT on Fuji.",
+                    "The fixes the pilot forces, one Team1 integration, and a public report on where people dropped off.",
+                    "Fuji only. Already done at no cost to the grant: the daily clean-machine run of the published packages and a faucet hardened for workshops.",
                   ].map((t) => (
                     <li key={t} className="flex gap-2">
                       <ArrowLeftRight className="text-primary mt-1 size-3.5 shrink-0" />
@@ -435,7 +435,7 @@ export default function PitchDeckPage() {
                 <ul className="flex flex-col gap-2 text-foreground/70">
                   {[
                     "A stable 1.0",
-                    "More one-command Avalanche flows",
+                    "Moving three templates off Avalanche CLI, which is in maintenance mode",
                     "Mainnet stays a separate, reviewed step.",
                   ].map((t) => (
                     <li key={t} className="flex gap-2">
