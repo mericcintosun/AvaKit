@@ -72,6 +72,13 @@ the detail where there is any.
 
 **Dependencies**
 
+- **The social login SDK makes npm 10 crash, so apps carry a workaround.**
+  `@web3auth/modal` (every 11.x release since at least 11.2.0) lists vitest among
+  its runtime dependencies, and the peer dependencies that brings in stop npm 10,
+  the npm that ships with Node.js 22, with "Cannot read properties of null
+  (reading 'edgesOut')". The daily end-to-end run found it on 2026-11-19.
+  Scaffolded apps since `create-avalanche-app` 0.4.3 carry an `.npmrc` with
+  `legacy-peer-deps=true`; remove it once Web3Auth drops the dependency.
 - **The eERC template is pinned to an older upstream commit.** `eerc-token` loads
   its circuits and builds its contracts from `ava-labs/EncryptedERC` at
   `c7eb0e09bc9315e68c35d3c09f5dce4b794d0485`. Upstream merged security fixes with

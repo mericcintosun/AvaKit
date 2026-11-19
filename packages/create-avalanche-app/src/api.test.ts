@@ -250,12 +250,24 @@ describe("scaffoldApp output", () => {
     for (const template of listTemplates()) {
       const target = path.join(dir, template.id);
       await scaffoldApp({ projectName: "app", targetDir: target, template: template.id });
-      for (const restored of [".gitignore", ".env.example", ".cursor/rules/avakit.mdc"]) {
+      for (const restored of [".gitignore", ".env.example", ".npmrc", ".cursor/rules/avakit.mdc"]) {
         expect(existsSync(path.join(target, restored)), `${template.id} ${restored}`).toBe(true);
       }
-      for (const undotted of ["gitignore", "env.example", "cursor"]) {
+      for (const undotted of ["gitignore", "env.example", "npmrc", "cursor"]) {
         expect(existsSync(path.join(target, undotted)), `${template.id} ${undotted}`).toBe(false);
       }
+    }
+  });
+
+  it("gives every app the .npmrc that lets npm 10 install it", async () => {
+    // @web3auth/modal, which every app gets, depends on vitest, and the peer set
+    // that pulls in stops npm 10 (Node.js 22's npm) with "Cannot read properties
+    // of null (reading 'edgesOut')" unless peer resolution is left out.
+    for (const template of listTemplates()) {
+      const target = path.join(dir, `${template.id}-npmrc`);
+      await scaffoldApp({ projectName: "app", targetDir: target, template: template.id });
+      const npmrc = readFileSync(path.join(target, ".npmrc"), "utf8");
+      expect(npmrc, template.id).toMatch(/^legacy-peer-deps=true$/m);
     }
   });
 

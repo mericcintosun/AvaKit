@@ -10,6 +10,8 @@ const RENAME_SEGMENT: Record<string, string> = {
   gitignore: ".gitignore",
   "env.example": ".env.example",
   cursor: ".cursor",
+  // npm leaves every .npmrc out of a published package, whatever `files` says.
+  npmrc: ".npmrc",
 };
 
 /** Template-only files that must NOT be copied into the generated project. */

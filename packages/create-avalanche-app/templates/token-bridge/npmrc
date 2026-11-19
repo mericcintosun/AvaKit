@@ -1,0 +1,7 @@
+# @web3auth/modal (the social login SDK) lists vitest among its runtime
+# dependencies, and the peer dependencies that brings in make npm 10, the npm
+# that ships with Node.js 22, stop during install with "Cannot read properties of
+# null (reading 'edgesOut')". This app lists every peer it needs as a dependency
+# of its own, so npm can leave peer resolution out. pnpm, yarn and bun ignore
+# this setting; npm 11 works with or without it.
+legacy-peer-deps=true

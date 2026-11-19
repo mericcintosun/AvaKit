@@ -40,6 +40,7 @@ describe("scaffold", () => {
       "app/page.tsx": "export const chain = __CHAIN_CONST__;",
       gitignore: "node_modules/",
       "env.example": "NEXT_PUBLIC_EXAMPLE=",
+      npmrc: "legacy-peer-deps=true",
       "cursor/rules/avakit.mdc": "rules for __PROJECT_NAME__",
       "manifest.json": '{ "title": "Fixture" }',
     });
@@ -48,6 +49,7 @@ describe("scaffold", () => {
       ".cursor/rules/avakit.mdc",
       ".env.example",
       ".gitignore",
+      ".npmrc",
       "app/page.tsx",
       "package.json",
     ]);
