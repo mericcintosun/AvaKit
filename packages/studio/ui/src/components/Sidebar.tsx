@@ -16,7 +16,7 @@ export type View = "overview" | "devnet" | "fuji" | "interchain" | "data" | "env
 type NavItem = { id: View; label: string; icon: LucideIcon };
 
 // The views in their usual order, in three groups. The middle one holds every
-// view that drives Avalanche CLI, which makes those views experimental.
+// view that depends on Avalanche CLI, which makes those views experimental.
 const NAV: { title: string; items: NavItem[] }[] = [
   { title: "Main", items: [{ id: "overview", label: "Overview", icon: LayoutDashboard }] },
   {

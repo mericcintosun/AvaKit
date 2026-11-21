@@ -38,7 +38,7 @@ const experimental = (title: string) => `${title} (experimental)`;
 
 /** What an agent is told about this server when it connects. */
 export const MCP_INSTRUCTIONS =
-  "The devnet_* and icm_* tools are experimental: they drive Avalanche CLI, which Ava Labs has kept in maintenance mode since December 2025, and they were last proven end to end against a live network in July 2026. " +
+  "The devnet_* and icm_* tools are experimental: they depend on Avalanche CLI (they run it, or work on the local L1s it set up), which Ava Labs has kept in maintenance mode since December 2025, and they were last proven end to end against a live network in July 2026; Studio has changed since. " +
   "The local network they start keeps running after this server stops; devnet_stop (or `avalanche network stop`) stops it. " +
   "Interchain transactions are signed with the public EWOQ devnet key, and only for L1s whose RPC is on this machine.";
 
@@ -241,22 +241,24 @@ export function createMcpServer(): McpServer {
 
 export async function runMcp(): Promise<void> {
   const server = createMcpServer();
-  // Banner to STDERR only — stdout carries the JSON-RPC protocol here.
-  if (process.stderr.isTTY) {
-    process.stderr.write(banner(bannerColor(process.stderr)));
-  }
-  await server.connect(new StdioServerTransport());
   // Stopping stops the avalanche-cli command an agent started, as on the
-  // dashboard (shutdown.ts); what Studio says about it goes to stderr.
+  // dashboard (shutdown.ts); what Studio says about it goes to stderr. Set up
+  // before anything is written, so that a client that has gone cannot crash
+  // the server with a write it no longer reads (shutdown.ts).
   const shutdown = installShutdown({
     write: (text) => process.stderr.write(text),
     close: () => server.close(),
     stillRunning: () => devnetStillRunning(),
   });
+  // Banner to STDERR only — stdout carries the JSON-RPC protocol here.
+  if (process.stderr.isTTY) {
+    process.stderr.write(banner(bannerColor(process.stderr)));
+  }
+  await server.connect(new StdioServerTransport());
   // An MCP client ends a stdio server by closing its stdin (SIGTERM comes only
   // if the server is still there a while later): that is a stop too. So is a
   // stdout that can no longer be written (EPIPE): nobody reads the answers any
-  // more, and the error must not take the process down before it has stopped.
+  // more.
   const disconnected = () => void shutdown.stop("disconnected");
   process.stdin.once("end", disconnected);
   process.stdin.once("close", disconnected);

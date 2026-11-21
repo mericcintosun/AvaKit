@@ -333,6 +333,61 @@ describe.skipIf(!RUNS_SOURCES)(
       expect(existsSync(actionLockFile())).toBe(false);
     });
 
+    // Closing a terminal window, or killing the agent's client, takes the
+    // reader of what Studio says away first: each write it makes while it
+    // stops then fails (EPIPE, or EIO on a closed terminal). Studio must still
+    // stop its command, give the lock back, and exit as it says.
+
+    it("when the dashboard's terminal has gone away (SIGHUP, nothing reads its output): the command is stopped, then the lock is given back", async () => {
+      slowAvalanche();
+      const other = await dashboardProcess();
+      expect((await post("/api/run", { kind: "devnet", action: "start" }, other)).status).toBe(200);
+      await waitFor(journal, (j) => j.includes("begin network start"));
+      const commandPid = lock().command?.pid as number;
+      started.push(commandPid);
+
+      other.child.stdout?.destroy();
+      other.child.kill("SIGHUP");
+      expect(await other.exited).toEqual({ code: 129, signal: null });
+      expect(alive(commandPid)).toBe(false);
+      expect(journal()).toEqual(["begin network start"]); // stopped half-way, by Studio
+      expect(existsSync(actionLockFile())).toBe(false);
+    });
+
+    it("when the agent's client has gone (nothing reads stdout or stderr, stdin closed): the command is stopped, and the server exits 0", async () => {
+      slowAvalanche();
+      const agent = await rawMcpProcess();
+      agent.callTool("devnet_start");
+      await waitFor(journal, (j) => j.includes("begin network start"));
+      const commandPid = lock().command?.pid as number;
+      started.push(commandPid);
+
+      agent.child.stdout?.destroy();
+      agent.child.stderr?.destroy();
+      agent.child.stdin?.end();
+      expect(await agent.exited).toEqual({ code: 0, signal: null });
+      expect(alive(commandPid)).toBe(false);
+      expect(journal()).toEqual(["begin network start"]);
+      expect(existsSync(actionLockFile())).toBe(false);
+    });
+
+    it("when nothing reads the MCP server's answers any more: its next answer fails, and it stops as if disconnected", async () => {
+      slowAvalanche();
+      const agent = await rawMcpProcess();
+      agent.callTool("devnet_start");
+      await waitFor(journal, (j) => j.includes("begin network start"));
+      const commandPid = lock().command?.pid as number;
+      started.push(commandPid);
+
+      // stdin stays open: only the answer to this call finds out (EPIPE).
+      agent.child.stdout?.destroy();
+      agent.callTool("devnet_status");
+      expect(await agent.exited).toEqual({ code: 0, signal: null });
+      expect(alive(commandPid)).toBe(false);
+      expect(existsSync(actionLockFile())).toBe(false);
+      expect(agent.errors()).toContain(`Stopped avalanche network start (pid ${commandPid}).`);
+    });
+
     it("kills a command that ignores SIGTERM at the second Ctrl+C", async () => {
       slowAvalanche(true);
       const other = await dashboardProcess();

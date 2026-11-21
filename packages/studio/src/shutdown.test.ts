@@ -140,12 +140,36 @@ describe("stopping Studio", () => {
     expect(exits).toEqual([130]);
     expect(said()).toBe("");
   });
+
+  it("stops what it started, and exits, when nothing can be told about it any more", async () => {
+    const registry = createProcessRegistry();
+    const start = await command(registry, "avalanche network start");
+    let writes = 0;
+    const { shutdown, exits } = recorded({
+      registry,
+      write: () => {
+        writes++;
+        throw new Error("write EIO");
+      },
+      stillRunning: async () => ["The local Avalanche network keeps running."],
+    });
+
+    await shutdown.stop("SIGHUP");
+
+    expect(await start.ended).toBe("SIGTERM");
+    expect(exits).toEqual([129]);
+    // It went on saying each part after the first write failed.
+    expect(writes).toBe(3);
+  });
 });
 
 describe("installShutdown", () => {
-  it("listens for SIGINT, SIGTERM, SIGHUP and the process's exit only while installed", () => {
-    const signals = ["SIGINT", "SIGTERM", "SIGHUP", "exit"] as const;
-    const count = () => signals.map((s) => process.listenerCount(s));
+  it("listens for SIGINT, SIGTERM, SIGHUP, the process's exit and write errors only while installed", () => {
+    const count = () => [
+      ...(["SIGINT", "SIGTERM", "SIGHUP", "exit"] as const).map((s) => process.listenerCount(s)),
+      process.stdout.listenerCount("error"),
+      process.stderr.listenerCount("error"),
+    ];
     const before = count();
     const installed = installShutdown({
       write: () => {},

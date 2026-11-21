@@ -24,6 +24,7 @@ import {
 import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   decodeAbiParameters,
   encodeAbiParameters,
@@ -175,6 +176,18 @@ export function createSandbox(): Sandbox {
       rmSync(root, { recursive: true, force: true });
     },
   };
+}
+
+/**
+ * The EWOQ key (hex, no 0x) as devkey.ts holds it, read from that file's
+ * source. A test that checks where the key must never appear uses this rather
+ * than a copy of its own, so that devkey.ts stays the only file that holds it.
+ */
+export function ewoqKeyHex(): string {
+  const source = readFileSync(fileURLToPath(new URL("../devkey.ts", import.meta.url)), "utf8");
+  const hex = /EWOQ_LOCAL_DEVNET_KEY\s*=\s*"0x([0-9a-f]{64})"/.exec(source)?.[1];
+  if (hex === undefined) throw new Error("devkey.ts no longer holds EWOQ_LOCAL_DEVNET_KEY");
+  return hex;
 }
 
 /** The EVM chain ID `addL1` writes into genesis.json, and the fake RPC answers, by default. */

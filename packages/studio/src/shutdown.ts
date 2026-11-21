@@ -17,6 +17,11 @@
  *
  * Only a Studio that is killed outright (SIGKILL, a crash) leaves a command
  * running. The action lock then stays held for that command (lock.ts).
+ *
+ * Nobody may be reading any more by the time Studio stops: a closed terminal
+ * window, or an agent's client that was killed, takes its end of stdout and
+ * stderr with it. Each write then fails (EIO on a closed terminal, EPIPE on a
+ * pipe), and what Studio says is lost, but the stop still runs to its end.
  */
 
 import { type ProcessRegistry, type Running, studioProcesses } from "./processes.js";
@@ -101,7 +106,12 @@ export function createShutdown(options: ShutdownOptions): Shutdown {
   const registry = options.registry ?? studioProcesses;
   const exit = options.exit ?? flushAndExit;
   const say = (lines: string[]) => {
-    if (lines.length > 0) options.write(`${lines.join("\n")}\n`);
+    if (lines.length === 0) return;
+    try {
+      options.write(`${lines.join("\n")}\n`);
+    } catch {
+      // Nobody can read it any more. Saying it is a courtesy; stopping is the point.
+    }
   };
   let reason: StopReason | null = null;
   let forced = false;
@@ -159,8 +169,17 @@ export function createShutdown(options: ShutdownOptions): Shutdown {
 }
 
 /**
+ * The 'error' of a write to stdout or stderr whose reader has gone (EPIPE, or EIO on a closed
+ * terminal). Unheard, it would end the process on the spot, before the command
+ * in flight is stopped and the action lock given back. Heard, only that write
+ * and the ones after it are lost.
+ */
+function lostReader(): void {}
+
+/**
  * Stop Studio the way the comment at the top says when the process is told to:
- * SIGINT, SIGTERM and SIGHUP. Whatever ends the process some other way (an
+ * SIGINT, SIGTERM and SIGHUP. A stdout or stderr that nobody reads any more
+ * does not stop it half-way. Whatever ends the process some other way (an
  * error nothing caught, process.exit) still sends SIGTERM to every command
  * Studio started, on its way out.
  */
@@ -173,11 +192,15 @@ export function installShutdown(options: ShutdownOptions): Shutdown & { uninstal
   const onExit = () => {
     registry.signalAll("SIGTERM");
   };
+  // What Studio says goes to one of these.
+  const outputs = [process.stdout, process.stderr];
+  for (const stream of outputs) stream.on("error", lostReader);
   for (const signal of SIGNALS) process.on(signal, onSignal);
   process.on("exit", onExit);
   return {
     ...shutdown,
     uninstall() {
+      for (const stream of outputs) stream.off("error", lostReader);
       for (const signal of SIGNALS) process.off(signal, onSignal);
       process.off("exit", onExit);
     },
