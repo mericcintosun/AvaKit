@@ -23,6 +23,7 @@ function read(...path) {
 // .github/dependabot.yml
 
 const dependabot = read(".github", "dependabot.yml");
+const workspace = read("pnpm-workspace.yaml");
 
 /** Each entry under `updates:`, as the text from its `  - package-ecosystem:` line on. */
 const updates = dependabot.split(/^(?= {2}- package-ecosystem:)/m).slice(1);
@@ -51,25 +52,76 @@ test("dependabot.yml never bundles a major update with minor and patch updates",
   }
 });
 
-test("dependabot.yml lets the Workers' entry update every Worker dependency and nothing else", () => {
+/** The Workers' entry of dependabot.yml. */
+function servicesEntry() {
   const services = updates.find((entry) => entry.includes('- "/services/faucet"'));
   assert.ok(services, "dependabot.yml has no entry for /services/faucet");
-  const allowed = [
-    ...(services.match(/^ {4}allow:\n((?: {6,}.*\n)+)/m)?.[1] ?? "").matchAll(
-      /^ {6}- dependency-name: (\S+)/gm,
-    ),
-  ]
-    .map((m) => m[1])
-    .sort();
-  const deps = new Set();
-  for (const service of ["faucet", "telemetry"]) {
-    const pkg = JSON.parse(read("services", service, "package.json"));
-    for (const name of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })) deps.add(name);
+  return services;
+}
+
+/** The `ignore` rules of an entry: `[{ name, versions }]`, `versions` being null when it has none. */
+function ignoresOf(entry) {
+  const block = entry.match(/^ {4}ignore:\n((?: {6,}.*\n|\s*\n)*)/m)?.[1] ?? "";
+  return block
+    .split(/^(?= {6}- dependency-name:)/m)
+    .slice(1)
+    .map((rule) => ({
+      name: rule.match(/^ {6}- dependency-name: "?([^"\s]+)"?/)[1],
+      versions: rule.match(/^ {8}versions:\n((?: {10}- .*\n)+)/m)?.[1]
+        ? [...rule.matchAll(/^ {10}- "?([^"\n]+?)"?\s*$/gm)].map((m) => m[1])
+        : null,
+    }));
+}
+
+test("dependabot.yml keeps the security updates of every package in the Workers' lockfiles", () => {
+  // An `allow` list limits the security updates as well as the version
+  // updates: every package of the Workers' lockfiles it did not name (the
+  // trees under wrangler and viem) would get no security update.
+  assert.doesNotMatch(
+    servicesEntry(),
+    /^ {4}allow:/m,
+    "the services entry must not have an allow list",
+  );
+});
+
+test("dependabot.yml leaves the workspace catalog to the workspace entry", () => {
+  // From /services/* Dependabot also reads the root pnpm-workspace.yaml and
+  // tries to update its catalog with pnpm, which fails the run.
+  const catalog = workspace.match(/^catalog:\n((?: {2}.*\n|\s*\n)*)/m)?.[1];
+  assert.ok(catalog, "pnpm-workspace.yaml has no catalog");
+  const keys = [...catalog.matchAll(/^ {2}"?([^":\s]+)"?:/gm)].map((m) => m[1]);
+  assert.ok(keys.length > 0, "the catalog has no entries");
+  const ignored = new Map(ignoresOf(servicesEntry()).map((rule) => [rule.name, rule]));
+  for (const key of keys) {
+    assert.ok(ignored.has(key), `the services entry must ignore the catalog's ${key}`);
+    assert.equal(
+      ignored.get(key).versions,
+      null,
+      `the services entry must ignore every version of ${key}`,
+    );
   }
-  assert.deepEqual(
-    allowed,
-    [...deps].sort(),
-    "the allow list of the services entry must name exactly the Workers' dependencies",
+});
+
+test("dependabot.yml holds the faucet's viem back only while the faucet pins an older viem", () => {
+  const rule = ignoresOf(servicesEntry()).find((r) => r.name === "viem");
+  if (!rule) return;
+  // The rule is `>=<first version the faucet cannot take>`. Once the faucet
+  // moves past it, the rule only stops the faucet's updates: remove it with
+  // the pin.
+  const floor =
+    rule.versions?.length === 1 ? rule.versions[0].match(/^>=(\d+\.\d+\.\d+)$/)?.[1] : null;
+  assert.ok(floor, "the viem rule must be a single `>=x.y.z` range");
+  const pin = JSON.parse(read("services", "faucet", "package.json")).dependencies?.viem;
+  assert.match(
+    pin ?? "",
+    /^\d+\.\d+\.\d+$/,
+    "the faucet must pin viem exactly while the rule exists",
+  );
+  const [pinned, held] = [pin, floor].map((version) => version.split(".").map(Number));
+  const order = pinned[0] - held[0] || pinned[1] - held[1] || pinned[2] - held[2];
+  assert.ok(
+    order < 0,
+    `the faucet pins viem ${pin}, inside the held-back range >=${floor}: remove the rule`,
   );
 });
 
@@ -79,7 +131,6 @@ test("dependabot.yml waits the same number of days in every entry", () => {
   assert.equal(new Set(days).size, 1, `the entries wait different numbers of days: ${days}`);
 });
 
-const workspace = read("pnpm-workspace.yaml");
 const releaseAge = workspace.match(/^minimumReleaseAge: (\d+)\s*$/m)?.[1];
 
 test("pnpm-workspace.yaml refuses releases younger than the Dependabot cooldown, no more", {

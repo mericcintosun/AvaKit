@@ -38,11 +38,7 @@ updates:
 
   # The two Cloudflare Workers are standalone npm projects with their own
   # package-lock.json, outside the pnpm workspace, so the entry above never sees
-  # them. They sit inside the workspace root, though, and from these directories
-  # Dependabot also reads the root pnpm-workspace.yaml: without the allow list it
-  # tries to update the workspace catalog (TypeScript, tsup, Vitest, @types/node)
-  # from here, with pnpm, and fails, as it did on 2026-11-19. The list names
-  # every dependency of the two Workers; when a Worker gains one, add it here.
+  # them.
   - package-ecosystem: npm
     directories:
       - "/services/faucet"
@@ -51,14 +47,26 @@ updates:
       interval: weekly
     cooldown:
       default-days: 3
-    allow:
-      - dependency-name: viem
-      - dependency-name: wrangler
+    # No `allow` list here: in this file it also limits the security updates,
+    # and it would stop them for every package of the Workers' lockfiles it
+    # does not name (the trees under wrangler and viem). The `ignore` rules
+    # below name only what must not be updated from these directories.
     ignore:
+      # The workspace catalog in pnpm-workspace.yaml, one rule per key. From
+      # these directories Dependabot also reads the root pnpm-workspace.yaml,
+      # tries to update the catalog with pnpm, and fails, as it did on
+      # 2026-11-19. The catalog belongs to the entry above, and none of these
+      # packages is in a Worker's lockfile. A key added to the catalog gets a
+      # rule here too; scripts/github-config.test.mjs fails until it has one.
+      - dependency-name: typescript
+      - dependency-name: tsup
+      - dependency-name: vitest
+      - dependency-name: "@types/node"
       # The faucet stays on viem 2.57.17 on purpose: from 2.57.18 on, viem turns
       # the faucet's wrong-chain refusal into a different error than the one the
-      # Worker reports (commit 4b7417c). Remove this rule together with the pin,
-      # once the faucet handles the newer error.
+      # Worker reports (commit 4b7417c). This rule also holds back Dependabot's
+      # security updates of viem to those versions. Remove it together with the
+      # pin, once the faucet handles the newer error.
       - dependency-name: viem
         versions:
           - ">=2.57.18"
