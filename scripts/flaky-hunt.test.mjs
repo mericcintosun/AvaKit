@@ -200,6 +200,44 @@ test("failuresFromReport names each failing test, and a file that failed outside
   assert.equal(firstLine("x".repeat(400)).length, 300);
 });
 
+// Vitest's JSON report keeps only the stack of a timeout, whose first line is a
+// placeholder; the run's own output says what happened.
+test("failuresFromReport takes a failure's message from the run's log when it has one", () => {
+  const report = {
+    testResults: [
+      {
+        name: "/pkg/src/coinbase.test.ts",
+        status: "failed",
+        assertionResults: [
+          {
+            status: "failed",
+            ancestorTitles: ["coinbaseAdapter"],
+            title: "throws a typed error",
+            failureMessages: ["Error: STACK_TRACE_ERROR\n    at task (runner.js:1:1)"],
+          },
+          {
+            status: "failed",
+            ancestorTitles: ["coinbaseAdapter"],
+            title: "not in the log",
+            failureMessages: ["Error: from the report"],
+          },
+        ],
+      },
+    ],
+  };
+  const log = [
+    " ❯ src/coinbase.test.ts (11 tests | 2 failed) 5651ms",
+    "",
+    "\u001b[41m\u001b[1m FAIL \u001b[22m\u001b[49m src/coinbase.test.ts > coinbaseAdapter > throws a typed error",
+    "Error: Test timed out in 5000ms.",
+    "If this is a long-running test, pass a timeout value as the last argument.",
+  ].join("\n");
+  assert.deepEqual(
+    failuresFromReport(report, "/pkg", log).map((failure) => failure.message),
+    ["Error: Test timed out in 5000ms.", "Error: from the report"],
+  );
+});
+
 function failedRun(overrides = {}) {
   return {
     package: "@avakit/react",

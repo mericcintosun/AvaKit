@@ -219,11 +219,27 @@ export function firstLine(message) {
 }
 
 /**
+ * The error line the default reporter printed under a failed test's heading
+ * (` FAIL  <file> > <describe> > <test>`), or "" when the log has none.
+ */
+export function messageInLog(log, file, names) {
+  const heading = `FAIL  ${[file, ...names].join(" > ")}`;
+  const lines = stripAnsi(log).split("\n");
+  const at = lines.findIndex((line) => line.trim() === heading);
+  if (at === -1) return "";
+  return firstLine(lines.slice(at + 1).join("\n"));
+}
+
+/**
  * The failures in a Vitest JSON report, as `{ file, test, message }` with `file`
  * relative to `packageDir`. A file that failed without a failing test (an error
  * while loading it, or in a hook outside any test) is one failure of its own.
+ *
+ * The message is the line the run's `log` shows under the test's heading when
+ * there is one: the JSON report keeps only a stack for some errors, and for a
+ * timeout that stack begins "Error: STACK_TRACE_ERROR", not with the timeout.
  */
-export function failuresFromReport(report, packageDir) {
+export function failuresFromReport(report, packageDir, log = "") {
   const failures = [];
   for (const result of report?.testResults ?? []) {
     if (result.status !== "failed") continue;
@@ -232,10 +248,11 @@ export function failuresFromReport(report, packageDir) {
       (assertion) => assertion.status === "failed",
     );
     for (const assertion of failed) {
+      const names = [...(assertion.ancestorTitles ?? []), assertion.title];
       failures.push({
         file,
-        test: [...(assertion.ancestorTitles ?? []), assertion.title].join(" › "),
-        message: firstLine(assertion.failureMessages?.[0]),
+        test: names.join(" › "),
+        message: messageInLog(log, file, names) || firstLine(assertion.failureMessages?.[0]),
       });
     }
     if (failed.length === 0) {
@@ -450,7 +467,7 @@ function runSuite(pkg, { round, seed, out, coverage }) {
       } catch {
         // No report: the run ended before Vitest wrote one.
       }
-      const failures = failuresFromReport(report, pkg.dir);
+      const failures = failuresFromReport(report, pkg.dir, log);
       const ok = code === 0 && !timedOut && failures.length === 0;
       let crash = null;
       if (!ok && failures.length === 0) {
