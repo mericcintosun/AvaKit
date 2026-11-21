@@ -56,10 +56,11 @@ back on success. What it does:
   workerd). Every drip already stored was sent without Turnstile, so it counts
   as unverified.
 - Today's budget starts with the drips already sent today, not from zero.
-- Two refusals are new, and an older client reads them correctly by their
-  status: `429 daily_limited` (with `Retry-After` until 00:00 UTC) as a rate
-  limit, and `503 faucet_paused` as a faucet that cannot serve. Neither is
-  retried by `@avakit/core`.
+- Two refusals are new, and an older client reads them by their status:
+  `429 daily_limited` (with `Retry-After` until 00:00 UTC) as a rate limit,
+  and `503 faucet_paused` as an empty faucet. `@avakit/core` after 0.2.2 reads
+  both by their code, the pause as `"paused"`. Neither is retried by
+  `@avakit/core`, and both carry the faucet's own message.
 - `GET /health` gains `version`, `low`, `lowBelow`, `paused` and `today`, and
   answers `ok: false` with the reason when it cannot work.
 - `TURNSTILE_ORIGINS` is set to `https://avakit.dev` in `wrangler.toml`. On a

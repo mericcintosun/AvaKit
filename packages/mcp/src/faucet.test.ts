@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { FaucetError, type FaucetErrorCode, requestFaucet } from "@avakit/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_FAUCET_URL,
@@ -90,18 +92,35 @@ describe("requestDrip", () => {
       ],
       [
         refused(429, "ip_limited", { "retry-after": "1200" }),
-        "its hourly limit for your network has been reached; it can be asked again in about 20 minutes",
+        "its limit for requests from your network has been reached; it can be asked again in about 20 minutes",
       ],
+      // Every caller's drips for the day are spent; Retry-After runs to 00:00 UTC.
+      [
+        refused(429, "daily_limited", { "retry-after": "18000" }),
+        "its daily limit for all callers together has been reached; the limit resets in about 5 hours",
+      ],
+      [refused(429, "daily_limited"), "its daily limit for all callers together has been reached"],
       [refused(429), "it is rate limiting requests"],
       [refused(503, "faucet_empty"), "it is out of test AVAX"],
+      // A 503 too, but a faucet its operator switched off is not an empty one.
+      [refused(503, "faucet_paused"), "it has been paused by its operator until further notice"],
+      [
+        refused(503, "faucet_paused", { "retry-after": "7200" }),
+        "it has been paused by its operator; it can be asked again in about 2 hours",
+      ],
       // The faucet's own 503 without a code: what an older one answers when dry.
       [refused(503), "it is out of test AVAX"],
       [
         refused(403, "turnstile_required"),
         "it asks for a human verification step that this server cannot complete",
       ],
-      [refused(400, "invalid_address"), "it rejected the request as invalid (HTTP 400)"],
-      [refused(404, "not_found"), "it answered HTTP 404"],
+      [refused(400, "invalid_address"), "it rejected the wallet's address as invalid"],
+      [refused(400), "it rejected the request as invalid (HTTP 400)"],
+      [
+        refused(404, "not_found"),
+        "the URL it was asked at is not its /fund endpoint (check AVAKIT_FAUCET_URL if it is set)",
+      ],
+      [refused(404), "it answered HTTP 404"],
       [
         new Response("<!doctype html><title>Not a faucet</title>"),
         "it answered with a web page, not a faucet's answer (check AVAKIT_FAUCET_URL if it is set)",
@@ -159,6 +178,13 @@ describe("requestDrip", () => {
     });
 
     faucet(unreachable(), unreachable(), refused(502, "drip_failed"));
+    expect(await requestDrip(ADDRESS, NOW)).toMatchObject({
+      reason:
+        "it did not answer properly in 3 attempts (the last one: HTTP 502, it could not send the drip)",
+    });
+
+    // A 502 that is not the faucet's own answer says no more than its status.
+    faucet(unreachable(), unreachable(), new Response("bad gateway", { status: 502 }));
     expect(await requestDrip(ADDRESS, NOW)).toMatchObject({
       reason: "it did not answer properly in 3 attempts (the last one: HTTP 502)",
     });
@@ -278,6 +304,193 @@ describe("requestDrip", () => {
       });
       expect(none).toEqual([]);
     }
+  });
+});
+
+/**
+ * Every code `POST /fund` of the AvaKit faucet Worker answers with, and the
+ * status it comes with: the `REFUSALS` table in services/faucet/src/worker.js,
+ * read from its source (the Worker imports Cloudflare's runtime, so it cannot
+ * be loaded here).
+ */
+function workerRefusals(): Record<string, number> {
+  const source = readFileSync(
+    new URL("../../../services/faucet/src/worker.js", import.meta.url),
+    "utf8",
+  );
+  const start = source.indexOf("const REFUSALS = {");
+  expect(start, "REFUSALS in services/faucet/src/worker.js").toBeGreaterThan(-1);
+  const table = source.slice(start, source.indexOf("\n};", start));
+  return Object.fromEntries(
+    [...table.matchAll(/^\s+([a-z_]+): \[\s*(\d{3}),/gm)].map(([, code, status]) => [
+      String(code),
+      Number(status),
+    ]),
+  );
+}
+
+describe("every refusal the faucet Worker can give", () => {
+  // The code and its status; the Retry-After the test sends with it; what
+  // @avakit/core makes of it; how many requests are made for one drip; and the
+  // reason this server gives.
+  const outcomes: [string, number, string | undefined, FaucetErrorCode, number, string][] = [
+    ["invalid_json", 400, undefined, "invalid", 1, "it could not read the request as JSON"],
+    [
+      "invalid_address",
+      400,
+      undefined,
+      "invalid",
+      1,
+      "it rejected the wallet's address as invalid",
+    ],
+    [
+      "unsupported_chain",
+      400,
+      undefined,
+      "invalid",
+      1,
+      "it does not fund Avalanche Fuji, chain 43113 (check AVAKIT_FAUCET_URL if it is set)",
+    ],
+    [
+      "contract_recipient",
+      400,
+      undefined,
+      "invalid",
+      1,
+      "it funds wallet addresses only, and took this one for a contract",
+    ],
+    [
+      "turnstile_required",
+      403,
+      undefined,
+      "invalid",
+      1,
+      "it asks for a human verification step that this server cannot complete",
+    ],
+    [
+      "turnstile_failed",
+      403,
+      undefined,
+      "invalid",
+      1,
+      "it asks for a human verification step that this server cannot complete",
+    ],
+    [
+      "turnstile_unavailable",
+      503,
+      undefined,
+      "unavailable",
+      3,
+      "it asks for a human verification step that this server cannot complete",
+    ],
+    [
+      "not_found",
+      404,
+      undefined,
+      "invalid",
+      1,
+      "the URL it was asked at is not its /fund endpoint (check AVAKIT_FAUCET_URL if it is set)",
+    ],
+    [
+      "address_limited",
+      429,
+      "86000",
+      "rate_limited",
+      1,
+      "it already funded this wallet in the last 24 hours, and gives one drip per wallet per day; it can be asked again in about 24 hours",
+    ],
+    [
+      "ip_limited",
+      429,
+      "300",
+      "rate_limited",
+      1,
+      "its limit for requests from your network has been reached; it can be asked again in about 5 minutes",
+    ],
+    [
+      "daily_limited",
+      429,
+      "36000",
+      "rate_limited",
+      1,
+      "its daily limit for all callers together has been reached; the limit resets in about 10 hours",
+    ],
+    [
+      "faucet_paused",
+      503,
+      undefined,
+      "paused",
+      1,
+      "it has been paused by its operator until further notice",
+    ],
+    // The Worker sends Retry-After: 3 with it, which core waits out before the
+    // next attempt (tested there); left out here so the attempts run back to back.
+    [
+      "faucet_busy",
+      503,
+      undefined,
+      "unavailable",
+      3,
+      "it is busy right now; calling this tool again in a few seconds may work",
+    ],
+    ["faucet_empty", 503, undefined, "empty", 1, "it is out of test AVAX"],
+    [
+      "drip_failed",
+      502,
+      undefined,
+      "unavailable",
+      3,
+      "it did not answer properly in 3 attempts (the last one: HTTP 502, it could not send the drip)",
+    ],
+    [
+      "misconfigured",
+      500,
+      undefined,
+      "unavailable",
+      3,
+      "it did not answer properly in 3 attempts (the last one: HTTP 500, it is misconfigured)",
+    ],
+    [
+      "internal",
+      500,
+      undefined,
+      "unavailable",
+      3,
+      "it did not answer properly in 3 attempts (the last one: HTTP 500, an internal error)",
+    ],
+  ];
+
+  // A code the Worker gains fails this until it has a row above: a sentence
+  // of its own here, and a code of its own in @avakit/core.
+  it("covers every code services/faucet/src/worker.js answers with, at its status", () => {
+    const listed = Object.fromEntries(outcomes.map(([code, status]) => [code, status]));
+    expect(Object.keys(listed)).toHaveLength(outcomes.length);
+    expect(listed).toEqual(workerRefusals());
+  });
+
+  it.each(
+    outcomes,
+  )("reads %s (HTTP %i) for what it is", async (code, status, retryAfter, coreCode, attempts, reason) => {
+    const answer = () =>
+      refused(status, code, retryAfter ? { "retry-after": retryAfter } : undefined);
+
+    faucet(answer());
+    const error = await requestFaucet({
+      url: DEFAULT_FAUCET_URL,
+      address: ADDRESS,
+      retries: 0,
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(FaucetError);
+    expect(error).toMatchObject({ code: coreCode, faucetCode: code, status });
+
+    // Asked as often as core allows, and no more: a drip waits behind the last answer.
+    const requests = faucet(...Array.from({ length: attempts }, answer), funded());
+    expect(await requestDrip(ADDRESS, NOW)).toEqual({
+      ok: false,
+      reason,
+      maybeSent: attempts > 1,
+    });
+    expect(requests).toHaveLength(attempts);
   });
 });
 
