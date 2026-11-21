@@ -20,7 +20,6 @@
     "typecheck": "turbo run typecheck",
     "changeset": "changeset",
     "version-packages": "changeset version && pnpm --filter @avakit/mcp run --if-present sync:server-json",
-    "release": "turbo run build && changeset publish",
     "clean": "turbo run clean"
   },
   "devDependencies": {
