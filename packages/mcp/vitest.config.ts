@@ -29,10 +29,22 @@ export default defineConfig({
         branches: 85,
         functions: 90,
         lines: 90,
-        // The policy layer that will gate every write (spend caps, allowlists,
-        // confirmation above a threshold: grant deliverable D1) decides what an
-        // agent may spend, so it starts high and stays there. Put it under
-        // src/policy/ and these apply to it on top of the package's numbers.
+        // The files that decide what a tool call may do with the wallet this
+        // server signs with have numbers of their own, on top of the package's,
+        // so a drop there cannot hide behind the rest of the suite. Same rule:
+        // measured, rounded down, minus a point (2026-11-21).
+        //
+        // src/guards.ts bounds tool inputs and refuses a mainnet transaction
+        // without both `confirm: true` and AVAKIT_ALLOW_MAINNET=1
+        // (97.61 / 97.05 / 100 / 100).
+        "src/guards.ts": { statements: 96, branches: 96, functions: 99, lines: 99 },
+        // src/limits.ts limits the contracts write_contract may call and the
+        // AVAX one call may send: the floor of grant deliverable D1
+        // (100 / 100 / 100 / 100).
+        "src/limits.ts": { statements: 99, branches: 99, functions: 99, lines: 99 },
+        // The policy engine D1 builds on that floor (limits per day, the
+        // functions a contract may be called with, a person's confirmation)
+        // starts high as well: put it under src/policy/ and these apply to it.
         "src/policy/**": { statements: 95, branches: 90, functions: 95, lines: 95 },
       },
     },

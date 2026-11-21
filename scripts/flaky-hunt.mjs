@@ -288,8 +288,14 @@ function codeBlock(text) {
   return `${fence}text\n${text}\n${fence}`;
 }
 
-function inlineCode(text) {
-  const fence = text.includes("`") ? "``" : "`";
+/**
+ * `text` as Markdown inline code, which GitHub shows as it is: a scoped package
+ * name or a test title such as "pins @avakit/core ..." then mentions nobody, and
+ * an "<AvaKitProvider>" in a title is not taken for HTML.
+ */
+export function inlineCode(text) {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = "`".repeat(longest + 1);
   const pad = text.startsWith("`") || text.endsWith("`") ? " " : "";
   return `${fence}${pad}${text}${pad}${fence}`;
 }
@@ -314,7 +320,9 @@ function seconds(ms) {
 
 /**
  * The failures section: every failed run with its seed, its failing tests and
- * the commands that replay it. Empty when every run passed.
+ * the commands that replay it. Empty when every run passed. It becomes the body
+ * of a GitHub issue, so every name taken from the suites (packages, files, test
+ * titles) is inline code and every message a code block.
  */
 export function renderFailures(runs, options, machine) {
   const failed = runs.filter((run) => !run.ok);
@@ -328,7 +336,10 @@ export function renderFailures(runs, options, machine) {
       unlisted += entries.length;
       continue;
     }
-    lines.push(`**${run.package}**, round ${run.round}, seed ${inlineCode(String(run.seed))}`, "");
+    lines.push(
+      `**${inlineCode(run.package)}**, round ${run.round}, seed ${inlineCode(String(run.seed))}`,
+      "",
+    );
     for (const failure of entries) {
       if (listed >= MAX_LISTED_FAILURES) {
         unlisted++;
@@ -336,7 +347,7 @@ export function renderFailures(runs, options, machine) {
       }
       listed++;
       const where = failure.file ? `${inlineCode(failure.file)} › ` : "";
-      lines.push(`- ${where}${failure.test}`, "");
+      lines.push(`- ${where}${inlineCode(failure.test)}`, "");
       if (failure.message) lines.push(codeBlock(failure.message), "");
     }
     const files = [...new Set(run.failures.map((failure) => failure.file).filter(Boolean))];

@@ -40,6 +40,20 @@ test("each library's vitest.config.ts sets all four coverage thresholds", () => 
   }
 });
 
+// The package's numbers average over every file, so a gate that loses its
+// tests could hide behind the rest of the suite: these files have their own.
+test("@avakit/mcp holds the files that gate its signing tools to thresholds of their own", () => {
+  const config = read("packages", "mcp", "vitest.config.ts");
+  for (const file of ["src/guards.ts", "src/limits.ts"]) {
+    const entry = config.match(new RegExp(`"${file.replace(".", "\\.")}": \\{([^}]*)\\}`))?.[1];
+    assert.ok(entry, `packages/mcp/vitest.config.ts has thresholds for ${file}`);
+    for (const metric of ["statements", "branches", "functions", "lines"]) {
+      const value = Number(entry.match(new RegExp(`\\b${metric}: (\\d+(?:\\.\\d+)?)`))?.[1]);
+      assert.ok(value >= 95 && value <= 100, `${file}: ${metric} threshold (${value})`);
+    }
+  }
+});
+
 test("@vitest/coverage-v8 is pinned to the Vitest version in the catalog", () => {
   const vitest = read("pnpm-workspace.yaml").match(/^ {2}"?vitest"?: *"?([^"\s]+)"?$/m)?.[1];
   const provider = JSON.parse(read("package.json")).devDependencies["@vitest/coverage-v8"];

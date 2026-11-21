@@ -142,8 +142,16 @@ jobs:
           COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          reports=(reports/*/failures.md)
+          # Each leg's failures.md, wherever it landed. download-artifact puts
+          # the files of several artifacts in reports/<artifact name>/ but those
+          # of a single one straight into reports/, which is what happens when
+          # the other leg failed before its hunt began and uploaded nothing.
+          reports=()
+          if [ -d reports ]; then
+            while IFS= read -r report; do
+              reports+=("$report")
+            done < <(find reports -type f -name failures.md | LC_ALL=C sort)
+          fi
           if [ "${#reports[@]}" -eq 0 ]; then
             # The hunt failed before it ran a suite (install, build): that is
             # not a flaky test, and the red run says enough.
@@ -163,7 +171,9 @@ jobs:
             printf '\n\n(Cut short. The whole report is in the artifacts of %s)\n' "$RUN_URL" >> cut.md
             mv cut.md body.md
           fi
-          if ! gh label list --search flaky-test --json name --jq '.[].name' | grep -qx flaky-test; then
+          # grep reads to the end (no -q), so gh never writes into a closed pipe,
+          # which pipefail would count as a missing label.
+          if ! gh label list --search flaky-test --json name --jq '.[].name' | grep -x flaky-test > /dev/null; then
             gh label create flaky-test --color d93f0b \
               --description "A test that passes or fails depending on order or timing"
           fi
