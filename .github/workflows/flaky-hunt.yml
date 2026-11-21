@@ -5,8 +5,8 @@
 #   the machine is, turns a run red at random. The release job of 19 November
 #   2026 went red twice that way: React tests raced the provider's effects when
 #   Turborepo ran every package's suite at once on a small runner, and passed
-#   again on the next push. A pull request's CI runs each suite once, in file
-#   order, so it rarely sees such a test fail; this sees it fail on purpose.
+#   again on the next push. A pull request's CI runs each suite once, in the
+#   same order every time, so it rarely sees such a test fail; this looks for it.
 #
 # What it does
 #   Every package whose `test` script runs Vitest is run several times on each
@@ -64,10 +64,10 @@ jobs:
         include:
           - leg: one suite at a time
             slug: sequential
-            flags: ""
+            under-load: false
           - leg: all suites at once, under load
             slug: under-load
-            flags: --parallel --load auto --coverage
+            under-load: true
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -96,8 +96,15 @@ jobs:
       - name: Hunt (${{ matrix.leg }})
         env:
           ROUNDS: ${{ inputs.rounds || 8 }}
-          FLAGS: ${{ matrix.flags }}
-        run: node scripts/flaky-hunt.mjs --rounds "$ROUNDS" $FLAGS --out "$RUNNER_TEMP/flaky-hunt"
+          UNDER_LOAD: ${{ matrix.under-load }}
+        run: |
+          args=(--rounds "$ROUNDS" --out "$RUNNER_TEMP/flaky-hunt")
+          if [ "$UNDER_LOAD" = "true" ]; then
+            # All suites at once, one busy process per CPU beside them, and
+            # coverage on where `pnpm test` measures it.
+            args+=(--parallel --load auto --coverage)
+          fi
+          node scripts/flaky-hunt.mjs "${args[@]}"
 
       - name: Upload the reports and logs
         if: always()

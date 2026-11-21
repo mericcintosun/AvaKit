@@ -480,8 +480,12 @@ test("flaky-hunt.yml: every job has a time limit and every action is pinned to a
 test("flaky-hunt.yml: hunts nightly and on demand, and reports only a failed hunt", () => {
   assert.match(workflow, /^ {2}schedule:\n {4}# .*\n {4}- cron: "[^"]+"$/m);
   assert.match(workflow, /^ {2}workflow_dispatch:$/m);
-  assert.match(jobs.hunt, /run: node scripts\/flaky-hunt\.mjs --rounds "\$ROUNDS" \$FLAGS --out/);
-  assert.match(jobs.hunt, /flags: --parallel --load auto --coverage/);
+  // Two legs: one that isolates order, one that adds load and measures coverage.
+  assert.match(jobs.hunt, /^ {12}under-load: false$/m);
+  assert.match(jobs.hunt, /^ {12}under-load: true$/m);
+  assert.match(jobs.hunt, /args=\(--rounds "\$ROUNDS" --out "\$RUNNER_TEMP\/flaky-hunt"\)/);
+  assert.match(jobs.hunt, /args\+=\(--parallel --load auto --coverage\)/);
+  assert.match(jobs.hunt, /^ {10}node scripts\/flaky-hunt\.mjs "\$\{args\[@\]\}"$/m);
   assert.match(
     jobs.report,
     /^ {4}needs: hunt\n {4}if: always\(\) && needs\.hunt\.result == 'failure'$/m,
