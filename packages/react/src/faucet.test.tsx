@@ -257,15 +257,34 @@ describe("automatic funding of a burner wallet", () => {
   });
 
   it("retries a failure that may pass, then reports the drip", async () => {
-    const faucet = stubFaucet(sendFailed, drip);
+    // Each attempt waits for the test to answer it. A faucet that answered at
+    // once could fail and then drip before React rendered "funding", which it
+    // then never did (the two updates became one render), and whether that
+    // happened depended on how busy the machine was.
+    const faucet = stubPendingFaucet();
     const view = renderFaucet();
 
     await connect(view);
+    await waitFor(() => {
+      expect(view.result.current.faucet.status).toBe("funding");
+    });
 
+    await act(async () => {
+      faucet.answer(sendFailed());
+    });
+    // The failure is retried, not shown.
+    await waitFor(() => {
+      expect(faucet.spy).toHaveBeenCalledTimes(2);
+    });
+    expect(view.result.current.faucet.status).toBe("funding");
+
+    await act(async () => {
+      faucet.answer(drip());
+    });
     await waitFor(() => {
       expect(view.result.current.faucet.status).toBe("success");
     });
-    expect(faucet).toHaveBeenCalledTimes(2);
+    expect(faucet.spy).toHaveBeenCalledTimes(2);
     expect(view.result.current.faucet.result?.txHash).toBe(TX_HASH);
     // The failed attempt in between was never shown as an error.
     expect(view.statuses).toEqual(["idle", "funding", "success"]);

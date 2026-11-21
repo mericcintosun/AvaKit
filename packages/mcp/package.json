@@ -19,7 +19,7 @@
     "dev": "tsup --watch",
     "start": "node dist/index.js",
     "sync:server-json": "node scripts/sync-server-json.mjs",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .turbo"
   },
