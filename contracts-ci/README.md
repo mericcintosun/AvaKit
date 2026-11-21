@@ -43,25 +43,29 @@ node --test scripts/guards.test.mjs  # the two scripts above still catch what th
   Studio calls the contract with are checked against its ABI too), the
   contract the website's `/new` page deploys (`apps/web/lib/nft-artifact.ts`,
   which has to be the `nft-mint` template's), the example app's
-  (`examples/web3auth-demo/lib/nft-artifact.ts`), and the demo token the
-  `token-bridge` template deploys: the `DemoToken` entry of its
-  `lib/ictt-artifacts.json`, which has to be the `erc20-token` template's
-  `AvaKitToken`. The other three entries of that file (`ERC20TokenHome`,
-  `ERC20TokenRemote`, `TeleporterRegistry`) are builds of
-  `ava-labs/icm-contracts`, whose sources are not in this repo, so the script
-  names them as upstream and leaves them alone, also under `--write`. It
-  fails on any committed `*-artifact.ts` or `*-artifacts.json` that it has not
-  been told about, and on any entry of a JSON artifact file that is neither
-  checked nor named as upstream, so a new artifact cannot land unchecked. It
-  builds into a temporary directory, so it leaves no `out/` or `cache/` behind
-  in a template (those folders would be copied into every app scaffolded from
-  this checkout).
-- **`scripts/guards.test.mjs`** tests the two scripts themselves (Node's
+  (`examples/web3auth-demo/lib/nft-artifact.ts`), and all four contracts the
+  `token-bridge` template deploys from its `lib/ictt-artifacts.json`: the
+  `DemoToken`, which has to be the `erc20-token` template's `AvaKitToken`, and
+  the bridge itself (`ERC20TokenHome`, `ERC20TokenRemote`,
+  `TeleporterRegistry`), built from `ava-labs/icm-contracts` (see
+  [Upstream contracts](#upstream-contracts)). Every byte is compared, the
+  metadata hash at the end of the code included; when that hash is all that
+  differs, the report says so (`only in its metadata hash`), but it is still
+  drift. `--write` rewrites only the artifacts that drifted. It fails on any
+  committed `*-artifact.ts` or `*-artifacts.json` that it has not been told
+  about, and on any entry of a JSON artifact file without a row of its own, so
+  a new artifact cannot land unchecked. It builds into a temporary directory,
+  so it leaves no `out/` or `cache/` behind in a template (those folders would
+  be copied into every app scaffolded from this checkout).
+- **`scripts/upstream.mjs`** fetches the pinned sources of the upstream
+  contracts for that check, and re-pins them (below).
+- **`scripts/guards.test.mjs`** tests the scripts themselves (Node's
   built-in test runner, no dependencies). Each test copies the files the
   scripts read into a temporary directory, breaks one thing there (a
   `foundry.toml` that changes the compiler outside `[profile.default]`, a
-  stale `DemoToken`, an artifact nobody listed) and expects the script to fail
-  on it.
+  stale `DemoToken`, one changed byte in the code or the metadata hash of a
+  bridge contract, an upstream source that is not the pinned one, a damaged
+  cached source, an artifact nobody listed) and expects the script to notice.
 
 `examples/web3auth-demo` ships a different, simpler `AvaKitNFT` on purpose. It
 is an example app, not a template, so its contract is not compiled into this
@@ -76,6 +80,50 @@ and it compiles with the same pinned settings.
 3. `node scripts/check-artifacts.mjs --write` regenerates the abi + bytecode of
    every artifact built from that contract, in place. Commit them with the
    source change; CI fails on any artifact left behind.
+
+## Upstream contracts
+
+`token-bridge` ships three contracts it did not write: `ERC20TokenHome`,
+`ERC20TokenRemote` and `TeleporterRegistry` from
+[`ava-labs/icm-contracts`](https://github.com/ava-labs/icm-contracts) `v1.0.9`.
+Their source is not vendored here, on purpose: it is under Ava Labs'
+Ecosystem License, not MIT. The recipe is, in `upstream/icm-contracts/`:
+
+- **`sources.json`** pins the repositories (icm-contracts and the three
+  submodules the contracts import from: OpenZeppelin's contracts and
+  upgradeable contracts `v5.0.2`, subnet-evm `v0.7.9`), each by commit and
+  mounted where a recursive clone puts it, and lists the 36 source files the
+  build reads with the git blob id each has at that commit.
+- **`foundry.toml`** holds the compiler settings: solc `0.8.25` (icm-contracts'
+  own pin), optimizer on with 200 runs, `cancun` (icm-contracts itself builds
+  for `shanghai`; the template ships Cancun code, which uses `MCOPY`) and the
+  remappings, written out with forge's guessing turned off.
+
+`scripts/upstream.mjs` lays those files out as a checkout would, fetching each
+from `raw.githubusercontent.com` at its commit and refusing any whose blob id
+is not the pinned one, so the build can read nothing else. Fetched files are
+cached by blob id (`$AVAKIT_UPSTREAM_CACHE`, by default
+`<tmpdir>/avakit-upstream-sources`) and checked again on every read, so only the
+first run needs the network.
+
+To move to another release: change the commit (and tag) of the first
+repository in `sources.json`, then
+
+```bash
+node scripts/upstream.mjs pin icm-contracts   # submodule commits + file list
+pnpm biome format --write contracts-ci/upstream
+node scripts/check-artifacts.mjs --write      # rebuild the three entries
+```
+
+`pin` reads GitHub's API (set `GITHUB_TOKEN` if its anonymous rate limit is in
+the way); review what changed in the contracts before committing the result.
+
+The three entries used to be a build nobody could repeat: they were compiled by
+hand in July 2026 with source paths that were not recorded, and checked again by
+hand since. Rebuilt from the pinned sources, their code was the same byte for
+byte, and so was their ABI apart from the order of its items and keys; only the
+metadata hash at the end of each differed, since it hashes those paths. The
+entries now hold this build, so all of every entry is checked.
 
 ## Toolchain
 
@@ -95,3 +143,7 @@ whole repo: the bytecode the tests run against, the bytecode `forge build`
 produces in a scaffolded app and the bytecode in the shipped artifacts are the
 same compiler output. Changing a setting means changing it in every
 `foundry.toml` and regenerating the artifacts in the same commit.
+
+The upstream contracts are the one exception: they are built with the
+compiler their own project pins, from `upstream/icm-contracts/foundry.toml`,
+which `scripts/sync.mjs` leaves alone (see [Upstream contracts](#upstream-contracts)).

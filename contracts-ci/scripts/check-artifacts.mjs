@@ -1,29 +1,34 @@
 // Verify that every bytecode artifact the repo ships is exactly what
-// `forge build` produces from Solidity source in this repo — and, with
-// --write, regenerate the ones that are not.
+// `forge build` produces from its Solidity source — and, with --write,
+// regenerate the ones that are not.
 //
 // The artifacts are generated files that live away from their source: each
 // template bundles one (lib/*-artifact.ts) so a scaffolded app can deploy from
 // the browser with no Foundry at runtime, Studio deploys the icm-messenger
 // contract with `cast`, the website's /new page deploys the nft-mint contract,
-// and token-bridge deploys the erc20-token contract as its demo token (one
-// entry of lib/ictt-artifacts.json). Nothing else guards against a source and
-// the bytecode shipped for it silently drifting apart.
+// and token-bridge deploys four contracts from lib/ictt-artifacts.json: the
+// erc20-token contract as its demo token, and the bridge itself, built from
+// ava-labs/icm-contracts. Nothing else guards against a source and the
+// bytecode shipped for it silently drifting apart.
 //
 // Each artifact is compared with a build of the Foundry project that owns its
-// source. Every one of those projects carries the compiler settings of
-// contracts-ci/foundry.toml (scripts/sync.mjs enforces it), so this is also the
-// exact compiler output the forge tests run against.
+// source. The repo's own projects carry the compiler settings of
+// contracts-ci/foundry.toml (scripts/sync.mjs enforces it), so for them this is
+// also the exact compiler output the forge tests run against. The upstream
+// contracts are built from their pinned sources and settings in
+// contracts-ci/upstream/ (scripts/upstream.mjs fetches and checks the sources).
 //
-// Usage (from contracts-ci/, needs forge):
+// Usage (from contracts-ci/, needs forge, and the network the first time an
+// upstream source is fetched):
 //   node scripts/check-artifacts.mjs           verify; exit 1 on any drift
-//   node scripts/check-artifacts.mjs --write   rewrite abi + bytecode in place
+//   node scripts/check-artifacts.mjs --write   rewrite what drifted, in place
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describePin, materialize, readPin } from "./upstream.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -31,7 +36,9 @@ const TEMPLATES = "packages/create-avalanche-app/templates";
 const ICTT_ARTIFACTS = `${TEMPLATES}/token-bridge/lib/ictt-artifacts.json`;
 const write = process.argv.includes("--write");
 
-// source    the Foundry project whose build is the truth
+// source    the Foundry project whose build is the truth, in this repo
+// upstream  instead of `source`: a pinned upstream project, by its directory
+//           name in contracts-ci/upstream/
 // contract  the contract in it
 // file      the shipped artifact
 // bytecode  the constant holding the creation bytecode (default: `bytecode`)
@@ -42,8 +49,7 @@ const write = process.argv.includes("--write");
 //           this row checks. Without it the file is a *-artifact.ts module.
 // All paths are relative to the repo root.
 //
-// Out of scope: the contracts named under UPSTREAM below, which are builds of
-// sources that are not in this repo; eerc-token ships no contract of its own.
+// Out of scope: eerc-token, which ships no contract of its own.
 const ARTIFACTS = [
   {
     source: `${TEMPLATES}/erc20-token/contracts`,
@@ -91,23 +97,36 @@ const ARTIFACTS = [
     file: "examples/web3auth-demo/lib/nft-artifact.ts",
   },
   // token-bridge deploys the contract the erc20-token template ships as its
-  // demo token. It shares a JSON file with three upstream builds (UPSTREAM).
+  // demo token, from the same JSON file as the bridge contracts below.
   {
     source: `${TEMPLATES}/erc20-token/contracts`,
     contract: "AvaKitToken",
     file: ICTT_ARTIFACTS,
     entry: "DemoToken",
   },
+  // ...and the bridge: ICTT's home and remote contracts and a registry for
+  // each chain, compiled from ava-labs/icm-contracts. Their sources are not in
+  // this repo (Ecosystem License, not MIT), so they are fetched at the pinned
+  // commit and checked file by file; see contracts-ci/upstream/icm-contracts/.
+  {
+    upstream: "icm-contracts",
+    contract: "ERC20TokenHome",
+    file: ICTT_ARTIFACTS,
+    entry: "ERC20TokenHome",
+  },
+  {
+    upstream: "icm-contracts",
+    contract: "ERC20TokenRemote",
+    file: ICTT_ARTIFACTS,
+    entry: "ERC20TokenRemote",
+  },
+  {
+    upstream: "icm-contracts",
+    contract: "TeleporterRegistry",
+    file: ICTT_ARTIFACTS,
+    entry: "TeleporterRegistry",
+  },
 ];
-
-// The entries of a JSON artifact file that are somebody else's builds: there is
-// no source in this repo to compare them with, so they are named here instead
-// of checked. token-bridge ships the three ICTT contracts as compiled from
-// ava-labs/icm-contracts. Every other entry of such a file is ours and needs a
-// row in ARTIFACTS.
-const UPSTREAM = {
-  [ICTT_ARTIFACTS]: ["ERC20TokenHome", "ERC20TokenRemote", "TeleporterRegistry"],
-};
 
 const ABI_LITERAL = /(export const abi = )(\[[\s\S]*?\])( as const)/;
 const bytecodeLiteral = (name) => new RegExp(`(export const ${name} =\\s*")(0x[0-9a-fA-F]*)(")`);
@@ -119,24 +138,52 @@ const CAST_SIGNATURE = /export const (\w+_SIG) = "([^"]*)"/g;
 const scratch = mkdtempSync(join(tmpdir(), "avakit-artifacts-"));
 process.on("exit", () => rmSync(scratch, { recursive: true, force: true }));
 
-const builds = new Map(); // source -> the directory its build output went to
+/** How the project a row is built from is named in output. */
+const sourceLabel = ({ source, upstream }) =>
+  upstream === undefined ? source : `upstream ${upstream} (${describePin(readPin(upstream))})`;
 
-/** `forge build` a project (once) and return one contract's build output. */
-function build(source, contract) {
-  if (!builds.has(source)) {
+// Every upstream project a row needs, fetched once into the scratch directory:
+// name -> the root to build. Its sources are checked against the pin as they
+// are laid out, so a build never reads a file the pin does not name.
+const upstreamRoots = new Map();
+for (const { upstream } of ARTIFACTS) {
+  if (upstream === undefined || upstreamRoots.has(upstream)) continue;
+  try {
+    upstreamRoots.set(upstream, await materialize(upstream, join(scratch, `upstream-${upstream}`)));
+  } catch (error) {
+    console.error(
+      `UPSTREAM SOURCE: ${upstream}\n  ${error.message}\n` +
+        `  The pin is contracts-ci/upstream/${upstream}/sources.json; see scripts/upstream.mjs.`,
+    );
+    process.exit(1);
+  }
+}
+
+const builds = new Map(); // project label -> the directory its build output went to
+
+/** `forge build` a row's project (once) and return its contract's build output. */
+function build(artifact) {
+  const project = sourceLabel(artifact);
+  if (!builds.has(project)) {
     const dir = join(scratch, String(builds.size));
     const out = join(dir, "out");
-    const root = join(repoRoot, source);
+    const root =
+      artifact.upstream === undefined
+        ? join(repoRoot, artifact.source)
+        : upstreamRoots.get(artifact.upstream);
     const args = ["build", "--root", root, "--out", out, "--cache-path", join(dir, "cache")];
     try {
       execFileSync("forge", args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
     } catch (error) {
-      console.error(`BUILD FAIL: ${source}\n${error.stdout ?? ""}${error.stderr ?? error.message}`);
+      console.error(
+        `BUILD FAIL: ${project}\n${error.stdout ?? ""}${error.stderr ?? error.message}`,
+      );
       process.exit(1);
     }
-    builds.set(source, out);
+    builds.set(project, out);
   }
-  const file = join(builds.get(source), `${contract}.sol`, `${contract}.json`);
+  const { contract } = artifact;
+  const file = join(builds.get(project), `${contract}.sol`, `${contract}.json`);
   return JSON.parse(readFileSync(file, "utf8"));
 }
 
@@ -241,10 +288,63 @@ function regenerate({ bytecode = "bytecode", abi = true, entry }, built, text) {
   return next;
 }
 
+// The CBOR metadata solc appends to the code: the IPFS hash of a JSON document
+// naming the source files, their paths and the compiler settings, then the
+// solc version. Not code: the EVM never runs it.
+const METADATA = /a264697066735822[0-9a-f]{68}64736f6c6343[0-9a-f]{6}0033/g;
+const METADATA_HASH_AT = "a264697066735822".length; // hex digits before the hash
+
+/** Why the shipped bytecode is not the build's, or undefined when it is.
+ * Every byte counts; a difference only inside the build's metadata hashes is
+ * named as such, since it means the same code from differently named sources
+ * (another directory layout, say) rather than other code. */
+function bytecodeProblem(shipped, built) {
+  const [a, b] = [shipped.toLowerCase(), built.toLowerCase()];
+  if (a === b) return undefined;
+  if (a.length === b.length) {
+    let masked = a;
+    for (const { index } of b.matchAll(METADATA)) {
+      if (index % 2 !== 0) continue; // not on a byte boundary: code that looks like CBOR
+      const at = index + METADATA_HASH_AT;
+      masked = masked.slice(0, at) + b.slice(at, at + 68) + masked.slice(at + 68);
+    }
+    if (masked === b) {
+      return "bytecode differs from the build only in its metadata hash (the code is the same)";
+    }
+  }
+  return "bytecode differs from the build";
+}
+
+/** `value` with the keys of every object in it sorted. */
+function sortedKeys(value) {
+  if (Array.isArray(value)) return value.map(sortedKeys);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, sortedKeys(value[key])]),
+  );
+}
+
+/** Why the shipped abi is not the build's, or undefined when it is (the same
+ * JSON). One that lists the same items in another order, or spells their keys
+ * in another order, is named as such: solc and forge write ABIs differently. */
+function abiProblem(shipped, built) {
+  if (JSON.stringify(shipped) === JSON.stringify(built)) return undefined;
+  const items = (abi) => abi.map((item) => JSON.stringify(sortedKeys(item))).sort();
+  if (Array.isArray(shipped) && JSON.stringify(items(shipped)) === JSON.stringify(items(built))) {
+    return "abi differs from the build only in the order of its items and keys";
+  }
+  return "abi differs from the build";
+}
+
 /** What in the artifact does not match the build (empty when in sync).
  * `stale` marks what --write regenerates; the rest is edited by hand. */
 function drift({ bytecode = "bytecode", abi = true, entry }, built, text) {
   const problems = [];
+  const stale = (problem) => {
+    if (problem !== undefined) problems.push({ text: problem, stale: true });
+  };
 
   if (entry !== undefined) {
     const shipped = parsed(text)?.[entry];
@@ -252,20 +352,16 @@ function drift({ bytecode = "bytecode", abi = true, entry }, built, text) {
       const shape = `"${entry}": { "abi": [...], "bytecode": "0x..." }`;
       return [{ text: `the file needs to be a JSON object with ${shape}` }];
     }
-    if (shipped.bytecode.toLowerCase() !== built.bytecode.object.toLowerCase()) {
-      problems.push({ text: "bytecode differs from the build", stale: true });
-    }
-    if (JSON.stringify(shipped.abi) !== JSON.stringify(built.abi)) {
-      problems.push({ text: "abi differs from the build", stale: true });
-    }
+    stale(bytecodeProblem(shipped.bytecode, built.bytecode.object));
+    stale(abiProblem(shipped.abi, built.abi));
     return problems;
   }
 
   const hex = text.match(bytecodeLiteral(bytecode))?.[2];
   if (hex === undefined) {
     problems.push({ text: `the file needs an \`export const ${bytecode} = "0x..."\`` });
-  } else if (hex.toLowerCase() !== built.bytecode.object.toLowerCase()) {
-    problems.push({ text: "bytecode differs from the build", stale: true });
+  } else {
+    stale(bytecodeProblem(hex, built.bytecode.object));
   }
 
   if (abi) {
@@ -273,7 +369,7 @@ function drift({ bytecode = "bytecode", abi = true, entry }, built, text) {
     if (literal === undefined) {
       problems.push({ text: "the file needs an `export const abi = [...] as const`" });
     } else if (!sameJson(literal, built.abi)) {
-      problems.push({ text: "abi differs from the build", stale: true });
+      stale(abiProblem(parsed(literal), built.abi));
     }
   } else {
     const known = castSignatures(built.abi);
@@ -306,11 +402,10 @@ function unlisted() {
   return files.split("\n").filter((file) => file !== "" && !listed.has(file));
 }
 
-/** The entries of the JSON artifact files that have neither a row in
- * ARTIFACTS nor a place in UPSTREAM, as `<file> (<entry>)`. */
+/** The entries of the JSON artifact files that have no row in ARTIFACTS, as
+ * `<file> (<entry>)`. */
 function unaccounted() {
-  const known = new Map(); // file -> the entries somebody answers for
-  for (const [file, entries] of Object.entries(UPSTREAM)) known.set(file, new Set(entries));
+  const known = new Map(); // file -> the entries a row checks
   for (const { file, entry } of ARTIFACTS) {
     if (entry === undefined) continue;
     if (!known.has(file)) known.set(file, new Set());
@@ -329,20 +424,23 @@ const label = ({ file, entry }) => (entry === undefined ? file : `${file} (${ent
 let failed = false;
 
 for (const artifact of ARTIFACTS) {
-  const built = build(artifact.source, artifact.contract);
+  const built = build(artifact);
   const path = join(repoRoot, artifact.file);
   let text = readFileSync(path, "utf8");
+  let problems = drift(artifact, built, text);
 
-  if (write) {
+  // Only what drifted is rewritten: an artifact that matches its build keeps
+  // its bytes, whatever its formatting.
+  if (write && problems.some((problem) => problem.stale)) {
     const next = regenerate(artifact, built, text);
     if (next !== text) {
       writeFileSync(path, next);
       text = next;
       console.log(`updated ${label(artifact)}`);
+      problems = drift(artifact, built, text);
     }
   }
 
-  const problems = drift(artifact, built, text);
   if (problems.length === 0) {
     console.log(`ok ${label(artifact)}`);
     continue;
@@ -350,7 +448,7 @@ for (const artifact of ARTIFACTS) {
   failed = true;
   const lines = [
     `ARTIFACT DRIFT: ${label(artifact)}`,
-    `  source: ${artifact.source} (${artifact.contract})`,
+    `  source: ${sourceLabel(artifact)} (${artifact.contract})`,
     ...problems.map((problem) => `  - ${problem.text}`),
   ];
   if (problems.some((problem) => problem.stale)) {
@@ -370,13 +468,14 @@ for (const file of unlisted()) {
 }
 
 // The same for one contract among several in a JSON file: token-bridge's demo
-// token went unchecked, and stale, in a file listed as wholly upstream.
+// token once went unchecked, and stale, in a file listed as wholly upstream.
 for (const entry of unaccounted()) {
   failed = true;
   console.error(
     `UNCHECKED ARTIFACT: ${entry}\n` +
-      "  Add the entry to ARTIFACTS in contracts-ci/scripts/check-artifacts.mjs, or to\n" +
-      "  UPSTREAM there if it is built from source that is not in this repo.",
+      "  Add the entry to ARTIFACTS in contracts-ci/scripts/check-artifacts.mjs. If it is\n" +
+      "  built from source that is not in this repo, pin that source in\n" +
+      "  contracts-ci/upstream/ (see scripts/upstream.mjs) and name it in the row.",
   );
 }
 
