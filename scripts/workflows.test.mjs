@@ -614,15 +614,13 @@ test("publish dry run: npm publish --dry-run for each tarball npm lacks, and a n
 // no persisted git credentials, no path filter that could leave a pull request
 // waiting for a check that never runs. Read as text, like release.yml above.
 
-import { spawnSync } from "node:child_process";
-
 const ci = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8").replace(
   /\r\n/g,
   "\n",
 );
 
 /** The text of each job in ci.yml by job id, from its `  <id>:` line to the next job's. */
-function jobsOf(text) {
+function ciJobsOf(text) {
   const start = text.search(/^jobs:\n/m);
   assert.notEqual(start, -1, "ci.yml has no top-level `jobs:` key");
   const rest = text.slice(start + "jobs:\n".length);
@@ -634,7 +632,7 @@ function jobsOf(text) {
   );
 }
 
-const ciJobs = jobsOf(ci);
+const ciJobs = ciJobsOf(ci);
 
 /** A job's text, failing the test when ci.yml has no job with that id. */
 function ciJob(id) {
@@ -644,7 +642,7 @@ function ciJob(id) {
 }
 
 /** The steps of a job, each as the text from its `- ` line to the next step's. */
-function stepsOf(job) {
+function ciStepsOf(job) {
   return job.split(/^(?= {6}- )/m).slice(1);
 }
 
@@ -689,7 +687,7 @@ test("every action in ci.yml is pinned to a commit, and no checkout keeps its cr
     );
   }
   for (const [id, job] of ciJobs) {
-    for (const step of stepsOf(job).filter((s) => /uses: actions\/checkout@/.test(s))) {
+    for (const step of ciStepsOf(job).filter((s) => /uses: actions\/checkout@/.test(s))) {
       assert.match(
         step,
         /^\s+persist-credentials: false\s*$/m,
@@ -732,7 +730,7 @@ test("the verify job runs on the Node.js floor every package declares, and on No
 });
 
 test("ci.yml fails on a high or critical advisory, in the lockfiles and in a pull request", () => {
-  const audit = stepsOf(ciJob("audit"));
+  const audit = ciStepsOf(ciJob("audit"));
   assert.ok(
     audit.some((step) => /^\s+run: pnpm audit --audit-level=high\s*$/m.test(step)),
     "the audit job must run `pnpm audit --audit-level=high`",
