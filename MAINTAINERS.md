@@ -1,7 +1,7 @@
 # Maintainers
 
 AvaKit has one maintainer, [@mericcintosun](https://github.com/mericcintosun). The bus
-factor is 1: no second person reviews changes, holds the release keys or can keep the
+factor is 1: no second person reviews changes, owns the npm packages or can keep the
 hosted services running.
 
 ## What the maintainer holds
@@ -19,8 +19,9 @@ hosted services running.
 
 Not from a laptop. Changesets versions the packages, and `.github/workflows/release.yml`
 publishes them through npm trusted publishing (OIDC): there is no npm token among the
-repository's secrets, and every tarball carries a provenance attestation that ties it to
-the workflow run that built it. [`RELEASING.md`](RELEASING.md) has the steps.
+secrets of the repository or of its environments, and every tarball carries a provenance
+attestation that ties it to the workflow run that built it. [`RELEASING.md`](RELEASING.md)
+has the steps.
 
 ## Adding a second maintainer
 
@@ -49,9 +50,10 @@ then:
   issues stay public here.
 - **Published versions keep installing.** What is on npm stays on npm.
 - **The hosted pieces stop when their accounts lapse:** avakit.dev, the shared faucet and
-  the telemetry collector. Nothing depends on them. When the faucet refuses, the apps and
-  the MCP server say why and point to the official Fuji faucet;
-  `NEXT_PUBLIC_AVAKIT_FAUCET_URL` points an app at a faucet of its own (the source is
+  the telemetry collector. The apps, the CLI and the MCP server keep working without
+  them; what is lost is the zero-setup funding of a first transaction. When the faucet
+  refuses, the apps and the MCP server say why and point to the official Fuji faucet,
+  and `NEXT_PUBLIC_AVAKIT_FAUCET_URL` points an app at a faucet of its own (the source is
   [`services/faucet`](services/faucet)). The scaffolder's anonymous telemetry never
   blocks a scaffold (it gives up after 1.5 seconds) and switches off with
   `--no-telemetry`, `AVAKIT_TELEMETRY_DISABLED=1` or `DO_NOT_TRACK=1`.
