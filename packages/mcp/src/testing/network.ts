@@ -9,12 +9,17 @@
  * which chain id was signed, how much value, from which address — rather than
  * that some function was called.
  *
- * Nothing leaves the process: a request to any URL that is not one of the two
- * chains or the faucet is recorded in `strays` and fails. Undo the stub with
- * `vi.unstubAllGlobals()` in an `afterEach`.
+ * A chain can have more than one RPC endpoint: @avakit/core moves on to the
+ * next one when a request fails. Every endpoint of a chain reaches the same
+ * node here, so whatever a test makes the node do holds on all of them, as it
+ * does when the trouble is the chain's rather than one endpoint's.
+ *
+ * Nothing leaves the process: a request to any URL that is not an endpoint of
+ * the two chains or the faucet is recorded in `strays` and fails. Undo the stub
+ * with `vi.unstubAllGlobals()` in an `afterEach`.
  */
 
-import { cChain, fuji } from "@avakit/core";
+import { type AvaChain, cChain, fuji, toViemChain } from "@avakit/core";
 import {
   type Address,
   getContractAddress,
@@ -70,14 +75,26 @@ const ZERO_HASH = `0x${"00".repeat(32)}` as const;
 /** Code a successful creation leaves behind: anything that is not empty. */
 const RUNTIME_CODE = "0x6080604052" as const;
 
+/**
+ * Every URL a client may send the chain's JSON-RPC requests to, as `fetch`
+ * sees them: `rpcUrl` first, then the endpoints @avakit/core falls back to,
+ * which `toViemChain` lists in the order they are tried.
+ */
+function endpointsOf(chain: AvaChain): string[] {
+  const listed = [chain.rpcUrl, ...toViemChain(chain).rpcUrls.default.http];
+  return [...new Set(listed.map((url) => new URL(url).href))];
+}
+
 export class FakeNode {
-  /** The RPC URL as `fetch` sees it. */
+  /** The chain's primary RPC URL as `fetch` sees it: the one a request tries first. */
   readonly url: string;
+  /** Every endpoint of the chain, `url` first. Each of them reaches this node. */
+  readonly urls: readonly string[];
   /** What `eth_chainId` answers. */
   chainId: number;
 
-  /** Every JSON-RPC call received, in order. */
-  readonly calls: { method: string; params: unknown[] }[] = [];
+  /** Every JSON-RPC call received, in order, with the endpoint it came in at. */
+  readonly calls: { method: string; params: unknown[]; url: string }[] = [];
   /** Every transaction accepted, in order. */
   readonly sent: SentTransaction[] = [];
 
@@ -120,9 +137,10 @@ export class FakeNode {
   private staleNonce: { address: string; count: number; reads: number } | undefined;
   private block = 1_000n;
 
-  constructor(rpcUrl: string, chainId: number) {
-    this.url = new URL(rpcUrl).href;
-    this.chainId = chainId;
+  constructor(chain: AvaChain) {
+    this.url = new URL(chain.rpcUrl).href;
+    this.urls = endpointsOf(chain);
+    this.chainId = chain.id;
   }
 
   /** Answer `method` with this handler: return the result, or throw an `RpcFailure`. */
@@ -149,12 +167,19 @@ export class FakeNode {
     this.code.set(key(address), { code, hidden: 0 });
   }
 
-  /** The calls made to one method. */
-  callsTo(method: string): unknown[][] {
-    return this.calls.filter((call) => call.method === method).map((call) => call.params);
+  /**
+   * The parameters of the calls made to one method, at every endpoint or only
+   * at the one given. A request tries the first endpoint first, so the calls at
+   * `url` count the times something was asked, however many endpoints a failed
+   * request then went on to.
+   */
+  callsTo(method: string, at?: string): unknown[][] {
+    return this.calls
+      .filter((call) => call.method === method && (at === undefined || call.url === at))
+      .map((call) => call.params);
   }
 
-  async handle(init: RequestInit | undefined): Promise<Response> {
+  async handle(init: RequestInit | undefined, url: string = this.url): Promise<Response> {
     if (this.down) throw new TypeError("fetch failed");
     if (this.httpStatus) return new Response("upstream error", { status: this.httpStatus });
     const request = JSON.parse(String(init?.body)) as {
@@ -163,7 +188,7 @@ export class FakeNode {
       params?: unknown[];
     };
     const params = request.params ?? [];
-    this.calls.push({ method: request.method, params });
+    this.calls.push({ method: request.method, params, url });
 
     let payload: object;
     try {
@@ -420,10 +445,10 @@ export interface FakeNetwork {
 
 /** Replace `fetch` with a network of two fake chains and a fake faucet. */
 export function fakeNetwork(): FakeNetwork {
-  const fujiNode = new FakeNode(fuji.rpcUrl, fuji.id);
+  const fujiNode = new FakeNode(fuji);
   const network: FakeNetwork = {
     fuji: fujiNode,
-    cChain: new FakeNode(cChain.rpcUrl, cChain.id),
+    cChain: new FakeNode(cChain),
     faucet: new FakeFaucet(fujiNode),
     strays: [],
   };
@@ -433,8 +458,8 @@ export function fakeNetwork(): FakeNetwork {
       const url = new URL(
         typeof input === "string" || input instanceof URL ? String(input) : input.url,
       ).href;
-      if (url === network.fuji.url) return network.fuji.handle(init);
-      if (url === network.cChain.url) return network.cChain.handle(init);
+      if (network.fuji.urls.includes(url)) return network.fuji.handle(init, url);
+      if (network.cChain.urls.includes(url)) return network.cChain.handle(init, url);
       if (url === network.faucet.url) return network.faucet.handle(init);
       network.strays.push(url);
       throw new TypeError("fetch failed");

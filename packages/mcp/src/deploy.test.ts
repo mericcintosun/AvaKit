@@ -318,8 +318,9 @@ describe("deploy_contract with AVAKIT_DEPLOYER_KEY", () => {
         "(request dropped). Check it before deploying again, so that it is not deployed twice. " +
         `${fuji.explorerUrl}/tx/${net.fuji.sent[0]?.hash}`,
     );
-    // Asked for the whole two seconds before saying so.
-    expect(net.fuji.callsTo("eth_getCode")).toHaveLength(6);
+    // Asked for the whole two seconds before saying so: six reads, each of which
+    // starts at the chain's first endpoint before it tries any other.
+    expect(net.fuji.callsTo("eth_getCode", net.fuji.url)).toHaveLength(6);
   });
 
   it("returns a constructor's revert reason without sending anything", async () => {

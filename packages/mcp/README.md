@@ -192,18 +192,18 @@ The messages are written to answer the question that comes next: was anything se
 | The transaction is not mined within 60 seconds | Reports it as sent but not confirmed, with the hash and a link, and never sends it again — so a retry cannot deploy or mint twice |
 | The transaction is mined but reverted | An error with the transaction's link, never a success |
 
-Reads of the chain are retried a few times by the RPC client on network errors. A transaction is signed and sent once.
+Reads of the chain are retried a few times by the RPC client on network errors. A transaction is signed once, and offered to each of the chain's RPC endpoints in `@avakit/core` at most once, in order, until one takes it; the same signed transaction can run at most once.
 
 ## Write limits
 
-An agent decides what to call, and an agent can be steered by what it reads: a README, an issue, a web page. So that a prompt-injected agent cannot point this server's wallet at any contract it likes, the two signing tools are held to two limits that come from the server's environment. A tool call cannot change either of them.
+An agent decides what to call, and an agent can be steered by what it reads: a README, an issue, a web page. So that a prompt-injected agent cannot point this server's wallet at any contract it likes, the two signing tools are held to two limits that come from the server's environment. A tool call cannot change either of them. Set these in your user-level MCP client config, not in a project file an agent can edit (such as `.mcp.json` or `.cursor/mcp.json`).
 
 ### Which contracts `write_contract` calls
 
 `write_contract` calls a contract only when one of these is true:
 
 1. **This server deployed it**, with `deploy_contract`, on the same chain, since the server started. The address is recorded as soon as the deployment is signed, so a deployment that was still pending when `deploy_contract` answered can be called once it is mined. This is all the [zero-setup flow](#zero-setup-on-fuji) needs. The record lives in the server's memory and is forgotten when the server stops, and it holds the contract a deployment created, not the contracts that contract creates in turn.
-2. **`AVAKIT_WRITE_ALLOWLIST` lists it**: a comma-separated list of addresses, each all lowercase or with a valid EIP-55 checksum, for a contract deployed some other way or by an earlier run of the server. An address listed there may be called on every chain the server signs for. `AVAKIT_WRITE_ALLOWLIST=*` turns the check off.
+2. **`AVAKIT_WRITE_ALLOWLIST` lists it**: a comma-separated list of addresses, each all lowercase or with a valid EIP-55 checksum, for a contract deployed some other way or by an earlier run of the server. An address listed there may be called on every chain the server signs for. Some contracts, such as Permit2 and Multicall3, have the same address on every chain, so listing one for Fuji also allows it on mainnet whenever `AVAKIT_ALLOW_MAINNET=1` is set. `AVAKIT_WRITE_ALLOWLIST=*` turns the check off.
 
 Any other contract is refused before the chain or the faucet is asked anything:
 
@@ -240,7 +240,7 @@ A value that is not such a number stops both signing tools until it is fixed, an
 
 ### What they do not do
 
-Both limits are checked by the tools before anything is asked of the chain, and again by the signer when the transaction is signed, so a path that skipped the first check still gets no signature. They are a floor and not a policy: there is no daily limit, no list of the functions that may be called, no limit on gas, and no confirmation by a person. A contract the server deployed may be called with any of its functions, and may call other contracts in turn, but as itself: the tokens and approvals your wallet has at a contract that is not on the list stay out of its reach.
+Both limits are checked by the tools before anything is asked of the chain, and again by the signer when the transaction is signed, so a path that skipped the first check still gets no signature. They are a floor and not a policy: there is no daily limit, no list of the functions that may be called, no limit on gas, and no confirmation by a person. A contract the server deployed may be called with any of its functions, and may call other contracts in turn, but as itself, so the tokens and approvals your wallet has at a contract that is not on the list stay out of its reach as long as that contract checks `msg.sender`. The AVAX limit holds per call, not in total: a contract deployed in this session can pass on what each call sends it, so repeated calls can move more. A contract that trusts `tx.origin` sees your wallet behind any call made through a contract this server deployed.
 
 ## Scaffolding
 
@@ -299,10 +299,13 @@ Everything goes to Fuji unless a call asks for `chain: "c-chain"`. A mainnet dep
 
 `confirm: true` alone is not enough, on purpose. An agent can be talked into passing it by a
 prompt-injected instruction, but it cannot change the environment of the server process — so a
-malicious prompt on its own can never spend real funds. The refusal names the variable, so you
-will see what is missing. `write_contract` never sends AVAX with a call on mainnet, and is held to
-the [write limits](#write-limits) there as on Fuji: it calls a contract the server deployed on the
-C-Chain in this session, or one `AVAKIT_WRITE_ALLOWLIST` lists.
+malicious prompt on its own can never spend real funds. That holds while the agent cannot edit the
+server's configuration either: keep `AVAKIT_DEPLOYER_KEY` and `AVAKIT_ALLOW_MAINNET` in your
+user-level MCP client config, not in a project file such as `.mcp.json` or `.cursor/mcp.json`. The
+refusal names the variable, so you will see what is missing. `write_contract` never sends AVAX
+with a call on mainnet, and is held to the [write limits](#write-limits) there as on Fuji: it calls
+a contract the server deployed on the C-Chain in this session, or one `AVAKIT_WRITE_ALLOWLIST`
+lists.
 
 ```json
 {

@@ -28,7 +28,9 @@
  * call cannot add to.
  *
  * This is a floor, not a policy engine: there is no limit per day, no list of
- * the functions that may be called, and no confirmation by a person.
+ * the functions that may be called, and no confirmation by a person. Both
+ * limits hold per call: repeated calls are not counted, and a contract this
+ * process deployed can pass on the calls and the AVAX it receives.
  */
 
 import type { AvaChain } from "@avakit/core";
