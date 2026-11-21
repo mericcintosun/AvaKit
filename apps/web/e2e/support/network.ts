@@ -50,6 +50,8 @@ const CORS = {
   "access-control-allow-headers": "content-type",
 };
 
+const JSON_CORS = { ...CORS, "content-type": "application/json" };
+
 /**
  * Point every request the app makes to the outside world somewhere local:
  *
@@ -66,15 +68,20 @@ const CORS = {
  *
  * The routes are set on the browser context, so they also cover popups. A
  * `page.route` added later for the same URL takes precedence over them.
+ *
+ * `stop()` is for the end of the test, before anvil goes away: from then on
+ * every outside request is refused, so a page that is still polling neither
+ * reaches the real network nor trips over the stopped node.
  */
 export async function routeLocalNetwork(
   context: BrowserContext,
   options: LocalNetworkOptions,
-): Promise<LocalNetwork> {
+): Promise<{ network: LocalNetwork; stop: () => void }> {
   const network: LocalNetwork = { faucetCalls: [], rpcMethods: [], blocked: [] };
   const rpcUrls = new Set(options.rpcUrls.map(withoutTrailingSlash));
   const faucetUrl = withoutTrailingSlash(options.faucetUrl);
   const funded = new Set<string>();
+  let stopped = false;
 
   async function answerRpc(route: Route, request: Request) {
     const body = request.postData() ?? "";
@@ -86,7 +93,7 @@ export async function routeLocalNetwork(
     });
     await route.fulfill({
       status: response.status,
-      headers: { ...CORS, "content-type": "application/json" },
+      headers: JSON_CORS,
       body: await response.text(),
     });
   }
@@ -104,11 +111,7 @@ export async function routeLocalNetwork(
     const refuse = async (code: keyof typeof REFUSALS) => {
       const [status, error] = REFUSALS[code];
       network.faucetCalls.push({ address, chainId: payload.chainId, status });
-      await route.fulfill({
-        status,
-        headers: { ...CORS, "content-type": "application/json" },
-        body: JSON.stringify({ error, code }),
-      });
+      await route.fulfill({ status, headers: JSON_CORS, body: JSON.stringify({ error, code }) });
     };
 
     if (!isAddress(address)) return refuse("invalid_address");
@@ -120,42 +123,56 @@ export async function routeLocalNetwork(
     network.faucetCalls.push({ address, chainId: payload.chainId, status: 200 });
     await route.fulfill({
       status: 200,
-      headers: { ...CORS, "content-type": "application/json" },
+      headers: JSON_CORS,
       body: JSON.stringify({ amount: options.drip.amount, chainId: options.chainId }),
     });
+  }
+
+  async function answer(route: Route, request: Request) {
+    const url = new URL(request.url());
+    const bare = withoutTrailingSlash(`${url.origin}${url.pathname}`);
+
+    // A preflight never carries the call itself; it only asks for permission.
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: CORS });
+    if (rpcUrls.has(bare) && request.method() === "POST") return answerRpc(route, request);
+    if (bare === faucetUrl && request.method() === "POST") return answerFaucet(route, request);
+
+    const draco = await localDracoDecoder(url);
+    if (draco) {
+      return route.fulfill({
+        status: 200,
+        headers: { ...CORS, "content-type": draco.contentType },
+        body: draco.body,
+      });
+    }
+
+    const hint = looksLikeJsonRpc(request)
+      ? " (a JSON-RPC call: if it is a Fuji endpoint, add it to the endpoints anvil answers)"
+      : "";
+    network.blocked.push(`${request.method()} ${request.url()}${hint}`);
+    return route.abort("blockedbyclient");
   }
 
   await context.route(
     (url) => url.origin !== options.appOrigin && url.protocol.startsWith("http"),
     async (route, request) => {
-      const url = new URL(request.url());
-      const bare = withoutTrailingSlash(`${url.origin}${url.pathname}`);
-
-      // A preflight never carries the call itself; it only asks for permission.
-      if (request.method() === "OPTIONS") {
-        return route.fulfill({ status: 204, headers: CORS });
+      if (stopped) return route.abort("blockedbyclient").catch(() => {});
+      try {
+        await answer(route, request);
+      } catch (error) {
+        // Once the test is over, anvil may be gone and the page closing: a
+        // request still in flight then fails, and that is nobody's error.
+        if (!stopped) throw error;
       }
-      if (rpcUrls.has(bare) && request.method() === "POST") return answerRpc(route, request);
-      if (bare === faucetUrl && request.method() === "POST") return answerFaucet(route, request);
-
-      const draco = await localDracoDecoder(url);
-      if (draco) {
-        return route.fulfill({
-          status: 200,
-          headers: { ...CORS, "content-type": draco.contentType },
-          body: draco.body,
-        });
-      }
-
-      const hint = looksLikeJsonRpc(request)
-        ? " (a JSON-RPC call: if it is a Fuji endpoint, add it to the endpoints anvil answers)"
-        : "";
-      network.blocked.push(`${request.method()} ${request.url()}${hint}`);
-      return route.abort("blockedbyclient");
     },
   );
 
-  return network;
+  return {
+    network,
+    stop: () => {
+      stopped = true;
+    },
+  };
 }
 
 function withoutTrailingSlash(url: string): string {

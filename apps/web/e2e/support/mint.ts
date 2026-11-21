@@ -6,12 +6,25 @@ import { expect } from "./fixtures";
 
 /**
  * The address or transaction hash an explorer link points at, after checking
- * that it is a Fuji explorer link of that kind.
+ * that it is a link of that kind into `explorerUrl` (Fuji's explorer unless
+ * the app under test defines another).
  */
-export async function fromExplorerLink(link: Locator, kind: "address"): Promise<Address>;
-export async function fromExplorerLink(link: Locator, kind: "tx"): Promise<Hex>;
-export async function fromExplorerLink(link: Locator, kind: "address" | "tx"): Promise<string> {
-  const prefix = `${fuji.explorerUrl}/${kind}/`;
+export async function fromExplorerLink(
+  link: Locator,
+  kind: "address",
+  explorerUrl?: string,
+): Promise<Address>;
+export async function fromExplorerLink(
+  link: Locator,
+  kind: "tx",
+  explorerUrl?: string,
+): Promise<Hex>;
+export async function fromExplorerLink(
+  link: Locator,
+  kind: "address" | "tx",
+  explorerUrl = fuji.explorerUrl,
+): Promise<string> {
+  const prefix = `${explorerUrl}/${kind}/`;
   const href = (await link.getAttribute("href")) ?? "";
   expect(href.startsWith(prefix), `"${href}" is a link under ${prefix}`).toBe(true);
   const value = href.slice(prefix.length);

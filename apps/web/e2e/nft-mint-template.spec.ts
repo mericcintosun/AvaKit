@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fuji } from "@avakit/core/chains";
+import { pathToFileURL } from "node:url";
+import type { AvaChain } from "@avakit/core/chains";
 import type { Page } from "@playwright/test";
 import { getAddress } from "viem";
 import { expect, test } from "./support/fixtures";
@@ -20,11 +21,22 @@ import { expectMinted, fromExplorerLink } from "./support/mint";
 
 const SOCIAL_LOGIN = "Social login (Google, Apple, email)";
 const WEB3AUTH_CONFIG = "https://api.web3auth.io/signer-service/api/v2/configuration";
+const APP_DIR = process.env.AVAKIT_E2E_TEMPLATE_DIR ?? "";
+
+/**
+ * Fuji as the app defines it: the @avakit/core it was built with is this
+ * checkout's, which can differ from the published one the site uses.
+ */
+const appFuji = (
+  (await import(
+    pathToFileURL(path.join(APP_DIR, "node_modules", "@avakit", "core", "dist", "chains.js")).href
+  )) as { fuji: AvaChain }
+).fuji;
+test.use({ appChain: appFuji });
 
 /** The Web3Auth client ID the scaffolded app ships with (app/providers.tsx). */
 function demoClientId(): string {
-  const dir = process.env.AVAKIT_E2E_TEMPLATE_DIR ?? "";
-  const providers = readFileSync(path.join(dir, "app", "providers.tsx"), "utf8");
+  const providers = readFileSync(path.join(APP_DIR, "app", "providers.tsx"), "utf8");
   const id = /DEMO_WEB3AUTH_CLIENT_ID\s*=\s*"([^"]+)"/.exec(providers)?.[1];
   if (!id) throw new Error("No DEMO_WEB3AUTH_CLIENT_ID in the app's app/providers.tsx.");
   return id;
@@ -52,7 +64,7 @@ test("a new user starts with the temporary wallet, deploys the contract and mint
   // The provider asks the faucet by itself for the new, empty wallet.
   await expect(page.getByText("Need more test AVAX?")).toBeVisible({ timeout: 20_000 });
   expect(network.faucetCalls).toEqual([
-    { address: expect.stringMatching(/^0x[0-9a-fA-F]{40}$/), chainId: fuji.id, status: 200 },
+    { address: expect.stringMatching(/^0x[0-9a-fA-F]{40}$/), chainId: appFuji.id, status: 200 },
   ]);
   const wallet = getAddress(network.faucetCalls[0]?.address ?? "");
 
@@ -60,13 +72,13 @@ test("a new user starts with the temporary wallet, deploys the contract and mint
   await page.getByRole("button", { name: "Deploy NFT contract" }).click();
   const contractLink = page.getByRole("link", { name: "View contract on explorer" });
   await expect(contractLink).toBeVisible({ timeout: 30_000 });
-  const contract = await fromExplorerLink(contractLink, "address");
+  const contract = await fromExplorerLink(contractLink, "address", appFuji.explorerUrl);
 
   // Step 2: mint.
   await page.getByRole("button", { name: "Mint NFT" }).click();
   const minted = page.getByRole("link", { name: /^✓ Minted: 0x[0-9a-f]{64}$/ });
   await expect(minted).toBeVisible({ timeout: 30_000 });
-  const mint = await fromExplorerLink(minted, "tx");
+  const mint = await fromExplorerLink(minted, "tx", appFuji.explorerUrl);
   await expect(page.getByText("Total minted", { exact: true }).locator("..")).toHaveText(
     /Total minted\s*1$/,
   );
@@ -110,7 +122,8 @@ test("social login is offered, and choosing it starts Web3Auth with this app's c
   await expect(social).toBeEnabled();
   await expect(dialog.getByRole("button", { name: "Start instantly" })).toBeEnabled();
   expect(issues.pageErrors, "uncaught errors").toEqual([]);
-  // Only Web3Auth's own hosts were reached for (the SDK also loads a font and a wallet list).
+  // Nothing else was asked for, apart from what the SDK loads by itself (a
+  // Google Fonts stylesheet and Web3Auth's wallet list), which was blocked.
   expect(
     network.blocked.filter(
       (request) => !/^\w+ https:\/\/[^/]*(web3auth\.io|googleapis\.com)\//.test(request),
@@ -137,9 +150,10 @@ test.describe("against Web3Auth's servers @external", () => {
   test("Web3Auth's sign-in takes a click as soon as it opens", async ({ page }) => {
     test.fail(
       true,
-      "Known bug: <ConnectAvalanche> (@avakit/react) keeps its modal dialog open behind " +
-        "Web3Auth's sign-in, and the dialog turns off pointer events everywhere else, so the " +
-        "first click on the sign-in lands on the dialog. Remove this line once it is fixed.",
+      "Known bug: <ConnectAvalanche> (@avakit/react) keeps its modal dialog open under " +
+        "Web3Auth's sign-in. The dialog sets pointer-events: none on <body>, which the sign-in " +
+        "inherits, so a click on it falls through to the dialog until the visitor first clicks " +
+        "outside. Remove this line once it is fixed.",
     );
     const signIn = await openWeb3Auth(page);
     await signIn
