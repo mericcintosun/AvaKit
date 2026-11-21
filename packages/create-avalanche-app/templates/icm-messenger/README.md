@@ -2,6 +2,10 @@
 
 An Avalanche **cross-chain messaging** dapp scaffolded with [AvaKit](https://github.com/mericcintosun/AvaKit). Send a string from one Avalanche L1 to another using **Interchain Messaging (ICM / Teleporter)** — against a local devnet you bring up with one command.
 
+> **Experimental.** This template depends on Avalanche CLI, which has been in maintenance mode
+> since December 2025, and it was last proven end to end in July 2026. `create-avalanche-app`
+> labels it experimental and warns when you choose it. See [Tooling status](#tooling-status).
+
 ## Getting started
 
 The commands are written for npm; pnpm, yarn and bun work as well.

@@ -2,6 +2,8 @@
 
 > Bridge an ERC-20 between two Avalanche L1s with Interchain Token Transfer (ICTT), over a one-command local devnet. Next.js + @avakit/react + viem + avalanche-cli + ava-labs/icm-contracts.
 
+Status: experimental. This template depends on Avalanche CLI, which has been in maintenance mode since December 2025, and it was last proven end to end in July 2026 (see "Tooling status" in README.md).
+
 ## Project map
 
 - [scripts/bridge.sh](scripts/bridge.sh): `npm run bridge` — 2 L1s + relayer, then deploy the bridge.

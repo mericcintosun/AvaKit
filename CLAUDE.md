@@ -14,7 +14,7 @@ These come from the project owner and override convenience. Full text in `docs/1
 
 1. **Language:** Everything written into the repo is **English** (code, comments, commits, docs). Conversation with the owner is Turkish, but no Turkish goes into project files.
 2. **UI library:** **shadcn/ui ONLY.** No other component library — and **not** BuilderKit's UI. Avalanche-specific components are built on shadcn primitives.
-3. **Animation:** **Framer Motion or GSAP only.**
+3. **Animation:** **Framer Motion or GSAP only.** The one exception is `tw-animate-css`, which the shadcn/ui CLI installs with its components: it is allowed only as shadcn/ui's own dependency, for the enter/exit animations of shadcn primitives (including the shadcn-style Dialog in `@avakit/react`). Every other animation uses Framer Motion or GSAP.
 4. **Color:** The "black & white until M3" rule is **lifted** (owner, 2026-07). The **website (`apps/web`)** now uses a brand color — **"Ember Crimson"** (a distinct crimson that evokes Avalanche's red/dark energy without copying it). Surfaces stay near-black/white; crimson is an accent (primary buttons, focus rings, links, eyebrow ticks, `$`/checkmarks). **Dark/light wired from day one** (`next-themes`), both fully supported. Colors live only in `apps/web/app/globals.css` design tokens — components never hardcode them. Keep the **scaffolder templates visually neutral/grayscale** (users brand their own apps) unless the owner says otherwise.
 5. **Design:** 2026-modern, professional devtools aesthetic (Linear / Vercel / shadcn-dashboard polish).
 6. **Versions:** **Latest stable** of every frontend tech (e.g. Next.js 16, React 19, Tailwind v4). Re-check "latest stable" at implementation time.

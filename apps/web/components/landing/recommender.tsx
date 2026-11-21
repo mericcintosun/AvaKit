@@ -6,6 +6,7 @@ import { useLocale } from "next-intl";
 import { useState } from "react";
 
 import { Container, Section, SectionHeading } from "@/components/section";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyAnnouncement, useCopy } from "@/components/use-copy";
 import { Link } from "@/i18n/navigation";
@@ -75,7 +76,14 @@ export function RecommenderSection() {
                   <span className="text-primary font-mono text-xs tracking-[0.2em] uppercase">
                     {c.recommender.recommended}
                   </span>
-                  <h3 className="text-2xl font-semibold tracking-tight">{template.title}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-2xl font-semibold tracking-tight">{template.title}</h3>
+                    {template.experimental ? (
+                      <Badge className="font-mono text-[10px]">
+                        {c.templatesPage.experimental}
+                      </Badge>
+                    ) : null}
+                  </div>
                   <p className="text-muted-foreground text-pretty">{template.description}</p>
                 </div>
 

@@ -12,6 +12,7 @@ import {
   assertChainSupported,
   assertSafeProjectName,
   type ChainId,
+  experimentalWarning,
   listTemplates,
   scaffoldApp,
   type TemplateInfo,
@@ -67,6 +68,10 @@ function helpText(templates: readonly TemplateInfo[]): string {
     .filter((t) => t.chains.includes("c-chain"))
     .map((t) => t.id)
     .join(", ");
+  const experimentalTemplates = templates
+    .filter((t) => t.status === "experimental")
+    .map((t) => t.id)
+    .join(", ");
   return [
     "create-avalanche-app — scaffold a batteries-included Avalanche dapp",
     "",
@@ -75,6 +80,9 @@ function helpText(templates: readonly TemplateInfo[]): string {
     "Options:",
     "  -t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |",
     "                          icm-messenger | eerc-token | l1-launch | token-bridge",
+    ...(experimentalTemplates
+      ? [`                          experimental: ${experimentalTemplates}`]
+      : []),
     "  -c, --chain <id>        fuji | c-chain        (default: fuji)",
     `                          c-chain (mainnet) only with: ${mainnetTemplates || "no template"}`,
     `      --pm <manager>      ${PACKAGE_MANAGERS.join(" | ")}`,
@@ -292,6 +300,11 @@ async function main(ctx: CliContext): Promise<number> {
     ctx.stdout.write(banner(bannerColor(ctx.stdout)));
     printFirstRunNotice(telemetry, ctx.stdout);
     const r = defaults;
+    // Before anything is written: the same line the wizard shows once an
+    // experimental template is chosen. On stderr, as a warning belongs.
+    const chosen = templates.find((t) => t.id === r.template);
+    const warning = chosen ? experimentalWarning(chosen) : null;
+    if (warning) ctx.stderr.write(`\n${pc.yellow("Warning:")} ${warning}\n`);
     const targetDir = path.resolve(cwd, r.projectName);
     const choices = { template: r.template, chain: r.chain, pm: r.pm };
     const taken = occupied(r.projectName, targetDir);
@@ -372,6 +385,7 @@ async function main(ctx: CliContext): Promise<number> {
       title: t.title,
       description: t.description,
       chains: t.chains,
+      warning: experimentalWarning(t),
     })),
     // First in the list is what a bare Enter picks.
     packageManagers: [preferredPm, ...PACKAGE_MANAGERS.filter((m) => m !== preferredPm)],

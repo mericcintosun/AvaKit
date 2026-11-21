@@ -69,6 +69,13 @@ export default async function TemplatesPage({ params }: { params: Promise<{ loca
                     <Badge variant="outline" className="font-mono text-[10px]">
                       {t.id}
                     </Badge>
+                    {/* The scaffolder labels these experimental too, from
+                        `status` in the template's manifest. */}
+                    {t.experimental ? (
+                      <Badge className="font-mono text-[10px]">
+                        {c.templatesPage.experimental}
+                      </Badge>
+                    ) : null}
                     {/* Where it runs, from the template's manifest: a devnet
                         template needs Avalanche CLI, and only a template that
                         lists c-chain can be scaffolded for mainnet. */}

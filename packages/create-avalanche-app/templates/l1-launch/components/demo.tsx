@@ -426,7 +426,7 @@ function Stat({ label, value, live }: { label: string; value: string; live?: boo
       <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
         {live !== undefined ? (
           <span
-            className={`size-1.5 rounded-full ${live ? "bg-foreground animate-pulse" : "bg-muted-foreground/40"}`}
+            className={`size-1.5 rounded-full ${live ? "bg-foreground" : "bg-muted-foreground/40"}`}
           />
         ) : null}
         {label}

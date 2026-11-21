@@ -400,7 +400,7 @@ export function Demo() {
         ) : null}
         {flight && !flight.overdue ? (
           <p className="flex items-center gap-2 text-sm">
-            <span className="bg-foreground size-2 shrink-0 animate-ping rounded-full" />
+            <span className="bg-foreground size-2 shrink-0 rounded-full" />
             <span className="break-words">
               In flight to {flight.destination.name} — the relayer is delivering “{flight.text}”…
             </span>
@@ -464,7 +464,7 @@ function ChainCard({
         <span className="font-mono text-sm font-semibold">{chain.name}</span>
         <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
           <span
-            className={`size-2 rounded-full ${online ? "bg-foreground animate-pulse" : "bg-muted-foreground/40"}`}
+            className={`size-2 rounded-full ${online ? "bg-foreground" : "bg-muted-foreground/40"}`}
           />
           {online ? `block ${status?.block ?? 0n}` : "offline"}
         </span>

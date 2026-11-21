@@ -1,0 +1,264 @@
+# Is the npm 10 workaround in scaffolded apps still needed?
+#
+# Every app create-avalanche-app scaffolds ships an .npmrc with
+# `legacy-peer-deps=true`. Without it, npm 10, the npm that ships with
+# Node.js 22, stops while installing the app with "Cannot read properties of
+# null (reading 'edgesOut')": @web3auth/modal, the social login SDK every app
+# includes, lists vitest among its runtime dependencies, and npm 10 crashes on
+# the peer dependencies that brings in (docs/KNOWN-GAPS.md, "Dependencies").
+#
+# Once a week this scaffolds every template from this checkout on Node.js 22,
+# takes `legacy-peer-deps` out of the app's .npmrc, moves @web3auth/modal to
+# its latest release and runs a plain `npm install` with an empty npm cache,
+# the way a new machine would.
+#   - An install still fails: the run is green and nothing else happens. That
+#     is the expected state while the workaround is needed. The job summary
+#     says how each template failed, and a failure that is not the known crash
+#     is also raised as a warning.
+#   - Every install passes: the second job opens an issue labelled
+#     `web3auth-workaround`, or updates the open one, with the versions it
+#     passed on and what to remove.
+#   - No template ships the workaround any more: there is nothing left to
+#     check. Delete this workflow.
+# The check itself runs with a read-only token; only the job that writes the
+# issue can write anything, and only issues.
+name: Web3Auth · npm 10 workaround check
+
+on:
+  schedule:
+    # Mondays, away from the top of the hour. GitHub may start it late.
+    - cron: "37 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+# One run at a time, so two runs never open two issues.
+concurrency:
+  group: web3auth-npm10-check
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Node.js 22 · npm 10 · install without legacy-peer-deps
+    # A fork that enables scheduled workflows should not run this every week.
+    if: github.event_name != 'schedule' || github.repository == 'mericcintosun/AvaKit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      passing: ${{ steps.check.outputs.passing }}
+      workaround: ${{ steps.check.outputs.workaround }}
+      web3auth: ${{ steps.check.outputs.web3auth }}
+      pinned: ${{ steps.check.outputs.pinned }}
+      node: ${{ steps.check.outputs.node }}
+      npm: ${{ steps.check.outputs.npm }}
+      templates: ${{ steps.check.outputs.templates }}
+    env:
+      # This is the repository checking itself, not someone using AvaKit.
+      AVAKIT_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      # Node.js 22 and the npm that ships with it: the pair the workaround is
+      # for. No cache of any package manager, so every install below resolves
+      # from the registry.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Build the scaffolder
+        run: |
+          pnpm install --frozen-lockfile --filter create-avalanche-app
+          pnpm --filter create-avalanche-app build
+
+      - name: Install every template without the workaround
+        id: check
+        run: |
+          set -euo pipefail
+
+          node_version="$(node --version)"
+          npm_version="$(npm --version)"
+          case "$npm_version" in
+            10.*) ;;
+            *)
+              echo "::error title=Not npm 10::Node.js $node_version came with npm $npm_version. The workaround is for npm 10, so this run cannot tell whether it is still needed."
+              exit 1
+              ;;
+          esac
+
+          semver='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+          latest="$(npm view @web3auth/modal version)"
+          pinned="$(sed -n 's/^const WEB3AUTH_MODAL_VERSION = "\([^"]*\)";$/\1/p' packages/create-avalanche-app/src/api.ts)"
+          for version in "$latest" "$pinned"; do
+            if ! [[ "$version" =~ $semver ]]; then
+              echo "::error::Could not read a version of @web3auth/modal (got \"$version\")."
+              exit 1
+            fi
+          done
+
+          cli="$PWD/packages/create-avalanche-app/dist/index.js"
+          templates="$(node --input-type=module -e 'import { listTemplates } from "./packages/create-avalanche-app/dist/api.js"; console.log(listTemplates().map((t) => t.id).join(" "));')"
+          work="$RUNNER_TEMP/web3auth-npm10"
+          rm -rf "$work"
+          mkdir -p "$work"
+
+          passing=true
+          workaround=false
+          rows=""
+          for id in $templates; do
+            app="$work/$id"
+            if ! (cd "$work" && node "$cli" "$id" --template "$id" --yes --no-install) > "$work/$id.scaffold.log" 2>&1; then
+              cat "$work/$id.scaffold.log"
+              echo "::error title=$id::Scaffolding failed, so nothing was checked."
+              exit 1
+            fi
+
+            # Only the workaround comes out; anything else in the file stays.
+            if [ -f "$app/.npmrc" ] && grep -q '^legacy-peer-deps=true' "$app/.npmrc"; then
+              workaround=true
+              grep -v '^legacy-peer-deps=' "$app/.npmrc" > "$app/.npmrc.without" || true
+              mv "$app/.npmrc.without" "$app/.npmrc"
+            fi
+            # Nothing else may switch it back on, or a pass would prove nothing.
+            if [ "$(cd "$app" && npm config get legacy-peer-deps)" != "false" ]; then
+              echo "::error title=$id::legacy-peer-deps is still on for the app, so the install would not test anything."
+              exit 1
+            fi
+            (cd "$app" && npm pkg set "dependencies.@web3auth/modal=$latest")
+
+            log="$work/$id.install.log"
+            if (cd "$app" && npm install --no-audit --no-fund) > "$log" 2>&1; then
+              result="passes"
+            else
+              passing=false
+              if grep -q "Cannot read properties of null (reading 'edgesOut')" "$log"; then
+                result="fails: npm crashes with \`Cannot read properties of null (reading 'edgesOut')\`"
+              else
+                result="fails another way, see below"
+                echo "::warning title=$id::npm install failed, but not with the known crash. The job summary has the end of its output."
+                {
+                  echo "<details><summary><code>$id</code>: the end of npm's output</summary>"
+                  echo
+                  echo '```'
+                  tail -n 25 "$log"
+                  echo '```'
+                  echo
+                  echo "</details>"
+                  echo
+                } >> "$work/details.md"
+              fi
+            fi
+            rows+="| \`$id\` | $result |"$'\n'
+            # The next install needs the disk more than this one's dependencies.
+            rm -rf "$app/node_modules"
+          done
+
+          {
+            echo "## Is the npm 10 workaround still needed?"
+            echo
+            echo "Node.js $node_version, npm $npm_version, \`@web3auth/modal\` $latest (the scaffolder pins $pinned), \`legacy-peer-deps\` off."
+            echo
+            echo "| Template | \`npm install\` |"
+            echo "| --- | --- |"
+            printf '%s' "$rows"
+            echo
+            if [ "$workaround" != true ]; then
+              echo "No template ships \`legacy-peer-deps=true\` any more. There is nothing left to check: delete this workflow."
+            elif [ "$passing" = true ]; then
+              echo "Every template installs without the workaround. The issue labelled \`web3auth-workaround\` lists what to remove."
+            else
+              echo "The workaround is still needed."
+            fi
+            if [ -f "$work/details.md" ]; then
+              echo
+              cat "$work/details.md"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          {
+            echo "passing=$passing"
+            echo "workaround=$workaround"
+            echo "web3auth=$latest"
+            echo "pinned=$pinned"
+            echo "node=$node_version"
+            echo "npm=$npm_version"
+            echo "templates=${templates// /, }"
+          } >> "$GITHUB_OUTPUT"
+
+  report:
+    name: Open or update the web3auth-workaround issue
+    needs: check
+    # Only once the workaround is still shipped and no longer needed.
+    if: needs.check.outputs.workaround == 'true' && needs.check.outputs.passing == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      WEB3AUTH: ${{ needs.check.outputs.web3auth }}
+      PINNED: ${{ needs.check.outputs.pinned }}
+      NODE_VERSION: ${{ needs.check.outputs.node }}
+      NPM_VERSION: ${{ needs.check.outputs.npm }}
+      TEMPLATES: ${{ needs.check.outputs.templates }}
+    steps:
+      - name: Open or update the issue
+        run: |
+          set -euo pipefail
+          # `&` in a replacement below is literal text, not the matched placeholder.
+          shopt -u patsub_replacement 2>/dev/null || true
+
+          gh label create web3auth-workaround --force --color FBCA04 \
+            --description "The npm 10 workaround in scaffolded apps can be removed"
+
+          issue="$RUNNER_TEMP/issue.md"
+          cat > "$issue" <<'EOF'
+          npm 10 now installs every scaffolded app without the workaround, so `legacy-peer-deps=true` can come out of the apps' `.npmrc`.
+
+          On __DATE__, [this run](__RUN_URL__) scaffolded every template (__TEMPLATES__) on Node.js __NODE__ with npm __NPM__, took `legacy-peer-deps=true` out of each app's `.npmrc`, moved `@web3auth/modal` to __WEB3AUTH__ (the scaffolder pins __PINNED__) and ran `npm install`. It passed for every one.
+
+          To remove the workaround:
+
+          - [ ] If __WEB3AUTH__ is newer than __PINNED__, move every pin of `@web3auth/modal` to it in one change: `WEB3AUTH_MODAL_VERSION` in `packages/create-avalanche-app/src/api.ts`, the devDependency of `@avakit/core`, and the examples.
+          - [ ] Delete `packages/create-avalanche-app/templates/*/npmrc` and the `npmrc` entry of `RENAME_SEGMENT` in `packages/create-avalanche-app/src/scaffold.ts`.
+          - [ ] Update the tests that expect the file: "gives every app the .npmrc that lets npm 10 install it" and the dot-file list in `api.test.ts`, and `scaffold.test.ts`.
+          - [ ] Build one app with npm on Node.js 22 before the release. After it, the Node 22 leg of `e2e-fuji.yml` does the same with the published packages.
+          - [ ] Take the entry out of `docs/KNOWN-GAPS.md`, add a changeset for `create-avalanche-app` and `@avakit/mcp`, and delete `.github/workflows/web3auth-npm10-check.yml`.
+
+          `.github/workflows/web3auth-npm10-check.yml` updates this issue every week while the check keeps passing.
+          EOF
+          body="$(cat "$issue")"
+          body="${body//__DATE__/$(date -u +%Y-%m-%d)}"
+          body="${body//__RUN_URL__/$RUN_URL}"
+          body="${body//__TEMPLATES__/$TEMPLATES}"
+          body="${body//__NODE__/$NODE_VERSION}"
+          body="${body//__NPM__/$NPM_VERSION}"
+          body="${body//__WEB3AUTH__/$WEB3AUTH}"
+          body="${body//__PINNED__/$PINNED}"
+          printf '%s\n' "$body" > "$issue"
+
+          number="$(gh issue list --label web3auth-workaround --state open --limit 1 --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file "$issue"
+            echo "Updated issue #$number." >> "$GITHUB_STEP_SUMMARY"
+          else
+            url="$(gh issue create --title "Remove the npm 10 workaround from scaffolded apps" \
+              --label web3auth-workaround --body-file "$issue")"
+            echo "Opened $url." >> "$GITHUB_STEP_SUMMARY"
+          fi

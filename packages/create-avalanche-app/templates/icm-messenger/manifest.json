@@ -4,5 +4,7 @@
   "description": "Send a message between two Avalanche L1s with Interchain Messaging (local devnet)",
   "contracts": true,
   "setup": "devnet",
-  "chains": ["fuji"]
+  "chains": ["fuji"],
+  "status": "experimental",
+  "statusReason": "It needs Avalanche CLI, which has been in maintenance mode since December 2025, and was last proven end to end in July 2026."
 }

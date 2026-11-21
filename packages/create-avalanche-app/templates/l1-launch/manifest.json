@@ -4,5 +4,7 @@
   "description": "Spin up your own Avalanche L1 with one command, then explore blocks, send txs, and deploy a contract in a built-in dashboard",
   "contracts": true,
   "setup": "l1",
-  "chains": ["fuji"]
+  "chains": ["fuji"],
+  "status": "experimental",
+  "statusReason": "It needs Avalanche CLI, which has been in maintenance mode since December 2025, and was last proven end to end in July 2026."
 }

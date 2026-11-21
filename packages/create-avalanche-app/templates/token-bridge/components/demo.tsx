@@ -234,7 +234,7 @@ function Bridge({ addrs }: { addrs: NonNullable<typeof bridge.bridge> }) {
 
         {inFlight ? (
           <p className="flex items-center gap-2 text-sm">
-            <span className="bg-foreground size-2 animate-ping rounded-full" />
+            <span className="bg-foreground size-2 rounded-full" />
             In flight — the relayer is carrying your tokens across…
           </p>
         ) : null}
