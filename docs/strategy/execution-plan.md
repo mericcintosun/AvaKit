@@ -1,5 +1,9 @@
 # AvaKit — Execution Plan (Vision · Decisions · Technical & Marketing Roadmap)
 
+> **Note (2026-11-21):** the `KNOWN-GAPS` item ids this plan cites (A2, B, E3, E5, E6,
+> F, G4) are those of an earlier `docs/KNOWN-GAPS.md`, which has since been rewritten
+> with new numbers. Read them in that version: `git show 8e2ed22:docs/KNOWN-GAPS.md`.
+
 > **Status:** execution plan, 2026-07-15. Turns
 > [`independence-and-ecosystem-strategy.md`](./independence-and-ecosystem-strategy.md)
 > into concrete, owned, sequenced work — locked decisions, package-by-package

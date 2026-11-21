@@ -57,6 +57,26 @@ const MAINNET_CONFIG = `{
 const FIRST_PROMPT = `Create an NFT app called my-first-dapp with AvaKit, deploy its contract to Fuji
 and mint the first NFT. Give me the explorer links.`;
 
+// The two write limits, set where the client configures the server (see
+// packages/mcp/src/limits.ts). Both arrive in the release after @avakit/mcp 0.2.1.
+const LIMITS_CONFIG = `{
+  "mcpServers": {
+    "avakit": {
+      "command": "npx",
+      "args": ["-y", "@avakit/mcp"],
+      "env": {
+        "AVAKIT_WRITE_ALLOWLIST": "0x52908400098527886E0F7030069857D2E4169EE7",
+        "AVAKIT_MAX_VALUE": "0.5"
+      }
+    }
+  }
+}`;
+
+// The refusal assertCallAllowed returns, word for word, for a contract the
+// limits do not allow.
+const ALLOWLIST_REFUSAL =
+  "Refusing to call 0x52908400098527886E0F7030069857D2E4169EE7 on Avalanche Fuji: write_contract calls only the contracts this server deployed in this session and the ones AVAKIT_WRITE_ALLOWLIST lists in the server environment, which only the person running the server can change. Nothing was signed or sent.";
+
 const OFFICIAL_FAUCET = "https://build.avax.network/console/primary-network/faucet";
 
 // What the tools that write take and return, for the "Inputs and results"
@@ -77,7 +97,7 @@ const SIGNATURES: { tool: string; takes: string; returns: string }[] = [
   },
   {
     tool: "write_contract",
-    takes: "address, functionName, args?, and artifactPath or abi; chain?, confirm?",
+    takes: "address, functionName, args?, value?, and artifactPath or abi; chain?, confirm?",
     returns:
       "txHash, status, blockNumber, explorerUrl and signer, once the call has succeeded on chain. It is simulated first: a call that would revert comes back as an error and nothing is sent.",
   },
@@ -108,8 +128,16 @@ const ENVIRONMENT: { name: string; does: string }[] = [
     does: "Set to 1 to allow mainnet transactions, which also need confirm: true in the call and your own key. Unset, the server is testnet-only.",
   },
   {
+    name: "AVAKIT_WRITE_ALLOWLIST",
+    does: "From the release after 0.2.1: comma-separated contract addresses write_contract may call besides the contracts the server deployed in this session; * allows any. Unset, only this session's deployments.",
+  },
+  {
+    name: "AVAKIT_MAX_VALUE",
+    does: "From the release after 0.2.1: the most AVAX one deploy_contract or write_contract call may send, as a decimal number. Unset, 0.1; 0 allows none.",
+  },
+  {
     name: "AVAKIT_MCP_ROOT",
-    does: "The directory scaffold_app creates projects in, instead of the server's working directory. Needed when a client starts the server outside a project folder.",
+    does: "The directory scaffold_app creates projects in, and artifactPath reads from, instead of the server's working directory. Needed when a client starts the server outside a project folder.",
   },
 ];
 
@@ -309,6 +337,47 @@ export default function McpDocs() {
         argument, and it is never logged or returned.
       </P>
 
+      <H2>Write limits</H2>
+      <Note>
+        The write limits arrive in the <C>@avakit/mcp</C> release after 0.2.1. Version 0.2.1, the
+        one on npm today, has neither of them.
+      </Note>
+      <P>
+        An agent can be steered by what it reads: a README, an issue, a web page. So the two signing
+        tools are held to two limits that come from the server's environment, which a tool call
+        cannot change:
+      </P>
+      <UL>
+        <li>
+          <strong>Which contracts.</strong> <C>write_contract</C> calls a contract only when this
+          server deployed it with <C>deploy_contract</C>, on the same chain, since it started, which
+          is all the prompt above needs, or when <C>AVAKIT_WRITE_ALLOWLIST</C> lists its address.
+          The list is comma-separated, each address all lowercase or with a valid checksum, and an
+          address on it may be called on every chain the server signs for. <C>*</C> allows any
+          contract.
+        </li>
+        <li>
+          <strong>How much AVAX.</strong> One <C>deploy_contract</C> or <C>write_contract</C> call
+          sends at most <C>AVAKIT_MAX_VALUE</C> AVAX, 0.1 while it is not set, and <C>0</C> allows
+          none. Only a call signed with your own key on Fuji can carry value at all.
+        </li>
+      </UL>
+      <P>
+        Both are checked before the chain or the faucet is asked anything, and again when the
+        transaction is signed. A refusal names the variable to change and says that nothing was
+        signed or sent, as in:
+      </P>
+      <P className="[overflow-wrap:anywhere]">“{ALLOWLIST_REFUSAL}”</P>
+      <P>
+        A list entry that is not an address, or an <C>AVAKIT_MAX_VALUE</C> that is not an amount of
+        AVAX, refuses every call that variable governs until it is fixed. The limits hold per call:
+        there is no daily or session cap, no list of the functions that may be called, no gas cap
+        and no confirmation by a person, and a contract the server deployed can pass on the calls
+        and the AVAX it receives. Set both variables in your user-level MCP client config, not in a
+        project file an agent can edit:
+      </P>
+      <CodeBlock code={LIMITS_CONFIG} />
+
       <H2>Mainnet</H2>
       <P>
         Everything targets Fuji unless told otherwise. A mainnet transaction (
@@ -337,7 +406,9 @@ export default function McpDocs() {
       <P>
         Leave <C>AVAKIT_ALLOW_MAINNET</C> unset for everyday work: Fuji needs none of this, and a
         mainnet call then fails with a message that names the variable. A mainnet transaction spends
-        real AVAX from that key, so give it a dedicated key that holds only what the work needs.
+        real AVAX from that key, so give it a dedicated key that holds only what the work needs.{" "}
+        <C>write_contract</C> never sends AVAX with a mainnet call, and from the release after 0.2.1
+        it is held to the write limits there as on Fuji.
       </P>
 
       <H2>Where projects are created</H2>

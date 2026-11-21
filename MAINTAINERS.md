@@ -7,8 +7,9 @@ hosted services running.
 ## What the maintainer holds
 
 - **The repository.** Write access, and the review of every pull request. Besides the
-  maintainer, the only check on a change is CI (`.github/workflows/ci.yml`, summed up by
-  its "CI passed" job), plus CodeQL and the secret scan.
+  maintainer, the checks on a change are CI (`.github/workflows/ci.yml`, summed up by its
+  "CI passed" job, which the ruleset on `main` requires before a pull request can merge),
+  the browser tests, CodeQL and the secret scan.
 - **The npm packages.** `@avakit/core`, `@avakit/react`, `@avakit/mcp`, `@avakit/studio`
   and `create-avalanche-app` each have one npm owner, the maintainer.
 - **The hosted pieces.** The avakit.dev site (Vercel), and the shared Fuji faucet and the

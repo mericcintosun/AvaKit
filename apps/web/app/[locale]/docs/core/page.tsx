@@ -98,7 +98,8 @@ const { address, provider } = await social.connect();`}
         funds to a burner address. Before it first sends through one of the chain's RPC endpoints,
         it asks that endpoint's node which chain it serves and refuses a mismatch, and it signs only
         for the chain id the definition names. On a chain with several endpoints, each transaction
-        goes through one node that has confirmed the chain, and is never sent twice.{" "}
+        goes through one node that has confirmed the chain, and is never sent twice; a refusal names
+        such an endpoint by its origin, never by a URL that could hold an API key.{" "}
         <C>clearBurner()</C> deletes the key, and <C>persist: false</C> keeps it in memory only.
         With every other adapter the key is generated, stored, and used inside the wallet provider,
         and AvaKit only ever sees a signing interface.
@@ -147,11 +148,18 @@ const client = createPublicClient({ chain: toViemChain(myL1), transport: getRpcT
         </li>
         <li>
           <C>getPublicClient</C> reads through <C>getRpcTransport</C>. Every request gives up after
-          10 seconds. A request that fails on one endpoint (no answer, a timeout, an HTTP error)
-          goes to the next one at once. When the last one fails too, the whole list is tried again
-          up to three more times, after 150, 300 and 600 ms, for a failure that can pass, such as a
-          timeout, a rate limit or a 5xx. A revert or a rejected request is the chain's answer: it
-          is neither retried nor sent elsewhere.
+          10 seconds. A request moves on to the next endpoint, at once, only when an endpoint fails
+          it: no answer, no answer in time, an HTTP error, or a node that says it cannot serve it
+          now (busy, behind, over a limit). When the last one fails too, the whole list is tried
+          again up to three more times, after 150, 300 and 600 ms, for a failure that can pass, such
+          as a timeout, a rate limit or a 5xx. A revert or a rejected transaction is the chain's
+          answer: it comes back as the node gave it, and is neither retried nor sent elsewhere.
+        </li>
+        <li>
+          A call that fails at every endpoint of a chain with several rejects with{" "}
+          <C>RpcEndpointsError</C>, which names each endpoint by its origin (never a password or API
+          key from the URL) and says how it failed. Its <C>failures</C> list each endpoint and its
+          error, and its <C>cause</C> is viem's error for the last one.
         </li>
         <li>
           <C>toViemChain</C> lists every endpoint, and <C>ensureChain</C> passes them all, primary
@@ -160,8 +168,8 @@ const client = createPublicClient({ chain: toViemChain(myL1), transport: getRpcT
         </li>
       </UL>
       <Note>
-        <C>rpcUrls</C>, <C>rpcEndpoints</C> and <C>getRpcTransport</C> come after{" "}
-        <C>@avakit/core</C> 0.2.2. Up to 0.2.2, every chain has its <C>rpcUrl</C> alone.
+        <C>rpcUrls</C>, <C>rpcEndpoints</C>, <C>getRpcTransport</C> and <C>RpcEndpointsError</C>{" "}
+        come after <C>@avakit/core</C> 0.2.2. Up to 0.2.2, every chain has its <C>rpcUrl</C> alone.
       </Note>
 
       <H2>Deploy & data</H2>
@@ -287,6 +295,14 @@ try {
         which it is.
       </Note>
       <P>
+        The faucet's code on <C>main</C> adds two refusals, which the hosted faucet gives once it is
+        next deployed: <C>daily_limited</C> (HTTP 429), when the day's drip budget is spent for
+        every caller until 00:00 UTC, and <C>faucet_paused</C> (HTTP 503), when its operator has
+        switched it off. <C>@avakit/core</C> 0.2.2 does not know either code and goes by the status,
+        so they arrive as <C>"rate_limited"</C> and <C>"empty"</C>, with <C>faucetCode</C> set to
+        the faucet's own code. Mapping both codes is part of the next release.
+      </P>
+      <P>
         A chain's <C>faucetUrl</C> (for example <C>fuji.faucetUrl</C>) is something else: a faucet
         page to link people to, not an endpoint to call. For Fuji it is the Builder Hub faucet,
         which needs a free Builder Hub sign-in.
@@ -319,7 +335,8 @@ const nfts = await listNfts("0x…", fuji);`}
           <C>getPublicClient</C>, <C>getWalletClient</C>, <C>toViemChain</C>, <C>ensureChain</C>
         </li>
         <li>
-          <C>getRpcTransport</C> (the transport <C>getPublicClient</C> reads through)
+          <C>getRpcTransport</C> (the transport <C>getPublicClient</C> reads through),{" "}
+          <C>RpcEndpointsError</C>
         </li>
         <li>
           <C>deployContract</C>, <C>waitForDeployment</C>, <C>getBytecode</C>, <C>getBalance</C>,{" "}

@@ -24,13 +24,19 @@ export default function StudioDocs() {
       <CodeBlock code="npx @avakit/studio" prefix="$" />
       <P>
         Studio starts a server bound to <C>127.0.0.1</C> and opens the dashboard in your browser.
-        The devnet, Interchain, and Fuji features shell out to <C>avalanche-cli</C> and Foundry (
-        <C>forge</C> / <C>cast</C>), so install those to use them; the Data view works without them.
+        The Devnet and Launch on Fuji views run <C>avalanche-cli</C>, and the Interchain view works
+        on the local L1s it set up, so install it to use them; the Data and Environment views work
+        without it. Studio 0.1.14, the version on npm, also needs Foundry's <C>cast</C> for the
+        Interchain view. From the next release Studio signs those transactions itself and needs no
+        Foundry at all; the Environment view still reports whether <C>forge</C> and <C>cast</C> are
+        installed, for your own contracts.
       </P>
       <Note>
-        Avalanche CLI has been in maintenance mode since December 2025. The Devnet, Interchain and
-        Launch on Fuji views still drive it and were last proven end to end in July 2026; moving the
-        dashboard to the supported tooling is planned work.
+        <strong>The Devnet, Launch on Fuji and Interchain views are experimental.</strong> They
+        depend on Avalanche CLI, which Ava Labs has kept in maintenance mode since December 2025,
+        and they were last proven end to end in July 2026; Studio has changed since. From the
+        release after 0.1.14, the dashboard labels them experimental, and so do the titles of the
+        MCP tools that mirror them. Moving Studio to the supported toolchain has not been done.
       </Note>
       <Note>
         Not the same thing as Studio in Ava Labs' Builder Hub Console, which is a hosted flow from a
@@ -44,17 +50,17 @@ export default function StudioDocs() {
           <C>Overview</C>: a snapshot of your local Avalanche environment and running devnets.
         </li>
         <li>
-          <C>Devnet</C>: spin up local L1s with Interchain Messaging, or launch your own L1 with a
-          custom name, chain id, and token.
+          <C>Devnet</C> (experimental): spin up local L1s with Interchain Messaging, or launch your
+          own L1 with a custom name, chain id, and token.
         </li>
         <li>
-          <C>Interchain</C>: deploy messenger contracts on each L1 and send a cross-chain message,
-          watching it arrive.
+          <C>Interchain</C> (experimental): deploy messenger contracts on each L1 and send a
+          cross-chain message, watching it arrive.
         </li>
         <li>
-          <C>Launch on Fuji</C>: a guided wizard that creates a key for you to fund with test AVAX,
-          moves the funds from the C-Chain to the P-Chain, and deploys a sovereign L1 to the Fuji
-          testnet with your machine as its validator.
+          <C>Launch on Fuji</C> (experimental): a guided wizard that creates a key for you to fund
+          with test AVAX, moves the funds from the C-Chain to the P-Chain, and deploys a sovereign
+          L1 to the Fuji testnet with your machine as its validator.
         </li>
         <li>
           <C>Data</C>: look up balances, NFTs, and transaction history for any Fuji or C-Chain
@@ -76,9 +82,10 @@ export default function StudioDocs() {
         }
       />
       <P>
-        The agent can then inspect the environment, spin up devnets, launch L1s, send Interchain
-        messages, and read address data. One tool, two faces: a dashboard for humans and an MCP
-        server for agents.
+        The agent can then inspect the environment, spin up devnets, launch local L1s, send
+        Interchain messages, and read address data. One tool, two faces: a dashboard for humans and
+        an MCP server for agents. The <C>devnet_*</C> and <C>icm_*</C> tools are experimental like
+        the views they mirror, and from the release after 0.1.14 their titles say so.
       </P>
 
       <Note>
@@ -87,7 +94,11 @@ export default function StudioDocs() {
         external tools through argument arrays built from validated values (never a shell). It runs
         one avalanche-cli action at a time: the server owns the run, so it carries on when the tab
         that started it reloads or closes, any tab can follow its log, and a second action is
-        refused until the first has finished or been cancelled. See <C>SECURITY.md</C>.
+        refused until the first has finished or been cancelled. From the release after 0.1.14,
+        stopping Studio also stops the avalanche-cli command it started (the local network keeps
+        running, and Studio says how to stop it), and Interchain transactions are signed inside
+        Studio with the public EWOQ devnet key, only for an L1 whose RPC is on this machine. See{" "}
+        <C>SECURITY.md</C>.
       </Note>
 
       <NextLinks

@@ -11,54 +11,81 @@ history: `git show 8e2ed22:docs/KNOWN-GAPS.md`.
 
 ## Owner steps
 
-Settings that only the owner can change. No code change is needed.
+Steps that only the owner can take, on GitHub, npmjs.com or Cloudflare.
+
+Already in place: Dependabot alerts and security updates; private vulnerability reporting,
+secret scanning and push protection; a default Actions token that is read-only and cannot
+approve pull requests; the `npm-publish` and `cloudflare-workers` environments, each with the
+maintainer as its required reviewer and `main` as its only deployment branch, the second one
+holding `CLOUDFLARE_ACCOUNT_ID`; and a ruleset on `main` that requires a pull request and the
+`CI passed` check from GitHub Actions, blocks force pushes and deletion, and has no bypass
+actors. `CI passed` is the last job of `.github/workflows/ci.yml`, and on a pull request it
+fails unless every other job succeeded.
 
 1. **The hardened faucet and the collector are not deployed.** *High.* The daily budgets,
    the kill switch and the version in `GET /health` are in `services/`, but the hosted
-   Workers still run their 2026-11-19 versions. Deploys now go through GitHub Actions, and
-   the `cloudflare-workers` environment has no Cloudflare secrets yet.
-   - Evidence: `gh api repos/mericcintosun/AvaKit/environments/cloudflare-workers/secrets`
-     lists none. `node scripts/monitor.mjs --dry-run` fails both Workers: their `/health`
+   Workers still run their 2026-11-19 versions. Deploys go through
+   `.github/workflows/deploy-workers.yml`, whose deploy job needs `CLOUDFLARE_API_TOKEN` and
+   `CLOUDFLARE_ACCOUNT_ID` in the `cloudflare-workers` environment: the account id is there,
+   the token is not yet.
+   - Evidence: `node scripts/monitor.mjs --dry-run` fails both Workers: their `/health`
      "does not report its version".
-   - Closes when: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are added
-     (`services/DEPLOY.md`) and a run of *Deploy · Cloudflare Workers* is approved. The
-     monitor then passes.
-2. **`main` requires no check.** *Medium.* `ci.yml` ends in one `CI passed` job for a
-   ruleset to require. But `main` has no ruleset, and its branch protection requires no
-   status check and allows force pushes.
-   - Evidence: `gh api repos/mericcintosun/AvaKit/rules/branches/main` returns `[]`.
-     `gh api repos/mericcintosun/AvaKit/branches/main/protection` shows `"contexts":[]` and
-     `"allow_force_pushes":{"enabled":true}`. The job: `.github/workflows/ci.yml:351`.
-   - Closes when: a ruleset on `main` requires `CI passed` and blocks force pushes.
-3. **npm's side of the publish approval is not confirmed.** *Medium.* In `release.yml` the
+   - Closes when: the owner creates the API token with the permissions `services/DEPLOY.md`
+     lists, adds it to that environment as `CLOUDFLARE_API_TOKEN`, and approves a run of
+     *Deploy · Cloudflare Workers*. The monitor then passes.
+2. **npm does not enforce the publish approval yet.** *Medium.* In `release.yml` the
    `publish` job is the only job with `id-token: write`, and it waits in the `npm-publish`
-   environment for the maintainer's approval (`.github/workflows/release.yml:263-266`).
-   Whether each package's Trusted Publisher on npmjs.com also names that environment cannot
-   be read from the repository. Until it does, npm accepts the OIDC token of any job in
-   `release.yml` that is given one.
-   - Evidence: npmjs.com, each package's settings, "Trusted Publisher".
-   - Closes when: all five packages' Trusted Publishers name `release.yml` and the
-     `npm-publish` environment.
-4. **The version PR's other checks wait for a click.** *Low.* Changesets opens the version
-   PR with `GITHUB_TOKEN`, so GitHub holds the PR's own `pull_request` runs until someone
-   with write access clicks **Approve workflows to run**. The `version-ci` job dispatches
-   `ci.yml`, so the PR gets `CI passed` without the click. The browser tests, CodeQL and the
-   secret scan run on it only after the click.
-   - Evidence: `.github/workflows/release.yml:230-246`; `RELEASING.md`, "The version PR's
-     checks"; the runs 44558954539 and 44565792970.
-   - Closes when: the owner approves those runs on each version PR, or opens the PR with a
-     GitHub App token (`RELEASING.md` has the steps).
+   environment for the maintainer's approval. The five packages' Trusted Publishers on
+   npmjs.com do not name that environment yet, so npm accepts the OIDC token of any job in
+   `release.yml` that is given one, and the approval is GitHub's alone.
+   - Evidence: the `publish` job of `.github/workflows/release.yml`; npmjs.com, each
+     package's settings, "Trusted Publisher".
+   - Closes when: the owner sets the environment name `npm-publish` in the Trusted Publisher
+     of all five packages (`RELEASING.md`, "One-time setup").
+3. **Turnstile is not required on the hosted faucet.** *Medium.* The faucet Worker can
+   require a token from avakit.dev (`TURNSTILE_ORIGINS`) and keeps verified and unverified
+   drips in separate daily budgets. But `TURNSTILE_SECRET` is not set, and setting it now
+   would refuse every drip /new asks for, because avakit.dev/new renders no Turnstile widget
+   yet. So once the budgets are deployed, every drip draws on the unverified budget, which
+   one script can spend for the whole day.
+   - Evidence: `curl https://avakit-faucet.avakit.workers.dev/health` answers
+     `"turnstile": false`; `services/faucet/README.md`, "Turnstile";
+     `services/faucet/wrangler.toml:44`.
+   - Closes when: /new renders the widget and sends its token, and the site's CSP allows
+     Turnstile's script and frame (`challenges.cloudflare.com`; `default-src 'self'` blocks
+     the frame today), which are code changes; then the owner raises
+     `FAUCET_LOW_BALANCE_AVAX` to 3 and sets the secret, in the order the faucet README
+     gives. This is required before the USDC drip of deliverable D2
+     (`services/faucet/PROTECTION.md`).
+4. **Each release waits on the owner.** *Low.* By design. For each release the owner:
+   - clicks **Approve workflows to run** on the "chore: version packages" pull request,
+     again after every update of it. Changesets opens and updates that PR with
+     `GITHUB_TOKEN`, and GitHub holds the `pull_request` runs of such a PR until someone with
+     write access approves them: its CI, browser tests, CodeQL and secret scan start only
+     then. A run started by hand with `workflow_dispatch` does not stand in for them, because
+     GitHub does not count a dispatched run's checks for a pull request's required checks;
+   - merges the PR once `CI passed` is green, which the ruleset requires;
+   - approves the `npm-publish` deployment of the Release run that the merge starts.
+   - Evidence: `RELEASING.md`, "The release flow" and "The version PR's checks"; the
+     `version` job of `.github/workflows/release.yml`; the runs 44558954539 and
+     44565792970, which nobody approved and which ended with no jobs.
+   - Closes when: it does not, by design: the merge and the publish approval stay with a
+     person. Only the first click can go, if the owner opens the PR with a GitHub App token
+     instead, which lets its runs start without it (`RELEASING.md` has the steps).
 
 ## Product
 
-5. **Three templates and Studio's devnet views are experimental.** *Medium.* `icm-messenger`,
-   `l1-launch`, `token-bridge` and Studio's Devnet, Launch on Fuji and Interchain views drive
-   Avalanche CLI. Ava Labs put it in maintenance mode in December 2025 and removed it from
-   the Avalanche documentation on 2026-10-06 in favour of Platform CLI. They were last proven
-   end to end in July 2026 (Avalanche CLI 1.9.6). Since then CI has built the templates
-   without running their devnet scripts, and unit tests have covered Studio with a stand-in
-   for the CLI. Studio's Fuji launch also relies on avalanche-cli skipping its "fund
-   relayer?" prompt when stdin is closed.
+5. **Three templates and Studio's Avalanche CLI views are experimental.** *Medium.*
+   `icm-messenger`, `l1-launch` and `token-bridge` start their devnets with Avalanche CLI.
+   Studio's Devnet and Launch on Fuji views run the CLI, and its Interchain view works on the
+   local L1s the CLI set up. Ava Labs put Avalanche CLI in maintenance mode in December 2025
+   and removed it from the Avalanche documentation on 2026-10-06 in favour of Platform CLI.
+   The templates and the views were last proven end to end in July 2026 (Avalanche CLI
+   1.9.6). Since then CI has built the
+   templates without running their devnet scripts, and unit tests have covered Studio with a
+   stand-in for the CLI. Studio's Fuji launch also relies on avalanche-cli skipping its "fund
+   relayer?" prompt when stdin is closed. The experimental labels ship in the next
+   `create-avalanche-app` and `@avakit/studio` releases: 0.4.3 and 0.1.14 do not show them.
    - Evidence: `"status": "experimental"` at line 8 of the three templates' `manifest.json`;
      `packages/studio/README.md`, "Experimental: the Avalanche CLI views";
      `packages/studio/src/fuji.ts:242-244`.
@@ -77,18 +104,20 @@ Settings that only the owner can change. No code change is needed.
      ceremony. Then move `CIRCUIT_COMMIT` and `COMMIT` together, and
      `node contracts-ci/scripts/eerc-pin.mjs --circuits` passes.
 7. **The RPC fallback is not released and does not reach the site.** *Medium.* On `main`,
-   `@avakit/core` moves on to a chain's next RPC endpoint: PublicNode after Ava Labs' API on
-   Fuji and C-Chain. Version 0.2.2 on npm has one endpoint per chain. avakit.dev installs
-   `@avakit/core` 0.2.2 from npm, so it gets the fallback only after the next release and a
-   bump in `apps/web`, and its Content-Security-Policy allows only the primary Fuji RPC. The
-   `eerc-token` template's wagmi transport also keeps one endpoint. (Core, MetaMask and social
-   login wallets send through their own RPC by design.)
+   `@avakit/core` moves on to a chain's next RPC endpoint when one fails a request (no
+   answer, a timeout, an HTTP error, a node that says it cannot serve it now): PublicNode
+   after Ava Labs' API on Fuji and C-Chain. Version 0.2.2 on npm has one endpoint per chain.
+   avakit.dev installs `@avakit/core` 0.2.2 from npm, so it gets the fallback only after the
+   next release and a bump in `apps/web`. Its Content-Security-Policy needs no change for
+   it: `connect-src` lists the origin of every Fuji endpoint the installed core names, so it
+   allows PublicNode once `apps/web` is on a core that lists it. The `eerc-token` template's
+   wagmi transport also keeps one endpoint. (Core, MetaMask and social login wallets send
+   through their own RPC by design.)
    - Evidence: `packages/core/src/chains.ts` (`rpcUrls`); `apps/web/package.json:18` and
-     `pnpm-lock.yaml` (`@avakit/core` 0.2.2); `apps/web/lib/csp.ts:91-97`;
+     `pnpm-lock.yaml` (`@avakit/core` 0.2.2); `rpcOrigins` in `apps/web/lib/csp.ts`;
      `packages/create-avalanche-app/templates/eerc-token/app/providers.tsx:133`.
-   - Closes when: core is released; `apps/web` moves to it, and `connect-src` lists the
-     origin of every `rpcEndpoints(fuji)` entry (with `apps/web/test/csp.test.mjs`);
-     `eerc-token` builds its wagmi transport with `getRpcTransport`.
+   - Closes when: core is released and `apps/web` moves to it; `eerc-token` builds its
+     wagmi transport with `getRpcTransport`.
 8. **The MCP write limits hold per call only.** *Medium.* `write_contract` calls only the
    contracts the server deployed in its session or that `AVAKIT_WRITE_ALLOWLIST` lists, and
    one call sends at most `AVAKIT_MAX_VALUE` AVAX. There is no daily or session cap, no list
@@ -98,28 +127,16 @@ Settings that only the owner can change. No code change is needed.
    - Evidence: `packages/mcp/src/limits.ts:30-33`; `packages/mcp/README.md`, "What they do
      not do".
    - Closes when: the policy layer of deliverable D1 in `docs/team1/milestone.md` ships:
-     caps per call, session and day, allowlists of methods, human confirmation above a
-     threshold, and a hash-chained audit log.
-9. **Turnstile is not required on the hosted faucet.** *Medium.* The faucet Worker can
-   require a token from avakit.dev (`TURNSTILE_ORIGINS`) and keeps verified and unverified
-   drips in separate daily budgets. But `TURNSTILE_SECRET` is not set, because avakit.dev/new
-   renders no widget yet. So once the budgets are deployed, every drip draws on the
-   unverified budget, which one script can spend for the whole day.
-   - Evidence: `curl https://avakit-faucet.avakit.workers.dev/health` answers
-     `"turnstile": false`; `services/faucet/README.md`, "Turnstile";
-     `services/faucet/wrangler.toml:40`.
-   - Closes when: /new renders the widget and sends its token, the site's CSP allows
-     Turnstile's script and frame (`challenges.cloudflare.com`; `default-src 'self'` blocks
-     the frame today), and the secret is set. This is required before the USDC drip of
-     deliverable D2 (`services/faucet/PROTECTION.md`).
+     caps per call, session and day, allowlists of methods, a gas cap, human confirmation
+     above a threshold, and a hash-chained audit log.
 
 ## Validation
 
-10. **One maintainer.** *High.* One person reviews and releases, and runs the site, the
-    faucet and the telemetry collector. The bus factor is 1.
-    - Evidence: `MAINTAINERS.md`; `.github/CODEOWNERS`.
-    - Closes when: a second maintainer is added the way `MAINTAINERS.md` describes.
-11. **No outside user is validated.** *High.* Nobody outside the project has reported a
+9. **One maintainer.** *High.* One person reviews and releases, and runs the site, the
+   faucet and the telemetry collector. The bus factor is 1.
+   - Evidence: `MAINTAINERS.md`; `.github/CODEOWNERS`.
+   - Closes when: a second maintainer is added the way `MAINTAINERS.md` describes.
+10. **No outside user is validated.** *High.* Nobody outside the project has reported a
     first run. The public counter shows 10 successful anonymous scaffolds since 2026-07-15,
     none in the last 30 days, and none of them is a validated user.
     - Evidence: `gh issue list --repo mericcintosun/AvaKit --state all` was empty on
@@ -128,20 +145,20 @@ Settings that only the owner can change. No code change is needed.
       `scaffolds.last30d` 0).
     - Closes when: builders outside the project report runs through the first-run form
       (`.github/ISSUE_TEMPLATE/first-run-report.yml`), with public transaction links.
-12. **The browser tests cover one template, and nobody signs in.** *Low.* `apps/web/e2e`
+11. **The browser tests cover one template, and nobody signs in.** *Low.* `apps/web/e2e`
     drives avakit.dev/new and a scaffolded `nft-mint` app on a local chain on every pull
     request, and /new on Fuji daily. The other seven templates are built in CI, not clicked
     through. The social login test stops at Web3Auth's sign-in page.
     - Evidence: `apps/web/e2e/README.md`; `.github/workflows/e2e-browser.yml`.
     - Closes when: the other Fuji templates have specs, and a Google sign-in that ends in a
       Fuji transaction is checked (by hand before a demo, until it can be automated).
-13. **Native Windows is barely exercised.** *Low.* One leg of the daily Fuji run
+12. **Native Windows is barely exercised.** *Low.* One leg of the daily Fuji run
     (windows-latest, Node.js 24) scaffolds `nft-mint` through the MCP server and builds it.
     Nothing goes further, and the three devnet templates' setup scripts are bash (WSL2).
     - Evidence: the matrix in `.github/workflows/e2e-fuji.yml`; the `scripts/*.sh` of
       `icm-messenger`, `l1-launch` and `token-bridge`.
     - Closes when: a person runs the first-run paths on Windows and reports it.
-14. **Scheduled runs start hours late.** *Low.* GitHub started the daily Fuji run (cron 05:23
+13. **Scheduled runs start hours late.** *Low.* GitHub started the daily Fuji run (cron 05:23
     UTC) at 14:10 UTC on 2026-11-20 and at 13:35 UTC on 2026-11-21. The daily runs and the
     six-hourly monitor therefore report within hours, not minutes.
     - Evidence: `gh run list --repo mericcintosun/AvaKit --workflow e2e-fuji.yml`;
@@ -151,18 +168,19 @@ Settings that only the owner can change. No code change is needed.
 
 ## Dependencies
 
-15. **Scaffolded apps carry an npm 10 workaround.** *Medium.* `@web3auth/modal` lists vitest
+14. **Scaffolded apps carry an npm 10 workaround.** *Medium.* `@web3auth/modal` lists vitest
     among its runtime dependencies, and the peer dependencies that brings in make npm 10, the
     npm of Node.js 22, crash with "Cannot read properties of null (reading 'edgesOut')".
     Every template therefore ships an `.npmrc` with `legacy-peer-deps=true`, which also stops
     npm from checking the app's other peer dependencies.
     - Evidence: line 7 of every template's `npmrc`;
-      `.github/workflows/web3auth-npm10-check.yml`, which tries a plain npm 10 install of
-      every template each Monday and opens an issue labelled `web3auth-workaround` once all
-      of them pass.
-    - Closes when: that issue opens. Follow its checklist: drop the `.npmrc` line, this
-      entry and the workflow.
-16. **`pnpm audit` reports three advisories below high.** *Low.* `uuid` (moderate,
+      `.github/workflows/web3auth-npm10-check.yml`, which each Monday scaffolds every
+      template, takes the workaround out, moves `@web3auth/modal` to its latest release and
+      installs the app with npm 10, and opens an issue labelled `web3auth-workaround` once
+      every install passes.
+    - Closes when: that issue opens. Follow its checklist, which removes the templates'
+      `npmrc`, this entry and the workflow.
+15. **`pnpm audit` reports three advisories below high.** *Low.* `uuid` (moderate,
     GHSA-w5hq-g745-h8pq) and `elliptic` (low, GHSA-848j-6mx2-7j84, no patched release) come
     in through `@web3auth/modal`, which every scaffolded app installs. `esbuild` (low,
     GHSA-g7r4-m6w7-qqqr, its dev server on Windows) comes in through `tsup`, at build time
@@ -170,7 +188,7 @@ Settings that only the owner can change. No code change is needed.
     - Evidence: `pnpm audit`; `npm audit` in `services/faucet` and `services/telemetry`.
     - Closes when: Web3Auth's dependencies move to patched versions, and tsup to esbuild
       0.28.1 or later.
-17. **Major upgrades are pending.** *Low.* The repository is on TypeScript 6, Vitest 4,
+16. **Major upgrades are pending.** *Low.* The repository is on TypeScript 6, Vitest 4,
     Vite 7 (Studio's UI), tsup 8, Ink 7, framer-motion 12 (the website) and wagmi 2
     (`eerc-token`, which the eERC SDK holds on 2.x). On 2026-11-21 npm had TypeScript 7,
     Vitest 5, Vite 8, tsup 9, Ink 8, framer-motion 14 and wagmi 3. None of them is in the
@@ -182,7 +200,7 @@ Settings that only the owner can change. No code change is needed.
 
 ## Website
 
-18. **Every page is rendered on request.** *Low.* The layout reads the nonce that `proxy.ts`
+17. **Every page is rendered on request.** *Low.* The layout reads the nonce that `proxy.ts`
     makes for each response, so no page under `/[locale]` is prerendered: `next build` lists
     every one of them as dynamic (ƒ).
     - Evidence: `apps/web/app/[locale]/layout.tsx:133`; the route table of
@@ -190,7 +208,7 @@ Settings that only the owner can change. No code change is needed.
     - Closes when: accepted as the cost of a nonce-based policy, since Next.js adds the nonce
       to its own scripts only while it renders a request. Revisit if the site needs static
       caching.
-19. **The site chrome stays English under `/tr`.** *Low.* The landing and templates pages
+18. **The site chrome stays English under `/tr`.** *Low.* The landing and templates pages
     are translated. The footer's link labels and the command menu stay English, and the
     other pages are English by design. The next-intl message files are empty (`{}`), and no
     component reads them.
