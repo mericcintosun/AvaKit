@@ -1,6 +1,6 @@
 import type { EIP1193Provider } from "viem";
 import { describe, expect, it, vi } from "vitest";
-import { defineChain, fuji } from "./chains.js";
+import { defineChain, fuji, rpcEndpoints } from "./chains.js";
 import { ensureChain } from "./network.js";
 
 type Handler = (args: { method: string; params?: unknown }) => Promise<unknown>;
@@ -84,9 +84,19 @@ describe("ensureChain", () => {
       chainId: "0xa869",
       chainName: fuji.name,
       nativeCurrency: fuji.nativeCurrency,
-      rpcUrls: [fuji.rpcUrl],
+      rpcUrls: rpcEndpoints(fuji),
       blockExplorerUrls: [fuji.explorerUrl],
     });
+  });
+
+  // EIP-3085 takes a list and wallets default to its first entry, so the
+  // wallet gets the chain's endpoints in the chain's own order.
+  it("hands the wallet every RPC URL of the chain, primary first", async () => {
+    const provider = providerMissingChain();
+    await ensureChain(provider, fuji);
+    const { rpcUrls } = addChainParams(provider) as { rpcUrls: string[] };
+    expect(rpcUrls[0]).toBe(fuji.rpcUrl);
+    expect(rpcUrls).toEqual([fuji.rpcUrl, "https://avalanche-fuji-c-chain-rpc.publicnode.com"]);
   });
 
   // MetaMask rejects wallet_addEthereumChain when blockExplorerUrls holds an

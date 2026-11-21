@@ -6,7 +6,7 @@
  */
 
 import type { EIP1193Provider } from "viem";
-import type { AvaChain } from "./chains.js";
+import { type AvaChain, rpcEndpoints } from "./chains.js";
 
 function errorCode(error: unknown): number | undefined {
   if (typeof error === "object" && error !== null && "code" in error) {
@@ -55,7 +55,9 @@ export async function ensureChain(provider: EIP1193Provider, chain: AvaChain): P
             chainId,
             chainName: chain.name,
             nativeCurrency: chain.nativeCurrency,
-            rpcUrls: [chain.rpcUrl],
+            // EIP-3085 takes a list, and wallets use its first entry by
+            // default: the chain's own order, primary first.
+            rpcUrls: rpcEndpoints(chain),
             // A fresh L1 has no explorer yet (defineChain allows a blank URL).
             // EIP-3085 makes the field optional, and wallets reject an empty
             // string in it — so leave it out rather than send [""].

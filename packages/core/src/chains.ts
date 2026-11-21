@@ -11,8 +11,20 @@ export interface AvaChain {
   id: number;
   /** Human-readable name. */
   name: string;
-  /** Primary JSON-RPC endpoint. */
+  /** Primary JSON-RPC endpoint: the first one AvaKit tries. */
   rpcUrl: string;
+  /**
+   * Every JSON-RPC endpoint of this chain, in the order AvaKit tries them:
+   * `rpcUrl` first, then fallbacks that serve the same chain. A request that
+   * fails on one moves on to the next (see `getPublicClient`). Leave it out
+   * and `rpcUrl` is the only endpoint.
+   *
+   * The list counts only when its first entry is `rpcUrl` (see
+   * `rpcEndpoints`). A definition that spreads a built-in chain and replaces
+   * its `rpcUrl`, such as `{ ...fuji, rpcUrl: myNode }`, therefore talks to
+   * `myNode` alone, never to the endpoints it replaced.
+   */
+  rpcUrls?: readonly string[];
   /**
    * Block explorer base URL, without a trailing slash. Links are built as
    * `${explorerUrl}/tx/<hash>` and `${explorerUrl}/address/<address>`. Empty for
@@ -75,12 +87,46 @@ function assertHttpUrl(value: string | undefined, field: string): void {
 }
 
 /**
+ * The chain's JSON-RPC endpoints in the order AvaKit tries them, `rpcUrl`
+ * first and without repeats.
+ *
+ * `rpcUrls` counts only when its first entry is `rpcUrl`. Otherwise `rpcUrl`
+ * is the only endpoint: a definition that spread a built-in chain and replaced
+ * its `rpcUrl` carries the built-in's list along, and that list belongs to the
+ * endpoint it replaced. Falling back to those would send traffic, a burner's
+ * transactions included, to nodes the developer chose not to use, such as the
+ * public network behind a local fork that has stopped.
+ */
+export function rpcEndpoints(chain: AvaChain): string[] {
+  const listed: unknown = chain.rpcUrls;
+  if (!Array.isArray(listed) || listed[0] !== chain.rpcUrl) {
+    return [chain.rpcUrl];
+  }
+  const urls = listed.filter((url): url is string => typeof url === "string" && url !== "");
+  return [...new Set(urls)];
+}
+
+function assertRpcUrls(value: unknown): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    throw new Error("Invalid rpcUrls: it must be an array of http(s) URLs, rpcUrl first.");
+  }
+  value.forEach((url: unknown, index) => {
+    if (typeof url !== "string" || url === "") {
+      throw new Error(`Invalid rpcUrls[${index}]: every entry must be an http(s) URL.`);
+    }
+    assertHttpUrl(url, `rpcUrls[${index}]`);
+  });
+}
+
+/**
  * Define a custom Avalanche L1 / EVM chain. Validates that any URL present is
  * http(s) (no `javascript:`/`file:` reaching a client or fetch — audit A17) and
  * that a known mainnet id is never labelled a testnet (audit A9).
  */
 export function defineChain(config: AvaChain): AvaChain {
   assertHttpUrl(config.rpcUrl, "rpcUrl");
+  assertRpcUrls(config.rpcUrls);
   assertHttpUrl(config.explorerUrl, "explorerUrl");
   assertHttpUrl(config.faucetUrl, "faucetUrl");
   if (config.testnet && KNOWN_MAINNET_CHAIN_IDS.has(config.id)) {
@@ -99,12 +145,24 @@ export function defineChain(config: AvaChain): AvaChain {
 // - Faucet: core.app/tools/testnet-faucet and faucet.avax.network both redirect
 //   to the Builder Hub faucet. It asks for a free Builder Hub sign-in; the old
 //   coupon code and mainnet-balance requirements are gone.
+//
+// RPC endpoints, checked on 2026-11-21: Ava Labs' public API first, then
+// Allnodes' PublicNode as the fallback. Each answered eth_chainId with its
+// network's id (43113, 43114), followed the same chain head as Ava Labs' node,
+// allows browser origins (CORS "*"), and answered the reads, gas and fee
+// estimates and receipt lookups AvaKit makes the way Ava Labs' node did, with
+// eth_sendRawTransaction reaching a node. Ankr's and BlockPI's public endpoints
+// now ask for an API key, and Blast API has shut down, so none is listed.
+
+const FUJI_RPC = "https://api.avax-test.network/ext/bc/C/rpc";
+const C_CHAIN_RPC = "https://api.avax.network/ext/bc/C/rpc";
 
 /** Avalanche Fuji testnet (default development target). */
 export const fuji: AvaChain = defineChain({
   id: 43113,
   name: "Avalanche Fuji",
-  rpcUrl: "https://api.avax-test.network/ext/bc/C/rpc",
+  rpcUrl: FUJI_RPC,
+  rpcUrls: [FUJI_RPC, "https://avalanche-fuji-c-chain-rpc.publicnode.com"],
   explorerUrl: "https://build.avax.network/explorer/fuji/c-chain",
   faucetUrl: "https://build.avax.network/console/primary-network/faucet",
   nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
@@ -115,7 +173,8 @@ export const fuji: AvaChain = defineChain({
 export const cChain: AvaChain = defineChain({
   id: 43114,
   name: "Avalanche C-Chain",
-  rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+  rpcUrl: C_CHAIN_RPC,
+  rpcUrls: [C_CHAIN_RPC, "https://avalanche-c-chain-rpc.publicnode.com"],
   explorerUrl: "https://build.avax.network/explorer/mainnet/c-chain",
   nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
   testnet: false,

@@ -35,9 +35,10 @@ export {
   fuji,
   isMainnet,
   KNOWN_MAINNET_CHAIN_IDS,
+  rpcEndpoints,
 } from "./chains.js";
 // viem clients
-export { getPublicClient, getWalletClient, toViemChain } from "./clients.js";
+export { getPublicClient, getRpcTransport, getWalletClient, toViemChain } from "./clients.js";
 // Data (RPC)
 export { getBalance, getTransactionReceipt, readContract } from "./data.js";
 // Data API (AvaCloud / Glacier — indexed balances, NFTs, tx history)
