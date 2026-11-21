@@ -1,0 +1,76 @@
+# OpenSSF Scorecard: an outside, automated grade of the repository's
+# supply-chain practices (branch protection, pinned actions, token
+# permissions, code review, fuzzing, signed releases and more). It runs on the
+# default branch only. The results are
+#   - published to the Scorecard API (api.scorecard.dev, signed with this job's
+#     OIDC token), which is what a badge and the public report read;
+#   - uploaded to the Security tab (Code scanning) as one alert per failing
+#     check, with the reason and the fix;
+#   - kept as a SARIF artifact of the run for five days.
+#
+# The layout follows ossf/scorecard-action's examples/scorecard.yml for public
+# repositories. The Scorecard API refuses published results when the workflow
+# breaks its rules: no top-level env or defaults, no write permission at the top
+# level, and only approved actions (no `run` steps) in the analysis job. Keep
+# them when changing this file.
+name: Scorecard supply-chain security
+
+on:
+  # The Branch-Protection check is re-read when a protection rule changes.
+  branch_protection_rule:
+  # Weekly, so the Maintained check stays current.
+  schedule:
+    - cron: "15 14 * * 0"
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+# Nothing here restores or saves an Actions cache.
+cache-mode: none
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Scorecard only supports the default branch.
+    if: ${{ github.event.repository.default_branch == github.ref_name }}
+    permissions:
+      # Upload the SARIF results to code scanning.
+      security-events: write
+      # Sign the results published to api.scorecard.dev.
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run the analysis
+        uses: ossf/scorecard-action@23f22cd43608bae7a1f1fa2603d7314dee9538a5 # v2.6.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+          # Fail the step when the Scorecard API rejects the results, for
+          # example because a change to this file broke one of its rules.
+          fail_on_publish_error: true
+
+      - name: Upload the SARIF file as an artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code scanning
+        if: ${{ always() }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: results.sarif
