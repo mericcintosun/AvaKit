@@ -7,12 +7,19 @@
 #   - the telemetry collector's GET /health and GET /stats (the numbers behind
 #     avakit.dev/stats).
 #
-# A failure opens one issue labelled `monitor`, or updates the open one (with a
-# comment when what fails changes, so a failure that persists does not notify
-# again every six hours), and the run is red. Once every check passes again the
-# issue is closed with a comment. The checks and the issue live in
-# scripts/monitor.mjs; `node scripts/monitor.mjs --dry-run` runs the same checks
-# from any machine without touching an issue.
+# A failure opens one issue labelled `monitor`, or updates the open one, and
+# once every check passes again the issue is closed with a comment. That issue
+# is the alert: whoever watches the repository hears when it opens, when what
+# fails changes (a comment) and when it closes, and not when a later run only
+# brings its table up to date, so a failure that persists does not notify again
+# every six hours. For the same reason the run stays green once the issue says
+# what fails: GitHub emails about every failed scheduled run, which would repeat
+# the alert four times a day. The run is red only when the issue could not be
+# written, so a monitor that cannot raise its alert is still seen.
+#
+# The checks and the issue live in scripts/monitor.mjs; `node scripts/monitor.mjs
+# --dry-run` runs the same checks from any machine without touching an issue,
+# and exits 1 when one fails.
 #
 # GitHub starts scheduled runs late, sometimes by hours: this says something
 # within a few hours, not within minutes. It does not cover the daily

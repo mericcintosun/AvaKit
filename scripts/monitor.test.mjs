@@ -550,7 +550,92 @@ describe("a run", () => {
     );
   });
 
-  it("opens the issue and writes the job summary in a scheduled run", async () => {
+  it("exits 1 on a failure without a token, since no issue says so", async () => {
+    const { fetch, calls } = fakeFetch(routes(lowFaucetRoutes()));
+    const code = await main({ argv: [], env: targetEnv(), fetch, sleep, log: quiet });
+
+    assert.equal(code, 1);
+    assert.ok(calls.every((call) => !call.url.includes("/repos/")));
+  });
+
+  it("exits 1, and says why, when GitHub refuses to open the issue", async () => {
+    const api = "https://api.test/repos/o/r";
+    const { fetch } = fakeFetch({
+      ...routes(lowFaucetRoutes()),
+      [`GET ${api}/issues?state=open&labels=monitor&per_page=100`]: { json: [] },
+      [`GET ${api}/labels/monitor`]: { json: { name: "monitor" } },
+      [`POST ${api}/issues`]: {
+        status: 403,
+        json: { message: "Resource not accessible by integration" },
+      },
+    });
+    const lines = [];
+    const code = await main({
+      argv: [],
+      env: { ...targetEnv(), ...githubEnv() },
+      fetch,
+      sleep,
+      log: (line) => lines.push(line),
+      now: () => NOW,
+    });
+
+    assert.equal(code, 1);
+    assert.ok(
+      lines.includes(
+        "::error title=Monitor issue::The monitor issue could not be updated: GitHub answered POST /issues with HTTP 403: Resource not accessible by integration",
+      ),
+    );
+    assert.ok(lines.every((line) => !line.includes("t0ken")));
+  });
+
+  it("exits 1 when the issue cannot be closed, though every check passes", async () => {
+    const api = "https://api.test/repos/o/r";
+    const { fetch } = fakeFetch({
+      ...routes(),
+      [`GET ${api}/issues?state=open&labels=monitor&per_page=100`]: {
+        json: [{ number: 7, body: "" }],
+      },
+      [`POST ${api}/issues/7/comments`]: { status: 201, json: {} },
+      [`PATCH ${api}/issues/7`]: { status: 502, text: "Bad gateway" },
+    });
+    const code = await main({
+      argv: [],
+      env: { ...targetEnv(), ...githubEnv() },
+      fetch,
+      sleep,
+      log: quiet,
+      now: () => NOW,
+    });
+
+    assert.equal(code, 1);
+  });
+
+  it("closes the issue and exits 0 once everything passes again", async () => {
+    const api = "https://api.test/repos/o/r";
+    const { fetch, calls } = fakeFetch({
+      ...routes(),
+      [`GET ${api}/issues?state=open&labels=monitor&per_page=100`]: {
+        json: [{ number: 7, body: "" }],
+      },
+      [`POST ${api}/issues/7/comments`]: { status: 201, json: {} },
+      [`PATCH ${api}/issues/7`]: { json: { number: 7, state: "closed" } },
+    });
+    const lines = [];
+    const code = await main({
+      argv: [],
+      env: { ...targetEnv(), ...githubEnv() },
+      fetch,
+      sleep,
+      log: (line) => lines.push(line),
+      now: () => NOW,
+    });
+
+    assert.equal(code, 0);
+    assert.ok(lines.includes("Monitor issue #7: closed."));
+    assert.ok(calls.some((call) => call.method === "PATCH" && call.body?.state === "closed"));
+  });
+
+  it("opens the issue, writes the job summary and exits 0 in a scheduled run", async () => {
     const dir = mkdtempSync(join(tmpdir(), "avakit-monitor-"));
     const summary = join(dir, "summary.md");
     try {
@@ -566,9 +651,7 @@ describe("a run", () => {
         argv: [],
         env: {
           ...targetEnv(),
-          GITHUB_TOKEN: "t0ken",
-          GITHUB_REPOSITORY: "o/r",
-          GITHUB_API_URL: "https://api.test",
+          ...githubEnv(),
           GITHUB_SERVER_URL: "https://hub.test",
           GITHUB_RUN_ID: "99",
           GITHUB_STEP_SUMMARY: summary,
@@ -579,7 +662,8 @@ describe("a run", () => {
         now: () => NOW,
       });
 
-      assert.equal(code, 1);
+      // The issue is the alert now; a red run would only repeat it by email.
+      assert.equal(code, 0);
       assert.ok(lines.includes("Monitor issue #13: opened."));
       assert.ok(
         lines.includes("::error title=Monitor · Faucet balance::0.0000 AVAX, under 1 AVAX"),
@@ -605,5 +689,13 @@ function targetEnv() {
     MONITOR_SITE_URL: TARGETS.site,
     MONITOR_FAUCET_URL: TARGETS.faucet,
     MONITOR_TELEMETRY_URL: TARGETS.telemetry,
+  };
+}
+
+function githubEnv() {
+  return {
+    GITHUB_TOKEN: "t0ken",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_API_URL: "https://api.test",
   };
 }
