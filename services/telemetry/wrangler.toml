@@ -28,3 +28,7 @@ new_sqlite_classes = ["Counters"]
 #   npx wrangler secret put TELEMETRY_ADMIN_TOKEN
 #
 # For `wrangler dev`, put them in .dev.vars instead (gitignored).
+#
+# GIT_SHA is not set here: the deploy workflow passes the commit it deploys
+# (`wrangler deploy --var GIT_SHA:<sha>`), and GET /health reports it as
+# `version`. A Worker deployed any other way reports "dev".

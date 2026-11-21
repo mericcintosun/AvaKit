@@ -328,12 +328,48 @@ describe("what is stored", () => {
   });
 });
 
+describe("GET /health", () => {
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+
+  it("names the commit the collector was deployed from", async () => {
+    const collector = await loadWorker({ env: { TELEMETRY_SALT: "test-salt", GIT_SHA: sha } });
+
+    const health = await collector.fetch("/health");
+
+    assert.deepEqual([health.status, await health.json()], [200, { ok: true, version: sha }]);
+    assert.equal(health.headers.get("cache-control"), "no-store");
+  });
+
+  it("says dev for a collector deployed any other way, and never repeats anything else", async () => {
+    for (const GIT_SHA of [undefined, "", "main", "a secret, not a commit"]) {
+      const collector = await loadWorker({ env: { TELEMETRY_SALT: "test-salt", GIT_SHA } });
+      assert.deepEqual(await (await collector.fetch("/health")).json(), {
+        ok: true,
+        version: "dev",
+      });
+    }
+  });
+
+  it("fails while the collector cannot count, and names no secret", async () => {
+    // Without the salt every POST /e is a 500 that the CLI ignores, so this is
+    // the only place the monitor can see it.
+    const collector = await loadWorker({ env: { TELEMETRY_SALT: "", GIT_SHA: sha } });
+
+    const health = await collector.fetch("/health");
+
+    assert.deepEqual(
+      [health.status, await health.json()],
+      [500, { ok: false, version: sha, error: "Collector not configured." }],
+    );
+  });
+});
+
 describe("everything else", () => {
   it("answers /health, a preflight and an unknown path", async () => {
     const collector = await loadWorker();
 
     const health = await collector.fetch("/health");
-    assert.deepEqual([health.status, await health.json()], [200, { ok: true }]);
+    assert.deepEqual([health.status, await health.json()], [200, { ok: true, version: "dev" }]);
 
     const preflight = await collector.fetch("/e", { method: "OPTIONS" });
     assert.equal(preflight.status, 204);

@@ -9,7 +9,7 @@ import { TEMPLATES } from "./templates.js";
  *
  *   POST /e      { event: "scaffold", anonymousId, template, … } → 202
  *   GET  /stats                                                  → the aggregate
- *   GET  /health                                                 → { ok }
+ *   GET  /health                                                 → { ok, version }
  *   POST /admin/purge  { day, installId?, dryRun? }              → what was removed
  *        (maintainer only, and off unless TELEMETRY_ADMIN_TOKEN is set)
  *
@@ -391,6 +391,34 @@ function notFound() {
   return json({ error: "Not found." }, 404);
 }
 
+/**
+ * The commit the running Worker was deployed from: GIT_SHA, which the deploy
+ * workflow sets with `wrangler deploy --var GIT_SHA:<commit>`, or "dev" for a
+ * Worker deployed any other way. Only ever a commit hash, whatever the
+ * variable holds. (services/faucet/src/config.js has the same rule; the two
+ * Workers share no code.)
+ */
+function deployedVersion(env) {
+  const sha = String(env.GIT_SHA ?? "")
+    .trim()
+    .toLowerCase();
+  return /^[0-9a-f]{7,40}$/.test(sha) ? sha : "dev";
+}
+
+/**
+ * GET /health — whether the collector can count, and which commit is running,
+ * for the monitor workflow and for the check after every deploy. Without the
+ * salt every POST /e is refused, so that is a failed health check rather than
+ * an `ok` over a collector that counts nothing. It names no secret.
+ */
+function health(env) {
+  const version = deployedVersion(env);
+  if (!env.TELEMETRY_SALT) {
+    return json({ ok: false, version, error: "Collector not configured." }, 500, "no-store");
+  }
+  return json({ ok: true, version }, 200, "no-store");
+}
+
 // ── Maintenance ─────────────────────────────────────────────────────────────
 
 /**
@@ -544,9 +572,7 @@ export default {
 
     if (request.method === "OPTIONS") return preflight();
 
-    if (request.method === "GET" && url.pathname === "/health") {
-      return json({ ok: true }, 200);
-    }
+    if (request.method === "GET" && url.pathname === "/health") return health(env);
 
     if (request.method === "GET" && url.pathname === "/stats") {
       const now = Date.now();

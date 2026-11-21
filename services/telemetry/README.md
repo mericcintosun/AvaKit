@@ -26,6 +26,12 @@ rows/day against KV's 1k writes/day.
 
 ## Deploy
 
+The hosted collector is deployed by GitHub Actions: a change to this directory
+on `main` waits for a maintainer's approval and then deploys, and
+`GET /health` names the commit that is running. [`../DEPLOY.md`](../DEPLOY.md)
+has the details and the one-time setup. The steps below are for a collector of
+your own, or for deploying by hand.
+
 ```bash
 cd services/telemetry
 npm install
@@ -193,7 +199,12 @@ commands at `http://localhost:8787/admin/purge`.
   its daily cap, `400` if the body isn't a recognised event. The CLI ignores the
   response either way.
 - `GET /stats` — the public aggregate, computed at most once every 5 minutes.
-- `GET /health` — `{ ok: true }`.
+- `GET /health` — `{ ok: true, version }`, where `version` is the deployed
+  commit (the deploy workflow passes it as `GIT_SHA`) or `"dev"` for a
+  collector deployed any other way. Without `TELEMETRY_SALT` every `POST /e` is
+  refused, so `/health` then answers
+  `500 { ok: false, version, error: "Collector not configured." }`. The monitor
+  workflow reads it every six hours, along with `/stats`.
 - `POST /admin/purge` — for the maintainer, and `404` unless
   `TELEMETRY_ADMIN_TOKEN` is set. See [Removing test events](#removing-test-events).
 

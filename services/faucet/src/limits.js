@@ -1,5 +1,12 @@
-/** One drip per address in any 24 hours. */
-export const ADDRESS_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** A UTC day, which is what the daily budget counts in. */
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * One drip per address in any 24 hours. The daily budget counts the drips
+ * table too, so this must never be shorter than a day: a row has to outlive
+ * the UTC day it was sent on.
+ */
+export const ADDRESS_WINDOW_MS = DAY_MS;
 
 /** The per-IP window: at most IP_MAX drips in any rolling hour. */
 export const IP_WINDOW_MS = 60 * 60 * 1000;
@@ -51,6 +58,12 @@ export const FAILURE_MAX = 10;
  *
  *   fail()    → recorded against the client for FAILURE_WINDOW_MS
  *
+ * Over all of that sits a budget per UTC day, the most drips the faucet sends
+ * in one day whoever asks. It counts the same rows, so a drip that is
+ * released hands its share of the budget back too. There are two budgets, and
+ * a drip is drawn from the one its `lane` names: "verified" for a request
+ * that passed Turnstile, "unverified" for everything else (config.js).
+ *
  * @param sql the Durable Object's `ctx.storage.sql`
  */
 export class DripLimits {
@@ -59,18 +72,30 @@ export class DripLimits {
   constructor(sql) {
     this.#sql = sql;
 
-    // One row per drip, kept for the address window.
+    // One row per drip, kept for the address window, and the budget it was drawn from.
     sql.exec(`
       CREATE TABLE IF NOT EXISTS drips (
         id INTEGER PRIMARY KEY,
         address TEXT NOT NULL,
         at INTEGER NOT NULL,
-        settled INTEGER NOT NULL DEFAULT 0
+        settled INTEGER NOT NULL DEFAULT 0,
+        lane TEXT NOT NULL DEFAULT 'unverified'
       )
     `);
+    // CREATE TABLE IF NOT EXISTS leaves a table from before the budgets as it
+    // was. Every drip it holds came from a faucet without Turnstile, so the
+    // column's default is the right value for all of them.
+    const columns = sql
+      .exec("PRAGMA table_info(drips)")
+      .toArray()
+      .map((column) => column.name);
+    if (!columns.includes("lane")) {
+      sql.exec("ALTER TABLE drips ADD COLUMN lane TEXT NOT NULL DEFAULT 'unverified'");
+    }
     sql.exec("CREATE INDEX IF NOT EXISTS drips_address ON drips (address, at)");
     sql.exec("CREATE INDEX IF NOT EXISTS drips_at ON drips (at)");
     sql.exec("CREATE INDEX IF NOT EXISTS drips_unsettled ON drips (settled) WHERE settled = 0");
+    sql.exec("CREATE INDEX IF NOT EXISTS drips_lane ON drips (lane, at)");
 
     // The same drip against the client that asked for it. A separate table so
     // the client key (an IP address or an IPv6 /64) can be deleted as soon as
@@ -108,10 +133,16 @@ export class DripLimits {
    * Why a drip to `address` from `client` would be refused right now, or null
    * if it would be allowed. Reads only.
    *
-   * @returns {{ code: "address_limited" | "ip_limited" | "faucet_busy", retryAfter: number } | null}
+   * `lane` names the daily budget the drip would be drawn from and `budget` is
+   * how many drips that one allows per UTC day (no limit if left out).
+   *
+   * @returns {{ code: "address_limited" | "ip_limited" | "faucet_busy" | "daily_limited", retryAfter: number } | null}
    *   `retryAfter` is in seconds.
    */
-  refusal({ address, client }, now = Date.now()) {
+  refusal(
+    { address, client, lane = "unverified", budget = Number.POSITIVE_INFINITY },
+    now = Date.now(),
+  ) {
     const funded = this.#sql
       .exec(
         "SELECT MAX(at) AS at, MAX(settled) AS settled FROM drips WHERE address = ? AND at > ?",
@@ -157,7 +188,35 @@ export class DripLimits {
       return { code: "ip_limited", retryAfter: seconds(failure.at + FAILURE_WINDOW_MS - now) };
     }
 
+    // Last, so that a caller over a limit of its own hears about that one.
+    // Drips still being sent count: until they are released they are spent.
+    if (Number.isFinite(budget)) {
+      const today = utcDayStart(now);
+      const { n } = this.#sql
+        .exec("SELECT COUNT(*) AS n FROM drips WHERE lane = ? AND at >= ?", lane, today)
+        .one();
+      if (n >= budget) {
+        return { code: "daily_limited", retryAfter: seconds(today + DAY_MS - now) };
+      }
+    }
+
     return null;
+  }
+
+  /**
+   * How many drips each budget has given out today (UTC), the ones still being
+   * sent included: `{ day: "YYYY-MM-DD", unverified, verified }`.
+   */
+  usage(now = Date.now()) {
+    const today = utcDayStart(now);
+    const counts = { unverified: 0, verified: 0 };
+    for (const row of this.#sql.exec(
+      "SELECT lane, COUNT(*) AS n FROM drips WHERE at >= ? GROUP BY lane",
+      today,
+    )) {
+      if (Object.hasOwn(counts, row.lane)) counts[row.lane] = Number(row.n);
+    }
+    return { day: new Date(today).toISOString().slice(0, 10), ...counts };
   }
 
   /**
@@ -171,19 +230,24 @@ export class DripLimits {
   }
 
   /**
-   * Check both limits again and, if they hold, take a slot — atomically.
+   * Check every limit again and, if they hold, take a slot — atomically.
    *
    * @returns {{ id: number } | { refused: NonNullable<ReturnType<DripLimits["refusal"]>> }}
    */
-  reserve({ address, client }, now = Date.now()) {
+  reserve({ address, client, lane = "unverified", budget }, now = Date.now()) {
     // Only the write path prunes, so a flood of refused requests costs reads alone.
     this.#expire(now);
 
-    const refused = this.refusal({ address, client }, now);
+    const refused = this.refusal({ address, client, lane, budget }, now);
     if (refused) return { refused };
 
     const { id } = this.#sql
-      .exec("INSERT INTO drips (address, at) VALUES (?, ?) RETURNING id", address, now)
+      .exec(
+        "INSERT INTO drips (address, at, lane) VALUES (?, ?, ?) RETURNING id",
+        address,
+        now,
+        lane,
+      )
       .one();
     this.#sql.exec("INSERT INTO hits (drip, client, at) VALUES (?, ?, ?)", id, client, now);
     return { id };
@@ -231,4 +295,9 @@ export class DripLimits {
 
 function seconds(ms) {
   return Math.max(1, Math.ceil(ms / 1000));
+}
+
+/** 00:00 UTC of the day `now` falls on, in ms. Unix time has no leap seconds. */
+export function utcDayStart(now) {
+  return now - (now % DAY_MS);
 }

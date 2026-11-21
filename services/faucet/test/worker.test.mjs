@@ -25,14 +25,25 @@ const key = generatePrivateKey();
 const faucetAddress = privateKeyToAccount(key).address;
 
 const chain = await startMockChain();
-/** Every setting the Worker reads, spelled out, so nothing is left to a local .dev.vars. */
+/**
+ * Every setting the Worker reads, spelled out, so nothing is left to a local
+ * .dev.vars or to wrangler.toml. The daily budgets are far above anything
+ * these tests send: the storage, and so today's count, is shared by the whole
+ * file, and the tests of the budgets size them from that count.
+ */
 const env = (overrides = {}) => ({
   AVAKIT_FAUCET_KEY: key,
   FAUCET_FUJI_RPC: chain.url,
   FAUCET_DRIP_AVAX: "0.02",
   FAUCET_CORS_ORIGIN: "*",
+  FAUCET_DAILY_DRIPS: "100000",
+  FAUCET_DAILY_DRIPS_VERIFIED: "100000",
+  FAUCET_LOW_BALANCE_AVAX: "1",
+  FAUCET_PAUSED: "",
   TURNSTILE_SECRET: "",
+  TURNSTILE_ORIGINS: "",
   TURNSTILE_VERIFY_URL: "",
+  GIT_SHA: "",
   ...overrides,
 });
 const worker = await startWorker(env());
@@ -72,11 +83,11 @@ async function call(path, init) {
   };
 }
 
-/** POST /fund, by default for a new address from a new client. */
-function fund({ ip = someIp(), address = someAddress(), ...rest } = {}) {
+/** POST /fund, by default for a new address from a new client. `headers` go on the request. */
+function fund({ ip = someIp(), address = someAddress(), headers = {}, ...rest } = {}) {
   return call("/fund", {
     method: "POST",
-    headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+    headers: { "content-type": "application/json", "cf-connecting-ip": ip, ...headers },
     body: JSON.stringify({ address, ...rest }),
   });
 }
@@ -93,31 +104,316 @@ async function fundPatiently(options) {
 const statuses = (results) => results.map((result) => result.status);
 const count = (results, status) => statuses(results).filter((s) => s === status).length;
 
-describe("GET /health", () => {
-  it("reports the faucet account, its balance and what a drip is", async () => {
-    const health = await call("/health");
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Today's date, UTC, as /health names it. */
+const utcDay = () => new Date().toISOString().slice(0, 10);
+/** Seconds until 00:00 UTC, which is when a spent daily budget is back. */
+const secondsToMidnight = () => (DAY_MS - (Date.now() % DAY_MS)) / 1000;
+/**
+ * The daily counts start over at 00:00 UTC. A test that reads one and then
+ * depends on it waits out the last seconds of a day rather than straddle it.
+ */
+async function awayFromMidnight() {
+  if (secondsToMidnight() < 20) await sleep(secondsToMidnight() * 1000 + 1000);
+}
+/** GET /health, from `origin` if one is given. */
+const health = (origin) => call("/health", origin ? { headers: { origin } } : undefined);
+/** Today's use of the two daily budgets, according to /health. */
+const today = async () => (await health()).body.today;
 
-    assert.equal(health.status, 200);
-    assert.deepEqual(health.body, {
+describe("GET /health", () => {
+  it("reports the faucet account, its balance, what a drip is and how much of today is left", async () => {
+    const answer = await health();
+
+    assert.equal(answer.status, 200);
+    const { today: used, ...state } = answer.body;
+    assert.deepEqual(state, {
       ok: true,
+      version: "dev",
       address: faucetAddress,
       chainId: CHAIN_ID,
       balance: parseEther("10").toString(),
+      low: false,
+      lowBelow: "1",
       amount: "0.02",
       turnstile: false,
+      paused: false,
     });
+    assert.deepEqual(used, {
+      day: utcDay(),
+      unverified: { drips: used.unverified.drips, max: 100000 },
+      verified: { drips: used.verified.drips, max: 100000 },
+    });
+    // Asked for live, and its answer depends on who asks (`turnstile`).
+    assert.equal(answer.headers.get("cache-control"), "no-store");
+    assert.equal(answer.headers.get("vary"), "origin");
     // Only the faucet's own balance was asked for, and the key is not in the answer.
     assert.deepEqual(chain.calls, ["eth_getBalance"]);
-    assert.ok(!health.text.includes(key.slice(2)));
+    assert.ok(!answer.text.includes(key.slice(2)));
   });
 
-  it("promises the amount that a drip then sends", async () => {
-    const { amount } = (await call("/health")).body;
+  it("promises the amount that a drip then sends, and counts the drip", async () => {
+    await awayFromMidnight();
+    const before = (await health()).body;
 
     const funded = await fund();
 
-    assert.equal(funded.body.amount, amount);
-    assert.equal(chain.accepted[0].value, parseEther(amount));
+    assert.equal(funded.body.amount, before.amount);
+    assert.equal(chain.accepted[0].value, parseEther(before.amount));
+    assert.equal((await today()).unverified.drips, before.today.unverified.drips + 1);
+  });
+
+  it("names the commit it was deployed from, and nothing else, as its version", async (t) => {
+    t.after(() => worker.configure(env()));
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+
+    await worker.configure(env({ GIT_SHA: sha }));
+    assert.equal((await health()).body.version, sha);
+
+    await worker.configure(env({ GIT_SHA: "not a commit, maybe a secret" }));
+    assert.equal((await health()).body.version, "dev");
+  });
+
+  it("says when the balance is low, and when it cannot tell", async (t) => {
+    t.after(() => worker.configure(env()));
+
+    chain.balance = parseEther("0.5");
+    assert.deepEqual(pick((await health()).body, "balance", "low", "lowBelow"), {
+      balance: parseEther("0.5").toString(),
+      low: true,
+      lowBelow: "1",
+    });
+
+    await worker.configure(env({ FAUCET_LOW_BALANCE_AVAX: "0.25" }));
+    assert.deepEqual(pick((await health()).body, "low", "lowBelow"), {
+      low: false,
+      lowBelow: "0.25",
+    });
+
+    // The RPC is down: the faucet still answers, and does not pretend to know.
+    chain.fail("eth_getBalance", { times: 10, status: 500 });
+    const blind = await health();
+    assert.equal(blind.status, 200);
+    assert.deepEqual(pick(blind.body, "ok", "balance", "low"), {
+      ok: true,
+      balance: null,
+      low: null,
+    });
+  });
+});
+
+/** The named fields of `object`, for an assertion about those alone. */
+function pick(object, ...names) {
+  return Object.fromEntries(names.map((name) => [name, object[name]]));
+}
+
+describe("with FAUCET_PAUSED set", () => {
+  before(() => worker.configure(env({ FAUCET_PAUSED: "1" })));
+  after(() => worker.configure(env()));
+
+  it("refuses every drip before doing any work", async () => {
+    const results = await Promise.all([
+      fund(),
+      // Not even a malformed request gets further.
+      call("/fund", { method: "POST", body: "{not json" }),
+    ]);
+
+    for (const refused of results) {
+      assert.equal(refused.status, 503);
+      assert.deepEqual(refused.body, {
+        error: "The faucet is paused. Try again later.",
+        code: "faucet_paused",
+      });
+      assert.equal(refused.headers.get("retry-after"), null);
+    }
+    assert.deepEqual(chain.calls, []);
+  });
+
+  it("says so in /health, which keeps answering", async () => {
+    const answer = await health();
+    assert.equal(answer.status, 200);
+    assert.deepEqual(pick(answer.body, "ok", "paused"), { ok: true, paused: true });
+  });
+
+  it("funds again once it is switched off", async () => {
+    await worker.configure(env({ FAUCET_PAUSED: "0" }));
+    assert.equal((await fund()).status, 200);
+    assert.equal((await health()).body.paused, false);
+    await worker.configure(env({ FAUCET_PAUSED: "1" }));
+  });
+});
+
+describe("the daily budget", () => {
+  after(() => worker.configure(env()));
+
+  /** Shrink the unverified budget to what has been used today plus `left`. */
+  async function leave(left) {
+    await awayFromMidnight();
+    const used = (await today()).unverified.drips;
+    await worker.configure(env({ FAUCET_DAILY_DRIPS: String(used + left) }));
+    return used + left;
+  }
+
+  it("stops every caller once the day's drips are spent, until 00:00 UTC", async () => {
+    const max = await leave(2);
+
+    // Two clients nobody has limited, and then a third.
+    assert.deepEqual(statuses([await fund(), await fund()]), [200, 200]);
+    const refused = await fund();
+
+    assert.equal(refused.status, 429);
+    assert.deepEqual(refused.body, {
+      error: "The faucet has sent all the drips it gives out today. Try again after 00:00 UTC.",
+      code: "daily_limited",
+    });
+    const retryAfter = Number(refused.headers.get("retry-after"));
+    const expected = secondsToMidnight();
+    assert.ok(
+      Math.abs(retryAfter - expected) <= 5,
+      `retry-after ${retryAfter}, expected ${expected}`,
+    );
+    assert.equal(chain.accepted.length, 2);
+
+    assert.deepEqual((await today()).unverified, { drips: max, max });
+  });
+
+  it("holds exactly when many callers arrive at once", async () => {
+    // Every request passes the first look while the others are still asking
+    // the RPC; the Durable Object checks again before it takes a slot.
+    const max = await leave(3);
+    chain.delay = 5;
+
+    const results = await Promise.all(Array.from({ length: 12 }, () => fund()));
+
+    assert.equal(count(results, 200), 3);
+    assert.equal(count(results, 429), 9);
+    for (const refused of results.filter((result) => result.status === 429)) {
+      assert.equal(refused.body.code, "daily_limited");
+    }
+    assert.equal(chain.accepted.length, 3);
+    assert.equal((await today()).unverified.drips, max);
+  });
+
+  it("refuses without asking the RPC anything", async () => {
+    await leave(0);
+    const calls = chain.calls.length;
+
+    const refused = await fund();
+
+    assert.equal(refused.body.code, "daily_limited");
+    assert.equal(chain.calls.length, calls);
+  });
+
+  it("is not spent by a drip that failed", async () => {
+    const max = await leave(1);
+    chain.fail("eth_sendRawTransaction", { error: { code: -32000, message: "boom" } });
+
+    assert.equal((await fund()).status, 502);
+    assert.equal((await fund()).status, 200);
+    assert.equal((await fund()).body.code, "daily_limited");
+    assert.equal((await today()).unverified.drips, max);
+  });
+});
+
+describe("with Turnstile required from avakit.dev only", () => {
+  const SECRET = "turnstile-origins-secret";
+  const SITE = "https://avakit.dev";
+  let turnstile;
+
+  before(async () => {
+    turnstile = await startMockTurnstile({ secret: SECRET });
+    await worker.configure(
+      env({
+        TURNSTILE_SECRET: SECRET,
+        TURNSTILE_ORIGINS: SITE,
+        TURNSTILE_VERIFY_URL: turnstile.url,
+      }),
+    );
+  });
+  after(async () => {
+    await worker.configure(env());
+    await turnstile.close();
+  });
+  beforeEach(() => {
+    turnstile.requests.length = 0;
+  });
+
+  /** POST /fund with an Origin header, as a browser on that origin sends it. */
+  const fundFrom = (origin, options) =>
+    fund({ ...options, ...(origin ? { headers: { origin } } : {}) });
+
+  it("refuses avakit.dev without a token, before doing any work", async () => {
+    const refused = await fundFrom(SITE);
+
+    assert.equal(refused.status, 403);
+    assert.deepEqual(refused.body, { error: "Verification required.", code: "turnstile_required" });
+    assert.equal(turnstile.requests.length, 0);
+    assert.deepEqual(chain.calls, []);
+  });
+
+  it("serves every other caller without one, from the unverified budget", async () => {
+    await awayFromMidnight();
+    const before = await today();
+
+    // A scaffolded app on localhost, and the MCP server, which sends no Origin.
+    const results = [await fundFrom("http://localhost:3000"), await fundFrom(null)];
+
+    assert.deepEqual(statuses(results), [200, 200]);
+    assert.equal(turnstile.requests.length, 0);
+    const after = await today();
+    assert.equal(after.unverified.drips, before.unverified.drips + 2);
+    assert.equal(after.verified.drips, before.verified.drips);
+  });
+
+  it("draws a request with a good token on the verified budget, from any origin", async () => {
+    await awayFromMidnight();
+    const before = await today();
+
+    const results = [
+      await fundFrom(SITE, { turnstileToken: turnstile.issue("origins-good-1") }),
+      await fundFrom("http://localhost:3000", {
+        turnstileToken: turnstile.issue("origins-good-2"),
+      }),
+    ];
+
+    assert.deepEqual(statuses(results), [200, 200]);
+    assert.equal(turnstile.requests.length, 2);
+    const after = await today();
+    assert.equal(after.verified.drips, before.verified.drips + 2);
+    assert.equal(after.unverified.drips, before.unverified.drips);
+  });
+
+  it("checks a token whenever one is sent, and refuses a bad one", async () => {
+    const refused = await fundFrom("http://localhost:3000", { turnstileToken: "forged" });
+
+    assert.equal(refused.status, 403);
+    assert.equal(refused.body.code, "turnstile_failed");
+    assert.equal(chain.accepted.length, 0);
+  });
+
+  it("keeps the site's budget when a script has spent the open one", async () => {
+    await awayFromMidnight();
+    const { unverified } = await today();
+    await worker.configure(
+      env({
+        TURNSTILE_SECRET: SECRET,
+        TURNSTILE_ORIGINS: SITE,
+        TURNSTILE_VERIFY_URL: turnstile.url,
+        FAUCET_DAILY_DRIPS: String(unverified.drips),
+      }),
+    );
+
+    const script = await fundFrom(null);
+    const visitor = await fundFrom(SITE, { turnstileToken: turnstile.issue("origins-good-3") });
+
+    assert.equal(script.body.code, "daily_limited");
+    assert.equal(visitor.status, 200);
+  });
+
+  it("answers /health for the origin it is asked from", async () => {
+    assert.equal((await health(SITE)).body.turnstile, true);
+    assert.equal((await health("http://localhost:3000")).body.turnstile, false);
+    assert.equal((await health()).body.turnstile, false);
   });
 });
 
@@ -624,12 +920,14 @@ describe("a misconfigured faucet", () => {
   after(() => worker.configure(env()));
 
   const answer = ({ status, body }) => [status, body];
+  /** What /health answers for a setting it cannot use: the same words, as a failed health check. */
+  const unhealthy = ([status, body]) => [status, { ok: false, version: "dev", ...body }];
 
   it("says the key is missing", async () => {
     await worker.configure(env({ AVAKIT_FAUCET_KEY: "" }));
     const expected = [500, { error: "Faucet key not configured.", code: "misconfigured" }];
 
-    assert.deepEqual(answer(await call("/health")), expected);
+    assert.deepEqual(answer(await call("/health")), unhealthy(expected));
     assert.deepEqual(answer(await fund()), expected);
   });
 
@@ -643,7 +941,7 @@ describe("a misconfigured faucet", () => {
 
     const health = await call("/health");
     assert.equal(health.headers.get("access-control-allow-origin"), "*");
-    assert.deepEqual(answer(health), expected);
+    assert.deepEqual(answer(health), unhealthy(expected));
     assert.deepEqual(answer(await fund()), expected);
     assert.deepEqual(chain.calls, []);
   });
@@ -658,6 +956,35 @@ describe("a misconfigured faucet", () => {
     assert.deepEqual(answer(await fund()), expected);
     assert.equal(chain.accepted.length, 0);
     // /health says so too, rather than naming an amount no drip will send.
-    assert.deepEqual(answer(await call("/health")), expected);
+    assert.deepEqual(answer(await call("/health")), unhealthy(expected));
+  });
+
+  it("refuses to run without a daily budget it can read", async () => {
+    await worker.configure(env({ FAUCET_DAILY_DRIPS: "lots" }));
+    const expected = [
+      500,
+      { error: "FAUCET_DAILY_DRIPS is not a whole number.", code: "misconfigured" },
+    ];
+
+    assert.deepEqual(answer(await fund()), expected);
+    assert.equal(chain.accepted.length, 0);
+    assert.deepEqual(answer(await call("/health")), unhealthy(expected));
+  });
+
+  it("reports in /health a setting that only matters later", async () => {
+    // Caught here, by the check after a deploy, rather than once the
+    // Turnstile secret is set or the balance runs low.
+    for (const [setting, value, error] of [
+      ["TURNSTILE_ORIGINS", "avakit.dev", "TURNSTILE_ORIGINS is not a list of origins."],
+      ["FAUCET_LOW_BALANCE_AVAX", "-1", "FAUCET_LOW_BALANCE_AVAX is not a valid amount."],
+      ["FAUCET_DAILY_DRIPS_VERIFIED", "1.5", "FAUCET_DAILY_DRIPS_VERIFIED is not a whole number."],
+    ]) {
+      await worker.configure(env({ [setting]: value }));
+      assert.deepEqual(
+        answer(await call("/health")),
+        unhealthy([500, { error, code: "misconfigured" }]),
+        setting,
+      );
+    }
   });
 });

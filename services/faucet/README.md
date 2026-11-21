@@ -11,7 +11,16 @@ own if you'd rather not use ours.
 > Not part of the pnpm workspace; it deploys on its own. Cloudflare's free tier
 > covers it (100k requests/day, and SQLite-backed Durable Objects are included).
 
+What protects it from being drained, and what cannot, is in
+[PROTECTION.md](PROTECTION.md).
+
 ## Deploy
+
+The hosted faucet is deployed by GitHub Actions: a change to this directory on
+`main` waits for a maintainer's approval and then deploys, and `GET /health`
+names the commit that is running. [`../DEPLOY.md`](../DEPLOY.md) has the
+details and the one-time setup. The steps below are for a faucet of your own,
+or for deploying by hand.
 
 ```bash
 cd services/faucet
@@ -37,7 +46,26 @@ NEXT_PUBLIC_AVAKIT_FAUCET_URL = https://<worker>.workers.dev/fund
 `avakit.dev/new` then funds each visitor's burner automatically. Without it the
 page stays honest and links to the official Fuji faucet instead.
 
-## First deploy of this version
+## Upgrading to the daily budgets
+
+The first deploy of the daily budgets changes nothing a caller sends or gets
+back on success. What it does:
+
+- The Durable Object adds a `lane` column to its `drips` table the first time
+  it starts (`ALTER TABLE`, run once; `test/upgrade.test.mjs` runs it in
+  workerd). Every drip already stored was sent without Turnstile, so it counts
+  as unverified.
+- Today's budget starts with the drips already sent today, not from zero.
+- Two refusals are new, and an older client reads them correctly by their
+  status: `429 daily_limited` (with `Retry-After` until 00:00 UTC) as a rate
+  limit, and `503 faucet_paused` as a faucet that cannot serve. Neither is
+  retried by `@avakit/core`.
+- `GET /health` gains `version`, `low`, `lowBelow`, `paused` and `today`, and
+  answers `ok: false` with the reason when it cannot work.
+- `TURNSTILE_ORIGINS` is set to `https://avakit.dev` in `wrangler.toml`, which
+  does nothing until `TURNSTILE_SECRET` is set (see [Turnstile](#turnstile)).
+
+## Upgrading a faucet that kept its limits in KV
 
 For a faucet that is already running the earlier Worker, which kept its rate
 limits in a KV namespace (`FAUCET_KV`) — the hosted `avakit-faucet` is one. From
@@ -59,7 +87,7 @@ curl -X POST https://<worker>.workers.dev/fund \
 `"amount": "0.02"` and `"turnstile": false`; the drip should answer
 `{ txHash, amount, chainId }`, and the same request again `429 address_limited`.
 If `secret list` shows `TURNSTILE_SECRET` on the faucet behind `avakit.dev/new`,
-read [Turnstile](#turnstile-optional) before deploying.
+read [Turnstile](#turnstile) before deploying.
 
 What that deploy does:
 
@@ -101,11 +129,21 @@ tried without deploying:
 | Where | Name | Default | What |
 | --- | --- | --- | --- |
 | secret | `AVAKIT_FAUCET_KEY` | — (required) | 0x private key holding Fuji test AVAX |
-| secret | `TURNSTILE_SECRET` | — (off) | Set it and `POST /fund` requires a Turnstile token — see [Turnstile](#turnstile-optional) |
+| secret | `TURNSTILE_SECRET` | — (off) | Turns Turnstile on — see [Turnstile](#turnstile) |
 | secret | `FAUCET_FUJI_RPC` | — (the public Fuji RPC) | Use your own RPC instead. A provider's URL carries its API key, so it is a secret — see below |
+| secret | `FAUCET_PAUSED` | — (off) | The kill switch: any value but `0`, `false`, `no` or `off` refuses every drip — see [Pausing](#pausing) |
 | var | `FAUCET_DRIP_AVAX` | `0.02` (set in `wrangler.toml`) | Amount per drip |
-| var | `FAUCET_CORS_ORIGIN` | `*` | Left open on purpose: CORS is a browser rule, not a security boundary, and locking it down only breaks local dev and preview deploys |
-| durable object | `FAUCET` | — (in `wrangler.toml`) | Rate limits and the send queue, one object per chain |
+| var | `FAUCET_DAILY_DRIPS` | `50` | Drips per UTC day for every request without a verified Turnstile token, together. `0` closes this budget |
+| var | `FAUCET_DAILY_DRIPS_VERIFIED` | `100` | Drips per UTC day for requests whose Turnstile token was verified |
+| var | `FAUCET_LOW_BALANCE_AVAX` | `1` | `GET /health` answers `"low": true` under this balance, and the monitor opens an issue. `0` turns the warning off |
+| var | `TURNSTILE_ORIGINS` | `https://avakit.dev` | The origins that must send a token once `TURNSTILE_SECRET` is set, separated by commas or spaces. Empty: every caller must |
+| var | `FAUCET_CORS_ORIGIN` | `*` | Left open on purpose: callers come from any origin, or none — see [PROTECTION.md](PROTECTION.md) |
+| deploy | `GIT_SHA` | — (`"dev"`) | The commit, passed by the deploy workflow with `--var`; `GET /health` reports it as `version` |
+| durable object | `FAUCET` | — (in `wrangler.toml`) | Rate limits, the daily budgets and the send queue, one object per chain |
+
+A value the Worker cannot use (a budget that is not a whole number, an origin
+with a path) is refused with `500 misconfigured` rather than guessed at, and
+`GET /health` says which setting it is.
 
 **An RPC URL with a key in it is a secret.** Set it with
 
@@ -127,12 +165,34 @@ it is redacted from everything the Worker logs.
 
 - `POST /fund` — `{ "address": "0x…", "chainId"?: 43113, "turnstileToken"?: "…" }`
   → `{ txHash, amount, chainId }`
-- `GET /health` — `{ ok, address, chainId, balance, amount, turnstile }`: the
-  faucet's state, without a drip. `address` is the faucet's own account and
-  `balance` what it holds, in wei (`null` if the RPC could not be asked);
-  `amount` is what one drip sends, in AVAX (`"0.02"`); `turnstile` is `true`
-  when `POST /fund` expects a token. A faucet that is set up wrong answers
-  `500 misconfigured` here too.
+- `GET /health` — the faucet's state, without a drip, for a client, an operator
+  or the monitor workflow. It names no secret.
+
+  ```jsonc
+  {
+    "ok": true,                 // set up, and its Durable Object answers
+    "version": "4f2c…",         // the deployed commit, or "dev"
+    "address": "0x…",           // the faucet's own account
+    "chainId": 43113,
+    "balance": "3791…",         // wei, as text; null if the RPC could not be asked
+    "low": false,               // balance under lowBelow; null when unknown
+    "lowBelow": "1",            // AVAX (FAUCET_LOW_BALANCE_AVAX)
+    "amount": "0.02",           // what one drip sends, in AVAX
+    "turnstile": false,         // whether POST /fund from this origin needs a token
+    "paused": false,            // FAUCET_PAUSED
+    "today": {                  // the daily budgets, UTC
+      "day": "2026-11-21",
+      "unverified": { "drips": 3, "max": 50 },
+      "verified": { "drips": 0, "max": 100 }
+    }
+  }
+  ```
+
+  `turnstile` is answered for the origin the request comes from (the response
+  says `Vary: Origin`): `curl -H 'Origin: https://avakit.dev' …/health` asks as
+  the site would. A faucet that is set up wrong answers
+  `500 { ok: false, version, error, code: "misconfigured" }`, and one whose
+  Durable Object does not answer `503 { ok: false, version, error }`.
 
 Anything else answers `{ "error": "…", "code": "…" }`. The message is fixed text
 for people; branch on `code`:
@@ -144,9 +204,11 @@ for people; branch on `code`:
 | 403 | `turnstile_required`, `turnstile_failed` | No token, or one that is forged, expired or already used |
 | 404 | `not_found` | Not one of the two endpoints |
 | 429 | `address_limited`, `ip_limited` | Over a limit: the address was funded in the last 24 hours, or the client has had its 20 drips this hour or 10 failed attempts in five minutes. `Retry-After` says how many seconds until it clears |
+| 429 | `daily_limited` | The day's budget for this kind of request is spent, for everyone. `Retry-After` counts down to 00:00 UTC |
 | 502 | `drip_failed` | The RPC or the chain refused the transaction. No drip was charged to the caller's limits; retry shortly (it does count as a failed attempt) |
+| 503 | `faucet_paused` | The operator has switched the faucet off (`FAUCET_PAUSED`). No `Retry-After`: it is off until someone switches it on |
 | 503 | `faucet_empty`, `faucet_busy`, `turnstile_unavailable` | Out of funds, too many drips in flight (over all, from this client, or one to this very address; `Retry-After` is a few seconds), or Cloudflare's verification is unreachable |
-| 500 | `misconfigured`, `internal` | The Worker's own setup (key, drip amount) or a bug |
+| 500 | `misconfigured`, `internal` | The Worker's own setup (key, drip amount, a daily budget, the Turnstile origins) or a bug |
 
 A failed drip never returns the upstream error. viem's messages include the RPC
 URL and the raw request, so the detail goes to the Worker log instead
@@ -194,23 +256,66 @@ URL and the raw request, so the detail goes to the Worker log instead
   it came from for one hour, and the client of a failed attempt for five
   minutes. Its alarm deletes all three on schedule, so an IP address is gone
   an hour after its drip even if that was the day's last.
+- Over all of that, a **budget per UTC day**: at most `FAUCET_DAILY_DRIPS`
+  (50) drips for requests without a verified Turnstile token, together, and
+  `FAUCET_DAILY_DRIPS_VERIFIED` (100) for requests with one. Once a budget is
+  spent, every request that draws on it gets `429 daily_limited` until
+  00:00 UTC. A drip being sent counts; one that fails is handed back. The
+  budgets bound what all networks together can take in a day — see
+  [PROTECTION.md](PROTECTION.md) for the worst case and what it does not stop.
 
-These bound what one network can take. They do not stop a thousand networks —
-that is what Turnstile is for.
+The per-client limits bound what one network can take; the budgets bound all of
+them together. Turnstile is what keeps a script out of the verified budget.
 
-### Turnstile (optional)
+### Pausing
 
-A captcha in front of `POST /fund`. It is enforced only when `TURNSTILE_SECRET`
-is set, so turning it on needs no code change in the Worker — but it does need
-every client of the faucet to send a token first.
+`FAUCET_PAUSED` is the kill switch. Set it, as a secret, and every `POST /fund`
+is refused with `503 faucet_paused` before anything else is looked at:
 
-> **The hosted faucet runs without it, and has to for now.** The public demo
-> page (`avakit.dev/new`) does not render a Turnstile widget yet, so it has no
-> token to send. Setting `TURNSTILE_SECRET` on the faucet behind that page makes
-> every drip from it fail with `403 turnstile_required`. Leave the secret unset
-> there until the page sends a token.
+```bash
+echo 1 | npx wrangler secret put FAUCET_PAUSED   # pause, at once
+npx wrangler secret delete FAUCET_PAUSED         # resume
+```
 
-On your own faucet:
+`GET /health` keeps answering, with `"paused": true`, and the monitor keeps an
+issue open while it is. A secret, not a dashboard variable: a deploy removes
+dashboard variables and would switch the faucet back on.
+
+### Turnstile
+
+A captcha in front of `POST /fund`, enforced only once `TURNSTILE_SECRET` is
+set. What it then asks of a request:
+
+- A request that carries a `turnstileToken` has it checked, whatever its
+  origin. A good one draws the drip on the verified budget; a bad one is
+  refused with `403 turnstile_failed`.
+- A request without a token is refused with `403 turnstile_required` if its
+  `Origin` is one of `TURNSTILE_ORIGINS` — or always, when that setting is
+  empty. Otherwise it is served from the unverified budget, like any request
+  while Turnstile is off.
+
+So `TURNSTILE_ORIGINS` decides who must send a token, and the budgets decide
+what the ones who do not may take. [PROTECTION.md](PROTECTION.md) explains why
+the hosted faucet can only ever ask avakit.dev for one.
+
+> **The hosted faucet runs without it for now.** `avakit.dev/new` does not
+> render a Turnstile widget yet, so it has no token to send, and with the
+> secret set every drip from it would fail with `403 turnstile_required`.
+> Everything else is ready: `TURNSTILE_ORIGINS` is already `https://avakit.dev`
+> in `wrangler.toml`, so the MCP server and scaffolded apps keep working
+> without a token once the secret is set. To turn it on:
+>
+> 1. Add a Turnstile widget in the Cloudflare dashboard for the hostname
+>    `avakit.dev`. It gives a site key (public) and a secret key.
+> 2. Render the widget on `avakit.dev/new` and pass its token with the drip
+>    request (`turnstileToken` of `requestFaucet`, below). Deploy the site.
+> 3. Check that the page sends a token: a request from it now carries
+>    `turnstileToken`.
+> 4. `npx wrangler secret put TURNSTILE_SECRET` with the secret key. From then
+>    on `curl -H 'Origin: https://avakit.dev' …/health` answers
+>    `"turnstile": true`, and the site's drips count under `today.verified`.
+
+On a faucet of your own:
 
 1. Add a [Turnstile](https://developers.cloudflare.com/turnstile/) widget in
    the Cloudflare dashboard for the hostnames that call the faucet. It gives
@@ -231,15 +336,17 @@ On your own faucet:
    Both options are in the releases of `@avakit/core` and `@avakit/react` after
    0.2.1; an older client cannot send a token. Any other client puts the token
    in the request body as `turnstileToken`.
-3. `npx wrangler secret put TURNSTILE_SECRET` with the secret key.
+3. Set `TURNSTILE_ORIGINS` to the origins of those pages, or leave it empty if
+   every caller of your faucet sends a token.
+4. `npx wrangler secret put TURNSTILE_SECRET` with the secret key.
 
-From step 3 on, a request without a valid token gets a `403` — so do it last,
-once every client of this faucet sends one. `GET /health` answers
-`"turnstile": true` from then on, which is how a client or an operator can tell
-without a drip. A token is single-use and expires after five minutes; ask the
-widget for a fresh one per request (which is why both clients take a function).
-If Cloudflare's verification cannot be reached the faucet answers `503` rather
-than letting everyone through.
+From step 4 on, a request without a valid token gets a `403` where one is
+required — so do it last, once those pages send one. `GET /health` answers
+`"turnstile": true` to a request from such an origin, which is how a client or
+an operator can tell without a drip. A token is single-use and expires after
+five minutes; ask the widget for a fresh one per request (which is why both
+clients take a function). If Cloudflare's verification cannot be reached the
+faucet answers `503` rather than letting everyone through.
 
 ## Local
 
@@ -262,7 +369,10 @@ npm test
 Needs Node 22.15 or newer. The suite never touches a network: it runs the
 Worker in local `workerd` straight from `wrangler.toml`, against a mock chain
 (`test/helpers/mock-chain.mjs`) that rejects nonce conflicts the way a real
-node does, and it generates its keys on the spot.
+node does, and it generates its keys on the spot. The daily budgets are also
+run in plain Node with a clock the test moves (`test/budget.test.mjs`), and the
+upgrade of a table from before them in workerd (`test/upgrade.test.mjs`, with
+the fixture in `test/fixtures/upgrade/`).
 
 ## Wire it into any app
 

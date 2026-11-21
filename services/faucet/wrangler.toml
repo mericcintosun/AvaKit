@@ -18,9 +18,26 @@ compatibility_flags = ["nodejs_compat"]
 # remainder is stranded in a throwaway wallet forever.
 FAUCET_DRIP_AVAX = "0.02"
 # Left open on purpose: CORS is a browser rule, not a security boundary (a bot can
-# POST directly anyway), so locking it down would only break local dev and Vercel
-# previews. The rate limits + the testnet-only allowlist are the real defense.
+# POST directly anyway), and the faucet's callers are scaffolded apps on any origin
+# and the MCP server, which sends no Origin at all. PROTECTION.md has the details.
 FAUCET_CORS_ORIGIN = "*"
+# The most drips sent per UTC day, over all callers, so that the most a drain can
+# take in a day is known in advance: 50 × 0.02 AVAX = 1 AVAX a day from the
+# unverified budget (every request without a verified Turnstile token: the MCP
+# server, scaffolded apps, avakit.dev today) plus 100 × 0.02 = 2 AVAX from the
+# verified one, each drip also paying at most 100,000 gas. Real use is a few drips
+# a day; raise these for an event, and keep them small next to the balance.
+FAUCET_DAILY_DRIPS = "50"
+FAUCET_DAILY_DRIPS_VERIFIED = "100"
+# GET /health reports "low": true under this balance (AVAX), and the monitor
+# workflow opens an issue. 1 AVAX is 50 drips at 0.02.
+FAUCET_LOW_BALANCE_AVAX = "1"
+# The origins that must send a Turnstile token. It does nothing until the
+# TURNSTILE_SECRET secret is set; with both, a request from avakit.dev needs a
+# token, while every other origin (and the MCP server, which sends none) may come
+# without one and draws on the unverified budget. Do not set the secret before
+# avakit.dev/new sends a token: README, "Turnstile".
+TURNSTILE_ORIGINS = "https://avakit.dev"
 
 # The rate limits and the send queue live in one SQLite-backed Durable Object per
 # chain, not in KV: a KV counter is read, awaited on and written back, so a burst
@@ -49,3 +66,12 @@ invocation_logs = false
 #   npx wrangler secret put FAUCET_FUJI_RPC     (optional — your own RPC; a
 #                                                provider's URL carries its API key)
 # For `wrangler dev`, put them in .dev.vars instead (gitignored).
+#
+# The kill switch is set the same way, so that it takes effect at once and no
+# deploy can switch it off again (a deploy deletes vars set in the dashboard):
+#   echo 1 | npx wrangler secret put FAUCET_PAUSED     pause POST /fund
+#   npx wrangler secret delete FAUCET_PAUSED           resume
+#
+# GIT_SHA is not set here: the deploy workflow passes the commit it deploys
+# (`wrangler deploy --var GIT_SHA:<sha>`), and GET /health reports it as
+# `version`. A Worker deployed any other way reports "dev".
