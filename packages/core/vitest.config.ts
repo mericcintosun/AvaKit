@@ -2,6 +2,13 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // coinbase.test.ts loads the real Coinbase SDK to check how it fails outside
+    // a browser. Loading it is CPU-bound work: 0.3 to 1.5 s in an ordinary run,
+    // 4.5 s with every package's suite running at once beside four busy
+    // processes, and 5.1 to 6.6 s, past Vitest's five-second default, when the
+    // flaky-test hunt starved the CPU further (2026-11-21). The other packages
+    // give their tests 15 to 30 seconds for the same reason; this takes twenty.
+    testTimeout: 20_000,
     // `pnpm test` runs `vitest run --coverage`, so the thresholds below are part
     // of every test run, in CI and in the release job. They are a ratchet: each
     // sits about a point under what this suite measured when it was set
