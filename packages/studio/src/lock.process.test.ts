@@ -371,6 +371,23 @@ describe.skipIf(!RUNS_SOURCES)(
       expect(existsSync(actionLockFile())).toBe(false);
     });
 
+    it("when nothing reads the MCP server's answers any more: its next answer fails, and it stops as if disconnected", async () => {
+      slowAvalanche();
+      const agent = await rawMcpProcess();
+      agent.callTool("devnet_start");
+      await waitFor(journal, (j) => j.includes("begin network start"));
+      const commandPid = lock().command?.pid as number;
+      started.push(commandPid);
+
+      // stdin stays open: only the answer to this call finds out (EPIPE).
+      agent.child.stdout?.destroy();
+      agent.callTool("devnet_status");
+      expect(await agent.exited).toEqual({ code: 0, signal: null });
+      expect(alive(commandPid)).toBe(false);
+      expect(existsSync(actionLockFile())).toBe(false);
+      expect(agent.errors()).toContain(`Stopped avalanche network start (pid ${commandPid}).`);
+    });
+
     it("kills a command that ignores SIGTERM at the second Ctrl+C", async () => {
       slowAvalanche(true);
       const other = await dashboardProcess();
