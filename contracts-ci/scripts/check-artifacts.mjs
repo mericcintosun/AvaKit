@@ -36,7 +36,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkEercPin } from "./eerc-pin.mjs";
-import { describePin, materialize, readPin } from "./upstream.mjs";
+import { describePin, FetchError, materialize, readPin } from "./upstream.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -159,10 +159,11 @@ for (const { upstream } of ARTIFACTS) {
   try {
     upstreamRoots.set(upstream, await materialize(upstream, join(scratch, `upstream-${upstream}`)));
   } catch (error) {
-    console.error(
-      `UPSTREAM SOURCE: ${upstream}\n  ${error.message}\n` +
-        `  The pin is contracts-ci/upstream/${upstream}/sources.json; see scripts/upstream.mjs.`,
-    );
+    const next =
+      error instanceof FetchError
+        ? "  Nothing was built or compared: run this again once GitHub can be reached."
+        : `  The pin is contracts-ci/upstream/${upstream}/sources.json; see scripts/upstream.mjs.`;
+    console.error(`UPSTREAM SOURCE: ${upstream}\n  ${error.message}\n${next}`);
     process.exit(1);
   }
 }
@@ -492,16 +493,26 @@ for (const entry of unaccounted()) {
 // deployed keys that matched none of the circuits (see scripts/eerc-pin.mjs).
 const EERC = "packages/create-avalanche-app/templates/eerc-token (pinned ava-labs/EncryptedERC)";
 const eerc = await checkEercPin(repoRoot, { circuits: process.argv.includes("--eerc-circuits") });
-if (eerc.problems.length === 0) {
+if (eerc.problems.length === 0 && eerc.unreachable.length === 0) {
   console.log(`ok ${EERC} @ ${eerc.commit.slice(0, 12)}`);
-} else {
+}
+if (eerc.problems.length > 0) {
   failed = true;
   console.error(
     [
       `EERC PIN DRIFT: ${EERC}`,
       ...eerc.problems.map((problem) => `  - ${problem}`),
-      "  The pin is CIRCUIT_COMMIT in lib/eerc-config.ts and COMMIT in scripts/deploy-eerc.mjs.",
+      "  The pin is CIRCUIT_COMMIT in lib/eerc-config.ts and COMMIT in scripts/deploy-eerc.mjs,",
+      "  recorded in contracts-ci/upstream/EncryptedERC/sources.json (node scripts/eerc-pin.mjs pin).",
     ].join("\n"),
+  );
+}
+// A download that failed is not drift: what needed it was not compared.
+for (const message of eerc.unreachable) {
+  failed = true;
+  console.error(
+    `EERC PIN: ${message}\n` +
+      "  eerc-token's pin was not fully checked: run this again once GitHub can be reached.",
   );
 }
 

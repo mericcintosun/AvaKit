@@ -1,16 +1,19 @@
 // Tests for the two guard scripts, scripts/sync.mjs and
 // scripts/check-artifacts.mjs (with scripts/upstream.mjs, which fetches the
-// upstream sources it builds). A guard that misses what it exists to catch
-// fails silently, so each test runs the real script against a throwaway copy of
-// the files it reads, changes one thing in that copy and checks that the script
+// upstream sources it builds, and scripts/eerc-pin.mjs, which checks
+// eerc-token's pin). A guard that misses what it exists to catch fails
+// silently, so each test runs the real script against a throwaway copy of the
+// files it reads, changes one thing in that copy and checks that the script
 // notices. The checkout itself is never modified.
 //
-// Usage (from contracts-ci/, needs forge and, for the upstream sources not yet
-// in the cache, the network): node --test scripts/guards.test.mjs
+// Usage (from contracts-ci/, needs forge and, for the upstream files not yet in
+// the cache, the network): node --test scripts/guards.test.mjs
+// A few tests fetch one file on purpose, to show what a fetch does.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -24,7 +27,17 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { blobId, importsOf, materialize, readPin } from "./upstream.mjs";
+import {
+  blobId,
+  cacheDir,
+  download,
+  FetchError,
+  importsOf,
+  materialize,
+  pinnedFile,
+  readPin,
+  UPSTREAM_DIR,
+} from "./upstream.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -36,12 +49,23 @@ const ICM_PIN = "contracts-ci/upstream/icm-contracts/sources.json";
 // other three are built from the pinned ava-labs/icm-contracts sources.
 const ICTT_ENTRIES = ["ERC20TokenHome", "ERC20TokenRemote", "TeleporterRegistry", "DemoToken"];
 // eerc-token's pin: the commit of ava-labs/EncryptedERC its app proves with
-// and the one its deploy script builds from.
+// and the one its deploy script builds from, and the record of the upstream
+// files at that commit that eerc-pin.mjs reads.
 const EERC_CONFIG = `${TEMPLATES}/eerc-token/lib/eerc-config.ts`;
 const EERC_DEPLOY = `${TEMPLATES}/eerc-token/scripts/deploy-eerc.mjs`;
+const EERC_PIN = "contracts-ci/upstream/EncryptedERC/sources.json";
+const MINT_VERIFIER = "contracts/prod/MintVerifier.sol";
 // The commit eerc-token was pinned to until upstream's fixes of 2026-08-31:
 // its deploy script deployed verifiers that match none of the circuits.
 const EERC_BEFORE_FIXES = "c7eb0e09bc9315e68c35d3c09f5dce4b794d0485";
+// What sources.json records at that commit, where it differs: the blob ids of
+// the two files the fixes changed (`git ls-tree c7eb0e09 scripts/deploy-standalone.ts
+// test/helpers.ts`). The other files the check reads, the circuit files among
+// them, are the same at both commits.
+const EERC_BEFORE_FIXES_FILES = {
+  "scripts/deploy-standalone.ts": "b28f6ca913bfbcedcb93e825c9a79c5d69a494df",
+  "test/helpers.ts": "d885d9312d2f445b1758ff57e37cd01670296fa6",
+};
 
 /** Point one or both of eerc-token's pins at `commit`. */
 function pinEerc(root, commit, { config = true, deploy = true } = {}) {
@@ -56,6 +80,46 @@ function pinEerc(root, commit, { config = true, deploy = true } = {}) {
     );
   }
 }
+
+/** A temporary upstream cache, removed when the test ends: a copy of the
+ * default one, holding every file the pins in contracts-ci/upstream name
+ * (fetched into the default cache first where it was not there yet), so that a
+ * test can change what is cached and download nothing. */
+async function warmCache(t) {
+  for (const name of readdirSync(UPSTREAM_DIR)) {
+    const pin = readPin(name);
+    await Promise.all(Object.keys(pin.files).map((path) => pinnedFile(name, path, pin)));
+  }
+  const cache = mkdtempSync(join(tmpdir(), "avakit-upstream-cache-"));
+  t.after(() => rmSync(cache, { recursive: true, force: true }));
+  cpSync(cacheDir(), cache, { recursive: true });
+  return cache;
+}
+
+/** As if upstream had `change`d one of the files eerc-pin.mjs reads at the
+ * pinned commit: the fixture's sources.json names the changed copy, which goes
+ * into `cache`. Returns the changed copy's blob id. */
+function pinEercFile(root, cache, path, change) {
+  const pin = JSON.parse(readFileSync(join(root, EERC_PIN), "utf8"));
+  const before = readFileSync(join(cache, pin.files[path]), "utf8");
+  const after = change(before);
+  assert.notEqual(after, before, `the change left ${path} as it was`);
+  const id = blobId(Buffer.from(after));
+  writeFileSync(join(cache, id), after);
+  pin.files[path] = id;
+  writeFileSync(join(root, EERC_PIN), `${JSON.stringify(pin, null, 2)}\n`);
+  return id;
+}
+
+/** One constant of the key a verifier embeds, off by one. */
+const offByOne = (source) =>
+  source.replace(
+    /(uint256 constant IC1x\s*=\s*)(\d+)/,
+    (_match, before, value) => `${before}${BigInt(value) + 1n}`,
+  );
+
+/** `text` as a regular expression that matches it literally. */
+const literally = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // What a working tree may hold beside the sources: none of it is the scripts'
 // to read, and a build has to start from the sources alone.
@@ -90,10 +154,16 @@ function fixture(t) {
 
 /** Run one of the scripts in a fixture, the way CI runs it in the repo. */
 function run(root, script, ...args) {
+  return runWith(root, {}, script, ...args);
+}
+
+/** The same, with `env` added to the environment (an upstream cache of the
+ * test's own, say). */
+function runWith(root, env, script, ...args) {
   const result = spawnSync(
     process.execPath,
     [join(root, "contracts-ci", "scripts", script), ...args],
-    { cwd: join(root, "contracts-ci"), encoding: "utf8" },
+    { cwd: join(root, "contracts-ci"), encoding: "utf8", env: { ...process.env, ...env } },
   );
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
@@ -354,24 +424,25 @@ test("check-artifacts builds nothing from an upstream source that is not the pin
 });
 
 test("upstream sources are checked in the cache too, and a damaged copy is fetched again", async (t) => {
-  const cache = mkdtempSync(join(tmpdir(), "avakit-upstream-cache-"));
-  const layouts = mkdtempSync(join(tmpdir(), "avakit-upstream-layout-"));
+  // A copy of the warm cache with one source damaged: the one download this
+  // makes is that source's.
+  const cache = await warmCache(t);
+  const layout = mkdtempSync(join(tmpdir(), "avakit-upstream-layout-"));
   const ENV = process.env;
   const previous = ENV.AVAKIT_UPSTREAM_CACHE;
   ENV.AVAKIT_UPSTREAM_CACHE = cache;
   t.after(() => {
     if (previous === undefined) delete ENV.AVAKIT_UPSTREAM_CACHE;
     else ENV.AVAKIT_UPSTREAM_CACHE = previous;
-    for (const dir of [cache, layouts]) rmSync(dir, { recursive: true, force: true });
+    rmSync(layout, { recursive: true, force: true });
   });
 
   const file = "contracts/ictt/TokenHome/TokenHome.sol";
   const id = readPin("icm-contracts").files[file];
-  await materialize("icm-contracts", join(layouts, "first"));
   writeFileSync(join(cache, id), "// not what the pin says\n");
 
-  const second = await materialize("icm-contracts", join(layouts, "second"));
-  assert.equal(blobId(readFileSync(join(second, file))), id, "laid out from a damaged copy");
+  await materialize("icm-contracts", layout);
+  assert.equal(blobId(readFileSync(join(layout, file))), id, "laid out from a damaged copy");
   assert.equal(blobId(readFileSync(join(cache, id))), id, "the damaged copy is still cached");
 });
 
@@ -379,9 +450,17 @@ test("upstream sources are checked in the cache too, and a damaged copy is fetch
 
 test("check-artifacts rejects eerc-token's pin from before upstream's 2026-08-31 fixes", (t) => {
   // At that commit `npm run deploy:eerc` deployed the generated verifiers,
-  // whose keys match none of the circuit files the app proves with.
+  // whose keys match none of the circuit files the app proves with. The
+  // fixture is pinned there throughout: both constants, and sources.json as
+  // `node scripts/eerc-pin.mjs pin` writes it at that commit.
   const root = fixture(t);
   pinEerc(root, EERC_BEFORE_FIXES);
+  edit(root, EERC_PIN, (text) => {
+    const pin = JSON.parse(text);
+    pin.repositories[0].commit = EERC_BEFORE_FIXES;
+    Object.assign(pin.files, EERC_BEFORE_FIXES_FILES);
+    return `${JSON.stringify(pin, null, 2)}\n`;
+  });
   const { status, output } = run(root, "check-artifacts.mjs");
   assert.equal(status, 1, output);
   assert.match(output, /EERC PIN DRIFT: \S+\/eerc-token \(pinned ava-labs\/EncryptedERC\)\n/);
@@ -406,6 +485,22 @@ test("eerc-pin rejects an app and a deploy script pinned to different commits", 
   );
 });
 
+test("eerc-pin rejects a pin that sources.json does not record", (t) => {
+  // Both constants moved, without `node scripts/eerc-pin.mjs pin`: the files
+  // it would read are another commit's.
+  const root = fixture(t);
+  pinEerc(root, EERC_BEFORE_FIXES);
+  const { status, output } = run(root, "eerc-pin.mjs");
+  assert.equal(status, 1, output);
+  assert.match(
+    output,
+    new RegExp(
+      `${literally(EERC_PIN)} pins [0-9a-f]{40}, but CIRCUIT_COMMIT is ${EERC_BEFORE_FIXES}: ` +
+        "run `node scripts/eerc-pin\\.mjs pin`",
+    ),
+  );
+});
+
 test("eerc-pin checks that each production verifier carries its circuit's key", (t) => {
   const root = fixture(t);
   const { status, output } = run(root, "eerc-pin.mjs");
@@ -416,6 +511,260 @@ test("eerc-pin checks that each production verifier carries its circuit's key", 
       new RegExp(`ok ${name}: contracts/prod/\\w+Verifier\\.sol carries the key`),
     );
   }
+});
+
+test("eerc-pin rejects a production verifier that does not carry its circuit's key", async (t) => {
+  // A verifier with another key rejects every proof the app makes with this
+  // circuit's proving key.
+  const root = fixture(t);
+  const cache = await warmCache(t);
+  pinEercFile(root, cache, MINT_VERIFIER, offByOne);
+  const { status, output } = runWith(root, { AVAKIT_UPSTREAM_CACHE: cache }, "eerc-pin.mjs");
+  assert.equal(status, 1, output);
+  assert.match(
+    output,
+    /EERC PIN DRIFT: contracts\/prod\/MintVerifier\.sol at [0-9a-f]{40} does not carry the key of circom\/build\/mint \(ic differ\)/,
+  );
+  for (const name of ["registration", "transfer", "withdraw", "burn"]) {
+    assert.match(
+      output,
+      new RegExp(`ok ${name}: contracts/prod/\\w+Verifier\\.sol carries the key`),
+    );
+  }
+});
+
+test("eerc-pin rejects a verification key whose delta is its gamma", async (t) => {
+  // A key made without a phase-2 contribution: a verifier with it accepts a
+  // forged proof for any statement. The verifier and the JSON key are changed
+  // alike, so the one still carries the other.
+  const root = fixture(t);
+  const cache = await warmCache(t);
+  pinEercFile(root, cache, MINT_VERIFIER, (source) => {
+    const gamma = new Map(
+      [...source.matchAll(/uint256 constant gamma(x1|x2|y1|y2)\s*=\s*(\d+)/g)].map(
+        ([, part, value]) => [part, value],
+      ),
+    );
+    assert.equal(gamma.size, 4, "MintVerifier.sol declares no gamma");
+    return source.replace(
+      /(uint256 constant delta(x1|x2|y1|y2)\s*=\s*)\d+/g,
+      (_match, before, part) => `${before}${gamma.get(part)}`,
+    );
+  });
+  pinEercFile(root, cache, "circom/build/mint/mint_verification_key.json", (text) => {
+    const key = JSON.parse(text);
+    key.vk_delta_2 = key.vk_gamma_2;
+    return JSON.stringify(key, null, 1);
+  });
+  const { status, output } = runWith(root, { AVAKIT_UPSTREAM_CACHE: cache }, "eerc-pin.mjs");
+  assert.equal(status, 1, output);
+  assert.match(output, /EERC PIN DRIFT: the mint key at [0-9a-f]{40} has delta = gamma/);
+  assert.doesNotMatch(output, /does not carry the key/);
+});
+
+test("eerc-pin reads deploy-standalone.ts's code, not its comments", async (t) => {
+  // The verifiers deployed some other way, and the production call left in a
+  // comment; or a second call, which deploys the generated ones.
+  const other = "await deployGeneratedVerifiers(deployer);";
+  const variants = {
+    "the production call only in a line comment": (script) =>
+      script.replace(
+        "await deployVerifiers(deployer, true);",
+        `${other}\n\t// await deployVerifiers(deployer, true);`,
+      ),
+    "the production call only in a block comment": (script) =>
+      script.replace(
+        "await deployVerifiers(deployer, true);",
+        `${other} /* await deployVerifiers(deployer, true); */`,
+      ),
+    "a second call that deploys the generated verifiers": (script) =>
+      script.replace(
+        "await deployVerifiers(deployer, true);",
+        "await deployVerifiers(deployer, true);\n\tawait deployVerifiers(deployer, false);",
+      ),
+  };
+  const cache = await warmCache(t);
+  for (const [name, change] of Object.entries(variants)) {
+    const root = fixture(t);
+    pinEercFile(root, cache, "scripts/deploy-standalone.ts", change);
+    const { status, output } = runWith(root, { AVAKIT_UPSTREAM_CACHE: cache }, "eerc-pin.mjs");
+    assert.equal(status, 1, `${name}:\n${output}`);
+    assert.match(
+      output,
+      /deploy-standalone\.ts at [0-9a-f]{40} does not deploy the production verifiers/,
+      name,
+    );
+  }
+});
+
+test("eerc-pin reads no cached copy that is not the pinned file", async (t) => {
+  // The fixture's pin names a verifier with a wrong key, and the cache holds,
+  // under that verifier's blob id, upstream's verifier, which would pass. The
+  // cached copy is refused and the file fetched, and GitHub's copy is not the
+  // pinned one either: the one download this test makes.
+  const root = fixture(t);
+  const cache = await warmCache(t);
+  const upstream = JSON.parse(readFileSync(join(root, EERC_PIN), "utf8")).files[MINT_VERIFIER];
+  const pinned = pinEercFile(root, cache, MINT_VERIFIER, offByOne);
+  copyFileSync(join(cache, upstream), join(cache, pinned));
+  const { status, output } = runWith(root, { AVAKIT_UPSTREAM_CACHE: cache }, "eerc-pin.mjs");
+  assert.equal(status, 1, output);
+  assert.match(
+    output,
+    new RegExp(
+      `EERC PIN DRIFT: ${literally(MINT_VERIFIER)}: \\S+/${literally(MINT_VERIFIER)} ` +
+        `has blob ${upstream}, the pin says ${pinned}`,
+    ),
+  );
+  assert.doesNotMatch(output, /ok eerc-token pin/);
+});
+
+test("eerc-pin rejects a circuit hash that is not the hash of the file at the pin", (t) => {
+  // What a pin moved without new hashes looks like: the hash the app checks a
+  // file against is not the one sources.json took from that file.
+  const root = fixture(t);
+  const zkey = 'path: "mint/mint.zkey", sha256: "';
+  edit(root, EERC_CONFIG, (text) => {
+    const at = text.indexOf(zkey) + zkey.length;
+    assert.ok(at >= zkey.length, `${EERC_CONFIG} pins no mint/mint.zkey`);
+    return `${text.slice(0, at)}${text[at] === "0" ? "1" : "0"}${text.slice(at + 1)}`;
+  });
+  const { status, output } = run(root, "eerc-pin.mjs");
+  assert.equal(status, 1, output);
+  assert.match(
+    output,
+    /EERC PIN DRIFT: \S+eerc-config\.ts pins sha256 [0-9a-f]{64} for mint\/mint\.zkey, but circom\/build\/mint\/mint\.zkey at [0-9a-f]{40} has [0-9a-f]{64}/,
+  );
+});
+
+test("check-artifacts reports an eerc-token file it could not fetch as such, not as drift", async (t) => {
+  // None of the files eerc-pin reads is cached, and the repository they would
+  // come from does not exist: the download fails, and what needed it is not
+  // compared.
+  const root = fixture(t);
+  const cache = await warmCache(t);
+  for (const id of Object.values(readPin("EncryptedERC").files)) rmSync(join(cache, id));
+  edit(root, EERC_PIN, (text) =>
+    text.replace(
+      '"repository": "ava-labs/EncryptedERC"',
+      '"repository": "ava-labs/avakit-guards-no-such-repository"',
+    ),
+  );
+  const { status, output } = runWith(root, { AVAKIT_UPSTREAM_CACHE: cache }, "check-artifacts.mjs");
+  assert.equal(status, 1, output);
+  assert.match(
+    output,
+    /EERC PIN: could not fetch https:\/\/raw\.githubusercontent\.com\/ava-labs\/avakit-guards-no-such-repository\/[0-9a-f]{40}\/\S+ \(/,
+  );
+  assert.match(output, /eerc-token's pin was not fully checked/);
+  assert.doesNotMatch(output, /EERC PIN DRIFT/);
+  // The rest was checked as usual, from the cache.
+  for (const entry of ICTT_ENTRIES) assert.match(output, new RegExp(`ok ${ICTT} \\(${entry}\\)`));
+});
+
+// ---- upstream.mjs: downloads ----
+
+/** Make fetch answer with `answers` in turn (a Response, or an Error to throw)
+ * for the rest of the test, and return the requests it gets. */
+function answer(t, ...answers) {
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    requests.push({ url: String(url), authorization: init?.headers?.authorization });
+    const next = answers.shift();
+    if (next === undefined) throw new Error("more requests than answers");
+    if (next instanceof Error) throw next;
+    return next;
+  });
+  return requests;
+}
+
+/** What fetch throws when the connection drops. */
+const dropped = () =>
+  Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+
+/** A sleep that records how long it was asked to wait and does not. */
+function waits() {
+  const asked = [];
+  return { asked, sleep: async (seconds) => asked.push(seconds) };
+}
+
+const SOME_FILE = "https://raw.githubusercontent.com/owner/repository/commit/file";
+
+test("download retries a dropped connection and a server error, waiting longer each time", async (t) => {
+  const requests = answer(t, dropped(), new Response("busy", { status: 502 }), new Response("ok"));
+  const { asked, sleep } = waits();
+  assert.equal((await download(SOME_FILE, { sleep })).toString(), "ok");
+  assert.equal(requests.length, 3);
+  assert.deepEqual(asked, [1, 2]);
+});
+
+test("download waits as long as Retry-After asks", async (t) => {
+  answer(t, new Response("", { status: 429, headers: { "retry-after": "7" } }), new Response("ok"));
+  const { asked, sleep } = waits();
+  assert.equal((await download(SOME_FILE, { sleep })).toString(), "ok");
+  assert.deepEqual(asked, [7]);
+});
+
+test("download gives up at once when Retry-After asks for longer than a minute", async (t) => {
+  answer(t, new Response("", { status: 429, headers: { "retry-after": "3600" } }));
+  const { asked, sleep } = waits();
+  await assert.rejects(download(SOME_FILE, { sleep }), (error) => {
+    assert.ok(error instanceof FetchError);
+    assert.match(error.message, /\(HTTP 429, asked to retry after 3600 s\)$/);
+    return true;
+  });
+  assert.deepEqual(asked, []);
+});
+
+test("download gives up at once on a 404", async (t) => {
+  const requests = answer(t, new Response("Not Found", { status: 404 }));
+  const { asked, sleep } = waits();
+  await assert.rejects(download(SOME_FILE, { sleep }), (error) => {
+    assert.ok(error instanceof FetchError);
+    assert.equal(error.message, `could not fetch ${SOME_FILE} (HTTP 404)`);
+    return true;
+  });
+  assert.equal(requests.length, 1);
+  assert.deepEqual(asked, []);
+});
+
+test("download gives up after six tries on a server that stays down", async (t) => {
+  const busy = Array.from({ length: 6 }, () => new Response("", { status: 503 }));
+  const requests = answer(t, ...busy);
+  const { asked, sleep } = waits();
+  await assert.rejects(download(SOME_FILE, { sleep }), (error) => {
+    assert.ok(error instanceof FetchError);
+    assert.match(error.message, /\(HTTP 503, 6 attempts\)$/);
+    return true;
+  });
+  assert.equal(requests.length, 6);
+  assert.deepEqual(asked, [1, 2, 4, 8, 16]);
+});
+
+test("download sends GITHUB_TOKEN to GitHub only, and drops a token GitHub refuses", async (t) => {
+  const ENV = process.env;
+  const previous = { GITHUB_TOKEN: ENV.GITHUB_TOKEN, GH_TOKEN: ENV.GH_TOKEN };
+  ENV.GITHUB_TOKEN = "test-token";
+  delete ENV.GH_TOKEN;
+  t.after(() => {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete ENV[name];
+      else ENV[name] = value;
+    }
+  });
+  const requests = answer(
+    t,
+    new Response("", { status: 404 }), // GitHub refuses the token: a public file answers 404
+    new Response("public"), // the same request without it
+    new Response("elsewhere"), // a host that is not GitHub's
+  );
+  const { sleep } = waits();
+  assert.equal((await download(SOME_FILE, { sleep })).toString(), "public");
+  assert.equal((await download("https://example.com/file", { sleep })).toString(), "elsewhere");
+  assert.deepEqual(
+    requests.map(({ authorization }) => authorization),
+    ["Bearer test-token", undefined, undefined],
+  );
 });
 
 test("upstream.mjs names files by git's blob id and finds every form of import", () => {
