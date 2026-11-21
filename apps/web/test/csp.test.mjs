@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { fuji } from "@avakit/core/chains";
+import * as coreChains from "@avakit/core/chains";
 // The function Next.js itself runs on the request's policy to find the nonce for
 // its scripts. It is internal: if an upgrade moves it, find its new home (grep
 // node_modules/next/dist for getScriptNonceFromHeader) rather than copy it here.
@@ -15,10 +15,20 @@ import {
   createNonce,
   DRACO_DECODER_SOURCE,
   httpOrigin,
+  rpcOrigins,
 } from "../lib/csp.ts";
 
+const { fuji } = coreChains;
 const web = new URL("../", import.meta.url);
 const FAUCET = "https://avakit-faucet.avakit.workers.dev/fund";
+
+// The origins of the installed @avakit/core's Fuji RPC endpoints, built the way
+// lib/csp.ts builds them: `rpcUrl`, then the fallbacks in `rpcUrls` (a core
+// that predates `rpcUrls` has `rpcUrl` alone). Read from the installed core, so
+// the exact connect-src lists below follow an upgrade that adds an endpoint.
+const FUJI_RPC_ORIGINS = [
+  ...new Set([fuji.rpcUrl, ...(fuji.rpcUrls ?? [])].map((url) => new URL(url).origin)),
+];
 
 /** "a b c; d e" → Map { "a" => ["b", "c"], "d" => ["e"] }, failing on a repeated directive. */
 function parse(policy) {
@@ -82,22 +92,67 @@ test("no plugins; <base>, form posts and framing stay on the site", () => {
   assert.deepEqual(policy.get("frame-ancestors"), ["'self'"]);
 });
 
-test("connect-src is the site, the Fuji RPC the wallet uses, the faucet, and the Draco decoder", () => {
+test("connect-src is the site, the Fuji RPC endpoints the wallet uses, the faucet, and the Draco decoder", () => {
   const connect = parse(contentSecurityPolicy({ nonce: createNonce(), faucetUrl: FAUCET })).get(
     "connect-src",
   );
   assert.deepEqual(connect, [
     "'self'",
-    new URL(fuji.rpcUrl).origin,
+    ...FUJI_RPC_ORIGINS,
     "https://avakit-faucet.avakit.workers.dev",
     DRACO_DECODER_SOURCE,
     "blob:",
   ]);
 });
 
+test("connect-src allows every Fuji RPC endpoint the installed @avakit/core may call", () => {
+  // A core with fallback endpoints exports rpcEndpoints: the list its clients
+  // and the burner wallet move along when an endpoint fails or rate-limits. A
+  // core without it sends every request to rpcUrl.
+  const endpoints =
+    typeof coreChains.rpcEndpoints === "function" ? coreChains.rpcEndpoints(fuji) : [fuji.rpcUrl];
+  const connect = parse(contentSecurityPolicy({ nonce: createNonce() })).get("connect-src");
+  for (const url of endpoints) {
+    assert.ok(connect.includes(new URL(url).origin), `connect-src blocks ${url}`);
+  }
+});
+
+test("a chain with fallback endpoints gets each of their origins, once, primary first", () => {
+  const chain = {
+    rpcUrl: "https://api.avax-test.network/ext/bc/C/rpc",
+    rpcUrls: [
+      "https://api.avax-test.network/ext/bc/C/rpc",
+      "https://avalanche-fuji-c-chain-rpc.publicnode.com",
+    ],
+  };
+  const connect = parse(
+    contentSecurityPolicy({ nonce: createNonce(), faucetUrl: FAUCET, chain }),
+  ).get("connect-src");
+  assert.deepEqual(connect, [
+    "'self'",
+    "https://api.avax-test.network",
+    "https://avalanche-fuji-c-chain-rpc.publicnode.com",
+    "https://avakit-faucet.avakit.workers.dev",
+    DRACO_DECODER_SOURCE,
+    "blob:",
+  ]);
+  // rpcUrl counts even when rpcUrls leaves it out, and what is not an http(s)
+  // URL adds nothing.
+  assert.deepEqual(
+    rpcOrigins({
+      rpcUrl: "http://127.0.0.1:9650/ext/bc/C/rpc",
+      rpcUrls: ["https://a.example/rpc", "javascript:alert(1)", "", "not a url"],
+    }),
+    ["http://127.0.0.1:9650", "https://a.example"],
+  );
+  assert.deepEqual(rpcOrigins({ rpcUrl: "https://api.avax-test.network/ext/bc/C/rpc" }), [
+    "https://api.avax-test.network",
+  ]);
+});
+
 test("a deploy without a faucet, or with a faucet URL that is not http(s), adds no source", () => {
   const without = parse(contentSecurityPolicy({ nonce: createNonce() })).get("connect-src");
-  assert.deepEqual(without, ["'self'", new URL(fuji.rpcUrl).origin, DRACO_DECODER_SOURCE, "blob:"]);
+  assert.deepEqual(without, ["'self'", ...FUJI_RPC_ORIGINS, DRACO_DECODER_SOURCE, "blob:"]);
   for (const faucetUrl of [
     "",
     "not a url",
@@ -167,10 +222,14 @@ test("the proxy sends the policy, and the layout puts the nonce on its inline sc
   assert.match(proxy, /request\.headers\.set\("x-nonce", nonce\)/);
   assert.match(proxy, /request\.headers\.set\("content-security-policy", policy\)/);
   assert.match(proxy, /response\.headers\.set\("content-security-policy", policy\)/);
-  // The faucet the policy allows is the one /new calls.
+  // The faucet the policy allows is the one /new calls, and so is the chain: the
+  // proxy passes none, so the policy takes the RPC endpoints of core's `fuji`.
   const demo = readFileSync(new URL("app/[locale]/new/live-demo.tsx", web), "utf8");
   assert.match(demo, /FAUCET_URL = process\.env\.NEXT_PUBLIC_AVAKIT_FAUCET_URL/);
   assert.match(proxy, /faucetUrl: process\.env\.NEXT_PUBLIC_AVAKIT_FAUCET_URL/);
+  assert.match(demo, /import \{ fuji \} from "@avakit\/core\/chains"/);
+  assert.match(demo, /burnerAdapter\(\{ chain: fuji \}\)/);
+  assert.doesNotMatch(proxy, /contentSecurityPolicy\(\{[^}]*\bchain\b/);
 
   const layout = readFileSync(new URL("app/[locale]/layout.tsx", web), "utf8");
   assert.match(layout, /\(await headers\(\)\)\.get\("x-nonce"\)/);

@@ -35,9 +35,13 @@ export const config = {
   // metadata image routes Next generates without one: app/apple-icon.tsx is
   // served at /apple-icon, and localizing that path turns the touch icon into a
   // 404. The other generated names are listed so adding one can't repeat it.
-  // What this skips gets no policy either. None of it is one of the site's
-  // pages: a path with an extension that matches no file gets Next.js's built-in
-  // 404, whose scripts have no nonce for a policy to allow.
+  // What this skips gets no policy either, and none of it is one of the site's
+  // pages. A path with a dot that matches no file still gets a 404 page (Next.js's
+  // built-in one, or app/[locale]/not-found.tsx through [...rest]): it is sent
+  // without a policy, and its scripts take their nonces from whatever x-nonce or
+  // content-security-policy request header the client sent. What these pages
+  // show of the request (its path, those nonces) is escaped, and Next.js drops a
+  // nonce with markup in it, so nothing can be injected into them.
   matcher: [
     "/((?!api|_next|_vercel|(?:icon|apple-icon|opengraph-image|twitter-image)(?:/|$)|.*\\..*).*)",
   ],
