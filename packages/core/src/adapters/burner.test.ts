@@ -12,6 +12,7 @@ import { type AvaChain, cChain, defineChain, fuji, rpcEndpoints } from "../chain
 import { getWalletClient } from "../clients.js";
 import { WalletConnectionError } from "../errors.js";
 import { ensureChain } from "../network.js";
+import { RpcEndpointsError } from "../rpc-failover.js";
 import { cutOff, endpoint, type RpcCall, type RpcHandlers, stubRpc } from "../testing/rpc.js";
 import { burnerAdapter, clearBurner } from "./burner.js";
 
@@ -527,7 +528,6 @@ describe("burnerAdapter", () => {
     // that URL's own node has confirmed the chain: the node that answered the
     // question is the node that gets the transaction.
     describe("on a chain with several RPC URLs", () => {
-      const urls = rpcEndpoints(fuji);
       const broadcastTo = (calls: RpcCall[]) =>
         calls.filter((call) => call.method === "eth_sendRawTransaction").map((call) => call.url);
 
@@ -580,10 +580,10 @@ describe("burnerAdapter", () => {
         await expect(sent).rejects.toBeInstanceOf(WalletConnectionError);
         await expect(sent).rejects.toThrow(
           "Nothing was signed or sent: Avalanche Fuji is defined as chain 43113, but the node at " +
-            `${urls[1]}, one of its rpcUrls, reports chain 43114, which is a mainnet. The ` +
-            "temporary (burner) wallet is testnet-only. Point every URL in the definition's " +
-            "rpcUrls at a chain 43113 node, or connect a real wallet (injected / social) to use " +
-            "mainnet.",
+            "rpcUrls[1] (https://avalanche-fuji-c-chain-rpc.publicnode.com) reports chain 43114, " +
+            "which is a mainnet. The temporary (burner) wallet is testnet-only. Point every URL in " +
+            "the definition's rpcUrls at a chain 43113 node, or connect a real wallet (injected / " +
+            "social) to use mainnet.",
         );
         // The fallback was asked which chain it is, and for nothing else.
         expect(methods(calls)).toEqual(["eth_chainId"]);
@@ -598,9 +598,9 @@ describe("burnerAdapter", () => {
 
         await expect(send()).rejects.toThrow(
           "Nothing was signed or sent: Avalanche Fuji is defined as chain 43113, but the node at " +
-            `${urls[1]}, one of its rpcUrls, reports chain 43113001. The temporary (burner) ` +
-            "wallet signs only for the chain its definition names. Make the definition's id and " +
-            "rpcUrls describe the same chain, then try again.",
+            "rpcUrls[1] (https://avalanche-fuji-c-chain-rpc.publicnode.com) reports chain " +
+            "43113001. The temporary (burner) wallet signs only for the chain its definition " +
+            "names. Make the definition's id and rpcUrls describe the same chain, then try again.",
         );
         expect(broadcastTo(calls)).toEqual([]);
       });
@@ -629,12 +629,55 @@ describe("burnerAdapter", () => {
         await expect(sent).rejects.toBeInstanceOf(WalletConnectionError);
         await expect(sent).rejects.toThrow(
           "Nothing was signed or sent: the temporary (burner) wallet could not confirm that any " +
-            "of Avalanche Fuji's 2 RPC URLs serves chain 43113. " +
-            `At ${urls[0]}, its eth_chainId request failed: HTTP request failed. ` +
-            `At ${urls[1]}, it answered eth_chainId with null, which is not a chain id. ` +
-            "Check the RPCs and try again.",
+            "of Avalanche Fuji's 2 RPC URLs serves chain 43113. At rpcUrls[0] " +
+            "(https://api.avax-test.network), its eth_chainId request failed: HTTP request " +
+            "failed. At rpcUrls[1] (https://avalanche-fuji-c-chain-rpc.publicnode.com), it " +
+            "answered eth_chainId with null, which is not a chain id. Check the RPCs and try again.",
         );
         expect(broadcastTo(calls)).toEqual([]);
+      });
+
+      // The refusal reaches the user as it stands (humanizeError passes it
+      // on) and goes into logs, while an RPC URL can hold a password or an
+      // API key. It names the rpcUrls entry and the origin, nothing more.
+      describe("with a password and API keys in an RPC URL", () => {
+        const keyedUrl = "https://user:s3cret@rpc.example.com/v3/APIKEY123?key=QUERYKEY";
+        const keyed = defineChain({ ...fuji, rpcUrls: [fuji.rpcUrl, keyedUrl] });
+        // What fetch is given: viem moves the user part into a header.
+        const fetched = endpoint("https://rpc.example.com/v3/APIKEY123?key=QUERYKEY");
+        const secrets = ["user", "s3cret", "APIKEY123", "QUERYKEY", "/v3/"];
+
+        it("leaves them out when that URL's node names another chain", async () => {
+          stubRpc(node((url) => numberToHex(url === fetched ? cChain.id : fuji.id)));
+          cutOff([FUJI_PRIMARY]);
+          const { send } = await connectOn(keyed);
+
+          const error = (await send().catch((caught: unknown) => caught)) as Error;
+
+          expect(error).toBeInstanceOf(WalletConnectionError);
+          expect(error.message).toContain(
+            "but the node at rpcUrls[1] (https://rpc.example.com) reports chain 43114",
+          );
+          for (const secret of secrets) {
+            expect(error.message).not.toContain(secret);
+          }
+        });
+
+        it("leaves them out when no URL can say which chain it serves", async () => {
+          stubRpc(node(() => null));
+          cutOff([FUJI_PRIMARY]);
+          const { send } = await connectOn(keyed);
+
+          const error = (await send().catch((caught: unknown) => caught)) as Error;
+
+          expect(error).toBeInstanceOf(WalletConnectionError);
+          expect(error.message).toContain(
+            "At rpcUrls[1] (https://rpc.example.com), it answered eth_chainId with null",
+          );
+          for (const secret of secrets) {
+            expect(error.message).not.toContain(secret);
+          }
+        });
       });
 
       it("moves on once the URL it sends through stops answering, and resends nothing", async () => {
@@ -732,15 +775,38 @@ describe("burnerAdapter", () => {
 
     // The app's own client (viem's custom transport over this provider)
     // retries what fails, so the burner adds no retries of its own on top.
-    it("are tried once on every URL, and fail with the last one's error", async () => {
+    it("are tried once on every URL, and fail naming each one", async () => {
       stubRpc({});
       const { attempts } = cutOff([FUJI_PRIMARY, FUJI_FALLBACK]);
       const provider = await connectFuji();
 
-      await expect(provider.request({ method: "eth_blockNumber" })).rejects.toThrow(
-        /HTTP request failed/,
+      const error = await provider.request({ method: "eth_blockNumber" }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(RpcEndpointsError);
+      expect((error as RpcEndpointsError).shortMessage).toBe(
+        "Every RPC endpoint of Avalanche Fuji failed: https://api.avax-test.network could not be " +
+          "reached; https://avalanche-fuji-c-chain-rpc.publicnode.com could not be reached.",
       );
       expect(attempts).toEqual([FUJI_PRIMARY, FUJI_FALLBACK]);
+    });
+
+    // Not a failure of the endpoint: the chain's answer, kept with its code
+    // for the app's client to read, and not put to the next URL.
+    it("keep a node's refusal of the request itself, and do not ask the next URL", async () => {
+      const calls = stubRpc({
+        eth_estimateGas: () => {
+          throw { code: -32000, message: "insufficient funds for gas * price + value" };
+        },
+      });
+      const provider = await connectFuji();
+
+      await expect(
+        provider.request({
+          method: "eth_estimateGas",
+          params: [{ from: TEST_ADDRESS, to: TEST_ADDRESS, value: "0x1" }],
+        }),
+      ).rejects.toMatchObject({ code: -32000, details: expect.stringMatching(/insufficient/) });
+      expect(calls.map((call) => call.url)).toEqual([FUJI_PRIMARY]);
     });
 
     // A forwarded error used to reach the app as a bare message, so viem read a

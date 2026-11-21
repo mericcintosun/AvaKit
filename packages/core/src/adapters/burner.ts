@@ -19,6 +19,7 @@ import {
 import { toViemChain, transportFor } from "../clients.js";
 import { missingTestnetFlagHint, WalletConnectionError } from "../errors.js";
 import type { AvaChainSwitcher } from "../network.js";
+import { shownEndpoint } from "../rpc-failover.js";
 import type { WalletAdapter, WalletConnection } from "./types.js";
 
 /**
@@ -149,6 +150,17 @@ function sentence(text: string): string {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
+/**
+ * One of `chain`'s RPC URLs as a refusal names it: the entry of the
+ * definition's `rpcUrls` to look at, and the endpoint's origin. Never the
+ * whole URL, which can hold a password or an API key, while the refusal is
+ * shown to the user as it stands (`humanizeError` passes it on) and logged.
+ */
+function rpcUrlsEntry(chain: AvaChain, url: string): string {
+  const index = Array.isArray(chain.rpcUrls) ? chain.rpcUrls.indexOf(url) : -1;
+  return index === -1 ? shownEndpoint(url) : `rpcUrls[${index}] (${shownEndpoint(url)})`;
+}
+
 /** The refusal for a chain none of whose endpoints said which chain it serves. */
 function unconfirmedNodeError(
   chain: AvaChain,
@@ -164,7 +176,8 @@ function unconfirmedNodeError(
     );
   }
   const each = unanswered.map(
-    ({ url, failure }) => `At ${url}, ${sentence(failure.why.replace(/^I/, "i"))}`,
+    ({ url, failure }) =>
+      `At ${rpcUrlsEntry(chain, url)}, ${sentence(failure.why.replace(/^I/, "i"))}`,
   );
   return new WalletConnectionError(
     `${NOTHING_SENT}the temporary (burner) wallet could not confirm that any of ` +
@@ -297,9 +310,10 @@ function createBurnerProvider(account: PrivateKeyAccount, initialChain: AvaChain
     readonly wallets: Map<string, Wallet>;
     /**
      * Reads forwarded to the chain: one pass over its endpoints in order, each
-     * request limited like any other. No retries of the burner's own: the
-     * app's client retries what it sends through this provider (viem's custom
-     * transport does), and a second layer would multiply them.
+     * request limited like any other, moving on only from an endpoint that
+     * fails the request (see `getRpcTransport`). No retries of the burner's
+     * own: the app's client retries what it sends through this provider
+     * (viem's custom transport does), and a second layer would multiply them.
      */
     readonly reads: ReturnType<Transport>;
   }
@@ -354,7 +368,7 @@ function createBurnerProvider(account: PrivateKeyAccount, initialChain: AvaChain
         ? otherChainError(target, "the node at its rpcUrl reports", reported)
         : otherChainError(
             target,
-            `the node at ${url}, one of its rpcUrls, reports`,
+            `the node at ${rpcUrlsEntry(target, url)} reports`,
             reported,
             "rpcUrls",
           );
