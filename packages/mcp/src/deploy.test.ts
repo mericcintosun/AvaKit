@@ -122,6 +122,7 @@ describe("deploy_contract with AVAKIT_DEPLOYER_KEY", () => {
     vi.stubEnv("AVAKIT_ALLOW_MAINNET", "");
     vi.stubEnv("AVAKIT_TEST_WALLET", "");
     vi.stubEnv("AVAKIT_MCP_ROOT", "");
+    vi.stubEnv("AVAKIT_MAX_VALUE", "");
   });
   afterEach(() => {
     vi.unstubAllEnvs();

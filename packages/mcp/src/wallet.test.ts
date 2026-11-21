@@ -56,6 +56,8 @@ beforeEach(() => {
     return true;
   });
   vi.stubEnv("AVAKIT_ALLOW_MAINNET", "");
+  vi.stubEnv("AVAKIT_WRITE_ALLOWLIST", "");
+  vi.stubEnv("AVAKIT_MAX_VALUE", "");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -89,6 +91,8 @@ describe("the session test wallet", () => {
   }
 
   it("signs a Fuji transaction that a node would accept as coming from it", async () => {
+    // A contract the server's environment allows; limits.test.ts has the rest.
+    vi.stubEnv("AVAKIT_WRITE_ALLOWLIST", "0x00000000000000000000000000000000000000c1");
     const signer = resolveSigner(fuji, {});
     const serialized = await signer.signTransaction(
       transaction({ to: "0x00000000000000000000000000000000000000c1", data: "0x1249c58b" }),

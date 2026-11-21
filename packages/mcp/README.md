@@ -2,7 +2,7 @@
 
 The [AvaKit](https://github.com/mericcintosun/AvaKit) MCP server — scaffold, deploy, mint, and read Avalanche from Claude Code / Cursor over the [Model Context Protocol](https://modelcontextprotocol.io).
 
-Avalanche's official MCP server is read-only: it looks things up and never signs. This one also performs **write actions** — it creates a dapp, deploys a contract and sends contract calls — on a testnet, behind explicit gates: a wallet that can only sign for Fuji, and three separate requirements before anything touches mainnet.
+Avalanche's official MCP server is read-only: it looks things up and never signs. This one also performs **write actions** — it creates a dapp, deploys a contract and sends contract calls — on a testnet, behind explicit gates: a wallet that can only sign for Fuji, contract calls only to the contracts it deployed itself or that you list, a limit on the AVAX one call can send, and three separate requirements before anything touches mainnet.
 
 Listed in the official [MCP Registry](https://registry.modelcontextprotocol.io) as **`dev.avakit/avalanche`**.
 
@@ -53,7 +53,7 @@ That is three tool calls, and the agent does not read or copy a single file:
 
 1. `scaffold_app({ name: "my-first-dapp", template: "nft-mint" })` creates the project and returns `artifacts: ["my-first-dapp/lib/nft-artifact.ts"]`.
 2. `deploy_contract({ artifactPath: "my-first-dapp/lib/nft-artifact.ts" })` returns the contract's `address` and its explorer link.
-3. `write_contract({ address, artifactPath: "my-first-dapp/lib/nft-artifact.ts", functionName: "mint" })` returns the mint transaction's explorer link.
+3. `write_contract({ address, artifactPath: "my-first-dapp/lib/nft-artifact.ts", functionName: "mint" })` returns the mint transaction's explorer link. The server calls that contract because it deployed it itself, in this session: see [Write limits](#write-limits).
 
 You created no key, funded no wallet and set no environment variable. This is what happened instead.
 
@@ -100,7 +100,7 @@ That is three attempts at most, ten seconds each, with a randomised pause betwee
 | `list_templates` | List available templates, with the chains each one supports |
 | `read_chain` | Read a balance, a transaction receipt, or a contract view function, given as `artifactPath` or as `abi` like `write_contract` |
 | `deploy_contract` | Deploy a compiled contract, given as `artifactPath` or as `abi` + `bytecode`. No key needed on Fuji; mainnet needs your own key, `confirm: true` **and** `AVAKIT_ALLOW_MAINNET=1` in the server's environment |
-| `write_contract` | Send a state-changing contract call — mint, transfer, approve — after simulating it. Signs the way `deploy_contract` does |
+| `write_contract` | Send a state-changing contract call — mint, transfer, approve — after simulating it, to a contract the server deployed in this session or one you list in `AVAKIT_WRITE_ALLOWLIST`. Signs the way `deploy_contract` does |
 | `wallet_status` | Show which wallet would sign on a chain, where it comes from, and its balance. Sends nothing |
 | `estimate_gas` | Estimate gas for a call before you send it |
 | `get_context` | AvaKit + Avalanche coding context and doc links |
@@ -142,16 +142,16 @@ The address is returned only once the transaction has been mined, its status is 
 
 | Argument | |
 | --- | --- |
-| `address` | The contract. All lowercase, or with a valid checksum |
+| `address` | The contract. All lowercase, or with a valid checksum. One the server deployed in this session, or one `AVAKIT_WRITE_ALLOWLIST` lists |
 | `functionName` | For example `"mint"`. To pick between overloads, the full signature: `"safeTransferFrom(address,address,uint256)"` |
 | `abi` or `artifactPath` | The ABI — exactly one of the two |
 | `args` | The function's arguments, in order |
-| `value` | Wei to send with a payable call, as a decimal string. Only with your own key, and only on Fuji |
+| `value` | Wei to send with a payable call, as a decimal string. Only with your own key, only on Fuji, and at most `AVAKIT_MAX_VALUE` AVAX (0.1 by default) |
 | `chain`, `confirm` | As for `deploy_contract` |
 
 Returns `{ txHash, status: "success", blockNumber, explorerUrl, signer: { address, source }, note? }`. `blockNumber` is a decimal string, like every large number these tools return.
 
-The call is simulated first. If it would revert, the revert reason comes back as an error and nothing is sent — no transaction, no gas. A view function is refused with a pointer to `read_chain`, and an address with no contract at it is refused too: a call to an empty account is mined and "succeeds" having done nothing.
+The contract and the value are held to the [write limits](#write-limits) before anything else is asked of the chain. Then the call is simulated. If it would revert, the revert reason comes back as an error and nothing is sent — no transaction, no gas. A view function is refused with a pointer to `read_chain`, and an address with no contract at it is refused too: a call to an empty account is mined and "succeeds" having done nothing.
 
 Pass integers that do not fit a JSON number (anything from about 9 × 10¹⁵ up — most token amounts) as decimal strings: `"1000000000000000000"`. A JSON number that has already lost digits is refused, not encoded.
 
@@ -181,6 +181,9 @@ The messages are written to answer the question that comes next: was anything se
 | --- | --- |
 | No key, and the session wallet cannot be used (mainnet, or `AVAKIT_TEST_WALLET=0`) | Refuses before contacting anything, naming `AVAKIT_DEPLOYER_KEY` |
 | `AVAKIT_DEPLOYER_KEY` is not a valid key | Refuses, without repeating the value |
+| `write_contract` names a contract the server did not deploy in this session and `AVAKIT_WRITE_ALLOWLIST` does not list | Refuses before contacting anything, naming `AVAKIT_WRITE_ALLOWLIST`: "Nothing was signed or sent" |
+| The call would send more AVAX than `AVAKIT_MAX_VALUE` allows | Refuses before contacting anything, naming `AVAKIT_MAX_VALUE` |
+| `AVAKIT_WRITE_ALLOWLIST` or `AVAKIT_MAX_VALUE` cannot be read | Refuses every call that variable governs, naming it, until it is fixed |
 | The wallet cannot pay | Your own key: refuses with the balance and the amount needed. Session wallet: asks the faucet once, as described above |
 | The RPC cannot be reached, or answers as another chain | Refuses before signing: "nothing was sent" |
 | The transaction would revert | Returns the revert reason; nothing is sent |
@@ -190,6 +193,54 @@ The messages are written to answer the question that comes next: was anything se
 | The transaction is mined but reverted | An error with the transaction's link, never a success |
 
 Reads of the chain are retried a few times by the RPC client on network errors. A transaction is signed and sent once.
+
+## Write limits
+
+An agent decides what to call, and an agent can be steered by what it reads: a README, an issue, a web page. So that a prompt-injected agent cannot point this server's wallet at any contract it likes, the two signing tools are held to two limits that come from the server's environment. A tool call cannot change either of them.
+
+### Which contracts `write_contract` calls
+
+`write_contract` calls a contract only when one of these is true:
+
+1. **This server deployed it**, with `deploy_contract`, on the same chain, since the server started. The address is recorded as soon as the deployment is signed, so a deployment that was still pending when `deploy_contract` answered can be called once it is mined. This is all the [zero-setup flow](#zero-setup-on-fuji) needs. The record lives in the server's memory and is forgotten when the server stops, and it holds the contract a deployment created, not the contracts that contract creates in turn.
+2. **`AVAKIT_WRITE_ALLOWLIST` lists it**: a comma-separated list of addresses, each all lowercase or with a valid EIP-55 checksum, for a contract deployed some other way or by an earlier run of the server. An address listed there may be called on every chain the server signs for. `AVAKIT_WRITE_ALLOWLIST=*` turns the check off.
+
+Any other contract is refused before the chain or the faucet is asked anything:
+
+> Refusing to call 0x52908400098527886E0F7030069857D2E4169EE7 on Avalanche Fuji: write_contract calls only the contracts this server deployed in this session and the ones AVAKIT_WRITE_ALLOWLIST lists in the server environment, which only the person running the server can change. Nothing was signed or sent.
+
+A list with an entry that is not an address stops every `write_contract` call until it is fixed, rather than be read as something it does not say. The refusal names the entry by its place in the list.
+
+The server does not take contracts from a file, not even from a record of deployments in the project: an injected agent can write files too, and an address it wrote into one would be as good as allowed. The deployments this server signed and the environment it was started with are the two things a tool call cannot add to.
+
+### How much AVAX one call sends
+
+`deploy_contract` and `write_contract` send at most `AVAKIT_MAX_VALUE` AVAX with one transaction, and `0.1` while it is not set. It is a decimal number of AVAX with up to 18 decimals; `0` allows no value at all. Gas is paid on top, as always.
+
+Only a call with your own key on Fuji can carry value at all: the session test wallet never sends any, a mainnet call carries none, and a deployment sends none. The templates' `mint` functions are free, so the zero-setup flow sends nothing. A call over the limit is refused the same way:
+
+> Refusing to send 0.5 AVAX with this call: one deploy_contract or write_contract call sends at most 0.1 AVAX, the default while AVAKIT_MAX_VALUE is not set in the server environment, and only the person running the server can change it. Nothing was signed or sent.
+
+A value that is not such a number stops both signing tools until it is fixed, and is not quoted back.
+
+```json
+{
+  "mcpServers": {
+    "avakit": {
+      "command": "npx",
+      "args": ["-y", "@avakit/mcp"],
+      "env": {
+        "AVAKIT_WRITE_ALLOWLIST": "0x52908400098527886E0F7030069857D2E4169EE7,0xde709f2102306220921060314715629080e2fb77",
+        "AVAKIT_MAX_VALUE": "0.5"
+      }
+    }
+  }
+}
+```
+
+### What they do not do
+
+Both limits are checked by the tools before anything is asked of the chain, and again by the signer when the transaction is signed, so a path that skipped the first check still gets no signature. They are a floor and not a policy: there is no daily limit, no list of the functions that may be called, no limit on gas, and no confirmation by a person. A contract the server deployed may be called with any of its functions, and may call other contracts in turn, but as itself: the tokens and approvals your wallet has at a contract that is not on the list stay out of its reach.
 
 ## Scaffolding
 
@@ -236,7 +287,7 @@ relative to it. Only whoever configures the server can set it; a tool caller can
 
 Set `AVAKIT_DEPLOYER_KEY` in the server's environment and `deploy_contract` and `write_contract` sign with it, on Fuji and (behind the gates below) on mainnet. It is 64 hex characters, with or without the `0x` prefix. On Fuji, use a **throwaway testnet key** — never a key holding real funds.
 
-With your own key the tools refuse up front when it cannot pay for the transaction, and the faucet is never asked.
+With your own key the tools refuse up front when it cannot pay for the transaction, and the faucet is never asked. To call a contract you deployed some other way, or in an earlier run of the server, list it in `AVAKIT_WRITE_ALLOWLIST`: see [Write limits](#write-limits).
 
 ## Mainnet
 
@@ -249,7 +300,9 @@ Everything goes to Fuji unless a call asks for `chain: "c-chain"`. A mainnet dep
 `confirm: true` alone is not enough, on purpose. An agent can be talked into passing it by a
 prompt-injected instruction, but it cannot change the environment of the server process — so a
 malicious prompt on its own can never spend real funds. The refusal names the variable, so you
-will see what is missing. `write_contract` never sends AVAX with a call on mainnet.
+will see what is missing. `write_contract` never sends AVAX with a call on mainnet, and is held to
+the [write limits](#write-limits) there as on Fuji: it calls a contract the server deployed on the
+C-Chain in this session, or one `AVAKIT_WRITE_ALLOWLIST` lists.
 
 ```json
 {
@@ -280,6 +333,8 @@ a tool call.
 | `AVAKIT_TEST_WALLET` | Set to `0` to turn the session test wallet off, so nothing is signed without `AVAKIT_DEPLOYER_KEY`. |
 | `AVAKIT_FAUCET_URL` | Another deployment of the AvaKit faucet for the session wallet to ask, instead of the hosted one. |
 | `AVAKIT_ALLOW_MAINNET` | Set to `1` to allow mainnet transactions (which also need your own key and `confirm: true`). Unset, the server is testnet-only. |
+| `AVAKIT_WRITE_ALLOWLIST` | Comma-separated addresses `write_contract` may call besides the contracts the server deployed in this session; `*` allows any. Unset, only this session's deployments. See [Write limits](#write-limits). |
+| `AVAKIT_MAX_VALUE` | The most AVAX one `deploy_contract` or `write_contract` call may send, as a decimal number. Unset, `0.1`; `0` allows none. |
 | `AVAKIT_MCP_ROOT` | The directory `scaffold_app` creates projects in and `artifactPath` reads from, instead of the server's working directory. Needed when the server is started in the filesystem root. |
 
 ## License

@@ -70,6 +70,8 @@ export interface Outgoing {
   abi?: Abi;
   /** Added to the "sent but not confirmed yet" message, e.g. where the contract will be. */
   whenPending?: (unsigned: UnsignedTransaction) => string;
+  /** Told what was signed, once it is signed and before it goes out, e.g. to record a deployment. */
+  onSigned?: (unsigned: UnsignedTransaction) => void;
 }
 
 export interface Sent {
@@ -393,6 +395,7 @@ async function sendNow(chain: AvaChain, signer: Signer, outgoing: Outgoing): Pro
     value,
   };
   const serialized = await signer.signTransaction(unsigned);
+  outgoing.onSigned?.(unsigned);
   // Known before it goes out, so "did the node get it?" has an answer later.
   const hash = keccak256(serialized);
 

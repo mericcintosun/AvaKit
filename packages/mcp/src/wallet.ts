@@ -17,6 +17,8 @@
  * Neither signer hands out its account. What callers get is `signTransaction`,
  * which checks the transaction against those rules at the moment of signing, so
  * a path that forgets a rule further up still cannot get a signature past it.
+ * Both also hold every transaction to the server's write limits (limits.ts):
+ * the contracts a call may go to, and the AVAX one transaction may send.
  */
 
 import { type AvaChain, isMainnet } from "@avakit/core";
@@ -24,6 +26,7 @@ import type { Address, Hex } from "viem";
 import { generatePrivateKey, type PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import { ToolError } from "./errors.js";
 import { mainnetOpenedByOperator } from "./guards.js";
+import { assertCallAllowed, assertValueAllowed } from "./limits.js";
 import { log } from "./log.js";
 
 /** Avalanche Fuji, the one chain the session test wallet signs for. */
@@ -82,7 +85,17 @@ function sessionAccount(): PrivateKeyAccount {
   return session;
 }
 
-function sessionSigner(): Signer {
+/**
+ * The write limits, asked again at the moment of signing. The tools check them
+ * before anything is asked of the chain or the faucet; this is the check that
+ * holds when a path forgot that. A creation has no `to`, and goes to no contract.
+ */
+function assertWithinLimits(chain: AvaChain, transaction: UnsignedTransaction): void {
+  if (transaction.to !== undefined) assertCallAllowed(chain, transaction.to);
+  assertValueAllowed(chain, transaction.value);
+}
+
+function sessionSigner(chain: AvaChain): Signer {
   const account = sessionAccount();
   return {
     address: account.address,
@@ -102,6 +115,7 @@ function sessionSigner(): Signer {
             `nothing else. To send value, set ${DEPLOYER_KEY_ENV} to your own funded Fuji key.`,
         );
       }
+      assertWithinLimits(chain, transaction);
       return account.signTransaction({ ...transaction, type: "eip1559" });
     },
   };
@@ -144,6 +158,7 @@ function envSigner(configured: string, chain: AvaChain): Signer {
           `Refusing to sign for ${chain.name} (mainnet): AVAKIT_ALLOW_MAINNET=1 is not set in the server environment.`,
         );
       }
+      assertWithinLimits(chain, transaction);
       return account.signTransaction({ ...transaction, type: "eip1559" });
     },
   };
@@ -205,7 +220,7 @@ function decide(chain: AvaChain, env: NodeJS.ProcessEnv): Decision {
 export function resolveSigner(chain: AvaChain, env: NodeJS.ProcessEnv = process.env): Signer {
   const decision = decide(chain, env);
   if (decision.source === "none") throw new ToolError(decision.why);
-  return decision.source === "env" ? envSigner(decision.configured, chain) : sessionSigner();
+  return decision.source === "env" ? envSigner(decision.configured, chain) : sessionSigner(chain);
 }
 
 export type WalletInfo =

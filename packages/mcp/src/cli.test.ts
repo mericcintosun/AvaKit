@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ENVIRONMENT_SUMMARIES, helpText, invocation, TOOL_SUMMARIES } from "./cli.js";
+import { DEFAULT_MAX_VALUE } from "./limits.js";
 import { type Connection, connect } from "./testing/connect.js";
 
 // What the built file does with these is checked in dist.test.ts, on a process.
@@ -79,7 +80,7 @@ describe("the usage text", () => {
         ...readFileSync(path.join(src, file), "utf8").matchAll(/_ENV = "(AVAKIT_[A-Z_]+)"/g),
       ])
       .map((match) => match[1]);
-    expect(declared).toHaveLength(5);
+    expect(declared).toHaveLength(7);
     expect(ENVIRONMENT_SUMMARIES.map(([name]) => name).sort()).toEqual(declared.sort());
     for (const [name] of ENVIRONMENT_SUMMARIES) {
       expect(help.split("\n").filter((line) => line.startsWith(`  ${name} `))).toHaveLength(1);
@@ -91,6 +92,14 @@ describe("the usage text", () => {
       help.split("\n").find((entry) => entry.startsWith(`  ${name} `)) ?? "";
     expect(line("AVAKIT_ALLOW_MAINNET")).toContain("your own key and confirm: true");
     expect(line("AVAKIT_DEPLOYER_KEY")).toContain("session test wallet, Fuji only");
+  });
+
+  it("says what the write limits are, with the default the server uses", () => {
+    const line = (name: string) =>
+      help.split("\n").find((entry) => entry.startsWith(`  ${name} `)) ?? "";
+    expect(line("AVAKIT_WRITE_ALLOWLIST")).toContain("besides this session's deploys");
+    expect(line("AVAKIT_WRITE_ALLOWLIST")).toContain("* for any");
+    expect(line("AVAKIT_MAX_VALUE")).toContain(`(default ${DEFAULT_MAX_VALUE})`);
   });
 
   it("fits a terminal: no line is longer than 120 characters", () => {

@@ -57,6 +57,8 @@ beforeEach(async () => {
   vi.stubEnv("AVAKIT_TEST_WALLET", "");
   vi.stubEnv("AVAKIT_ALLOW_MAINNET", "");
   vi.stubEnv("AVAKIT_FAUCET_URL", "");
+  vi.stubEnv("AVAKIT_WRITE_ALLOWLIST", "");
+  vi.stubEnv("AVAKIT_MAX_VALUE", "");
   mcp = await (await import("./testing/connect.js")).connect();
 });
 afterEach(async () => {
