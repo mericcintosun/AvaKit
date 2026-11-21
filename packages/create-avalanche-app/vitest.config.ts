@@ -33,5 +33,26 @@ export default defineConfig({
         new URL("./node_modules/.cache/avakit-test-config", import.meta.url),
       ),
     },
+    // `pnpm test` runs `vitest run --coverage`, so the thresholds below are part
+    // of every test run, in CI and in the release job. They are a ratchet: each
+    // sits about a point under what this suite measured when it was set
+    // (2026-11-21: statements 92.39%, branches 86.26%, functions 93.87%,
+    // lines 93.93%), so a change that drops tests, or adds code without them,
+    // fails. When the numbers go up, raise the thresholds with them. Do not
+    // lower them to land a change; add the tests instead.
+    //
+    // The whole suite is measured, so a partial run fails them: to run part of
+    // it, call Vitest directly (`pnpm --filter create-avalanche-app exec vitest
+    // run src/args.test.ts`). For a per-file table, add
+    // `--coverage --coverage.reporter=text`.
+    coverage: {
+      provider: "v8",
+      // Every source file counts, including one that no test imports yet.
+      include: ["src/**/*.{ts,tsx}"],
+      // Tests and test helpers are not shipped.
+      exclude: ["src/**/*.test.{ts,tsx}", "src/testing/**"],
+      reporter: ["text-summary"],
+      thresholds: { statements: 91, branches: 85, functions: 92, lines: 92 },
+    },
   },
 });
