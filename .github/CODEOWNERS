@@ -1,0 +1,5 @@
+# Who reviews what. GitHub requests a review from the owner of every path a
+# pull request touches. AvaKit has one maintainer today (see MAINTAINERS.md),
+# so every path has the same owner; a second maintainer is added here, per
+# path or for everything, when they join.
+* @mericcintosun

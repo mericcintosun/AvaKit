@@ -1,0 +1,118 @@
+name: First-run report
+description: Tried AvaKit on your own machine? Say how the first run went, whether it worked or not.
+title: "First run: "
+labels:
+  - first-run
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying AvaKit. Every flow is tested by the maintainer and by scripts, but nobody outside the project has reported a run yet, so a short report of yours, good or bad, is the most useful thing you can send.
+
+        **Never paste a private key, a seed phrase or a token.** Explorer links to Fuji transactions are public and fine to share.
+
+  - type: dropdown
+    id: path
+    attributes:
+      label: Which way did you try?
+      multiple: true
+      options:
+        - In the browser at avakit.dev/new (no install)
+        - With the CLI (npm create avalanche-app)
+        - Through a coding agent (the @avakit/mcp server)
+        - Studio (npx @avakit/studio)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows (native)
+        - Windows (WSL2)
+        - Linux
+        - Other (say which below)
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      description: The output of `node --version`. Leave it empty for the browser path.
+      placeholder: v24.11.0
+
+  - type: input
+    id: client
+    attributes:
+      label: Agent or MCP client
+      description: For the agent path, which client ran the server (Claude Code, Cursor, Claude Desktop, ...).
+
+  - type: dropdown
+    id: template
+    attributes:
+      label: Template
+      description: For the CLI or the agent path.
+      options:
+        - minimal
+        - nft-mint
+        - token-gated-app
+        - erc20-token
+        - icm-messenger
+        - eerc-token
+        - l1-launch
+        - token-bridge
+        - None, or I do not know
+
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: How far did you get?
+      options:
+        - A contract deployed on Fuji and a call to it (a mint, a transfer)
+        - A first transaction on Fuji, but not the whole flow
+        - The app ran, but no transaction went through
+        - It stopped before the app ran
+    validations:
+      required: true
+
+  - type: input
+    id: minutes
+    attributes:
+      label: Minutes taken
+      description: About how long from the first command (or opening the page) to the first Fuji transaction, or to where you stopped.
+      placeholder: "10"
+    validations:
+      required: true
+
+  - type: textarea
+    id: links
+    attributes:
+      label: Fuji transaction or contract links (optional)
+      description: Explorer links, for example from testnet.snowtrace.io or build.avax.network/explorer.
+
+  - type: textarea
+    id: broke
+    attributes:
+      label: What broke or confused you
+      description: Error messages, the step where it happened, what you expected instead. "Nothing" is a useful answer too.
+      render: text
+
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send it
+      options:
+        - label: I ran this on my own machine, and I am not an AvaKit maintainer.
+          required: true
+        - label: This report contains no private key, seed phrase or token.
+          required: true
+        - label: AvaKit may list this report publicly as an outside run, with my GitHub username and the outcome.
+          required: false

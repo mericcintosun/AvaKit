@@ -68,6 +68,6 @@
     "directory": "packages/studio"
   },
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22"
   }
 }

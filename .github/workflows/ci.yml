@@ -1,10 +1,26 @@
 name: CI
 
+# No trigger here is path-filtered, and none may be: the main branch ruleset
+# requires the "CI passed" job below, and a pull request whose run never starts
+# would wait for that check forever.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  # Runs CI on any branch by hand, or from another workflow:
+  #   gh workflow run ci.yml --ref <branch>
+  # GitHub starts no pull_request run for a pull request that GITHUB_TOKEN opened
+  # or updated (the "chore: version packages" PR), but it does start a
+  # workflow_dispatch run that GITHUB_TOKEN asks for. The dispatched run's checks
+  # land on the branch's head commit, which is the pull request's head commit, so
+  # they count for the pull request's required "CI passed" check.
+  workflow_dispatch:
+
+# Read-only. No job here pushes, comments or publishes; a job that needs more
+# says so itself.
+permissions:
+  contents: read
 
 # Cancel in-progress runs for the same ref.
 concurrency:
@@ -12,12 +28,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Lint, typecheck, build and test the workspace on the oldest Node.js line the
+  # published packages declare (engines.node ">=22") and on the line the repo is
+  # developed on (.nvmrc). setup-node installs the newest release of each line,
+  # which also meets the root package.json's ">=22.18" (from 22.18.0 on, Node.js
+  # 22 runs the .ts files the website's tests import without a flag). The
+  # published packages also run on Node.js 26 in e2e-fuji.yml. One version
+  # failing does not cancel the other (fail-fast: false), so a red leg says
+  # which Node.js it is.
   verify:
-    name: Lint · Typecheck · Build · Test
+    name: Lint · Typecheck · Build · Test · Node ${{ matrix.node }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -25,7 +56,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: pnpm
 
       - name: Install dependencies
@@ -37,9 +68,10 @@ jobs:
       # The repo's own tooling, which no package test covers. The self-tests check
       # that the smoke script keeps the scaffolder's telemetry off and removes its
       # temporary directory, that turbo.json still passes a telemetry opt-out
-      # through to the tasks turbo runs, and that release.yml still gates
-      # publishing on the checks. The parity check fails when two templates pin
-      # different versions of a dependency they share: the templates are not
+      # through to the tasks turbo runs, and that the workflows keep their gates
+      # (release.yml publishes only after the checks, and this file's "CI passed"
+      # job waits for every other job). The parity check fails when two templates
+      # pin different versions of a dependency they share: the templates are not
       # workspace members and Dependabot is not pointed at them (see
       # .github/dependabot.yml), so nothing else keeps them in step.
       - name: Repo scripts · template dependency parity
@@ -71,6 +103,61 @@ jobs:
       - name: Test
         run: pnpm test
 
+  # Known vulnerabilities in the locked dependency trees: the workspace
+  # (pnpm-lock.yaml) and the two Workers (their own package-lock.json files). A
+  # high or critical advisory fails the job; moderate and low ones are listed in
+  # the log and pass. Nothing is installed, so no dependency code runs here: each
+  # audit reads a lockfile and asks the npm registry. To accept one advisory on
+  # purpose, add its GHSA id to auditConfig.ignoreGhsas in pnpm-workspace.yaml,
+  # with a comment that says why.
+  audit:
+    name: Audit · high and critical advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Workspace (pnpm-lock.yaml)
+        run: pnpm audit --audit-level=high
+
+      # The Workers run even when an audit above failed, so one red run lists
+      # every lockfile that needs attention.
+      - name: Faucet Worker (services/faucet)
+        if: ${{ !cancelled() }}
+        working-directory: services/faucet
+        run: npm audit --audit-level=high
+
+      - name: Telemetry Worker (services/telemetry)
+        if: ${{ !cancelled() }}
+        working-directory: services/telemetry
+        run: npm audit --audit-level=high
+
+  # The dependencies a pull request adds or changes, compared base against head
+  # in GitHub's dependency graph: one with a known high or critical advisory
+  # fails the job. It runs for pull requests only, and is the one job "CI
+  # passed" lets be skipped, on a push or a dispatched run.
+  dependency-review:
+    name: Dependency review · new high and critical advisories
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Review the dependency changes
+        uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
+        with:
+          fail-on-severity: high
+
   # Scaffold every create-avalanche-app template from the LOCAL build and verify it
   # installs, type-checks, and production-builds — the real `npm create avalanche-app`
   # flow. One broken template fails only its own matrix leg (fail-fast: false).
@@ -88,6 +175,7 @@ jobs:
   smoke-templates:
     name: Smoke · ${{ matrix.template }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -103,6 +191,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -138,9 +228,12 @@ jobs:
   smoke-mcp:
     name: Smoke · @avakit/mcp install
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -178,9 +271,12 @@ jobs:
   contracts:
     name: Contracts · forge test · artifact parity
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -188,7 +284,7 @@ jobs:
           node-version: 24
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
           version: v1.7.1
 
@@ -215,6 +311,7 @@ jobs:
   services:
     name: Services · ${{ matrix.service }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -224,6 +321,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -239,3 +338,45 @@ jobs:
       - name: Test
         working-directory: services/${{ matrix.service }}
         run: npm test
+
+  # The one check the main branch ruleset requires. It waits for every other
+  # job and fails unless each one succeeded, so the ruleset names a single check
+  # however many jobs and matrix legs this file grows. It runs even when a job it
+  # waits for failed or was cancelled (`if: always()`), because a skipped job's
+  # check counts as passing for a ruleset. dependency-review may be skipped, and
+  # only on a push or a dispatched run, where it does not run.
+  #
+  # A job added to this file must be added to `needs` below as well;
+  # scripts/workflows.test.mjs fails until it is.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs:
+      - verify
+      - audit
+      - dependency-review
+      - smoke-templates
+      - smoke-mcp
+      - contracts
+      - services
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          MAY_SKIP: ${{ github.event_name != 'pull_request' && 'dependency-review' || '' }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          failed=$(jq -r --arg may_skip "$MAY_SKIP" '
+            to_entries[]
+            | select(.value.result != "success")
+            | select(.value.result != "skipped" or .key != $may_skip)
+            | "\(.key): \(.value.result)"' <<< "$NEEDS")
+          if [ -n "$failed" ]; then
+            while IFS= read -r line; do
+              echo "::error title=CI passed::$line"
+            done <<< "$failed"
+            exit 1
+          fi
