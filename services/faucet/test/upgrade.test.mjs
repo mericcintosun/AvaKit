@@ -7,6 +7,10 @@ import { startWorker } from "./helpers/workerd.mjs";
  * held since before them. limits.test.mjs covers the upgrade in Node's SQLite;
  * this runs it in workerd, whose SQLite refuses statements a Durable Object
  * may not run — a refusal here would take every drip down after the deploy.
+ *
+ * A rollback of that deploy brings the old code back to the upgraded table,
+ * since it changes the code and not what the object stores. The second test
+ * runs that old code (fixtures/upgrade/limits-before-budgets.js) on it.
  */
 
 const worker = await startWorker({}, { config: "./test/fixtures/upgrade/wrangler.toml" });
