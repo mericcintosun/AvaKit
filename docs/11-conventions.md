@@ -19,6 +19,8 @@
 
 - Animations use **Framer Motion** or **GSAP**. No other animation library.
 - Prefer Framer Motion for component-level/React-idiomatic motion; reach for GSAP for complex timelines.
+- **One exception: `tw-animate-css`**, the animation utility the shadcn/ui CLI installs with its components for Tailwind v4. The shadcn primitives' own classes (`animate-in`, `fade-in-0`, `zoom-in-95`, `slide-in-from-top-2`, `animate-accordion-down`, …) need it, so removing it would mean forking those components. It is allowed **only** as shadcn/ui's own dependency, for the enter/exit animations of shadcn primitives (Dialog, Sheet, Tooltip, Dropdown Menu, Accordion, Command and the like). That includes the shadcn-style Dialog that `@avakit/react` ships, which is what the scaffolder templates import it for.
+- **Every other animation uses Framer Motion or GSAP.** Do not put tw-animate-css classes, or any other CSS keyframe animation (`animate-*` utilities, `@keyframes`), on your own elements. The templates are held to this by `packages/create-avalanche-app/src/template-animations.test.ts`.
 
 ## 4. Color & theming
 
@@ -49,6 +51,6 @@
 - [ ] Built with shadcn/ui primitives only
 - [ ] Works in both dark and light theme
 - [ ] Color only through design tokens: the Ember Crimson accent on the website (`apps/web/app/globals.css`), neutral/grayscale in the templates
-- [ ] Animations via Framer Motion / GSAP only
+- [ ] Animations via Framer Motion / GSAP only (tw-animate-css only inside shadcn/ui primitives)
 - [ ] Latest stable versions
 - [ ] English throughout
