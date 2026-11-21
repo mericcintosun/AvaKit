@@ -2,11 +2,13 @@
 // quietly.
 //
 // release.yml: nothing is versioned or published before lint, typecheck, the
-// tests, the changeset check and the MCP install smoke test have passed; each
-// job holds only the permissions it needs; the one job that can publish runs
-// in the npm-publish environment, checks out nothing, installs nothing and
-// runs no code of this repository; and its shell steps do what they say,
-// which the last tests check by running them against fixture tarballs.
+// tests, the changeset check and the MCP install smoke test have passed; the
+// tarballs are packed in a job of their own that runs nothing but the build;
+// each job holds only the permissions it needs, and none can start another
+// workflow; the one job that can publish runs in the npm-publish environment,
+// checks out nothing, installs nothing and runs no code of this repository;
+// and its shell steps do what they say, which the last tests check by running
+// them against fixture tarballs.
 //
 // e2e-fuji.yml: every job has a timeout, and only the report job, which keeps
 // the e2e-failure issue, can write to issues.
@@ -138,7 +140,15 @@ const grants = (text, scope) =>
 
 // ── release.yml ──────────────────────────────────────────────────────────────
 
-const RELEASE_JOBS = ["verify", "version", "version-ci", "publish", "tag", "publish-dry-run"];
+const RELEASE_JOBS = ["verify", "version", "pack", "publish", "tag", "publish-dry-run"];
+
+/** A job's `needs:`, `needs: a` or `needs: [a, b]`, as a list. */
+function needsOf(text, jobId) {
+  const raw = jobField(text, jobId, "needs");
+  if (raw === null) return [];
+  const list = /^\[(.*)\]$/.exec(raw);
+  return (list ? list[1].split(",") : [raw]).map((need) => need.trim());
+}
 
 test("release.yml has the jobs this file checks, and grants nothing by default", () => {
   assert.deepEqual([...jobsOf(release).keys()], RELEASE_JOBS);
@@ -149,7 +159,7 @@ test("release.yml gives each job only the permissions it needs", () => {
   const expected = {
     verify: { contents: "read" },
     version: { contents: "write", "pull-requests": "write" },
-    "version-ci": { actions: "write", contents: "read" },
+    pack: { contents: "read" },
     publish: { contents: "read", "id-token": "write" },
     tag: { contents: "write" },
     "publish-dry-run": { contents: "read" },
@@ -157,6 +167,10 @@ test("release.yml gives each job only the permissions it needs", () => {
   for (const job of RELEASE_JOBS) {
     assert.deepEqual(permissionsOf(release, job), expected[job], `permissions of ${job}`);
   }
+  // Nothing here dispatches a workflow. A workflow_dispatch run on the version
+  // PR's branch would not give the PR its checks: GitHub does not count a
+  // dispatched run's checks for a pull request (see the version job).
+  assert.equal(grants(release, "actions"), 0, "no job may hold actions: write");
 });
 
 test("release.yml: only the publish job can publish, and only in the npm-publish environment", () => {
@@ -247,29 +261,78 @@ test("release.yml runs lint, typecheck, the tests and the package checks before 
       `\`${command}\` must not be optional`,
     );
   }
-  assert.ok(position(/release-packages\.mjs pack/) > firstAfterGates);
+  assert.equal(firstAfterGates, steps.length - 1, "state is the last step of verify");
 
-  // Every job that versions, publishes or tags waits for verify (directly or
-  // through publish), and none runs when verify failed: no status function
-  // such as always() or !cancelled() in their conditions, which would let them
-  // run after a red verify. The tag job may run after a failed publish, to tag
-  // what did reach npm, but only through publish, which needs verify.
-  assert.equal(jobField(release, "version", "needs"), "verify");
-  assert.equal(jobField(release, "publish", "needs"), "verify");
-  assert.equal(jobField(release, "publish-dry-run", "needs"), "verify");
-  assert.equal(jobField(release, "version-ci", "needs"), "version");
-  assert.equal(jobField(release, "tag", "needs"), "publish");
-  for (const job of ["version", "version-ci", "publish", "publish-dry-run"]) {
+  // Every other job waits for verify (directly or through pack or publish),
+  // and none runs when verify failed: no status function such as always() or
+  // !cancelled() in their conditions, which would let them run after a red
+  // verify. The tag job may run after a failed publish, to tag what did reach
+  // npm, but only through publish, which needs verify.
+  assert.deepEqual(needsOf(release, "version"), ["verify"]);
+  assert.deepEqual(needsOf(release, "pack"), ["verify"]);
+  assert.deepEqual(needsOf(release, "publish"), ["verify", "pack"]);
+  assert.deepEqual(needsOf(release, "publish-dry-run"), ["pack"]);
+  assert.deepEqual(needsOf(release, "tag"), ["publish"]);
+  for (const job of ["version", "pack", "publish", "publish-dry-run"]) {
     assert.doesNotMatch(jobField(release, job, "if"), /always\(\)|cancelled\(\)|failure\(\)/, job);
   }
   assert.match(jobField(release, "publish", "if"), /needs\.verify\.outputs\.pending == 'false'/);
+  assert.match(jobField(release, "publish", "if"), /needs\.pack\.outputs\.unpublished != '0'/);
   assert.match(jobField(release, "publish", "if"), /!inputs\.dry_run/);
   assert.match(jobField(release, "publish", "if"), /github\.ref == 'refs\/heads\/main'/);
+  assert.match(jobField(release, "pack", "if"), /needs\.verify\.outputs\.pending == 'false'/);
+  assert.match(jobField(release, "pack", "if"), /github\.ref == 'refs\/heads\/main'/);
   assert.match(jobField(release, "version", "if"), /needs\.verify\.outputs\.pending == 'true'/);
   assert.match(jobField(release, "version", "if"), /github\.ref == 'refs\/heads\/main'/);
 });
 
-test("release.yml: changesets/action only versions, and the version PR's CI is started with GITHUB_TOKEN", () => {
+test("release.yml packs the tarballs on a runner of their own that runs nothing but the build", () => {
+  const steps = stepsOf(release, "pack");
+  assert.deepEqual(
+    steps
+      .map(usesOf)
+      .filter(Boolean)
+      .map((uses) => uses.split("@")[0]),
+    ["actions/checkout", "pnpm/action-setup", "actions/setup-node", "actions/upload-artifact"],
+  );
+  // No lint, no tests, no smoke test, no install script: the build and the pack.
+  assert.deepEqual(steps.map(runOf).filter(Boolean), [
+    "pnpm install --frozen-lockfile --ignore-scripts",
+    "pnpm exec turbo run build --filter='./packages/*'",
+    'node scripts/release-packages.mjs pack "$RUNNER_TEMP/release"',
+  ]);
+  assert.match(
+    steps.find((step) => usesOf(step)?.startsWith("actions/checkout@")),
+    /^ +persist-credentials: false$/m,
+  );
+
+  // Only pack uploads tarballs: what verify ran never reaches the artifact.
+  const uploaders = RELEASE_JOBS.filter((job) =>
+    stepsOf(release, job).some((step) => usesOf(step)?.startsWith("actions/upload-artifact@")),
+  );
+  assert.deepEqual(uploaders, ["pack"]);
+  assert.doesNotMatch(
+    stepsOf(release, "verify").join("\n"),
+    /release-packages\.mjs pack|turbo run build/,
+    "verify must not build or pack what is published",
+  );
+
+  // No dependency cache anywhere: a restored cache would run in the gates and
+  // be built into the tarballs. GitHub enforces it (cache-mode: none), and no
+  // step asks for one.
+  assert.match(release, /^cache-mode: none$/m);
+  assert.doesNotMatch(release, /uses: actions\/cache[/@]/);
+  for (const job of RELEASE_JOBS) {
+    for (const step of stepsOf(release, job).filter((s) =>
+      usesOf(s)?.startsWith("actions/setup-node@"),
+    )) {
+      assert.match(step, /^ +package-manager-cache: false$/m, `${job}: setup-node caches`);
+      assert.doesNotMatch(step, /^ +cache:/m, `${job}: setup-node caches`);
+    }
+  }
+});
+
+test("release.yml: changesets/action only versions", () => {
   const users = RELEASE_JOBS.filter((job) =>
     stepsOf(release, job).some((step) => usesOf(step)?.startsWith("changesets/action@")),
   );
@@ -284,14 +347,6 @@ test("release.yml: changesets/action only versions, and the version PR's CI is s
     stepsOf(release, "version").find((step) => /pnpm install/.test(step)),
     /run: pnpm install --frozen-lockfile --ignore-scripts$/m,
   );
-
-  const [dispatch] = stepsOf(release, "version-ci");
-  assert.match(
-    runOf(dispatch),
-    /^gh workflow run ci\.yml --repo "\$GITHUB_REPOSITORY" --ref "\$BRANCH"$/m,
-  );
-  assert.match(dispatch, /^ +BRANCH: changeset-release\/\$\{\{ github\.ref_name \}\}$/m);
-  assert.match(dispatch, /^ +GH_TOKEN: \$\{\{ github\.token \}\}$/m);
 });
 
 test("release.yml and e2e-fuji.yml: every job has a timeout, every action is pinned to a commit", () => {
@@ -529,7 +584,7 @@ test("publish job: the first failed publish stops the job, and only what reached
   assert.equal(f.text("output"), "released=[]\n");
 });
 
-test("publish job: nothing is published from an artifact that is not exactly what verify packed", {
+test("publish job: nothing is published from an artifact that is not exactly what pack packed", {
   skip: SHELL_TOOLS_MISSING,
 }, async (t) => {
   const cases = [

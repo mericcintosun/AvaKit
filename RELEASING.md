@@ -17,10 +17,11 @@ a token back.**
 The only path is the `publish` job of `.github/workflows/release.yml`. It runs in the
 **`npm-publish` environment**, so it waits until a reviewer approves it, and then
 exchanges a GitHub OIDC id-token for a short-lived publish credential. Each package's
-Trusted Publisher on npmjs.com names this repository, `release.yml` and that
-environment. The exchange is also what produces the **provenance attestation** on each
-tarball (`npm publish --provenance`), so npm can prove the tarball was built from this
-repo, by this workflow, at this commit.
+Trusted Publisher on npmjs.com must name this repository, `release.yml` and that
+environment: [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)
+says how, and what is open until it does. The exchange is also what produces the
+**provenance attestation** on each tarball (`npm publish --provenance`), so npm can
+prove the tarball was built from this repo, by this workflow, at this commit.
 
 ## How release.yml is split
 
@@ -30,19 +31,51 @@ dependencies:
 
 | Job | Runs when | Permissions | What it does |
 | --- | --- | --- | --- |
-| `verify` | always | `contents: read` | The gates below, then whether changesets are pending. With none pending it builds and packs every publishable package (`scripts/release-packages.mjs pack`), records each tarball's sha256 and whether npm has that version, and uploads the tarballs. |
-| `version` | changesets are pending | `contents: write`, `pull-requests: write` | changesets/action opens or updates the version PR. It installs with `--ignore-scripts` and publishes nothing. |
-| `version-ci` | the version PR was opened or updated | `actions: write`, `contents: read` | Starts `ci.yml` on `changeset-release/main`, so the PR has its checks (see below). |
-| `publish` | nothing is pending and npm lacks a version | `id-token: write`, `contents: read`, environment `npm-publish` | Waits for approval, then checks the tarballs (sha256 against what `verify` recorded, name and version inside each, one of the five packages, no `workspace:` or `catalog:` range left) and publishes what npm still lacks, one at a time, dependencies first, with `npm publish <tarball> --provenance`. No checkout, no install. |
+| `verify` | always | `contents: read` | The gates below, then whether changesets are pending. |
+| `version` | changesets are pending | `contents: write`, `pull-requests: write` | changesets/action opens or updates the version PR. It installs with `--ignore-scripts` and publishes nothing. GitHub holds the PR's CI runs until a maintainer approves them (see [The version PR's checks](#the-version-prs-checks)). |
+| `pack` | nothing is pending (on `main`), or a dry run | `contents: read` | On a runner of its own, from a fresh checkout: installs with `--ignore-scripts`, builds the packages, packs every publishable one (`scripts/release-packages.mjs pack`), records each tarball's sha256 and whether npm has that version, and uploads the tarballs. Nothing else runs there. |
+| `publish` | nothing is pending and npm lacks a version | `id-token: write`, `contents: read`, environment `npm-publish` | Waits for approval, then checks the tarballs (sha256 against what `pack` recorded, name and version inside each, one of the five packages, no `workspace:` or `catalog:` range left) and publishes what npm still lacks, one at a time, dependencies first, with `npm publish <tarball> --provenance`. No checkout, no install. |
 | `tag` | after `publish` | `contents: write` | The git tag and GitHub release of each package that reached npm, as changesets/action made them (`scripts/release-tags.mjs`). |
 | `publish-dry-run` | Run workflow with **dry run** | `contents: read`, no environment, no id-token | The same download and checks as `publish`, then `npm publish --dry-run`. |
 
-What the split does not change: the tarballs are built in `verify`, next to the
-dependencies and the tests, so a dependency compromised there can still change what
-they contain. It can no longer publish by itself: a person approves each publish, the
-publish job publishes exactly the bytes `verify` summed, and the provenance attestation
-names the workflow and the commit. No dependency cache is used anywhere in the
-workflow, so nothing another job saved can end up in a tarball.
+What can still change a tarball is the build. The tests and the MCP smoke test (which
+installs the packed server with npm, install scripts and all) run in `verify`, on
+another runner, and never touch the tarballs; `pack` starts from a fresh checkout,
+installs without running any install script, and runs only the packages' builds and
+`pnpm pack`. A compromised build tool (tsup, vite, esbuild, Turborepo and what they
+load) can still change what it builds, but it cannot publish by itself: a person
+approves each publish, the publish job publishes exactly the bytes `pack` summed, and
+the provenance attestation names the workflow and the commit. No job restores or saves
+an Actions cache (`cache-mode: none`, which GitHub enforces), so nothing another run
+saved can end up in a tarball.
+
+## One-time setup: the environment and the Trusted Publishers
+
+Two settings outside this repository's files hold the publish path together. Set them
+once, and check them again after a fork, a transfer or a change of maintainers.
+
+1. **The `npm-publish` environment** (GitHub: **Settings** → **Environments** → **New
+   environment**, name `npm-publish`):
+   - **Required reviewers**: the maintainers who may release. While there is one
+     maintainer, leave **Prevent self-review** off, or nobody can approve the release
+     that their own merge started.
+   - **Deployment branches and tags**: **Selected branches and tags**, with the one
+     rule `main`.
+   - Untick **Allow administrators to bypass configured protection rules**.
+
+   Create it before the publish job first runs: a job that names an environment that
+   does not exist creates it, with no protection at all.
+2. **Each package's Trusted Publisher** (npmjs.com: the package → **Settings** →
+   **Trusted Publisher**), for `@avakit/core`, `@avakit/react`, `@avakit/mcp`,
+   `@avakit/studio` and `create-avalanche-app`: **GitHub Actions**, organization or user
+   `mericcintosun`, repository `AvaKit`, workflow filename `release.yml`, environment
+   name `npm-publish`. Keep **Publishing access** on *Require two-factor
+   authentication and disallow tokens*.
+
+   Until the environment name is set there, npm accepts an id-token from any run of
+   `release.yml`, on any branch, in any job given `id-token: write`, and the approval
+   is GitHub's alone. Once it is set, npm itself refuses every job except one that a
+   reviewer let into `npm-publish`, which deploys from `main` only.
 
 ## The release flow
 
@@ -64,24 +97,36 @@ workflow, so nothing another job saved can end up in a tarball.
    `pnpm version-packages`: `changeset version`, followed by `@avakit/mcp`'s
    `sync:server-json` script when the package defines one. Changesets does not know
    `packages/mcp/server.json` (the MCP Registry listing), so that script is what
-   bumps the listing in the same PR instead of leaving it a release behind. The
-   `version-ci` job then starts `ci.yml` on the PR's branch, and its checks appear on
-   the PR within a minute (see [The version PR's checks](#the-version-prs-checks)).
+   bumps the listing in the same PR instead of leaving it a release behind. The PR's
+   CI does not start by itself; that is the next step.
 
-3. **Check the PR and its checks, then merge it.** Merging it is the publish trigger:
-   the workflow runs again, `verify` passes the checks below on the merge commit, finds
-   no changesets, packs the packages and sees which versions npm lacks. Its job
-   summary lists every tarball with its sha256. To rehearse the publish before you
-   merge, run the [dry run](#rehearse-a-publish-the-dry-run) on
+3. **Start the PR's CI, check the PR, then merge it.** Open the PR and click **Approve
+   workflows to run** in its merge box: GitHub holds the CI runs of a PR that
+   `GITHUB_TOKEN` opened or updated until someone with write access starts them (see
+   [The version PR's checks](#the-version-prs-checks)). Every update of the PR needs
+   that click again, and every push to `main` while changesets are pending updates it.
+   Wait for **CI passed**, read the versions in the diff, and merge. Merging it is the
+   publish trigger: the workflow runs again, `verify` passes the checks below on the
+   merge commit and finds no changesets, and `pack` packs the packages and sees which
+   versions npm lacks. Its job summary lists every tarball with its sha256. To rehearse
+   the publish before you merge, run the [dry run](#rehearse-a-publish-the-dry-run) on
    `changeset-release/main`.
 
 4. **Approve the publish.** The `publish` job waits for the `npm-publish` environment.
    GitHub notifies the environment's reviewers; open the run (**Actions** →
    **Release** → the run of the merge commit), click **Review deployments**, tick
-   **npm-publish** and click **Approve and deploy**. **Reject** stops it, and nothing is
-   published. The job publishes what npm still lacks, and the `tag` job creates the
-   git tags and GitHub releases. A run waits at most 30 days for its approval, and
-   later pushes to `main` queue behind it, so approve or reject it promptly.
+   **npm-publish** and click **Approve and deploy**. The job publishes what npm still
+   lacks, and the `tag` job creates the git tags and GitHub releases. A run waits at
+   most 30 days for its approval, and later pushes to `main` queue behind it, so
+   approve or reject it promptly.
+
+   **Reject** stops that run and publishes nothing, but it does not call the release
+   off: every later push to `main` runs `verify` and `pack` again, finds the same
+   versions missing from npm, and asks for the approval again, until npm has them. To
+   call a release off, revert the version PR's merge commit. That puts the versions
+   back and restores the changesets the PR consumed, so the `version` job opens a new
+   version PR; delete those changesets as well if the change should not be released at
+   all.
 
 5. **Verify.** `npm view <pkg> version`, and smoke-test the real thing in a clean dir:
    ```bash
@@ -117,11 +162,11 @@ workflow, so nothing another job saved can end up in a tarball.
   in [`packages/mcp/REGISTRIES.md`](packages/mcp/REGISTRIES.md). It stays manual so that
   the release pipeline holds no token.
 - **The two Cloudflare Workers.** `services/faucet` and `services/telemetry` are
-  standalone npm projects outside the pnpm workspace. No workflow deploys them: each is
-  deployed by hand with `npx wrangler deploy` from its own directory, following its
-  `README.md`. Code merged to `main` under `services/` is therefore not running until
-  someone deploys it. The faucet and telemetry changes of the November review rounds
-  were deployed on 2026-11-19.
+  standalone npm projects outside the pnpm workspace, and `release.yml` never deploys
+  them. Their own workflow, `.github/workflows/deploy-workers.yml`, does that
+  separately, behind its own approval; [`services/DEPLOY.md`](services/DEPLOY.md)
+  describes it. Code merged to `main` under `services/` is not running until that
+  deploy has been approved and has finished.
 - **The website.** `apps/web` is private and is not published to npm.
 
 ## Nothing is published from a red tree
@@ -130,52 +175,62 @@ Before anything is versioned, packed or published, the `verify` job runs `pnpm l
 `pnpm typecheck`, `pnpm test`, the changeset check (`node scripts/check-changesets.mjs`)
 and the MCP install smoke test (`scripts/smoke-mcp.sh`, which packs the server,
 installs it with an empty npm cache and drives the installed binary) on the commit it
-is about to release, and stops if any of them fails. Every other job needs `verify`.
-`scripts/workflows.test.mjs` fails when one of these steps goes missing from
-`release.yml` or becomes optional, when a job's permissions grow, when the publish job
-gains a checkout, an install or a script of this repository, or when its shell steps
-stop doing what they say (it runs them against fixture tarballs). Releases rely on the
-gate because `ci.yml` runs on the same push as a separate workflow that `release.yml`
-does not wait for.
+is about to release, and stops if any of them fails. Every other job needs `verify`,
+directly or through `pack` or `publish`. `scripts/workflows.test.mjs` fails when one of
+these steps goes missing from `release.yml` or becomes optional, when a job's
+permissions grow or one may start another workflow, when `pack` runs anything but the
+install, the build and the pack, when another job uploads the tarballs, when the
+publish job gains a checkout, an install or a script of this repository, or when its
+shell steps stop doing what they say (it runs them against fixture tarballs). Releases
+rely on the gate because `ci.yml` runs on the same push as a separate workflow that
+`release.yml` does not wait for.
 
 If the gate fails, nothing was versioned or published. Fix `main`; the next push runs
 the release workflow again.
 
 ## The version PR's checks
 
-The **"chore: version packages"** PR is opened with `GITHUB_TOKEN`. Since mid-2026
-(GitHub changelog: *"Bot-created pull requests can run workflows if approved"*) GitHub
-creates the `pull_request` runs of such a PR in an approval-required state: they have
-no jobs until someone with write access clicks **Approve workflows to run**, and a PR
-merged before that leaves them failed with no jobs, which the Actions tab labels
-*"This run likely failed because of a workflow file issue"*. That is what runs
-44558954539 (#29) and 44565792970 (#31) are: nothing was wrong with `ci.yml`. (Before
-the change such PRs started no run at all: the version PRs #2, #3, #4, #5 and #10 have
-none.)
+The **"chore: version packages"** PR is opened and updated by changesets/action with
+`GITHUB_TOKEN`. Since mid-2026 (GitHub changelog: *"Bot-created pull requests can run
+workflows if approved"*; GitHub docs:
+[Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow))
+GitHub creates the `pull_request` runs of a PR that `GITHUB_TOKEN` opened or updated in
+an approval-required state: they have no jobs until someone with write access clicks
+**Approve workflows to run** in the PR's merge box, and a PR merged before that leaves
+them failed with no jobs, which the Actions tab labels *"This run likely failed because
+of a workflow file issue"*. That is what runs 44558954539 (#29) and 44565792970 (#31)
+are: nothing was wrong with `ci.yml`.
 
-So the `version-ci` job runs `gh workflow run ci.yml --ref changeset-release/main` with
-`GITHUB_TOKEN`: a `workflow_dispatch` event always starts a run, even from that token.
-The dispatched run checks out the head of `changeset-release/main`, which is the PR's
-head commit, and GitHub matches a required status check by its name on that commit,
-not by the event that produced it, so its checks (`CI passed` among them) are the PR's
-checks. The PR's own pending `pull_request` runs can be left alone; approving them only
-runs the same checks again.
+So a maintainer starts them, as step 3 of [the release flow](#the-release-flow) says:
+**Approve workflows to run** on the PR, once per update of the PR, because every push
+changesets/action makes to `changeset-release/main` creates new runs that wait again.
+The approved runs are the PR's own `pull_request` runs, so their **CI passed** is the
+check the `main` branch ruleset requires, and the PR can be merged once it is green.
 
-Optional, if you would rather have the PR's own `pull_request` runs start by
-themselves: open it with a GitHub App installation token instead of `GITHUB_TOKEN`.
-Create a GitHub App with **Contents** and **Pull requests** read and write, install it
-on this repository only, store its app ID and private key as secrets of an environment
-that only the `version` job uses, mint a token in that job with
-`actions/create-github-app-token` and pass it to changesets/action as `GITHUB_TOKEN`;
-`version-ci` is then unnecessary. That puts a long-lived private key into the
-repository's secrets, which is why it is not the default.
+Starting `ci.yml` on the PR's branch some other way does not replace that click. A
+`workflow_dispatch` run, which `GITHUB_TOKEN` is allowed to start (for example with
+`gh workflow run ci.yml --ref changeset-release/main`), tests the same commit, but
+GitHub counts the checks of a workflow job for a pull request only when an event such
+as `push` or `pull_request` started the run: a dispatched run's checks do not show on
+the PR and do not satisfy a required check (GitHub docs:
+[Troubleshooting required status checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)).
+
+The one hands-off option is to open the PR with a GitHub App installation token
+instead of `GITHUB_TOKEN`, which lets its `pull_request` runs start without the click.
+Create a GitHub App with **Contents** and **Pull requests** read and write and no
+webhook, install it on this repository only, store its app ID and private key as
+secrets of an environment that only the `version` job uses, mint a token in that job
+with `actions/create-github-app-token` and pass it to changesets/action as
+`GITHUB_TOKEN`. That puts a long-lived private key into the repository's secrets, which
+is why it is the owner's choice and not the default.
 
 ## Rehearse a publish: the dry run
 
 **Actions** → **Release** → **Run workflow**, with **dry run** ticked (the default),
-runs `verify` and then `publish-dry-run`: the same download and checks as the publish
-job, then `npm publish --dry-run` on every tarball npm lacks. It has no environment and
-no id-token, so it cannot publish, and it queues apart from real releases.
+runs `verify`, `pack` and then `publish-dry-run`: the same download and checks as the
+publish job, then `npm publish --dry-run` on every tarball npm lacks. It has no
+environment and no id-token, so it cannot publish, and it queues apart from real
+releases.
 
 npm refuses a version it already has, even in a dry run, so on `main` (where every
 version is already published) the dry run checks the tarballs and ends with a notice
@@ -225,7 +280,7 @@ dry run, not whenever it ships. npm 11.21 satisfies OIDC's `>= 11.5.1` requireme
 ## Reading a red release
 
 The workflow publishing *nothing* is the normal steady state: on a push with no pending
-changesets, `verify` packs the packages, its summary says *"Nothing to publish: npm
+changesets, `pack` packs the packages, its summary says *"Nothing to publish: npm
 already has every version above"*, and the `publish` and `tag` jobs are skipped. If it's
 red:
 
@@ -233,10 +288,13 @@ red:
   test) failed → nothing was versioned or published. Fix `main`.
 - `Changesets is in pre mode` → the workflow neither versions nor publishes
   prereleases; run `pnpm changeset pre exit`.
-- `Pack every publishable package` failed → a packed `package.json` kept a
+- `Install (no install scripts)` or `Build the packages` failed in `pack` while
+  `verify` passed → the packages do not build from a fresh checkout without install
+  scripts. Find what needs one; do not let `pack` run install scripts.
+- `Pack every publishable package` failed in `pack` → a packed `package.json` kept a
   `workspace:` or `catalog:` range, or names another package or version than the source.
 - `Check the tarballs` failed in `publish` → nothing was published. The artifact is not
-  what `verify` summed, holds a package this workflow does not publish, or the registry
+  what `pack` summed, holds a package this workflow does not publish, or the registry
   did not answer. Re-run the workflow; do not edit the artifact.
 - `Publish` failed → it stops at the first package npm refused, so nothing that depends
   on it was published after it. The job summary lists what did reach npm, and the
@@ -245,8 +303,9 @@ red:
 - `tag` failed → npm has the packages but a tag or release is missing. **Re-run failed
   jobs**: existing tags and releases are kept, the missing ones are created. A tag that
   already exists on another commit fails the job and is never moved.
-- `version-ci` failed with *"Workflow does not have 'workflow_dispatch' trigger"* →
-  `ci.yml` lost its `workflow_dispatch:` trigger, and the version PR has no checks.
+- The `publish` job was rejected → nothing was published, and the same versions come
+  back for approval on the next push to `main`; step 4 of
+  [the release flow](#the-release-flow) says how to call a release off.
 
 ## What ships in each package
 

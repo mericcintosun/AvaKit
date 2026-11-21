@@ -173,8 +173,8 @@ Commit the generated file in `.changeset/` with your PR. A change to `@avakit/co
 The release flow is automated, with one person in the loop:
 
 1. You open a PR that includes a changeset.
-2. After it merges to `main`, the Release workflow opens (or updates) a **"chore: version packages"** PR that applies the version bumps and updates changelogs, and starts CI on it.
-3. A maintainer checks that PR and its checks, and merges it. The Release workflow runs the gates again, packs the packages, and its publish job waits for approval in the `npm-publish` environment.
+2. After it merges to `main`, the Release workflow opens (or updates) a **"chore: version packages"** PR that applies the version bumps and updates changelogs. GitHub does not start CI on a PR the workflow's own token opened or updated until someone with write access allows it.
+3. A maintainer clicks **Approve workflows to run** on that PR (again after every update of it), waits for **CI passed**, checks the PR and merges it. The Release workflow runs the gates again, packs the packages, and its publish job waits for approval in the `npm-publish` environment.
 4. A maintainer with review rights on that environment approves the deployment (**Review deployments** on the run). The publish job then publishes what npm does not have yet, with provenance, and the tag job creates the git tags and GitHub releases.
 
 Docs-only or internal-only changes (nothing user-facing) don't need a changeset. See [`RELEASING.md`](./RELEASING.md) for the full release process, including the dry run that rehearses a publish.
