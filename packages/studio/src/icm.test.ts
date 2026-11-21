@@ -14,6 +14,7 @@ import {
   blockchainId,
   createSandbox,
   DEFAULT_CHAIN_ID,
+  ewoqKeyHex,
   type FakeRpc,
   type Sandbox,
   SEND_MESSAGE_SELECTOR,
@@ -28,8 +29,8 @@ const STALE = "0x000000000000000000000000000000000000dEaD";
 // A messenger an earlier Studio deployed: it has code, but no message-length cap.
 const OLD = "0x5DB9A7629912EBF95876228C24A848de0bfB43A9";
 
-// The EWOQ key, as it must never appear anywhere it could be read.
-const EWOQ_KEY_HEX = "56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027";
+// The EWOQ key, as it must never appear anywhere it could be read (read from devkey.ts).
+const EWOQ_KEY_HEX = ewoqKeyHex();
 
 const id1 = blockchainId(1);
 const id2 = blockchainId(2);

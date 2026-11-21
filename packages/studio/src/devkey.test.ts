@@ -1,13 +1,28 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EWOQ_ADDRESS, isLocalRpcUrl, rpcHost, sendWithDevnetKey } from "./devkey.js";
 import { InputError } from "./errors.js";
-import { DEFAULT_CHAIN_ID, type FakeRpc, startFakeRpc } from "./testing/sandbox.js";
+import { DEFAULT_CHAIN_ID, ewoqKeyHex, type FakeRpc, startFakeRpc } from "./testing/sandbox.js";
 
 // The EWOQ key, as it must never appear in a message.
-const EWOQ_KEY_HEX = "56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027";
+const EWOQ_KEY_HEX = ewoqKeyHex();
+
+/** Every file of the package's sources (server, UI, tests) and its README. */
+function packageFiles(): string[] {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  const files = [path.join(root, "README.md")];
+  for (const dir of ["src", "ui/src"]) {
+    for (const entry of readdirSync(path.join(root, dir), { recursive: true, encoding: "utf8" })) {
+      const file = path.join(root, dir, entry);
+      if (statSync(file).isFile()) files.push(file);
+    }
+  }
+  return files;
+}
 
 describe("isLocalRpcUrl", () => {
   it("accepts an http(s) URL on this machine, however the loopback address is spelled", () => {
@@ -60,13 +75,15 @@ describe("rpcHost", () => {
 describe("the EWOQ devnet key", () => {
   it("is the well-known public key, and appears in Studio's source in one place only", () => {
     expect(EWOQ_ADDRESS).toBe("0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC");
-    const source = readFileSync(fileURLToPath(new URL("./devkey.ts", import.meta.url)), "utf8");
-    expect(source.split(EWOQ_KEY_HEX)).toHaveLength(2);
-    // No other module of the server carries it.
-    for (const file of ["icm.ts", "devnet.ts", "mcp.ts", "server.ts", "steps.ts", "fuji.ts"]) {
-      const text = readFileSync(fileURLToPath(new URL(`./${file}`, import.meta.url)), "utf8");
-      expect(text, file).not.toContain(EWOQ_KEY_HEX);
-    }
+    expect(privateKeyToAccount(`0x${EWOQ_KEY_HEX}`).address).toBe(EWOQ_ADDRESS);
+    const devkey = fileURLToPath(new URL("./devkey.ts", import.meta.url));
+    expect(readFileSync(devkey, "utf8").split(EWOQ_KEY_HEX)).toHaveLength(2);
+    // No other file of the package carries it: not the server's other modules,
+    // not the UI, and not the tests, which read it from devkey.ts.
+    const holders = packageFiles().filter((file) =>
+      readFileSync(file, "utf8").toLowerCase().includes(EWOQ_KEY_HEX),
+    );
+    expect(holders).toEqual([devkey]);
   });
 });
 

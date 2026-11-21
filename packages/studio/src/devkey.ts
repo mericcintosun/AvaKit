@@ -10,9 +10,10 @@
  *    carries the key (every user on the machine can read every process's
  *    arguments), and no error message repeats it.
  *  - It signs only for a local devnet: the L1's RPC URL must be on this machine
- *    (loopback), and that RPC must answer for the chain ID avalanche-cli created
- *    the L1 with. Anything else is refused before a transaction is built, and
- *    an RPC that answers with a redirect is not followed anywhere.
+ *    (loopback), and when avalanche-cli recorded the L1's chain ID (its
+ *    genesis), that RPC must answer for that chain ID. Anything else is refused
+ *    before a transaction is built, and an RPC that answers with a redirect is
+ *    not followed anywhere.
  */
 
 import { BaseError, createWalletClient, defineChain, type Hex, http, publicActions } from "viem";
@@ -114,8 +115,8 @@ function failure(e: unknown): string {
  * Sign `tx` with EWOQ, send it to the local L1 `target`, and wait until it is
  * mined. Refused (InputError, before anything is signed) when the L1's RPC URL
  * is not on this machine, or when its RPC answers for another chain than the
- * one avalanche-cli created. A transaction that is mined but reverts is a
- * failure.
+ * one avalanche-cli recorded for it (when it recorded one). A transaction that
+ * is mined but reverts is a failure.
  */
 export async function sendWithDevnetKey(
   target: DevnetTarget,

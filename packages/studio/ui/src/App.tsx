@@ -47,7 +47,7 @@ const TITLES: Record<View, { title: string; sub: string }> = {
   },
 };
 
-/** The note at the top of every view that drives Avalanche CLI. */
+/** The note at the top of every view that depends on Avalanche CLI. */
 function ExperimentalNote() {
   return (
     <Card className="mb-4 flex items-start gap-3 p-4">
