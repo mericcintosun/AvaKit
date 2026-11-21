@@ -73,6 +73,9 @@ beforeEach(async () => {
     "AVAKIT_ALLOW_MAINNET",
     "AVAKIT_FAUCET_URL",
     "AVAKIT_MCP_ROOT",
+    // The defaults: write_contract may call what deploy_contract deployed, and nothing else.
+    "AVAKIT_WRITE_ALLOWLIST",
+    "AVAKIT_MAX_VALUE",
   ]) {
     vi.stubEnv(variable, "");
   }

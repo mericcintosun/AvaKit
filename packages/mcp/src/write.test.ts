@@ -40,6 +40,10 @@ describe("write_contract", () => {
     vi.stubEnv("AVAKIT_ALLOW_MAINNET", "");
     vi.stubEnv("AVAKIT_TEST_WALLET", "");
     vi.stubEnv("AVAKIT_MCP_ROOT", "");
+    // The contract was deployed before this server started, so it is listed the
+    // way a user lists one. Which contracts may be called is limits.test.ts's subject.
+    vi.stubEnv("AVAKIT_WRITE_ALLOWLIST", CONTRACT);
+    vi.stubEnv("AVAKIT_MAX_VALUE", "");
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -183,6 +187,7 @@ describe("write_contract", () => {
   it("refuses to call an address that has no contract at it", async () => {
     // A call to an empty account is mined and "succeeds" having done nothing.
     const empty = "0x00000000000000000000000000000000000000ee";
+    vi.stubEnv("AVAKIT_WRITE_ALLOWLIST", empty);
     const result = await write({ address: empty });
     expect(result.isError).toBe(true);
     expect(result.text).toBe(
@@ -354,6 +359,7 @@ describe("write_contract", () => {
 
     // All lowercase and correctly checksummed are both fine.
     const checksummed = "0x52908400098527886E0F7030069857D2E4169EE7";
+    vi.stubEnv("AVAKIT_WRITE_ALLOWLIST", checksummed);
     for (const address of [checksummed.toLowerCase(), checksummed]) {
       net.fuji.setCode(address);
       expect((await write({ address })).isError, address).toBe(false);

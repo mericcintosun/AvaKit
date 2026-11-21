@@ -2,6 +2,7 @@ import { type AvaChain, getPublicClient, isMainnet } from "@avakit/core";
 import { type Abi, type Address, encodeFunctionData, type Hex } from "viem";
 import { describeFunction, selectFunction } from "./abi.js";
 import { NO_REASON, reasonOf, revertReason, ToolError } from "./errors.js";
+import { assertCallAllowed, assertValueAllowed } from "./limits.js";
 import { codeExists, explorerTx, type SignedBy, send, signedBy } from "./send.js";
 import { DEPLOYER_KEY_ENV, type Signer } from "./wallet.js";
 
@@ -11,7 +12,7 @@ export interface WriteRequest {
   /** A function name, or a full signature to pick between overloads. */
   functionName: string;
   args?: readonly unknown[];
-  /** Wei to send along. Only with the user's own key, and only on a testnet. */
+  /** Wei to send along. Only with the user's own key, only on a testnet, and up to AVAKIT_MAX_VALUE. */
   value?: bigint;
 }
 
@@ -26,6 +27,10 @@ export type WriteResult = {
 /**
  * Send one state-changing contract call and report it only once it has
  * succeeded on chain.
+ *
+ * Only to a contract this server deployed in this session or one the server's
+ * environment allows, and with no more AVAX than it allows (limits.ts): both
+ * are checked before the chain is asked anything.
  *
  * A call can be sent and mined and still have done nothing, in three ways, and
  * each is turned into an error here rather than a `status: "success"`:
@@ -72,6 +77,11 @@ export async function writeContract(
       `Could not encode the arguments for ${describeFunction(item)}, so nothing was sent: ${reasonOf(error)}`,
     );
   }
+
+  // The call is understood; whether it may be made is the server's to say, and
+  // is said before the chain or the faucet is asked anything.
+  assertCallAllowed(chain, address);
+  assertValueAllowed(chain, value);
 
   let hasCode: boolean;
   try {

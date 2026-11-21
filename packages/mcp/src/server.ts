@@ -20,6 +20,9 @@
  *   • A mainnet transaction needs the user's own key, the caller's
  *     `confirm: true` and the operator's AVAKIT_ALLOW_MAINNET=1 in the server
  *     environment.
+ *   • write_contract only calls a contract this server deployed in this session
+ *     or one AVAKIT_WRITE_ALLOWLIST lists, and one signing call sends at most
+ *     AVAKIT_MAX_VALUE AVAX (limits.ts), on every chain.
  *   • scaffold_app only writes, and artifactPath only reads, inside the server's
  *     working directory (or AVAKIT_MCP_ROOT).
  *
@@ -60,6 +63,7 @@ import {
   resolveScaffoldTarget,
   resolveWorkspace,
 } from "./guards.js";
+import { DEFAULT_MAX_VALUE, MAX_VALUE_ENV, WRITE_ALLOWLIST_ENV } from "./limits.js";
 import { VERSION } from "./version.js";
 import { resolveSigner, walletFor } from "./wallet.js";
 import { writeContract } from "./write.js";
@@ -128,6 +132,14 @@ const SIGNING =
   "of: your own key in AVAKIT_DEPLOYER_KEY, confirm:true in this call AND AVAKIT_ALLOW_MAINNET=1 in " +
   "the server's environment, which only the person running the server can set — without it a " +
   "mainnet call is refused even with confirm:true.";
+
+/** What write_contract may call and send, as the server's environment sets it (limits.ts). */
+const WRITE_LIMITS =
+  "It calls only a contract this server deployed in this session (with deploy_contract, on the " +
+  `same chain) or one whose address ${WRITE_ALLOWLIST_ENV} lists in the server's environment ` +
+  `(${WRITE_ALLOWLIST_ENV}=* allows any), and sends at most ${MAX_VALUE_ENV} AVAX with a call ` +
+  `(${DEFAULT_MAX_VALUE} when it is not set). Any other call is refused before anything is ` +
+  "signed, and only the person running the server can change either variable.";
 
 /**
  * The server with every tool registered, not yet connected to anything.
@@ -417,7 +429,7 @@ server.registerTool(
     description:
       "Deploy a compiled contract to Avalanche and return its address, once the transaction has succeeded and there is code at that address. Pass the contract either as artifactPath (a file: one of the `artifacts` scaffold_app returned, or a Foundry/Hardhat JSON artifact) or as abi + bytecode — exactly one of the two; artifactPath means no bytecode has to be copied into the call. " +
       `${SIGNING} ` +
-      "A deployment that reverts is returned as an error. The result says which wallet signed. To call the deployed contract — for example to mint — use write_contract.",
+      "A deployment that reverts is returned as an error. The result says which wallet signed. To call the deployed contract — for example to mint — use write_contract, which may call a contract deployed here, on that chain, for as long as the server runs.",
     inputSchema: z
       .object({
         artifactPath: artifactPathInput,
@@ -487,6 +499,7 @@ server.registerTool(
     title: "Call a contract (state-changing)",
     description:
       'Send a state-changing contract call — for example mint — and return once it has succeeded on chain. The call is simulated first: if it would revert, the revert reason is returned and nothing is sent. Give the ABI as artifactPath (the file deploy_contract took) or as abi, which can be just the function\'s signature, e.g. ["function mint() returns (uint256)"] — exactly one of the two. ' +
+      `${WRITE_LIMITS} ` +
       `${SIGNING} ` +
       "The result says which wallet signed. To read state use read_chain.",
     inputSchema: z
@@ -498,7 +511,9 @@ server.registerTool(
             message:
               "address must be all lowercase or carry a valid EIP-55 checksum; this capitalisation is neither, so a character may be mistyped",
           })
-          .describe("The contract's address, e.g. the one deploy_contract returned."),
+          .describe(
+            `The contract's address, e.g. the one deploy_contract returned: a contract this server deployed in this session, or one ${WRITE_ALLOWLIST_ENV} lists.`,
+          ),
         functionName: z
           .string()
           .min(1)
@@ -524,7 +539,7 @@ server.registerTool(
           .regex(/^\d{1,78}$/, "value must be a whole number of wei, as a decimal string")
           .optional()
           .describe(
-            "Wei to send with a payable call (decimal string). Only with your own key (AVAKIT_DEPLOYER_KEY) on Fuji: the session test wallet never sends value, and value is refused on mainnet.",
+            `Wei to send with a payable call (decimal string). Only with your own key (AVAKIT_DEPLOYER_KEY) on Fuji, and at most ${MAX_VALUE_ENV} AVAX (${DEFAULT_MAX_VALUE} unless the server sets it): the session test wallet never sends value, and value is refused on mainnet.`,
           ),
         chain: chainInput,
         confirm: confirmInput,
@@ -639,6 +654,7 @@ AvaKit is an open-source, AI-native Avalanche developer toolkit.
 - Fuji testnet (the default): no key is needed. Without \`AVAKIT_DEPLOYER_KEY\`, \`deploy_contract\` and \`write_contract\` sign with a temporary session test wallet — created in the server's memory, Fuji only, gone when the server stops — and fund it from the AvaKit faucet when it cannot pay. \`wallet_status\` shows it.
 - Three calls, no file to read or copy: \`scaffold_app\` (its result lists \`artifacts\`) → \`deploy_contract({ artifactPath })\` → \`write_contract({ address, artifactPath, functionName: "mint" })\`.
 - Minting, like every other state-changing call, is done with \`write_contract\`. Reading is \`read_chain\`.
+- \`write_contract\` calls only the contracts this server deployed in this session (on the same chain) and the ones \`${WRITE_ALLOWLIST_ENV}\` lists in the server's environment, and one call sends at most \`${MAX_VALUE_ENV}\` AVAX (${DEFAULT_MAX_VALUE} when it is not set). A refusal names the variable; only the person running the server can change it, never a tool call.
 - Mainnet (\`chain: "c-chain"\`) needs all three: your own key in \`AVAKIT_DEPLOYER_KEY\`, \`confirm: true\` in the call, and \`AVAKIT_ALLOW_MAINNET=1\` in the server's environment. The session test wallet is never used on mainnet.
 - If the AvaKit faucet refuses (rate limit, empty), there are two ways forward: ${FUJI_FAUCET_FALLBACK}.
 

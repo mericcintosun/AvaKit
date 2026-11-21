@@ -163,8 +163,10 @@ describe("the documentation", () => {
       "AVAKIT_ALLOW_MAINNET",
       "AVAKIT_DEPLOYER_KEY",
       "AVAKIT_FAUCET_URL",
+      "AVAKIT_MAX_VALUE",
       "AVAKIT_MCP_ROOT",
       "AVAKIT_TEST_WALLET",
+      "AVAKIT_WRITE_ALLOWLIST",
     ]);
 
     const readme = read("../README.md");

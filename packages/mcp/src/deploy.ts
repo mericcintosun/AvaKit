@@ -10,6 +10,7 @@ import {
 } from "viem";
 import { constructorArgs } from "./abi.js";
 import { reasonOf, ToolError } from "./errors.js";
+import { assertValueAllowed, recordDeployment } from "./limits.js";
 import { codeExists, explorerTx, type SignedBy, send, signedBy } from "./send.js";
 import type { Signer } from "./wallet.js";
 
@@ -94,6 +95,9 @@ export type DeployResult = Deployed & SignedBy;
  * there is code at the address. A creation whose bytecode returns nothing — the
  * deployed (runtime) bytecode passed where the creation bytecode belongs — is
  * mined, succeeds, and leaves an empty account behind.
+ *
+ * The contract's address is recorded as one this server deployed as soon as the
+ * creation is signed, which is what lets `write_contract` call it (limits.ts).
  */
 export async function deployContract(
   chain: AvaChain,
@@ -109,13 +113,18 @@ export async function deployContract(
       `Could not encode the constructor arguments, so nothing was sent: ${reasonOf(error)}`,
     );
   }
+  // A deployment sends no AVAX, so it is within any limit; this refuses one
+  // when AVAKIT_MAX_VALUE cannot be read, before the chain or the faucet is asked.
+  assertValueAllowed(chain, 0n);
 
+  const contractAt = (nonce: number) =>
+    getContractAddress({ from: signer.address, nonce: BigInt(nonce) });
   const sent = await send(chain, signer, {
     kind: "deployment",
     data,
     abi: request.abi,
-    whenPending: ({ nonce }) =>
-      ` If it does, the contract will be at ${getContractAddress({ from: signer.address, nonce: BigInt(nonce) })}.`,
+    onSigned: ({ nonce }) => recordDeployment(chain.id, contractAt(nonce)),
+    whenPending: ({ nonce }) => ` If it does, the contract will be at ${contractAt(nonce)}.`,
   });
   const outcome = deployOutcome(sent.receipt, sent.hash, chain);
   if (!outcome.ok) throw new ToolError(outcome.message);

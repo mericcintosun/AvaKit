@@ -55,6 +55,8 @@ beforeEach(async () => {
     "AVAKIT_ALLOW_MAINNET",
     "AVAKIT_FAUCET_URL",
     "AVAKIT_MCP_ROOT",
+    "AVAKIT_WRITE_ALLOWLIST",
+    "AVAKIT_MAX_VALUE",
   ]) {
     vi.stubEnv(variable, "");
   }

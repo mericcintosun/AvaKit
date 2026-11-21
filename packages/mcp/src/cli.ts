@@ -47,6 +47,14 @@ export const ENVIRONMENT_SUMMARIES: readonly (readonly [name: string, summary: s
     "Set to 1 to allow mainnet transactions (they also need your own key and confirm: true)",
   ],
   [
+    "AVAKIT_WRITE_ALLOWLIST",
+    "Contracts write_contract may call besides this session's deploys (comma-separated; * for any)",
+  ],
+  [
+    "AVAKIT_MAX_VALUE",
+    "Most AVAX one deploy_contract or write_contract call may send (default 0.1)",
+  ],
+  [
     "AVAKIT_MCP_ROOT",
     "Where scaffold_app creates projects and artifactPath is read, instead of the working directory",
   ],
