@@ -4,8 +4,13 @@
 // It asks avakit.dev and the two Cloudflare Workers whether they are up, and
 // keeps one GitHub issue, labelled `monitor`, in step with the answers: the
 // issue is opened when a check fails, updated while checks fail (with a comment
-// whenever what fails changes), and closed once every check passes again. A
-// run with a failing check also exits 1, so the run itself is red.
+// whenever what fails changes), and closed once every check passes again.
+//
+// That issue is the alert. Once it says what fails, the run exits 0: GitHub
+// also emails about every failed scheduled run, and a red run every six hours
+// would only repeat the issue. The run exits 1 when no issue carries the news:
+// a failing check in a dry run or without a token, or an issue GitHub would not
+// let it write (whatever the checks found).
 //
 //   node scripts/monitor.mjs             check, then sync the issue when
 //                                        GITHUB_TOKEN and GITHUB_REPOSITORY are set
@@ -395,7 +400,11 @@ export async function syncIssue(api, results, { runUrl, now }) {
   return { action: "updated", number: issue.number };
 }
 
-/** The whole run. Returns the exit code. */
+/**
+ * The whole run. Resolves with the exit code: 0 when every check passed, or
+ * when the monitor issue now says what fails; 1 when a check failed and no
+ * issue was written, or when writing the issue failed.
+ */
 export async function main({
   argv = process.argv.slice(2),
   env = process.env,
@@ -426,24 +435,33 @@ export async function main({
       : undefined;
   if (dryRun) {
     log("Dry run: the monitor issue is left alone.");
-  } else if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {
+    return failing.length > 0 ? 1 : 0;
+  }
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPOSITORY) {
     log("GITHUB_TOKEN or GITHUB_REPOSITORY is not set: the monitor issue is left alone.");
-  } else {
-    const api = github({
-      fetch,
-      token: env.GITHUB_TOKEN,
-      repo: env.GITHUB_REPOSITORY,
-      apiUrl: env.GITHUB_API_URL || undefined,
-    });
+    return failing.length > 0 ? 1 : 0;
+  }
+
+  const api = github({
+    fetch,
+    token: env.GITHUB_TOKEN,
+    repo: env.GITHUB_REPOSITORY,
+    apiUrl: env.GITHUB_API_URL || undefined,
+  });
+  try {
     const done = await syncIssue(api, results, { runUrl, now: now() });
     log(
       done.number
         ? `Monitor issue #${done.number}: ${done.action}.`
         : "No monitor issue to change.",
     );
+  } catch (error) {
+    // The one case the issue cannot report, so the run has to.
+    log(`::error title=Monitor issue::The monitor issue could not be updated: ${error.message}`);
+    return 1;
   }
-
-  return failing.length > 0 ? 1 : 0;
+  // The issue now says what fails, if anything does.
+  return 0;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

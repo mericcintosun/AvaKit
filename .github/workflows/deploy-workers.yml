@@ -7,17 +7,26 @@
 #     (Actions → Deploy · Cloudflare Workers → Run workflow, choosing a Worker).
 #     A push deploys only the Worker whose files changed; a change to Markdown
 #     alone deploys nothing.
+#   - Tests each Worker first, in a job with no environment and no secret. Only
+#     when every Worker's tests pass does a deploy job ask for approval, so the
+#     reviewer approves code whose tests have passed, and the dependency code
+#     the tests run (viem, wrangler's local workerd) never shares a runner with
+#     the Cloudflare token.
 #   - Every deploy job runs in the `cloudflare-workers` environment, which waits
 #     for a maintainer's approval and only accepts main. The Cloudflare token is a
 #     secret of that environment, so no other job and no pull request can read it,
-#     and only the one step that deploys is given it.
-#   - Installs the service from its own lockfile with install scripts off, runs
-#     its tests, and deploys with the wrangler version that lockfile pins.
+#     and only the one step that deploys is given it. The step that checks the
+#     credentials learns whether each secret is set, never its value.
+#   - The deploy job installs the service from its own lockfile with install
+#     scripts off, restores nothing from a cache, runs no tests, and deploys with
+#     the wrangler version that lockfile pins.
 #   - Passes the commit to the Worker as GIT_SHA (`wrangler deploy --var`), so
 #     GET /health answers `"version": "<commit>"`, and tags the new Worker version
 #     with the same commit and a message naming this run (Workers → the Worker →
 #     Deployments, or `npx wrangler deployments list`).
 #   - Asks GET /health afterwards and fails unless the new commit answers there.
+#     A failed check leaves the new version live: services/DEPLOY.md, "Rolling
+#     back", says how to put the previous one back.
 #
 # What it never does
 #   - Read, set or delete a Worker secret (AVAKIT_FAUCET_KEY, TELEMETRY_SALT,
@@ -28,7 +37,8 @@
 #
 # What it needs, once: the environment secrets CLOUDFLARE_API_TOKEN and
 # CLOUDFLARE_ACCOUNT_ID. services/DEPLOY.md lists the token's permissions and
-# the steps; without them the first step says which one is missing and stops.
+# the steps; without them the deploy job stops at its credential check and says
+# which one is missing.
 name: Deploy · Cloudflare Workers
 
 on:
@@ -63,9 +73,12 @@ jobs:
     outputs:
       services: ${{ steps.pick.outputs.services }}
     steps:
-      # Only the commit itself; the commit before a push is fetched on its own below.
+      # Only the commit itself; the commit before a push is fetched on its own
+      # below, from the public repository, which needs no credentials.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Pick
         id: pick
@@ -110,13 +123,51 @@ jobs:
             echo "Nothing to deploy." >> "$GITHUB_STEP_SUMMARY"
           else
             services="$(jq -cn '$ARGS.positional' --args "${deploy[@]}")"
-            echo "Deploying: ${deploy[*]} (waiting for approval in the cloudflare-workers environment)." >> "$GITHUB_STEP_SUMMARY"
+            echo "Testing, then deploying: ${deploy[*]} (the deploy waits for approval in the cloudflare-workers environment)." >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "services=$services" >> "$GITHUB_OUTPUT"
 
+  # The tests run here, before anyone is asked to approve, and nothing here can
+  # reach a Cloudflare credential: no environment, no secret.
+  test:
+    name: Test · ${{ matrix.service }}
+    needs: plan
+    if: github.repository == 'mericcintosun/AvaKit' && needs.plan.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.plan.outputs.services) }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # Installed the way the deploy job installs it, so the tests run on the same tree.
+      - name: Install from the lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Test
+        run: npm test
+
+  # Starts only once every Worker's tests have passed: a failure in either one
+  # deploys neither (dispatch the other one by hand if it cannot wait).
   deploy:
     name: Deploy · ${{ matrix.service }}
-    needs: plan
+    needs: [plan, test]
     if: github.repository == 'mericcintosun/AvaKit' && needs.plan.outputs.services != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -145,32 +196,30 @@ jobs:
         with:
           persist-credentials: false
 
+      # Whether each secret is set, as "true" or "false": never the value itself.
       - name: Check the Cloudflare credentials
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+          HAS_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
         run: |
           missing=()
-          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing+=(CLOUDFLARE_API_TOKEN)
-          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          [ "$HAS_TOKEN" = true ] || missing+=(CLOUDFLARE_API_TOKEN)
+          [ "$HAS_ACCOUNT" = true ] || missing+=(CLOUDFLARE_ACCOUNT_ID)
           if [ "${#missing[@]}" -gt 0 ]; then
             echo "::error title=Cloudflare credentials missing::Missing secret(s) of the cloudflare-workers environment: ${missing[*]}. Add them under Settings → Environments → cloudflare-workers → Environment secrets; services/DEPLOY.md says how to create the token and what it may do. Nothing was deployed."
             exit 1
           fi
 
+      # No cache: a deploy installs from the registry and the lockfile alone.
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: services/${{ matrix.service }}/package-lock.json
+          package-manager-cache: false
 
-      # No dependency runs code at install time; the tests and the deploy need none of it.
+      # No dependency runs code at install time; wrangler bundles without any of it.
       - name: Install from the lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Test
-        run: npm test
 
       # The token reaches this step only. wrangler is the version the lockfile pins.
       - name: Deploy
@@ -207,6 +256,6 @@ jobs:
             }
             await new Promise((resolve) => setTimeout(resolve, 10_000));
           }
-          console.log(`::error title=Deployed version not answering::${url} did not answer ok with version ${sha} within two minutes. Last answer: ${last}`);
+          console.log(`::error title=Deployed version not answering::${url} did not answer ok with version ${sha} within two minutes. The new version stays live: see "Rolling back" in services/DEPLOY.md. Last answer: ${last}`);
           process.exit(1);
           JS

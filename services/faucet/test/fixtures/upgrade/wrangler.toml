@@ -1,6 +1,7 @@
 # A test fixture, never deployed: a Durable Object that lays out the faucet's
-# `drips` table as it was before the daily budgets and then opens it with the
-# current src/limits.js, in workerd. See test/upgrade.test.mjs.
+# `drips` table as it was before the daily budgets, opens it with the current
+# src/limits.js, and runs the code from before the budgets on it again, as a
+# rollback would, in workerd. See test/upgrade.test.mjs.
 name = "avakit-faucet-upgrade-fixture"
 main = "worker.js"
 compatibility_date = "2026-07-01"

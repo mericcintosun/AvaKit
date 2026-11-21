@@ -62,8 +62,15 @@ back on success. What it does:
   retried by `@avakit/core`.
 - `GET /health` gains `version`, `low`, `lowBelow`, `paused` and `today`, and
   answers `ok: false` with the reason when it cannot work.
-- `TURNSTILE_ORIGINS` is set to `https://avakit.dev` in `wrangler.toml`, which
-  does nothing until `TURNSTILE_SECRET` is set (see [Turnstile](#turnstile)).
+- `TURNSTILE_ORIGINS` is set to `https://avakit.dev` in `wrangler.toml`. On a
+  faucet without `TURNSTILE_SECRET`, the hosted one included, that changes
+  nothing (see [Turnstile](#turnstile)).
+- **If your faucet already has `TURNSTILE_SECRET` set** and every caller sends
+  a token, set `TURNSTILE_ORIGINS = ""` (or your own origins) in
+  `wrangler.toml` before you deploy. With `https://avakit.dev` listed, only a
+  request from that origin must carry a token: a request without one from any
+  other origin is no longer refused, and is served from the unverified budget.
+  `npx wrangler secret list` shows whether the secret is set.
 
 ## Upgrading a faucet that kept its limits in KV
 
@@ -135,8 +142,8 @@ tried without deploying:
 | var | `FAUCET_DRIP_AVAX` | `0.02` (set in `wrangler.toml`) | Amount per drip |
 | var | `FAUCET_DAILY_DRIPS` | `50` | Drips per UTC day for every request without a verified Turnstile token, together. `0` closes this budget |
 | var | `FAUCET_DAILY_DRIPS_VERIFIED` | `100` | Drips per UTC day for requests whose Turnstile token was verified |
-| var | `FAUCET_LOW_BALANCE_AVAX` | `1` | `GET /health` answers `"low": true` under this balance, and the monitor opens an issue. `0` turns the warning off |
-| var | `TURNSTILE_ORIGINS` | `https://avakit.dev` | The origins that must send a token once `TURNSTILE_SECRET` is set, separated by commas or spaces. Empty: every caller must |
+| var | `FAUCET_LOW_BALANCE_AVAX` | `1` | `GET /health` answers `"low": true` under this balance, and the monitor opens an issue. Keep it at one day's worst case or more (see [PROTECTION.md](PROTECTION.md)). `0` turns the warning off |
+| var | `TURNSTILE_ORIGINS` | `https://avakit.dev` (set in `wrangler.toml`) | The origins that must send a token once `TURNSTILE_SECRET` is set, separated by commas or spaces. Empty or unset: every caller must |
 | var | `FAUCET_CORS_ORIGIN` | `*` | Left open on purpose: callers come from any origin, or none — see [PROTECTION.md](PROTECTION.md) |
 | deploy | `GIT_SHA` | — (`"dev"`) | The commit, passed by the deploy workflow with `--var`; `GET /health` reports it as `version` |
 | durable object | `FAUCET` | — (in `wrangler.toml`) | Rate limits, the daily budgets and the send queue, one object per chain |
@@ -311,7 +318,14 @@ the hosted faucet can only ever ask avakit.dev for one.
 >    request (`turnstileToken` of `requestFaucet`, below). Deploy the site.
 > 3. Check that the page sends a token: a request from it now carries
 >    `turnstileToken`.
-> 4. `npx wrangler secret put TURNSTILE_SECRET` with the secret key. From then
+> 4. Make room for the verified budget first. With it the worst case grows
+>    from 1 to 3 AVAX a day (50 + 100 drips of 0.02), so raise
+>    `FAUCET_LOW_BALANCE_AVAX` in `wrangler.toml` to at least `3`, one day's
+>    worst case, through a pull request (the deploy workflow ships it after
+>    approval), and top the faucet up well above that. At `1`, the low-balance
+>    issue would come less than eight hours before the faucet could run dry,
+>    while the monitor only looks every six hours, and often late.
+> 5. `npx wrangler secret put TURNSTILE_SECRET` with the secret key. From then
 >    on `curl -H 'Origin: https://avakit.dev' …/health` answers
 >    `"turnstile": true`, and the site's drips count under `today.verified`.
 
@@ -372,7 +386,8 @@ Worker in local `workerd` straight from `wrangler.toml`, against a mock chain
 node does, and it generates its keys on the spot. The daily budgets are also
 run in plain Node with a clock the test moves (`test/budget.test.mjs`), and the
 upgrade of a table from before them in workerd (`test/upgrade.test.mjs`, with
-the fixture in `test/fixtures/upgrade/`).
+the fixture in `test/fixtures/upgrade/`), along with the code from before them
+running on the upgraded table again, as it would after a rollback.
 
 ## Wire it into any app
 

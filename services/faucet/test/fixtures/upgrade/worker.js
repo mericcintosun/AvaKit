@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { DripLimits } from "../../../src/limits.js";
+import { DripLimits as DripLimitsBeforeBudgets } from "./limits-before-budgets.js";
 
 /**
  * The hosted faucet's Durable Object was created before the daily budgets, so
@@ -7,6 +8,11 @@ import { DripLimits } from "../../../src/limits.js";
  * with the current DripLimits. This object does the same in local workerd:
  * `legacy` writes the old table exactly as the old code created it, and `open`
  * runs today's constructor over it.
+ *
+ * A rollback runs the old code again on the table the deploy upgraded, since a
+ * rollback changes the code and leaves what the object stores alone.
+ * `rolledBack` does that with the old DripLimits itself: it opens the table,
+ * sends a drip and checks the address the way the old Worker would.
  */
 export class Upgrade extends DurableObject {
   legacy({ address, at }) {
@@ -38,14 +44,27 @@ export class Upgrade extends DurableObject {
       refusal: limits.refusal({ address, client: "203.0.113.9" }, at),
     };
   }
+
+  rolledBack({ address, at }) {
+    const { sql } = this.ctx.storage;
+    const limits = new DripLimitsBeforeBudgets(sql);
+    const reserved = limits.reserve({ address, client: "203.0.113.10" }, at);
+    if (reserved.refused) return { refused: reserved.refused };
+    limits.settle(reserved.id);
+    return {
+      lane: sql.exec("SELECT lane FROM drips WHERE id = ?", reserved.id).one().lane,
+      refusal: limits.refusal({ address, client: "203.0.113.11" }, at),
+    };
+  }
 }
+
+const METHODS = ["legacy", "open", "rolledBack"];
 
 export default {
   async fetch(request, env) {
-    const { method, args } = await request.json();
-    const upgrade = env.UPGRADE.get(env.UPGRADE.idFromName("upgrade"));
-    if (method === "legacy") return Response.json(await upgrade.legacy(args));
-    if (method === "open") return Response.json(await upgrade.open(args));
-    return new Response("Not found.", { status: 404 });
+    const { method, args, object = "upgrade" } = await request.json();
+    if (!METHODS.includes(method)) return new Response("Not found.", { status: 404 });
+    const upgrade = env.UPGRADE.get(env.UPGRADE.idFromName(object));
+    return Response.json(await upgrade[method](args));
   },
 };
