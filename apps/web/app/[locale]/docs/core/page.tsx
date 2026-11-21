@@ -24,8 +24,8 @@ export default function CoreDocs() {
       <InstallTabs pkg="@avakit/core viem" />
       <Note>
         <C>@avakit/core</C> is <strong>ESM-only</strong> — use <C>import</C>, not <C>require</C>. In
-        a CommonJS file, load it with a dynamic <C>await import("@avakit/core")</C>. Requires Node{" "}
-        <C>&gt;= 20.11</C>; AvaKit is tested on Node 22, 24 and 26.
+        a CommonJS file, load it with a dynamic <C>await import("@avakit/core")</C>. Requires
+        Node.js <C>&gt;= 22</C>; AvaKit is tested on Node 22, 24 and 26.
       </Note>
 
       <H2>Chains</H2>
@@ -95,9 +95,13 @@ const { address, provider } = await social.connect();`}
         <C>localStorage</C> in the clear (<C>avakit.burner.pk</C>), where any script running on the
         page can read it. That is the intended trade-off for a testnet identity holding a faucet
         drip, and nothing else: it refuses to connect on mainnet, and you should never send real
-        funds to a burner address. <C>clearBurner()</C> deletes the key, and <C>persist: false</C>{" "}
-        keeps it in memory only. With every other adapter the key is generated, stored, and used
-        inside the wallet provider, and AvaKit only ever sees a signing interface.
+        funds to a burner address. Before it first sends through one of the chain's RPC endpoints,
+        it asks that endpoint's node which chain it serves and refuses a mismatch, and it signs only
+        for the chain id the definition names. On a chain with several endpoints, each transaction
+        goes through one node that has confirmed the chain, and is never sent twice.{" "}
+        <C>clearBurner()</C> deletes the key, and <C>persist: false</C> keeps it in memory only.
+        With every other adapter the key is generated, stored, and used inside the wallet provider,
+        and AvaKit only ever sees a signing interface.
       </Note>
 
       <H2>Clients & network</H2>
@@ -108,6 +112,57 @@ const publicClient = getPublicClient(fuji);
 await ensureChain(provider, fuji);          // add + switch the wallet's chain
 const wallet = getWalletClient(fuji, provider);`}
       />
+
+      <H2>RPC endpoints & fallback</H2>
+      <P>
+        A chain can list more than one JSON-RPC endpoint. <C>rpcUrl</C> is the one AvaKit tries
+        first, and the optional <C>rpcUrls</C> lists every endpoint in the order they are tried,
+        with <C>rpcUrl</C> first. <C>fuji</C> and <C>cChain</C> try Ava Labs' public API first and
+        Allnodes' PublicNode second.
+      </P>
+      <CodeBlock
+        code={`import { defineChain, getRpcTransport, rpcEndpoints, toViemChain } from "@avakit/core";
+import { createPublicClient } from "viem";
+
+const myL1 = defineChain({
+  id: 99999,
+  name: "My L1",
+  rpcUrl: "https://rpc-a.my-l1.example",
+  rpcUrls: ["https://rpc-a.my-l1.example", "https://rpc-b.my-l1.example"],
+  explorerUrl: "",
+  nativeCurrency: { name: "Token", symbol: "TKN", decimals: 18 },
+  testnet: true,
+});
+
+rpcEndpoints(myL1); // both URLs, rpc-a first
+
+// Your own viem client, talking to the chain the way getPublicClient does.
+const client = createPublicClient({ chain: toViemChain(myL1), transport: getRpcTransport(myL1) });`}
+      />
+      <UL>
+        <li>
+          <C>rpcEndpoints(chain)</C> gives the order, without repeats. <C>rpcUrls</C> counts only
+          when its first entry is <C>rpcUrl</C>, so a definition that spreads a built-in chain and
+          replaces its <C>rpcUrl</C> talks to the new URL alone.
+        </li>
+        <li>
+          <C>getPublicClient</C> reads through <C>getRpcTransport</C>. Every request gives up after
+          10 seconds. A request that fails on one endpoint (no answer, a timeout, an HTTP error)
+          goes to the next one at once. When the last one fails too, the whole list is tried again
+          up to three more times, after 150, 300 and 600 ms, for a failure that can pass, such as a
+          timeout, a rate limit or a 5xx. A revert or a rejected request is the chain's answer: it
+          is neither retried nor sent elsewhere.
+        </li>
+        <li>
+          <C>toViemChain</C> lists every endpoint, and <C>ensureChain</C> passes them all, primary
+          first, to a wallet that has to add the chain. <C>getWalletClient</C> sends through the
+          wallet's own provider, so Core, MetaMask and social login use their own RPC.
+        </li>
+      </UL>
+      <Note>
+        <C>rpcUrls</C>, <C>rpcEndpoints</C> and <C>getRpcTransport</C> come after{" "}
+        <C>@avakit/core</C> 0.2.2. Up to 0.2.2, every chain has its <C>rpcUrl</C> alone.
+      </Note>
 
       <H2>Deploy & data</H2>
       <CodeBlock
@@ -247,7 +302,7 @@ const nfts = await listNfts("0x…", fuji);`}
       <H2>API surface</H2>
       <UL>
         <li>
-          <C>fuji</C>, <C>cChain</C>, <C>defineChain</C> (from <C>/chains</C>)
+          <C>fuji</C>, <C>cChain</C>, <C>defineChain</C>, <C>rpcEndpoints</C> (from <C>/chains</C>)
         </li>
         <li>
           <C>burnerAdapter</C>, <C>clearBurner</C>, <C>injectedAdapter</C>, <C>web3authAdapter</C>{" "}
@@ -255,6 +310,9 @@ const nfts = await listNfts("0x…", fuji);`}
         </li>
         <li>
           <C>getPublicClient</C>, <C>getWalletClient</C>, <C>toViemChain</C>, <C>ensureChain</C>
+        </li>
+        <li>
+          <C>getRpcTransport</C> (the transport <C>getPublicClient</C> reads through)
         </li>
         <li>
           <C>deployContract</C>, <C>waitForDeployment</C>, <C>getBytecode</C>, <C>getBalance</C>,{" "}
