@@ -39,14 +39,15 @@ dependencies:
 | `publish-dry-run` | Run workflow with **dry run** | `contents: read`, no environment, no id-token | The same download and checks as `publish`, then `npm publish --dry-run`. |
 
 What can still change a tarball is the build. The tests and the MCP smoke test (which
-installs the packed server from npm, install scripts and all) run in `verify`, on
+installs the packed server with npm, install scripts and all) run in `verify`, on
 another runner, and never touch the tarballs; `pack` starts from a fresh checkout,
 installs without running any install script, and runs only the packages' builds and
 `pnpm pack`. A compromised build tool (tsup, vite, esbuild, Turborepo and what they
 load) can still change what it builds, but it cannot publish by itself: a person
 approves each publish, the publish job publishes exactly the bytes `pack` summed, and
-the provenance attestation names the workflow and the commit. No dependency cache is
-used anywhere in the workflow, so nothing another job saved can end up in a tarball.
+the provenance attestation names the workflow and the commit. No job restores or saves
+an Actions cache (`cache-mode: none`, which GitHub enforces), so nothing another run
+saved can end up in a tarball.
 
 ## One-time setup: the environment and the Trusted Publishers
 

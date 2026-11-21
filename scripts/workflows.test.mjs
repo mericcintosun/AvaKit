@@ -318,7 +318,9 @@ test("release.yml packs the tarballs on a runner of their own that runs nothing 
   );
 
   // No dependency cache anywhere: a restored cache would run in the gates and
-  // be built into the tarballs.
+  // be built into the tarballs. GitHub enforces it (cache-mode: none), and no
+  // step asks for one.
+  assert.match(release, /^cache-mode: none$/m);
   assert.doesNotMatch(release, /uses: actions\/cache[/@]/);
   for (const job of RELEASE_JOBS) {
     for (const step of stepsOf(release, job).filter((s) =>
