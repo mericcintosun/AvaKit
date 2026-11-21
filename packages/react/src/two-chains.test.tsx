@@ -1,5 +1,11 @@
-import { burnerAdapter, defineChain, ensureChain, getWalletClient } from "@avakit/core";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  burnerAdapter,
+  defineChain,
+  ensureChain,
+  getWalletClient,
+  type WalletAdapter,
+} from "@avakit/core";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import type { Hex } from "viem";
 import { parseTransaction } from "viem";
@@ -123,15 +129,31 @@ function TwoChainDemo() {
   );
 }
 
+/** A real burner on the first chain, with its switchChain watched (and still doing its job). */
+function watchedBurner() {
+  const adapter = burnerAdapter({ chain: chain1, persist: false });
+  vi.spyOn(adapter as Required<WalletAdapter>, "switchChain");
+  return adapter;
+}
+
 /**
- * Run the effects the connect left pending. "connected" is on screen as soon as
- * React commits, but the provider subscribes to the wallet and keeps it on the
- * app's chain in effects that can run a moment later; one that runs after the
- * click below would move the wallet back to the first chain. A person clicks
- * long after that; a test does not.
+ * Connect, and wait until the provider has finished reacting to the connection.
+ *
+ * "connected" is on screen as soon as React commits, but the provider subscribes
+ * to the wallet and asks it onto the app's chain in effects, which React's
+ * scheduler runs later. On a busy machine it can yield before it gets to them
+ * and run them only after the test's next click, and the effect, still holding
+ * the first chain, then moves the wallet back there in the middle of the send.
+ * That is what failed the release job on 19 November 2026. Waiting a tick
+ * (`await act(async () => {})`, the first fix) left the race in place: the
+ * scheduler can yield past it too. Waiting for the effect's own call is exact.
  */
-async function settled() {
-  await act(async () => {});
+async function connectAndSettle(adapter: WalletAdapter) {
+  fireEvent.click(screen.getByText("connect"));
+  await waitFor(() => {
+    expect(screen.getByTestId("status").textContent).toBe("connected");
+    expect(adapter.switchChain).toHaveBeenCalledWith(chain1);
+  });
 }
 
 afterEach(() => {
@@ -142,20 +164,14 @@ afterEach(() => {
 describe("burner wallet across two chains", () => {
   it("sends on the second chain at the first attempt after awaiting ensureChain", async () => {
     const calls = stubChainRpc();
+    const burner = watchedBurner();
     render(
-      <AvaKitProvider
-        chains={[chain1, chain2]}
-        adapters={[burnerAdapter({ chain: chain1, persist: false })]}
-      >
+      <AvaKitProvider chains={[chain1, chain2]} adapters={[burner]}>
         <TwoChainDemo />
       </AvaKitProvider>,
     );
 
-    fireEvent.click(screen.getByText("connect"));
-    await waitFor(() => {
-      expect(screen.getByTestId("status").textContent).toBe("connected");
-    });
-    await settled();
+    await connectAndSettle(burner);
     expect(screen.getByTestId("chain").textContent).toBe("icm1");
 
     fireEvent.click(screen.getByText("send on chain 2"));
@@ -185,20 +201,14 @@ describe("burner wallet across two chains", () => {
   // unknown RPC error occurred.", and "switch your wallet" would be no help.
   it("sends nothing, and says why, when the second chain's RPC is really a mainnet", async () => {
     const calls = stubChainRpc({ ...HONEST_NODES, [chain2.rpcUrl]: 43114 });
+    const burner = watchedBurner();
     render(
-      <AvaKitProvider
-        chains={[chain1, chain2]}
-        adapters={[burnerAdapter({ chain: chain1, persist: false })]}
-      >
+      <AvaKitProvider chains={[chain1, chain2]} adapters={[burner]}>
         <TwoChainDemo />
       </AvaKitProvider>,
     );
 
-    fireEvent.click(screen.getByText("connect"));
-    await waitFor(() => {
-      expect(screen.getByTestId("status").textContent).toBe("connected");
-    });
-    await settled();
+    await connectAndSettle(burner);
 
     fireEvent.click(screen.getByText("send on chain 2"));
 
