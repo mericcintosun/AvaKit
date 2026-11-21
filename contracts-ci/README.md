@@ -11,9 +11,13 @@ exists so CI can actually compile and test that Solidity.
 cd contracts-ci
 node scripts/sync.mjs              # copy template contracts into src/ + consistency checks
 forge test                         # compile (pinned compiler) + run the test suite
-node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the source
+node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the source; eerc-token's pin
 node --test scripts/guards.test.mjs  # the two scripts above still catch what they are for
 ```
+
+`check-artifacts.mjs` needs the network: it fetches the pinned upstream
+sources once (then they are cached) and reads `eerc-token`'s pin from GitHub on
+every run.
 
 - **`scripts/sync.mjs`** copies each template contract into `src/` and fails if
   templates that ship the same contract have drifted apart (`erc20-token` /
@@ -59,13 +63,34 @@ node --test scripts/guards.test.mjs  # the two scripts above still catch what th
   be copied into every app scaffolded from this checkout).
 - **`scripts/upstream.mjs`** fetches the pinned sources of the upstream
   contracts for that check, and re-pins them (below).
+- **`scripts/eerc-pin.mjs`**, which `check-artifacts.mjs` runs last, checks the
+  one template that ships no contract. `eerc-token` proves in the browser with
+  circuit files of `ava-labs/EncryptedERC` at `CIRCUIT_COMMIT`
+  (`lib/eerc-config.ts`), and `npm run deploy:eerc` deploys that repository's
+  contracts at `COMMIT` (`scripts/deploy-eerc.mjs`) with its own deploy script.
+  The check fails unless the two are one commit, upstream's deploy script there
+  deploys the production verifiers (`deployVerifiers(<signer>, true)`), and each
+  production verifier carries exactly the verification key published next to
+  its circuit's proving key, with a delta that is not its gamma (a key made
+  without a phase-2 contribution accepts forged proofs). The pin before
+  upstream's 2026-08-31 fixes failed it: its deploy script deployed generated
+  verifiers that rejected every proof the app made. It reads the files from
+  GitHub at the pinned commit; `node scripts/check-artifacts.mjs --eerc-circuits`
+  (or `node scripts/eerc-pin.mjs --circuits`) also downloads the ten pinned
+  circuit files (55 MB) and compares their SHA-256 with the pins, for when the
+  pin moves. Whether those proving keys really belong to those verification
+  keys is not something a file comparison can show: a live register, mint,
+  transfer and burn against an instance deployed at the pin does, and was run
+  on Fuji on 2026-11-21.
 - **`scripts/guards.test.mjs`** tests the scripts themselves (Node's
   built-in test runner, no dependencies). Each test copies the files the
   scripts read into a temporary directory, breaks one thing there (a
   `foundry.toml` that changes the compiler outside `[profile.default]`, a
   stale `DemoToken`, one changed byte in the code or the metadata hash of a
   bridge contract, an upstream source that is not the pinned one, a damaged
-  cached source, an artifact nobody listed) and expects the script to notice.
+  cached source, an artifact nobody listed, `eerc-token` pinned back to the
+  commit before upstream's fixes or to two different commits) and expects the
+  script to notice.
 
 `examples/web3auth-demo` ships a different, simpler `AvaKitNFT` on purpose. It
 is an example app, not a template, so its contract is not compiled into this

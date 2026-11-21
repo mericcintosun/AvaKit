@@ -35,6 +35,27 @@ const ICM_PIN = "contracts-ci/upstream/icm-contracts/sources.json";
 // Every entry of the ICTT file: the demo token is the repo's own contract, the
 // other three are built from the pinned ava-labs/icm-contracts sources.
 const ICTT_ENTRIES = ["ERC20TokenHome", "ERC20TokenRemote", "TeleporterRegistry", "DemoToken"];
+// eerc-token's pin: the commit of ava-labs/EncryptedERC its app proves with
+// and the one its deploy script builds from.
+const EERC_CONFIG = `${TEMPLATES}/eerc-token/lib/eerc-config.ts`;
+const EERC_DEPLOY = `${TEMPLATES}/eerc-token/scripts/deploy-eerc.mjs`;
+// The commit eerc-token was pinned to until upstream's fixes of 2026-08-31:
+// its deploy script deployed verifiers that match none of the circuits.
+const EERC_BEFORE_FIXES = "c7eb0e09bc9315e68c35d3c09f5dce4b794d0485";
+
+/** Point one or both of eerc-token's pins at `commit`. */
+function pinEerc(root, commit, { config = true, deploy = true } = {}) {
+  if (config) {
+    edit(root, EERC_CONFIG, (text) =>
+      text.replace(/const CIRCUIT_COMMIT = "[0-9a-f]{40}";/, `const CIRCUIT_COMMIT = "${commit}";`),
+    );
+  }
+  if (deploy) {
+    edit(root, EERC_DEPLOY, (text) =>
+      text.replace(/const COMMIT = "[0-9a-f]{40}";/, `const COMMIT = "${commit}";`),
+    );
+  }
+}
 
 // What a working tree may hold beside the sources: none of it is the scripts'
 // to read, and a build has to start from the sources alone.
@@ -59,6 +80,7 @@ function fixture(t) {
     copy(`${TEMPLATES}/${template}/contracts`);
     copy(`${TEMPLATES}/${template}/lib`);
   }
+  copy(EERC_DEPLOY);
   copy("examples/web3auth-demo/contracts");
   copy("examples/web3auth-demo/lib");
   copy("packages/studio/src/messenger-artifact.ts");
@@ -203,6 +225,7 @@ test("check-artifacts passes on the repo as it is and checks every entry of the 
   const { status, output } = run(fixture(t), "check-artifacts.mjs");
   assert.equal(status, 0, output);
   for (const entry of ICTT_ENTRIES) assert.match(output, new RegExp(`ok ${ICTT} \\(${entry}\\)`));
+  assert.match(output, /ok \S+\/eerc-token \(pinned ava-labs\/EncryptedERC\) @ [0-9a-f]{12}\n/);
 });
 
 test("check-artifacts catches a stale DemoToken and --write regenerates only that entry", (t) => {
@@ -350,6 +373,49 @@ test("upstream sources are checked in the cache too, and a damaged copy is fetch
   const second = await materialize("icm-contracts", join(layouts, "second"));
   assert.equal(blobId(readFileSync(join(second, file))), id, "laid out from a damaged copy");
   assert.equal(blobId(readFileSync(join(cache, id))), id, "the damaged copy is still cached");
+});
+
+// ---- check-artifacts.mjs: eerc-token's pin (scripts/eerc-pin.mjs) ----
+
+test("check-artifacts rejects eerc-token's pin from before upstream's 2026-08-31 fixes", (t) => {
+  // At that commit `npm run deploy:eerc` deployed the generated verifiers,
+  // whose keys match none of the circuit files the app proves with.
+  const root = fixture(t);
+  pinEerc(root, EERC_BEFORE_FIXES);
+  const { status, output } = run(root, "check-artifacts.mjs");
+  assert.equal(status, 1, output);
+  assert.match(output, /EERC PIN DRIFT: \S+\/eerc-token \(pinned ava-labs\/EncryptedERC\)\n/);
+  assert.match(
+    output,
+    /deploy-standalone\.ts at c7eb0e09\S* does not deploy the production verifiers/,
+  );
+  // Everything else is still checked, and fine.
+  for (const entry of ICTT_ENTRIES) assert.match(output, new RegExp(`ok ${ICTT} \\(${entry}\\)`));
+});
+
+test("eerc-pin rejects an app and a deploy script pinned to different commits", (t) => {
+  const root = fixture(t);
+  pinEerc(root, EERC_BEFORE_FIXES, { config: false });
+  const { status, output } = run(root, "eerc-pin.mjs");
+  assert.equal(status, 1, output);
+  assert.match(
+    output,
+    new RegExp(
+      `CIRCUIT_COMMIT \\(\\S+\\) is [0-9a-f]{40} but COMMIT \\(\\S+\\) is ${EERC_BEFORE_FIXES}`,
+    ),
+  );
+});
+
+test("eerc-pin checks that each production verifier carries its circuit's key", (t) => {
+  const root = fixture(t);
+  const { status, output } = run(root, "eerc-pin.mjs");
+  assert.equal(status, 0, output);
+  for (const name of ["registration", "mint", "transfer", "withdraw", "burn"]) {
+    assert.match(
+      output,
+      new RegExp(`ok ${name}: contracts/prod/\\w+Verifier\\.sol carries the key`),
+    );
+  }
 });
 
 test("upstream.mjs names files by git's blob id and finds every form of import", () => {

@@ -18,16 +18,24 @@
 // contracts are built from their pinned sources and settings in
 // contracts-ci/upstream/ (scripts/upstream.mjs fetches and checks the sources).
 //
-// Usage (from contracts-ci/, needs forge, and the network the first time an
-// upstream source is fetched):
-//   node scripts/check-artifacts.mjs           verify; exit 1 on any drift
-//   node scripts/check-artifacts.mjs --write   rewrite what drifted, in place
+// eerc-token ships no bytecode, but it pins the circuit files its app proves
+// with and the commit its deploy script builds contracts from, and the
+// verifiers that deploys have to accept those proofs: scripts/eerc-pin.mjs
+// checks that pin at the end.
+//
+// Usage (from contracts-ci/, needs forge and the network: upstream sources are
+// fetched once and cached, eerc-token's pin is read from GitHub every run):
+//   node scripts/check-artifacts.mjs                  verify; exit 1 on any drift
+//   node scripts/check-artifacts.mjs --write          rewrite what drifted, in place
+//   node scripts/check-artifacts.mjs --eerc-circuits  also hash eerc-token's ten
+//                                                     circuit files at its pin (55 MB)
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkEercPin } from "./eerc-pin.mjs";
 import { describePin, materialize, readPin } from "./upstream.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -49,7 +57,7 @@ const write = process.argv.includes("--write");
 //           this row checks. Without it the file is a *-artifact.ts module.
 // All paths are relative to the repo root.
 //
-// Out of scope: eerc-token, which ships no contract of its own.
+// Not a row: eerc-token, which ships no contract of its own (see above).
 const ARTIFACTS = [
   {
     source: `${TEMPLATES}/erc20-token/contracts`,
@@ -476,6 +484,24 @@ for (const entry of unaccounted()) {
       "  Add the entry to ARTIFACTS in contracts-ci/scripts/check-artifacts.mjs. If it is\n" +
       "  built from source that is not in this repo, pin that source in\n" +
       "  contracts-ci/upstream/ (see scripts/upstream.mjs) and name it in the row.",
+  );
+}
+
+// eerc-token: the verifiers `npm run deploy:eerc` deploys have to accept the
+// proofs its app makes. A pin where they did not shipped once: deploy:eerc
+// deployed keys that matched none of the circuits (see scripts/eerc-pin.mjs).
+const EERC = "packages/create-avalanche-app/templates/eerc-token (pinned ava-labs/EncryptedERC)";
+const eerc = await checkEercPin(repoRoot, { circuits: process.argv.includes("--eerc-circuits") });
+if (eerc.problems.length === 0) {
+  console.log(`ok ${EERC} @ ${eerc.commit.slice(0, 12)}`);
+} else {
+  failed = true;
+  console.error(
+    [
+      `EERC PIN DRIFT: ${EERC}`,
+      ...eerc.problems.map((problem) => `  - ${problem}`),
+      "  The pin is CIRCUIT_COMMIT in lib/eerc-config.ts and COMMIT in scripts/deploy-eerc.mjs.",
+    ].join("\n"),
   );
 }
 

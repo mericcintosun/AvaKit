@@ -2,17 +2,21 @@ import type { Hex } from "viem";
 
 /**
  * Standalone eERC deployment on Avalanche Fuji, shared by every app scaffolded
- * from this template. Deployed with `ava-labs/EncryptedERC`'s
- * `scripts/deploy-standalone.ts` (name "Test", symbol "TEST", 2 decimals).
+ * from this template. Deployed on 2026-11-21 with this template's own
+ * `npm run deploy:eerc`, so from `ava-labs/EncryptedERC` at CIRCUIT_COMMIT
+ * below (name "Test", symbol "TEST", 2 decimals), and checked then with a
+ * register, a mint, a confidential transfer and a burn. Its owner and auditor
+ * is a throwaway key that was not kept: nobody can mint on it, so deploy your
+ * own instance to mint.
  */
-export const SHARED_EERC_CONTRACT_ADDRESS: Hex = "0xfB27bcdb845ECF231a36f3d14466e9ce9CF98d58";
+export const SHARED_EERC_CONTRACT_ADDRESS: Hex = "0x71B8e84d2a28A72abD0151e55c2F7eA34c668a66";
 
 /**
  * The eERC instance this app talks to: the shared one until you run
  * `npm run deploy:eerc`, which rewrites this line to point at your own instance
  * (required for minting — `privateMint` is owner-only).
  */
-export const EERC_CONTRACT_ADDRESS: Hex = "0xfB27bcdb845ECF231a36f3d14466e9ce9CF98d58";
+export const EERC_CONTRACT_ADDRESS: Hex = "0x71B8e84d2a28A72abD0151e55c2F7eA34c668a66";
 
 /** True while the app still points at the shared demo instance. */
 export const usesSharedInstance =
@@ -32,7 +36,7 @@ export const usesSharedInstance =
  * (raw.githubusercontent.com at this commit), deliberately not from the CDN
  * they guard.
  */
-const CIRCUIT_COMMIT = "c7eb0e09bc9315e68c35d3c09f5dce4b794d0485";
+const CIRCUIT_COMMIT = "8dc98cd4d63ad3aa6d86b70b8f4bbcd70f1e8be1";
 const CIRCUIT_BASE = `https://cdn.jsdelivr.net/gh/ava-labs/EncryptedERC@${CIRCUIT_COMMIT}/circom/build`;
 
 const CIRCUIT_FILES = {

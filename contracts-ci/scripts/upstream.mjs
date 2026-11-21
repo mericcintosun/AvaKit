@@ -27,7 +27,15 @@
 // anonymous rate limit). Then regenerate: node scripts/check-artifacts.mjs --write
 
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -270,7 +278,8 @@ async function pin(name) {
   );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Run as a script, not imported (real paths: see the same check in eerc-pin.mjs).
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [command, name] = process.argv.slice(2);
   if (command !== "pin" || !name) {
     console.error(

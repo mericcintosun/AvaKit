@@ -49,12 +49,22 @@ asks no faucet at all.
 ## Pinned version and status
 
 - **Circuits and contracts:** [`ava-labs/EncryptedERC`](https://github.com/ava-labs/EncryptedERC)
-  at commit `c7eb0e09bc9315e68c35d3c09f5dce4b794d0485`. The browser loads the proving circuits from
-  that commit (`CIRCUIT_COMMIT` in `lib/eerc-config.ts`, every file checked against a pinned
-  SHA-256), and `npm run deploy:eerc` builds the contracts from the same commit (`COMMIT` in
+  at commit `8dc98cd4d63ad3aa6d86b70b8f4bbcd70f1e8be1`, upstream's security fixes of 2026-08-31,
+  which no release tag points at yet. The browser loads the proving circuits from that commit
+  (`CIRCUIT_COMMIT` in `lib/eerc-config.ts`, every file checked against a pinned SHA-256), and
+  `npm run deploy:eerc` builds the contracts from the same commit (`COMMIT` in
   `scripts/deploy-eerc.mjs`). The two constants must stay equal.
+- **What that commit brings:** its contract fixes (a registered account can no longer replace its
+  key and lock itself out, and incoming transfers can no longer pile up until an account cannot
+  spend) are in every instance `npm run deploy:eerc` deploys, and in the shared one, which was
+  deployed that way on 2026-11-21. Its deploy script deploys the production verifiers, whose keys
+  are those of the circuit files the browser downloads.
+- **What it does not bring yet:** its circuit fixes. Upstream has not published circuit files
+  built from the fixed circuits, so proofs are still made with the earlier ones, which let a
+  sender attach an extra hidden value to the encrypted amount, or encrypt their own amount so
+  that anyone can read it. Neither moves anyone's tokens. Move the pin when upstream publishes
+  new circuit files with matching production verifiers.
 - **SDK:** `@avalabs/eerc-sdk` 1.0.2, an exact version in `package.json`.
-- Upstream merged security fixes with regenerated verifier keys on 2026-08-31 that are not in a tagged release yet; this template has not been moved to them.
 - **Testnet only.** The shared instance and `npm run deploy:eerc` both live on Avalanche Fuji, and the
   scaffolder offers no other chain for this template. Do not put real funds behind it.
 
