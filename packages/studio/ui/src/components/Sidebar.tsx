@@ -8,17 +8,32 @@ import {
   Triangle,
   Wrench,
 } from "lucide-react";
+import { EXPERIMENTAL_SECTION } from "../lib/experimental";
 import { cn } from "../lib/utils";
 
 export type View = "overview" | "devnet" | "fuji" | "interchain" | "data" | "environment";
 
-const NAV: { id: View; label: string; icon: LucideIcon }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "devnet", label: "Devnet", icon: Server },
-  { id: "fuji", label: "Launch on Fuji", icon: Rocket },
-  { id: "interchain", label: "Interchain", icon: ArrowLeftRight },
-  { id: "data", label: "Data", icon: Coins },
-  { id: "environment", label: "Environment", icon: Wrench },
+type NavItem = { id: View; label: string; icon: LucideIcon };
+
+// The views in their usual order, in three groups. The middle one holds every
+// view that drives Avalanche CLI, which makes those views experimental.
+const NAV: { title: string; items: NavItem[] }[] = [
+  { title: "Main", items: [{ id: "overview", label: "Overview", icon: LayoutDashboard }] },
+  {
+    title: EXPERIMENTAL_SECTION,
+    items: [
+      { id: "devnet", label: "Devnet", icon: Server },
+      { id: "fuji", label: "Launch on Fuji", icon: Rocket },
+      { id: "interchain", label: "Interchain", icon: ArrowLeftRight },
+    ],
+  },
+  {
+    title: "Tools",
+    items: [
+      { id: "data", label: "Data", icon: Coins },
+      { id: "environment", label: "Environment", icon: Wrench },
+    ],
+  },
 ];
 
 export function Sidebar({
@@ -45,25 +60,29 @@ export function Sidebar({
         <Server className="size-4" /> Spin up devnet
       </button>
 
-      <p className="text-muted-foreground px-2 pb-1 text-[0.65rem] font-semibold tracking-widest uppercase">
-        Main
-      </p>
-      <nav className="flex flex-col gap-0.5">
-        {NAV.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onNavigate(id)}
-            className={cn(
-              "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
-              active === id
-                ? "bg-accent text-accent-foreground font-medium"
-                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-            )}
-          >
-            <Icon className="size-4" />
-            {label}
-          </button>
+      <nav className="flex flex-col gap-3">
+        {NAV.map(({ title, items }) => (
+          <div key={title} className="flex flex-col gap-0.5">
+            <p className="text-muted-foreground px-2 pb-1 text-[0.65rem] font-semibold tracking-widest uppercase">
+              {title}
+            </p>
+            {items.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onNavigate(id)}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                  active === id
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4" />
+                {label}
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
 

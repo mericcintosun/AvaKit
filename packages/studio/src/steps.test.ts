@@ -1,6 +1,17 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { lineSplitter, PARTIAL_LINE_MS, type RunHandle, runSteps, type Step } from "./steps.js";
 import { createSandbox, type Sandbox } from "./testing/sandbox.js";
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 let sandbox: Sandbox;
 beforeEach(() => {
@@ -188,6 +199,41 @@ describe("runSteps", () => {
     expect(r.exits).toEqual([143]); // 128 + SIGTERM
     expect(r.lines.at(-1)).toBe("■ cancelled");
     expect(sandbox.calls("tool")).toEqual([["one"]]);
+  });
+
+  it("cancel also stops what the command started in its process group", async () => {
+    const helperPid = path.join(sandbox.home, "helper.pid");
+    // A command that starts a helper of its own (in its own process group, as
+    // a process does unless it detaches it), then runs until it is stopped.
+    sandbox.stub(
+      "tool",
+      `async () => {
+        const { spawn } = await import("node:child_process");
+        const fs = await import("node:fs");
+        const helper = spawn(${JSON.stringify(process.execPath)}, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+        fs.writeFileSync(${JSON.stringify(helperPid)}, String(helper.pid));
+        process.stdout.write("started\\n");
+        await new Promise((r) => setTimeout(r, 30000));
+      }`,
+    );
+    let cancelled = false;
+    let pid = 0;
+    try {
+      const r = await run([step("one")], (handle, lines) => {
+        if (!cancelled && lines.includes("started")) {
+          cancelled = true;
+          pid = Number(readFileSync(helperPid, "utf8"));
+          handle.cancel();
+        }
+      });
+      expect(r.exits).toEqual([143]);
+      expect(pid).toBeGreaterThan(0);
+      const deadline = Date.now() + 5000;
+      while (alive(pid) && Date.now() < deadline) await sleep(25);
+      expect(alive(pid)).toBe(false);
+    } finally {
+      if (pid > 0 && alive(pid)) process.kill(pid, "SIGKILL");
+    }
   });
 
   it("finishes at once when there is nothing to run", async () => {

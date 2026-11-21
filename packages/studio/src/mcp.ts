@@ -12,6 +12,7 @@ import { banner, bannerColor } from "./banner.js";
 import { getAddressData } from "./dataapi.js";
 import {
   type DevnetAction,
+  devnetStillRunning,
   getDevnetStatus,
   isValidL1Params,
   type L1Params,
@@ -21,6 +22,7 @@ import {
 import { deployMessengers, getIcmState, MAX_MESSAGE_BYTES, sendIcmMessage } from "./icm.js";
 import { getInventory } from "./inventory.js";
 import { acquireActionLock, busyMessage, type LockAttempt } from "./lock.js";
+import { installShutdown } from "./shutdown.js";
 import { VERSION } from "./version.js";
 
 function toJson(value: unknown): string {
@@ -31,16 +33,28 @@ function text(body: string, isError = false) {
   return { content: [{ type: "text" as const, text: body }], isError };
 }
 
+/** The title of a tool that drives Avalanche CLI, or reads and changes what it set up. */
+const experimental = (title: string) => `${title} (experimental)`;
+
+/** What an agent is told about this server when it connects. */
+export const MCP_INSTRUCTIONS =
+  "The devnet_* and icm_* tools are experimental: they drive Avalanche CLI, which Ava Labs has kept in maintenance mode since December 2025, and they were last proven end to end against a live network in July 2026. " +
+  "The local network they start keeps running after this server stops; devnet_stop (or `avalanche network stop`) stops it. " +
+  "Interchain transactions are signed with the public EWOQ devnet key, and only for L1s whose RPC is on this machine.";
+
 /** Build the MCP server with every Studio tool registered (not yet connected). */
 export function createMcpServer(): McpServer {
-  const server = new McpServer({ name: "avakit-studio", version: VERSION });
+  const server = new McpServer(
+    { name: "avakit-studio", version: VERSION },
+    { instructions: MCP_INSTRUCTIONS },
+  );
 
   // One avalanche-cli action at a time: an agent may call tools in parallel, and
   // concurrent runs against the same local network corrupt each other. The lock
   // is the file the dashboard's run manager takes too, so the rule holds across
   // both faces of Studio, with the same refusal. The lock records each
-  // avalanche-cli command too, so it stays held while one outlives this process
-  // (the agent's client stops the MCP server half-way through an action).
+  // avalanche-cli command too: if this server is killed outright half-way
+  // through an action, the lock stays held until that command has ended.
   async function devnetAction(action: DevnetAction, tail: number, params?: L1Params) {
     let lock: LockAttempt;
     try {
@@ -72,7 +86,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "devnet_status",
     {
-      title: "Devnet status",
+      title: experimental("Devnet status"),
       description: "Report the local L1s and whether the local network is running.",
       inputSchema: {},
     },
@@ -82,7 +96,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "devnet_spin_up",
     {
-      title: "Spin up an ICM devnet",
+      title: experimental("Spin up an ICM devnet"),
       description:
         "Create two local Avalanche L1s with Interchain Messaging and a relayer, and deploy them locally. Idempotent. Takes a few minutes.",
       inputSchema: {},
@@ -93,7 +107,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "devnet_launch_l1",
     {
-      title: "Launch your own L1",
+      title: experimental("Launch your own L1"),
       description:
         "Create a single custom Subnet-EVM L1 and deploy it locally. Returns the exit code and log tail; read the chain's RPC afterwards with devnet_status. Idempotent: an existing chain with this name is reused (the log says so) when its chain id and token are the ones asked for, and the call is refused — naming the existing values — when they are not. Takes a few minutes on first run.",
       inputSchema: {
@@ -125,20 +139,28 @@ export function createMcpServer(): McpServer {
 
   server.registerTool(
     "devnet_start",
-    { title: "Start network", description: "Start the local Avalanche network.", inputSchema: {} },
+    {
+      title: experimental("Start network"),
+      description: "Start the local Avalanche network.",
+      inputSchema: {},
+    },
     async () => devnetAction("start", 8),
   );
 
   server.registerTool(
     "devnet_stop",
-    { title: "Stop network", description: "Stop the local Avalanche network.", inputSchema: {} },
+    {
+      title: experimental("Stop network"),
+      description: "Stop the local Avalanche network.",
+      inputSchema: {},
+    },
     async () => devnetAction("stop", 8),
   );
 
   server.registerTool(
     "icm_state",
     {
-      title: "Interchain state",
+      title: experimental("Interchain state"),
       description:
         "Report the running, ICM-ready local L1s: each one's messenger address and last received cross-chain message. `ready` is true only when two of them have a usable messenger and those messengers are linked to each other — a message can be sent right now; `hasPeers` only says that at least two such L1s are running. A null messenger means there is none to use — never deployed, gone with a wiped devnet, or from an older Studio. While `ready` is false and `hasPeers` is true, run icm_deploy_messengers: it deploys what is missing and links the messengers.",
       inputSchema: {},
@@ -149,7 +171,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "icm_deploy_messengers",
     {
-      title: "Deploy ICM messengers",
+      title: experimental("Deploy ICM messengers"),
       description:
         "Deploy the AvaKitMessenger contract on each running L1 that doesn't have a usable one (none yet, gone with a wiped devnet, or from an older Studio), and link the messengers so they accept each other's messages.",
       inputSchema: {},
@@ -168,7 +190,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "icm_send",
     {
-      title: "Send a cross-chain message",
+      title: experimental("Send a cross-chain message"),
       description:
         "Send a string from one running L1's messenger to another's over Interchain Messaging. Returns the transaction hash and receivedBefore, the destination's delivery count just before the send: the relayer delivers within seconds, after which icm_state reports a higher messagesReceived for the destination.",
       inputSchema: {
@@ -224,4 +246,19 @@ export async function runMcp(): Promise<void> {
     process.stderr.write(banner(bannerColor(process.stderr)));
   }
   await server.connect(new StdioServerTransport());
+  // Stopping stops the avalanche-cli command an agent started, as on the
+  // dashboard (shutdown.ts); what Studio says about it goes to stderr.
+  const shutdown = installShutdown({
+    write: (text) => process.stderr.write(text),
+    close: () => server.close(),
+    stillRunning: () => devnetStillRunning(),
+  });
+  // An MCP client ends a stdio server by closing its stdin (SIGTERM comes only
+  // if the server is still there a while later): that is a stop too. So is a
+  // stdout that can no longer be written (EPIPE): nobody reads the answers any
+  // more, and the error must not take the process down before it has stopped.
+  const disconnected = () => void shutdown.stop("disconnected");
+  process.stdin.once("end", disconnected);
+  process.stdin.once("close", disconnected);
+  process.stdout.on("error", disconnected);
 }

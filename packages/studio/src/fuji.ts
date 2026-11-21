@@ -14,8 +14,9 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { privateKeyToAccount } from "viem/accounts";
 import { l1ConfigConflict, reuseNote } from "./devnet.js";
-import { InputError } from "./errors.js";
+import { BusyError, InputError, STOPPING_MESSAGE } from "./errors.js";
 import { keyDir, subnetsDir } from "./paths.js";
+import { studioProcesses } from "./processes.js";
 import type { Step } from "./steps.js";
 import { isValidAmount, isValidChainId, isValidL1Name, isValidToken } from "./validators.js";
 
@@ -47,11 +48,14 @@ function keyAddress(name: string): `0x${string}` | null {
 /** Create the CLI key if it doesn't exist yet, and return its C-Chain address. */
 export async function ensureFujiKey(name: string): Promise<{ address: string | null }> {
   if (!isValidL1Name(name)) throw new InputError("invalid L1 name");
+  if (studioProcesses.isStopping()) throw new BusyError(STOPPING_MESSAGE, null);
   if (!existsSync(path.join(keyDir(), `${name}.pk`))) {
     await new Promise<void>((resolve) => {
       const child = spawn("avalanche", ["key", "create", name], {
         stdio: ["ignore", "ignore", "ignore"],
       });
+      // Stopping Studio stops it too (processes.ts).
+      studioProcesses.trackCommand(child, `avalanche key create ${name}`);
       child.on("close", () => resolve());
       child.on("error", () => resolve());
     });

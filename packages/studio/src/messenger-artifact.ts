@@ -1,6 +1,6 @@
 /**
  * AvaKitMessenger creation bytecode — the same self-contained send/receive ICM
- * contract as the icm-messenger template. Studio deploys it with `cast` so you
+ * contract as the icm-messenger template. Studio deploys it itself (icm.ts) so you
  * can send a cross-chain message without leaving the dashboard.
  *
  * The bytecode is generated from

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { decodeFunctionData, parseAbi } from "viem/utils";
+import { decodeFunctionData, parseAbi } from "viem";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { EWOQ_ADDRESS } from "./devkey.js";
 import { createMcpServer } from "./mcp.js";
 import { SEND_MESSAGE_SIG } from "./messenger-artifact.js";
 import {
@@ -89,9 +90,22 @@ describe("MCP tools", () => {
     expect([...listed.matchAll(/`([a-z_0-9]+)`/g)].map((m) => m[1]).sort()).toEqual(names);
   });
 
-  it("icm_send applies the same checks as the dashboard, and never reaches cast", async () => {
+  it("labels every tool that drives Avalanche CLI experimental, and tells the agent why", async () => {
+    const titles = Object.fromEntries(
+      (await client.listTools()).tools.map((t) => [t.name, t.title ?? ""]),
+    );
+    for (const [name, title] of Object.entries(titles)) {
+      const drivesCli = /^(devnet|icm)_/.test(name);
+      expect(title.endsWith(" (experimental)"), name).toBe(drivesCli);
+    }
+    const instructions = client.getInstructions() ?? "";
+    expect(instructions).toMatch(/^The devnet_\* and icm_\* tools are experimental/);
+    expect(instructions).toMatch(/maintenance mode since December 2025/);
+    expect(instructions).toMatch(/keeps running after this server stops; devnet_stop/);
+  });
+
+  it("icm_send applies the same checks as the dashboard, and sends nothing it refuses", async () => {
     deployedDevnet();
-    sandbox.fakeCast();
     const cases: [Record<string, unknown>, RegExp][] = [
       [{ from: "chain1", to: "chain2", message: "--help" }, /cannot start with '-'/],
       [{ from: "chain1", to: "chain2", message: "--async" }, /cannot start with '-'/],
@@ -108,39 +122,41 @@ describe("MCP tools", () => {
       expect(reply.isError, JSON.stringify(args).slice(0, 60)).toBe(true);
       expect(reply.text).toMatch(expected);
     }
-    expect(sandbox.calls("cast")).toEqual([]);
+    expect(rpc.transactions()).toEqual([]);
   });
 
-  it("icm_send sends a valid message as calldata: its text never reaches cast's arguments", async () => {
+  it("icm_send sends a valid message as calldata, signed with the EWOQ key", async () => {
     deployedDevnet();
-    sandbox.fakeCast();
-    // Starts with a quote, which cast would read as the start of a string literal.
+    // Starts with a quote, which a command-line parser would read as a string literal.
     const message = '"gm" agents';
     const reply = await call("icm_send", { from: "chain1", to: "chain2", message });
     expect(reply.isError).toBe(false);
-    expect(JSON.parse(reply.text)).toEqual({ txHash: "0xfeed", receivedBefore: 3 });
+    const result = JSON.parse(reply.text) as { txHash: string; receivedBefore: number };
+    expect(result).toEqual({
+      txHash: expect.stringMatching(/^0x[0-9a-f]{64}$/),
+      receivedBefore: 3,
+    });
 
-    const argv = sandbox
-      .calls("cast")
-      .find((a) => a[0] === "send" && a.at(-1)?.startsWith(SEND_MESSAGE_SELECTOR));
-    expect(argv?.indexOf("--")).toBe(6);
-    expect(argv?.slice(7)).toEqual([MESSENGER, expect.stringMatching(/^0x[0-9a-f]+$/)]);
+    const sent = rpc.transactions().find((tx) => tx.data.startsWith(SEND_MESSAGE_SELECTOR));
+    expect(sent).toMatchObject({
+      chain: "chain1",
+      from: EWOQ_ADDRESS,
+      to: MESSENGER.toLowerCase(),
+    });
     const { args } = decodeFunctionData({
       abi: parseAbi([`function ${SEND_MESSAGE_SIG}`]),
-      data: argv?.at(-1) as `0x${string}`,
+      data: sent?.data as `0x${string}`,
     });
     expect(args[2]).toBe(message);
-    expect(argv?.join(" ")).not.toContain("agents");
   });
 
   it("icm_send refuses a messenger from before the message-length cap", async () => {
     deployedDevnet();
     rpc.setOutdated("chain2", MESSENGER);
-    sandbox.fakeCast();
     const reply = await call("icm_send", { from: "chain1", to: "chain2", message: "gm" });
     expect(reply.isError).toBe(true);
     expect(reply.text).toBe("deploy the messengers first");
-    expect(sandbox.calls("cast")).toEqual([]);
+    expect(rpc.transactions()).toEqual([]);
   });
 
   it("icm_state lists only the L1s that can exchange a message", async () => {
@@ -148,7 +164,6 @@ describe("MCP tools", () => {
     sandbox.addL1("myfujil1", {
       fuji: { rpcUrl: rpc.url("myfujil1"), blockchainId: blockchainId(3).cb58 },
     });
-    sandbox.fakeCast();
     interface State {
       ready: boolean;
       hasPeers: boolean;
@@ -175,7 +190,6 @@ describe("MCP tools", () => {
     sandbox.addL1("chain2", {
       local: { rpcUrl: rpc.url("chain2"), blockchainId: blockchainId(2).cb58 },
     });
-    sandbox.fakeCast();
     const state = JSON.parse((await call("icm_state")).text) as {
       ready: boolean;
       hasPeers: boolean;

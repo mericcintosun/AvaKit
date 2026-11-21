@@ -1,7 +1,8 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  devnetStillRunning,
   existingL1Config,
   getDevnetStatus,
   isDevnetAction,
@@ -325,5 +326,78 @@ describe("devnet status and actions", () => {
       "error: avalanche is not installed or not on your PATH",
     ]);
     expect(lines.length).toBe(linesAtFirstDone);
+  });
+
+  it("never asks a 'local' RPC URL that points to another machine", async () => {
+    // A hand-edited config: its local network entry names a documentation address.
+    sandbox.addL1("elsewhere", {
+      local: { rpcUrl: "http://203.0.113.7:9650/ext/bc/x/rpc", blockchainId: blockchainId(9).cb58 },
+    });
+    const realFetch = globalThis.fetch;
+    const asked: string[] = [];
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      asked.push(String(input));
+      if (String(input).includes("203.0.113.7")) throw new Error("must never be asked");
+      return realFetch(input, init);
+    });
+    try {
+      const status = await getDevnetStatus();
+      expect(status.l1s.map((l) => [l.name, l.deployed, l.running])).toEqual([
+        ["elsewhere", true, false],
+      ]);
+      expect(await devnetStillRunning()).toEqual([]);
+      expect(asked).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("what Studio says about the local network when it stops", () => {
+  let sandbox: Sandbox;
+  let rpc: FakeRpc;
+  beforeEach(async () => {
+    sandbox = createSandbox();
+    rpc = await startFakeRpc();
+  });
+  afterEach(async () => {
+    await rpc.close();
+    sandbox.dispose();
+  });
+
+  it("names the local L1s that still answer, and how to stop the network", async () => {
+    sandbox.addL1("chain1", {
+      local: { rpcUrl: rpc.url("chain1"), blockchainId: blockchainId(1).cb58 },
+    });
+    sandbox.addL1("chain2", {
+      local: { rpcUrl: rpc.url("chain2"), blockchainId: blockchainId(2).cb58 },
+    });
+    // Deployed once; nothing answers on its RPC any more.
+    sandbox.addL1("stale", {
+      local: { rpcUrl: "http://127.0.0.1:9/dead/rpc", blockchainId: blockchainId(3).cb58 },
+    });
+    expect(await devnetStillRunning()).toEqual([
+      "The local Avalanche network keeps running. Studio leaves it up on purpose, because your apps and other tools may be using it:",
+      `  chain1  ${rpc.url("chain1")}`,
+      `  chain2  ${rpc.url("chain2")}`,
+      "Stop it with: avalanche network stop   (its state is kept: avalanche network start brings it back)",
+    ]);
+  });
+
+  it("says nothing when no local L1 answers", async () => {
+    sandbox.addL1("stale", {
+      local: { rpcUrl: "http://127.0.0.1:9/dead/rpc", blockchainId: blockchainId(3).cb58 },
+    });
+    expect(await devnetStillRunning()).toEqual([]);
+  });
+
+  it("prints no control characters from avalanche-cli's files to the terminal", async () => {
+    // The query string reaches the RPC percent-encoded; the file holds it raw.
+    const rpcUrl = `${rpc.url("chain1")}?x=\u001b[2J\u0007`;
+    sandbox.addL1("chain1", { local: { rpcUrl, blockchainId: blockchainId(1).cb58 } });
+    const lines = await devnetStillRunning();
+    expect(lines[1]).toBe(`  chain1  ${rpc.url("chain1")}?x=[2J`);
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: looking for them is the point
+    expect(lines.join("\n")).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f]/);
   });
 });

@@ -9,12 +9,16 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { subnetsDir } from "./paths.js";
+import { studioProcesses } from "./processes.js";
 
 const exec = promisify(execFile);
 
 async function firstLine(cmd: string, args: string[]): Promise<string | null> {
   try {
-    const { stdout } = await exec(cmd, args, { timeout: 5000 });
+    const running = exec(cmd, args, { timeout: 5000 });
+    // Stopping Studio stops it too (processes.ts).
+    studioProcesses.trackCommand(running.child, `${cmd} ${args.join(" ")}`);
+    const { stdout } = await running;
     return stdout.trim().split("\n")[0]?.trim() ?? null;
   } catch {
     return null;
