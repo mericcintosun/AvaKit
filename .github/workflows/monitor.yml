@@ -1,0 +1,64 @@
+# Is everything AvaKit runs for other people still up? Every six hours, and by
+# hand (Actions → Monitor · site and Workers → Run workflow), this asks:
+#
+#   - avakit.dev/ and avakit.dev/new: answering 200 with a page;
+#   - the faucet's GET /health: ok, its balance not under the low mark it
+#     reports, not paused (FAUCET_PAUSED), and today's drip budget not spent;
+#   - the telemetry collector's GET /health and GET /stats (the numbers behind
+#     avakit.dev/stats).
+#
+# A failure opens one issue labelled `monitor`, or updates the open one (with a
+# comment when what fails changes, so a failure that persists does not notify
+# again every six hours), and the run is red. Once every check passes again the
+# issue is closed with a comment. The checks and the issue live in
+# scripts/monitor.mjs; `node scripts/monitor.mjs --dry-run` runs the same checks
+# from any machine without touching an issue.
+#
+# GitHub starts scheduled runs late, sometimes by hours: this says something
+# within a few hours, not within minutes. It does not cover the daily
+# end-to-end run on Fuji (e2e-fuji.yml), which reports through its own run.
+name: Monitor · site and Workers
+
+on:
+  schedule:
+    # Every six hours, away from the top of the hour.
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+
+# Nothing by default; the job names what it needs.
+permissions: {}
+
+# One run at a time, so two runs never open two issues.
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check avakit.dev, the faucet and the telemetry collector
+    # A fork that enables scheduled workflows should not watch AvaKit's services.
+    if: github.event_name != 'schedule' || github.repository == 'mericcintosun/AvaKit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # Only the script; nothing else of the repository is needed.
+      - name: Fetch the script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/monitor.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check, and open, update or close the monitor issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/monitor.mjs
