@@ -3,23 +3,19 @@
 # finding, even of a value listed here, fails the scan until it has been looked
 # at and either removed or added below with a comment that says what it is.
 #
+# A value that is public everywhere it appears (a published test key, a digest)
+# is allowed in .gitleaks.toml instead: a fingerprint names one commit, so it
+# no longer matches once the file moves or the commit is rebased or squashed.
+#
 # Reviewed 2026-11-21: none of these is a leaked secret.
-
-# The first default account of Anvil and Hardhat (address 0xf39F...2266), a key
-# published in their documentation, used as a fixture in the burner wallet tests.
-6b7913abacf5e7e37a9ecd467d57716b62354ccc:packages/core/src/adapters/burner-signer.test.ts:generic-api-key:40
-6e14b14b0d8a76157a61b36abc6d5bf5ff7c2193:packages/core/src/adapters/burner.test.ts:generic-api-key:9
 
 # The demo Web3Auth client id the social-login templates ship so that Google
 # sign-in works on localhost: a public identifier that every built app sends to
 # the browser, for a Sapphire Devnet project that allows localhost origins only
-# (see the comment above it in each providers.tsx).
+# (see the comment above it in each providers.tsx). Kept per finding, so that a
+# template that changes or moves the id is looked at again.
 bf9f5ce95808c451e1e406bfdde015ba4e39f08b:packages/create-avalanche-app/templates/minimal/app/providers.tsx:generic-api-key:13
 bf9f5ce95808c451e1e406bfdde015ba4e39f08b:packages/create-avalanche-app/templates/nft-mint/app/providers.tsx:generic-api-key:13
 bf9f5ce95808c451e1e406bfdde015ba4e39f08b:packages/create-avalanche-app/templates/eerc-token/app/providers.tsx:generic-api-key:15
 bf9f5ce95808c451e1e406bfdde015ba4e39f08b:packages/create-avalanche-app/templates/token-gated-app/app/providers.tsx:generic-api-key:13
 bf9f5ce95808c451e1e406bfdde015ba4e39f08b:packages/create-avalanche-app/templates/erc20-token/app/providers.tsx:generic-api-key:13
-
-# EWOQ (address 0x8db9...52FC), the key Avalanche publishes for funding a local
-# network, used by Studio on the local devnet only.
-b3c9cba15ec830e465b4d9398e3b40e152a07e2a:packages/studio/src/icm.ts:generic-api-key:25

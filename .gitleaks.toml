@@ -1,0 +1,40 @@
+# Configuration of the gitleaks secret scan (.github/workflows/secret-scan.yml).
+# `gitleaks git .` at the repository root reads it without being told to.
+#
+# It keeps every default rule and allows two kinds of finding that are public
+# on purpose and would come back whenever their file moves or their commit is
+# rebased or squashed, which a fingerprint in .gitleaksignore cannot follow.
+# Everything else gitleaks reports still fails the scan.
+#
+# `useDefault = true` must stay: without it this file replaces the default
+# rules instead of extending them, and the scan finds nothing at all.
+# scripts/github-config.test.mjs checks it, and the workflow checks that a
+# planted key is still found before it scans.
+
+[extend]
+useDefault = true
+
+# contracts-ci pins the upstream Solidity sources it builds: sources.json lists
+# each file with its git blob id (40 hex digits). Next to a file name such as
+# TokenHome.sol the generic rule reads the id as an API key. Allowed: a hex
+# digest (40 or 64 digits), in these generated files only, for that rule only.
+[[allowlists]]
+description = "Digests of the pinned upstream sources in contracts-ci/upstream/*/sources.json"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^contracts-ci/upstream/[^/]+/sources\.json$''']
+regexes = ['''^[0-9a-f]{40}(?:[0-9a-f]{24})?$''']
+
+# Two private keys that are published, so they guard nothing: anyone can sign
+# with them, which is why the repository uses them only as fixtures and on a
+# local network. Allowed wherever they appear, with or without 0x.
+#   - EWOQ, address 0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC: the key Avalanche
+#     publishes to fund a local network. Studio uses it on the local devnet only.
+#   - Anvil and Hardhat default account #0, address
+#     0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266: in the burner wallet tests.
+[[allowlists]]
+description = "Published test keys: EWOQ (Avalanche local network) and Anvil/Hardhat account #0"
+regexes = [
+  '''(?i)^(?:0x)?56289e99c94b6912bfc12adc093c9b51124f0dc54ac7a766b2bc5ccf558d8027$''',
+  '''(?i)^(?:0x)?ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80$''',
+]
