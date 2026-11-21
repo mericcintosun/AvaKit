@@ -275,7 +275,11 @@ describe("the checks", () => {
     });
 
     assert.deepEqual(failing(results), ["site", "telemetry-stats"]);
-    assert.equal(row("telemetry-stats").detail, "/stats answered no answer (ECONNREFUSED)");
+    assert.equal(
+      row("site").detail,
+      "https://site.test/ answered HTTP 200 with application/json, not a page",
+    );
+    assert.equal(row("telemetry-stats").detail, "/stats gave no answer (ECONNREFUSED)");
   });
 
   it("fail a telemetry collector that cannot count, or predates its version", async () => {

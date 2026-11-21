@@ -72,10 +72,10 @@ export async function get(url, { fetch, sleep, attempts = ATTEMPTS, waitMs = WAI
   return outcome;
 }
 
-/** A one-line account of an answer that is not what was hoped for. */
+/** What happened to a request, as the end of a sentence about its URL. */
 function described(outcome) {
-  if (outcome.error) return `no answer (${outcome.error})`;
-  return `HTTP ${outcome.status}`;
+  if (outcome.error) return `gave no answer (${outcome.error})`;
+  return `answered HTTP ${outcome.status}`;
 }
 
 function parse(outcome) {
@@ -95,12 +95,11 @@ async function page(id, name, url, http) {
   if (outcome.status === 200 && outcome.type.includes("text/html")) {
     return pass(id, name, `HTTP 200 in ${outcome.ms} ms`);
   }
-  return fail(
-    id,
-    name,
-    `${url} answered ${described(outcome)}`,
-    "Look at the latest deployment of the site on Vercel.",
-  );
+  const what =
+    outcome.status === 200
+      ? `answered HTTP 200 with ${outcome.type || "no content type"}, not a page`
+      : described(outcome);
+  return fail(id, name, `${url} ${what}`, "Look at the latest deployment of the site on Vercel.");
 }
 
 /** The version a Worker's /health reports, in words. */
@@ -121,7 +120,7 @@ async function faucetChecks(base, http) {
       fail(
         "faucet",
         name,
-        `${url} answered ${described(outcome)}${why}`,
+        `${url} ${described(outcome)}${why}`,
         "Read the Worker's log: `cd services/faucet && npx wrangler tail`.",
       ),
     ];
@@ -213,7 +212,7 @@ async function telemetryChecks(base, http) {
   const body = parse(health);
   if (health.status !== 200 || body?.ok !== true) {
     const why = body?.error ? `: ${body.error}` : "";
-    checks.push(fail("telemetry", name, `/health answered ${described(health)}${why}`, hint));
+    checks.push(fail("telemetry", name, `/health ${described(health)}${why}`, hint));
   } else if (typeof body.version !== "string") {
     checks.push(
       fail(
@@ -241,7 +240,7 @@ async function telemetryChecks(base, http) {
       fail(
         "telemetry-stats",
         "Telemetry /stats",
-        `/stats answered ${described(stats)}`,
+        `/stats ${described(stats)}`,
         `${hint} After a schema change, see "Changing the schema" in services/telemetry/README.md.`,
       ),
     );
