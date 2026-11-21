@@ -526,6 +526,11 @@ describe("on a fresh server", () => {
         "an injected agent can write files too",
         "forgotten when the server stops",
         "no daily limit",
+        // Where the limits stop: what an operator has to know before relying on them.
+        "not in a project file an agent can edit",
+        "listing one for Fuji also allows it on mainnet",
+        "The AVAX limit holds per call, not in total",
+        "A contract that trusts `tx.origin` sees your wallet",
       ]) {
         expect(section, said).toContain(said);
       }
