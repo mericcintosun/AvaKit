@@ -19,7 +19,8 @@ The only path is the `publish` job of `.github/workflows/release.yml`. It runs i
 exchanges a GitHub OIDC id-token for a short-lived publish credential. Each package's
 Trusted Publisher on npmjs.com must name this repository, `release.yml` and that
 environment: [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)
-says how, and what is open until it does. The exchange is also what produces the
+says how, and what is open until it does. Naming the environment there is an owner step
+that has not been done yet. The exchange is also what produces the
 **provenance attestation** on each tarball (`npm publish --provenance`), so npm can
 prove the tarball was built from this repo, by this workflow, at this commit.
 
@@ -53,6 +54,12 @@ saved can end up in a tarball.
 
 Two settings outside this repository's files hold the publish path together. Set them
 once, and check them again after a fork, a transfer or a change of maintainers.
+
+Where they stand: the `npm-publish` environment exists, with the maintainer as its required
+reviewer and `main` as its only deployment branch. The Trusted Publishers do not name it
+yet. Setting the environment name in each of the five is an owner step that is still open
+([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md), "Owner steps"), so until then the approval is
+GitHub's alone, as the second item below explains.
 
 1. **The `npm-publish` environment** (GitHub: **Settings** → **Environments** → **New
    environment**, name `npm-publish`):
@@ -166,7 +173,9 @@ once, and check them again after a fork, a transfer or a change of maintainers.
   them. Their own workflow, `.github/workflows/deploy-workers.yml`, does that
   separately, behind its own approval; [`services/DEPLOY.md`](services/DEPLOY.md)
   describes it. Code merged to `main` under `services/` is not running until that
-  deploy has been approved and has finished.
+  deploy has been approved and has finished. Until the owner adds `CLOUDFLARE_API_TOKEN`
+  to the `cloudflare-workers` environment, the deploy stops at its credential check and
+  names the missing secret.
 - **The website.** `apps/web` is private and is not published to npm.
 
 ## Nothing is published from a red tree
@@ -207,12 +216,10 @@ changesets/action makes to `changeset-release/main` creates new runs that wait a
 The approved runs are the PR's own `pull_request` runs, so their **CI passed** is the
 check the `main` branch ruleset requires, and the PR can be merged once it is green.
 
-Starting `ci.yml` on the PR's branch some other way does not replace that click. A
-`workflow_dispatch` run, which `GITHUB_TOKEN` is allowed to start (for example with
-`gh workflow run ci.yml --ref changeset-release/main`), tests the same commit, but
-GitHub counts the checks of a workflow job for a pull request only when an event such
-as `push` or `pull_request` started the run: a dispatched run's checks do not show on
-the PR and do not satisfy a required check (GitHub docs:
+A run started some other way does not replace that click. GitHub counts the checks of a
+workflow job for a pull request only when an event such as `push` or `pull_request`
+started the run, so the checks of a `workflow_dispatch` run neither show on the PR nor
+satisfy a required check (GitHub docs:
 [Troubleshooting required status checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)).
 
 The one hands-off option is to open the PR with a GitHub App installation token
@@ -311,7 +318,9 @@ red:
 
 - `@avakit/core` — `dist/` (ESM + types), `README.md`, `LICENSE`. `@web3auth/modal` and
   the Coinbase SDK are **optional** peer dependencies.
-- `@avakit/react` — `dist/`, `README.md`, `LICENSE`. Peer deps: `react`, `react-dom`.
+- `@avakit/react` — `dist/`, `README.md`, `LICENSE`. Peer deps: `react` and `react-dom`,
+  and from the release after 0.2.2 also `viem` (`^2.58.0`), whose types its hooks and
+  components use.
 - `@avakit/mcp` — `dist/`, `README.md`, `LICENSE`. Bin: `avakit-mcp`.
 - `@avakit/studio` — `dist/` only (the UI is bundled into it; npm adds `README.md` +
   `LICENSE` regardless of `files[]`). Bin: `avakit-studio`.
@@ -330,10 +339,13 @@ it again before it publishes.
 
 ## Notes
 
-- `create-avalanche-app` declares Node `>=22` via `engines` (its wizard library, `ink`,
-  requires 22). The scaffolder reads that floor from its own `package.json` and refuses
-  to run below it with one line. The other packages declare `>=20.11`. The published
-  flow is run on Node 22, 24 and 26 (`e2e-fuji.yml`).
+- Every published package declares Node `>=22` via `engines`. Up to core and react 0.2.2,
+  mcp 0.2.1 and studio 0.1.14 the four libraries declared `>=20.11`;
+  `create-avalanche-app` already declares `>=22`, because its wizard library, `ink`,
+  requires 22. The scaffolder reads that floor from its own `package.json` and refuses to
+  run below it with one line. `scripts/workflows.test.mjs` checks that every package's
+  floor is the oldest Node.js line CI's `verify` job runs on. The published flow is run on
+  Node 22, 24 and 26 (`e2e-fuji.yml`).
 - `files[]` in `package.json` **overrides `.gitignore`** — if a package needs to exclude
   something from its tarball, add a negated pattern (`"!templates/**/.next/**"`) to
   `files` itself, as `create-avalanche-app` does. Its old `.npmignore` is gone. (This

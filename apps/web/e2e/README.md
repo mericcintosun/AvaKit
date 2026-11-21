@@ -19,14 +19,15 @@ other workflows (e2e-fuji.yml files under `e2e-failure`) never comment on that i
 close it.
 
 Started by hand with `live=false`, the workflow runs `site` and `template` only, and spends
-no faucet drip. That is also the only way these two checks can report on the version PR:
-a workflow opens that PR with `GITHUB_TOKEN`, so its own pull_request runs wait for someone
-to approve them, and release.yml's version-ci job starts ci.yml on its branch instead. Make
-`site` and `template` required checks on `main` only once that job also runs:
+no faucet drip.
 
-```sh
-gh workflow run e2e-browser.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH" -f live=false
-```
+On the version PR ("chore: version packages"), `site` and `template` run with the PR's
+other `pull_request` runs, once a maintainer clicks **Approve workflows to run**: a workflow
+opens that PR with `GITHUB_TOKEN`, and GitHub holds such a PR's runs until someone with write
+access approves them ([`RELEASING.md`](../../../RELEASING.md), "The version PR's checks"). A
+run started by hand does not stand in for that, because GitHub does not count a dispatched
+run's checks for a pull request. The ruleset on `main` requires only `CI passed`, from
+`ci.yml`; `site` and `template` are not required checks.
 
 ## Nothing the browser asks for leaves the machine
 

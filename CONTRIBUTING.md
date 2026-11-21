@@ -4,10 +4,10 @@ Thanks for your interest in AvaKit — the open-source, AI-native Avalanche deve
 
 ## Prerequisites
 
-- **Node.js `>= 20.11`** (see `.nvmrc` — the repo targets Node 24 in CI).
+- **Node.js `>= 22.18`** (`engines` in the root `package.json`; `.nvmrc` names 24, and CI runs Node 22 and 24).
 - **pnpm `>= 10`** — run `corepack enable` to get the version pinned in `package.json` (`pnpm@10.20.0`).
-- **Foundry** (optional) — only needed if you work on contract templates or regenerate bundled bytecode (see [Contracts and bytecode artifacts](#contracts-and-bytecode-artifacts)). Install with `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
-- **Avalanche CLI** (optional) — only needed to run the templates that spin up a local devnet or L1 (`icm-messenger`, `l1-launch`, `token-bridge`) and Studio's devnet views. Install it from [ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli). It has been in maintenance mode since December 2025, and its pages were removed from the Avalanche documentation on 2026-10-06; those templates were last proven end to end with version 1.9.6.
+- **Foundry** (optional) — only needed if you work on contract templates or regenerate bundled bytecode (see [Contracts and bytecode artifacts](#contracts-and-bytecode-artifacts)), or run the browser tests, which need its `anvil` ([`apps/web/e2e/README.md`](apps/web/e2e/README.md)). Install with `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
+- **Avalanche CLI** (optional) — only needed to run the templates that spin up a local devnet or L1 (`icm-messenger`, `l1-launch`, `token-bridge`) and Studio's Devnet, Launch on Fuji and Interchain views, all of them experimental. Install it from [ava-labs/avalanche-cli](https://github.com/ava-labs/avalanche-cli). It has been in maintenance mode since December 2025, and its pages were removed from the Avalanche documentation on 2026-10-06; those templates were last proven end to end with version 1.9.6.
 
 ## Getting started
 
@@ -36,15 +36,18 @@ pnpm --filter @avakit/react test
 pnpm --filter @avakit/web dev      # run the avakit.dev site locally
 ```
 
-Before opening a PR, make sure `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` all pass. That is the main CI job (`.github/workflows/ci.yml`). CI also runs:
+Before opening a PR, make sure `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` all pass. That is the main CI job (`.github/workflows/ci.yml`), run on Node 22 and 24. CI also runs:
 
 - the [template smoke test](#template-smoke-test) for all eight templates;
 - the [MCP install smoke test](#mcp-install-smoke-test);
 - the [contract tests and the artifact check](#contracts-and-bytecode-artifacts);
 - the tests of the two Workers under `services/`, which are standalone npm projects outside the pnpm workspace: `cd services/faucet && npm ci && npm test` (likewise `services/telemetry`; Node 22.15 or newer);
-- the checks on the repo's own scripts: `node --test scripts/*.test.mjs`, `node scripts/check-template-deps.mjs` and `node scripts/check-changesets.mjs` (see [Changesets](#changesets-versioning)).
+- the checks on the repo's own scripts: `node --test scripts/*.test.mjs`, `node scripts/check-template-deps.mjs`, `node scripts/check-template-commands.mjs` and `node scripts/check-changesets.mjs` (see [Changesets](#changesets-versioning));
+- a dependency audit that fails on a high or critical advisory (`pnpm audit`, and `npm audit` in each Worker) and, on a pull request, a dependency review that fails on a new one.
 
-A second workflow, `.github/workflows/e2e-fuji.yml`, is not part of a pull request's checks: it runs the [end-to-end script](#end-to-end-run-on-fuji) against the packages published on npm, daily and on demand.
+The last job of `ci.yml`, **CI passed**, fails on a pull request unless every other job succeeded, and it is the check the ruleset on `main` requires before a pull request can merge. A pull request also runs the browser tests (`.github/workflows/e2e-browser.yml`, see [`apps/web/e2e/README.md`](apps/web/e2e/README.md)), CodeQL and the secret scan.
+
+A further workflow, `.github/workflows/e2e-fuji.yml`, is not part of a pull request's checks: it runs the [end-to-end script](#end-to-end-run-on-fuji) against the packages published on npm, daily and on demand.
 
 `pnpm typecheck` builds the website before it type-checks it. `tsc` reads `.next/types`, which `next build` deletes and rewrites, so `apps/web/turbo.json` orders the two instead of letting them race.
 
@@ -150,11 +153,11 @@ cd contracts-ci && node scripts/sync.mjs && forge test && node scripts/check-art
 
 - `sync.mjs` checks that templates sharing a contract ship identical copies, and that every `foundry.toml` compiles with the settings of `contracts-ci/foundry.toml`. It reads the `[profile.default]` table only, so it refuses a `foundry.toml` that could change the compiler from anywhere else: a sub-table or array table of that profile, the header in another spelling, the legacy `[default]` table, or a key above the first table.
 - `forge test` runs the contract tests.
-- `check-artifacts.mjs` rebuilds each contract and compares all nine artifacts with the build; with `--write` it rewrites their abi and bytecode instead. It also fails on a committed `*-artifact.ts` or `*-artifacts.json` it has not been told about, so a new artifact cannot land unchecked.
+- `check-artifacts.mjs` rebuilds each contract and compares all nine artifacts with the build, and the three upstream ones below as well; with `--write` it rewrites the ones that drifted. It also fails on a committed `*-artifact.ts` or `*-artifacts.json` it has not been told about, so a new artifact cannot land unchecked.
 
 Commit the regenerated artifacts together with the source change: CI (the `contracts` job) runs the same three steps without `--write` and fails on any artifact that no longer matches its source.
 
-Not covered: the other three entries of `token-bridge`'s `lib/ictt-artifacts.json` (`ERC20TokenHome`, `ERC20TokenRemote`, `TeleporterRegistry`) are builds of `ava-labs/icm-contracts`, whose sources are not in this repository. The script names them as upstream and leaves them alone, also under `--write`.
+The other three entries of `token-bridge`'s `lib/ictt-artifacts.json` (`ERC20TokenHome`, `ERC20TokenRemote`, `TeleporterRegistry`) are builds of `ava-labs/icm-contracts` `v1.0.9`, whose sources are not in this repository. `check-artifacts.mjs` builds them too, from the upstream sources pinned in `contracts-ci/upstream/icm-contracts/`, and compares them byte for byte. It fetches those sources from GitHub the first time and caches them, so the first run needs the network ([`contracts-ci/README.md`](contracts-ci/README.md), "Upstream contracts").
 
 When you change either script, run its tests as well: `node --test scripts/guards.test.mjs` from `contracts-ci` (it needs `forge`). Each test breaks one thing in a temporary copy and expects the script to fail on it. CI runs it as well, as the last step of the `contracts` job.
 

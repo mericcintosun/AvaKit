@@ -75,6 +75,8 @@ A new wallet is empty. Before it sends, if the session wallet cannot pay for the
 - 20 drips per hour from one network address, shared by everyone behind it;
 - it can run empty.
 
+The faucet's code on `main` adds a daily drip budget shared by every caller and a kill switch. Once the hosted faucet is deployed from there, it can also refuse with `429 daily_limited` (the day's budget is spent, until 00:00 UTC) and `503 faucet_paused` (its operator has switched it off). The server names both from the release after 0.2.1; 0.2.1 goes by their HTTP status and reports them as a rate limit and as an empty faucet.
+
 When the faucet says no, **nothing is sent**, and the tool returns the faucet's reason and the two ways forward:
 
 1. set `AVAKIT_DEPLOYER_KEY` to your own funded Fuji key, or
@@ -83,7 +85,7 @@ When the faucet says no, **nothing is sent**, and the tool returns the faucet's 
 The request is `requestFaucet` from `@avakit/core`, and it is repeated only when the answer could be different:
 
 - **Asked again:** no answer arrived (a network error, or nothing within ten seconds), or the faucet failed on its side — a 500, 502 or 504, a 503 in which the faucet says it is busy, or a 503 that an outage in front of the faucet answered.
-- **Not asked again:** a refusal. A 429 (this wallet was funded in the last 24 hours, or the hourly limit was reached), the faucet's own 503 for "empty", and every 4xx are answers, and repeating the question would only use up the allowance faster.
+- **Not asked again:** a refusal. A 429 (this wallet was funded in the last 24 hours, the hourly limit was reached, or the day's budget is spent), the faucet's own 503 for "empty", and every 4xx are answers, and repeating the question would only use up the allowance faster.
 
 That is three attempts at most, ten seconds each, with a randomised pause between them that doubles its range each time. When an attempt got no answer, the server looks at the wallet's balance for another ten seconds before giving up, because the request may have been served all the same.
 
@@ -192,7 +194,7 @@ The messages are written to answer the question that comes next: was anything se
 | The transaction is not mined within 60 seconds | Reports it as sent but not confirmed, with the hash and a link, and never sends it again — so a retry cannot deploy or mint twice |
 | The transaction is mined but reverted | An error with the transaction's link, never a success |
 
-Reads of the chain are retried a few times by the RPC client on network errors. A transaction is signed once, and offered to each of the chain's RPC endpoints in `@avakit/core` at most once, in order, until one takes it; the same signed transaction can run at most once.
+Reads of the chain are retried a few times by the RPC client on network errors. A transaction is signed once and broadcast without retries. From the release after 0.2.1, which bundles core's RPC fallback, the broadcast goes to the chain's RPC endpoints in `@avakit/core` in order, each at most once, and moves on to the next one only when an endpoint gives no answer or answers that it cannot serve the request now: a node that rejects the transaction ("nonce too low", "insufficient funds") is reported as above, and the transaction is not handed to another endpoint. 0.2.1 has one endpoint per chain. The same signed transaction can run at most once.
 
 ## Write limits
 

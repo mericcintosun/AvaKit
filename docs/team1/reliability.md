@@ -40,15 +40,15 @@ None of this is on npm yet.
 
 | Failure | What happens |
 |---|---|
-| Ava Labs' public RPC stops answering | @avakit/core moves on to the chain's next endpoint at once. Fuji and C-Chain fall back to PublicNode, and a custom chain can list its own endpoints in `rpcUrls`. Every request still gives up after 10 seconds, the whole list is retried three times with backoff, and a revert is never sent elsewhere. The MCP server bundles core, so it gets this too. |
-| The temporary wallet's node stops answering | The wallet sends each transaction through one endpoint whose node has confirmed the chain. A send never moves to another node halfway and is never sent twice; the next send moves on to the next endpoint. A fallback node that names another chain is refused like the first one. |
+| Ava Labs' public RPC stops answering | @avakit/core moves on to the chain's next endpoint at once, but only when an endpoint fails the request: no answer, no answer in time, an HTTP error, or a node that says it cannot serve it now. Fuji and C-Chain fall back to PublicNode, and a custom chain can list its own endpoints in `rpcUrls`. Every request still gives up after 10 seconds, and the whole list is retried three times with backoff. A node's answer about the request itself, such as a revert or "nonce too low", comes back as the node gave it and is never sent elsewhere. When every endpoint fails, the call rejects with `RpcEndpointsError`, which names each endpoint by its origin and says how it failed. The MCP server bundles core, so it gets this too. |
+| The temporary wallet's node stops answering | The wallet sends each transaction through one endpoint whose node has confirmed the chain. A send never moves to another node halfway and is never sent twice; the next send moves on to the next endpoint. A fallback node that names another chain is refused like the first one. A refusal names an endpoint by its origin, never a password or API key in its URL. |
 | An agent is steered to another contract, or to send AVAX | The MCP server's `write_contract` calls only the contracts the server deployed in its session or that `AVAKIT_WRITE_ALLOWLIST` lists. One call sends at most `AVAKIT_MAX_VALUE` AVAX (0.1 by default). Both come from the server's environment and are checked again when the transaction is signed. They hold per call. |
 | Studio signs on the local devnet | Studio signs its Interchain transactions in its own process, with the public EWOQ devnet key, only for an RPC on this machine that answers for the L1's recorded chain ID. The key is on no command line. Stopping Studio stops the avalanche-cli command it started. |
 | The eERC template's upstream changes | It is pinned to upstream's security fixes of 2026-08-31, so `npm run deploy:eerc` deploys verifiers that match the circuits the app proves with. At the old pin, that script failed on a clean machine, or would have deployed verifiers that reject every real proof. CI checks the pin. |
 | A template needs Avalanche CLI | `icm-messenger`, `l1-launch` and `token-bridge` are marked experimental. The wizard, a non-interactive run, `--help` and the MCP server's `list_templates` say so. Studio labels its Avalanche CLI views the same way. |
 | Old Node.js | Every package declares Node.js 22 or newer, not only the scaffolder, and CI checks that this is the oldest Node.js it tests on. |
 
-The faucet Worker is deployed apart from npm. Its code on `main` adds a daily drip budget and a kill switch, with two new refusals: `429 daily_limited` and `503 faucet_paused`. @avakit/core retries neither. They take effect when the hosted faucet is next deployed.
+The faucet Worker is deployed apart from npm. Its code on `main` adds a daily drip budget and a kill switch, with two new refusals: `429 daily_limited` and `503 faucet_paused`. They take effect when the hosted faucet is next deployed. @avakit/core 0.2.2 reads them by their status alone and retries neither; mapping both codes in @avakit/core and the MCP server ships in the next release.
 
 ## Still open
 
@@ -58,4 +58,4 @@ See [KNOWN-GAPS.md](../KNOWN-GAPS.md):
 - The MCP write limits hold per call. Daily caps, allowlists of methods, human confirmation and an audit log are deliverable D1 of [milestone.md](milestone.md).
 - The three Avalanche CLI templates were last proven end to end in July.
 - Browser tests now drive avakit.dev/new and a scaffolded `nft-mint` app on every pull request ([`apps/web/e2e`](../../apps/web/e2e), run by [`e2e-browser.yml`](../../.github/workflows/e2e-browser.yml)). No test signs in with Google, and the other templates are built in CI but not clicked through.
-- The hosted faucet does not run the daily budget and kill switch yet.
+- The hosted faucet does not run the daily budget and kill switch yet. Its deploy waits for an owner step: adding the Cloudflare API token to the deploy workflow's environment.

@@ -1,5 +1,9 @@
 # AvaKit — Independence & Ecosystem Strategy
 
+> **Note (2026-11-21):** the `KNOWN-GAPS` item id this draft cites (E6) is that of an
+> earlier `docs/KNOWN-GAPS.md`, which has since been rewritten with new numbers. Read it
+> in that version: `git show 8e2ed22:docs/KNOWN-GAPS.md`.
+
 > **Status:** strategy draft, 2026-07-15. Prompted by feedback from the Avalanche
 > Team1 Turkey developer lead. Research-backed (5 parallel web-research passes +
 > a full-repo code review). Every external claim has a source in the Appendix.

@@ -50,7 +50,9 @@ up: the five Fuji templates on Fuji, the other three on their local devnet.
     chain's order, whose node has confirmed the chain. Every request of that send goes
     there, so a send never moves to another node halfway, and the burner never sends a
     transaction twice. An endpoint whose node does not answer passes the question to the
-    next one; when none answers, nothing is signed.
+    next one; when none answers, nothing is signed. A refusal names such an endpoint by its
+    place in `rpcUrls` and its origin, never by the whole URL, which can hold a password or
+    an API key.
 
   A testnet label on a mainnet RPC therefore gets "Nothing was signed or sent" instead of
   a mainnet transaction. A template scaffolded for C-Chain does not offer the burner at
@@ -151,11 +153,14 @@ The five Fuji templates and the MCP session test wallet ask AvaKit's shared fauc
   most 100,000 gas. This version has run the hosted faucet since 2026-11-19, with
   Turnstile off.
 - **On `main`, not deployed yet.** The hosted faucet gets these with its next deploy
-  (until then its `GET /health` reports no `version`):
+  (until then its `GET /health` reports no `version`). That deploy waits for an owner step:
+  the Cloudflare API token that `.github/workflows/deploy-workers.yml` needs is not set yet
+  ([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md), "Owner steps").
   - **Daily budgets** per UTC day, over all callers together: 50 drips for requests
     without a verified Turnstile token (`FAUCET_DAILY_DRIPS`) and 100 for verified ones
-    (`FAUCET_DAILY_DRIPS_VERIFIED`). At 0.02 AVAX a drip, a drain takes at most 1 AVAX a
-    day in drips while Turnstile is off.
+    (`FAUCET_DAILY_DRIPS_VERIFIED`). Once a budget is spent, every request that draws on
+    it is refused with `429 daily_limited` until 00:00 UTC. At 0.02 AVAX a drip, a drain
+    takes at most 1 AVAX a day in drips while Turnstile is off.
   - **A kill switch.** The `FAUCET_PAUSED` secret makes `POST /fund` answer
     `503 faucet_paused` at once, without asking the chain.
   - **A Turnstile lane.** Once `TURNSTILE_SECRET` is set, a request from an origin in
@@ -181,13 +186,16 @@ The five Fuji templates and the MCP session test wallet ask AvaKit's shared fauc
 `avakit.dev/new` keeps a temporary wallet whose key sits in `localStorage`, and signs Fuji
 transactions with one click, so any script that runs on the site could read that key. The
 site therefore sends a nonce-based Content-Security-Policy with every page
-([`apps/web/lib/csp.ts`](apps/web/lib/csp.ts), set by `apps/web/proxy.ts`):
+([`apps/web/lib/csp.ts`](apps/web/lib/csp.ts), set by `apps/web/proxy.ts`). The one page
+sent without it is the 404 page of a path with a dot in it (`/x.php`), which `proxy.ts`
+does not see; it shows what it takes from the request only escaped.
 
 - A script runs only if it carries the nonce made for that response, or was loaded by a
   script that does (`'strict-dynamic'`). An injected `<script>` or inline event handler
   does not run, and JavaScript `eval` is refused.
-- The browser may connect only to the site itself, the Fuji RPC, the faucet and the
-  decoder the 3D models need.
+- The browser may connect only to the site itself, the Fuji RPC endpoints of the
+  `@avakit/core` the site is built with (0.2.2 has one), the faucet and the decoder the 3D
+  models need.
 - No plugins, no `<base>` or form posts pointing to another site, and no framing by
   another site.
 
@@ -204,36 +212,51 @@ nonce.
 - **A person approves each publish.** The `publish` job runs in the `npm-publish`
   environment, which accepts `main` only and waits for the maintainer's approval. It is
   the only job of the workflow that can ask for an id-token, and it checks out and
-  installs nothing: it publishes the tarballs the `verify` job packed, after checking each
+  installs nothing: it publishes the tarballs the `pack` job packed, after checking each
   one against the sha256 that job recorded.
+- **npm's side of that approval is an owner step.** Until each package's Trusted Publisher
+  on npmjs.com names the `npm-publish` environment, npm accepts the id-token of any job of
+  `release.yml` that is given `id-token: write`, and the approval is enforced by GitHub
+  alone. That setting has not been made yet ([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md),
+  "Owner steps").
 - **Nothing is published from a red tree.** `verify` first runs lint, typecheck, the
   tests, the changeset check and the MCP install smoke test on the commit it releases.
-- **What this does not stop.** The tarballs are built next to the dependencies and the
-  tests, so a dependency compromised there could change what they contain. The approval
-  and the provenance are what stand between it and npm. [`RELEASING.md`](RELEASING.md)
-  has the steps.
+- **What this does not stop.** `pack` builds the tarballs on a runner of its own, from a
+  fresh checkout installed without install scripts, and runs nothing but the packages'
+  builds and `pnpm pack`; the tests and the smoke test run in `verify` and never touch
+  them, and no job of the workflow restores an Actions cache. A compromised build tool
+  (tsup, vite, esbuild, Turborepo) could still change what it builds. The approval and
+  the provenance are what stand between it and npm. [`RELEASING.md`](RELEASING.md) has
+  the steps.
 
 ## How the code is checked
 
+- **The `main` branch.** A ruleset requires a pull request and CI's `CI passed` check
+  before anything lands on `main`, and blocks force pushes and deletion, with no bypass.
+  The repository's default Actions token is read-only and cannot approve pull requests.
 - **CI** runs with a read-only token: lint, typecheck, build and tests on Node.js 22 and
   24, with coverage thresholds for core, react, mcp and the scaffolder. It scaffolds and
   builds every template, and rebuilds every shipped contract artifact with Foundry and
   compares it byte for byte.
 - **Dependencies.** `pnpm audit` and the Workers' `npm audit` fail CI on a high or
-  critical advisory, and on a pull request, dependency review fails on a new one.
-  Dependabot opens weekly version updates, and Dependabot alerts and security updates
-  are on.
+  critical advisory, and on a pull request, dependency review fails on a new one in any
+  dependency, development dependencies included. Dependabot opens weekly version updates,
+  and Dependabot alerts and security updates are on.
 - **CodeQL** scans the JavaScript and TypeScript code and the GitHub workflows on every
   push to `main`, every pull request and once a week.
 - **Secrets.** GitHub secret scanning with push protection is on. gitleaks, a pinned and
   checksum-verified binary, scans the full history of every push and pull request, and
-  every branch and tag once a week. Values that are public on purpose, such as the EWOQ
-  key and the demo Web3Auth client ID, are acknowledged one finding at a time in
-  `.gitleaksignore`.
+  every branch and tag once a week, with its default rules and a configuration
+  (`.gitleaks.toml`) that the workflow first checks still reports a planted key. Values
+  that are public on purpose are acknowledged in two places: `.gitleaks.toml` allows two
+  published test keys (the EWOQ key and Anvil's first account) wherever they appear, and
+  the digests `contracts-ci` pins, in their files only; `.gitleaksignore` acknowledges
+  the demo Web3Auth client ID one finding at a time.
 - **OpenSSF Scorecard** grades the repository's supply-chain practices once a week and on
   every push to `main`.
 - **Browser tests** drive avakit.dev/new and a scaffolded `nft-mint` app on every pull
-  request, and fail on any Content-Security-Policy violation on the site's key routes.
+  request, and fail on any Content-Security-Policy violation on the site's key routes and
+  its 404 page.
 
 ## Local developer tooling
 
@@ -247,7 +270,7 @@ by design and is scoped to local/testnet use:
   for an L1 whose RPC URL is on this machine (`localhost`, `127.0.0.0/8` or `::1`), follows
   no redirect, and refuses an RPC that answers for another chain ID than the one
   avalanche-cli recorded for that L1. Studio 0.1.14 still passes the key to `cast` on the
-  command line, where other processes of the same user can see it. The templates' devnet
+  command line, where other processes on the machine can read it. The templates' devnet
   scripts read the key from avalanche-cli instead of carrying it.
 - **`@avakit/mcp` with your own key.** `AVAKIT_DEPLOYER_KEY` in the server's
   environment replaces the session test wallet. The key is never logged or returned,
