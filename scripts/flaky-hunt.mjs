@@ -31,10 +31,11 @@
  * make it busy, and the same seed may well pass on an idle one. Neither kind is
  * fixed by retrying; find the race or the leak.
  *
- * Every run has a wall-clock limit of 15 minutes; a run that exceeds it is
- * stopped and counted as a failure. The suites run with AVAKIT_TELEMETRY_DISABLED=1
- * and DO_NOT_TRACK=1. Inside GitHub Actions the summary is also appended to
- * $GITHUB_STEP_SUMMARY.
+ * Build first (`pnpm build`): the suites import the built packages, as they do
+ * in CI. Every run has a wall-clock limit of 15 minutes; a run that exceeds it
+ * is stopped and counted as a failure. The suites run with
+ * AVAKIT_TELEMETRY_DISABLED=1 and DO_NOT_TRACK=1. Inside GitHub Actions the
+ * summary is also appended to $GITHUB_STEP_SUMMARY.
  *
  * Exit status: 0 when every run passed, 1 when any failed, 2 for a usage error.
  *
