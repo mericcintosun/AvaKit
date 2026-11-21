@@ -1,13 +1,15 @@
-import { Moon, Sun } from "lucide-react";
+import { FlaskConical, Moon, Sun } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type DevnetStatus, type IcmState, type Inventory } from "./api";
 import { BootSplash } from "./components/BootSplash";
 import { Sidebar, type View } from "./components/Sidebar";
 import { useToast } from "./components/toast";
-import { Dot } from "./components/ui/badge";
+import { Badge, Dot } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
+import { Card } from "./components/ui/card";
 import { useFujiWizard } from "./hooks/useFujiWizard";
 import { type Connection, connectionAfterFailure, connectionLabel } from "./lib/connection";
+import { EXPERIMENTAL_NOTE, isExperimental } from "./lib/experimental";
 import { countPeers } from "./lib/interchain";
 import { finishNotice, runHome, runLabel } from "./lib/run-messages";
 import { useRunStatus } from "./run";
@@ -44,6 +46,19 @@ const TITLES: Record<View, { title: string; sub: string }> = {
     sub: "The Avalanche tools and project detected on this machine.",
   },
 };
+
+/** The note at the top of every view that drives Avalanche CLI. */
+function ExperimentalNote() {
+  return (
+    <Card className="mb-4 flex items-start gap-3 p-4">
+      <FlaskConical className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+      <div className="text-sm">
+        <p className="font-medium">Experimental</p>
+        <p className="text-muted-foreground mt-0.5">{EXPERIMENTAL_NOTE}</p>
+      </div>
+    </Card>
+  );
+}
 
 function useTheme() {
   const [dark, setDark] = useState(
@@ -166,7 +181,10 @@ export function App() {
       <main className="ml-60 min-h-dvh">
         <header className="bg-background/80 sticky top-0 z-10 flex items-center justify-between border-b px-8 py-4 backdrop-blur">
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">{meta.title}</h1>
+            <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+              {meta.title}
+              {isExperimental(view) && <Badge>experimental</Badge>}
+            </h1>
             <p className="text-muted-foreground text-xs">{meta.sub}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -194,6 +212,7 @@ export function App() {
         </header>
 
         <div className="px-8 py-8">
+          {!disconnected && isExperimental(view) && <ExperimentalNote />}
           {disconnected ? (
             connection === "stale-token" ? (
               <div className="flex flex-col items-start gap-3">

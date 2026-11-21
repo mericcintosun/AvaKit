@@ -12,12 +12,14 @@
  * It is created exclusively (it either does not exist yet, or the action is
  * refused), it names its owner, and it is removed when the action ends.
  *
- * The avalanche-cli command an action runs is spawned detached, so that
- * stopping Studio (Ctrl+C) never kills a `network start` half-way. That command
- * can therefore outlive the Studio process that started it, and while it runs
- * no other action may start. So the lock also names the command in flight
- * (`command`), and it is held while EITHER its owner or that command is alive:
- * an owner that exits while its command still runs leaves the lock in place.
+ * Stopping Studio stops the avalanche-cli command it started and waits for it
+ * (shutdown.ts), so the action ends and the lock goes with it. But the command
+ * runs detached, in its own process group, and a Studio that is killed outright
+ * (SIGKILL, a crash) has no chance to stop it: the command then outlives its
+ * Studio, and while it runs no other action may start. So the lock also names
+ * the command in flight (`command`), and it is held while EITHER its owner or
+ * that command is alive: an owner that exits while its command still runs
+ * leaves the lock in place.
  *
  * "Alive" means the pid exists AND, where the operating system says when a
  * process started, it is still the process that was recorded: a pid that now
@@ -296,10 +298,16 @@ export function releaseAllLocks(): void {
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 function onSignal(signal: NodeJS.Signals): void {
+  // The dashboard and the MCP server handle these signals themselves
+  // (shutdown.ts): they stop the command in flight, wait for it, and only then
+  // exit, so the lock goes back when the action ends (or, at the latest, on
+  // 'exit'). Giving it back here, at the signal, would free it while the
+  // command still runs.
+  if (process.listenerCount(signal) > 1) return;
   releaseAllLocks(); // …which also takes this handler off again
   // Listening for a signal switches off its default action (ending the
-  // process). If nothing else is listening, that is still what must happen.
-  if (process.listenerCount(signal) === 0) process.kill(process.pid, signal);
+  // process). Nothing else is listening, so that is still what must happen.
+  process.kill(process.pid, signal);
 }
 
 /** While a lock is held, release it when the process ends — however it ends. */

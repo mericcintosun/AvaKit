@@ -378,8 +378,9 @@ describe("malformed requests", () => {
     expect(sandbox.calls("avalanche")).toEqual([]);
   });
 
-  it("rejects an invalid Interchain send with 400 and the reason, without running cast", async () => {
-    sandbox.fakeCast();
+  it("rejects an invalid Interchain send with 400 and the reason, without running anything", async () => {
+    // A stub that would record any attempt to run a tool for the message.
+    sandbox.stub("cast", "() => ({})");
     const send = (body: unknown) => api("/api/icm/send", { body });
     const cases: [unknown, string][] = [
       [{ from: "chain1", to: "chain1", message: "gm" }, "pick two different chains"],

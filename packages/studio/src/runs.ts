@@ -6,8 +6,8 @@
  * same local network (or the same Fuji deploy) corrupt each other. That holds
  * across Studio processes too (the MCP face, a second dashboard): every run
  * takes the action lock file for as long as it is in flight, and records the
- * avalanche-cli command it runs there, so the lock outlives this process while
- * that command does (see lock.ts).
+ * avalanche-cli command it runs there, so that a Studio killed outright leaves
+ * the lock held for as long as that command still runs (see lock.ts).
  */
 
 import { acquireActionLock, actionLockFile, type LockHolder } from "./lock.js";

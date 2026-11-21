@@ -9,6 +9,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { isLocalRpcUrl } from "./devkey.js";
 import { subnetsDir } from "./paths.js";
 import { type OnCommand, type RunHandle, runSteps, type Step } from "./steps.js";
 import { isValidChainId, isValidL1Name, isValidToken } from "./validators.js";
@@ -41,9 +42,9 @@ function readJson(file: string): Record<string, unknown> | null {
   }
 }
 
-async function probeRpc(rpcUrl: string): Promise<boolean> {
+async function probeRpc(rpcUrl: string, timeoutMs: number): Promise<boolean> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 1500);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(rpcUrl, {
       method: "POST",
@@ -95,15 +96,42 @@ function listL1Names(): string[] {
   }
 }
 
-export async function getDevnetStatus(): Promise<DevnetStatus> {
+/** `probeTimeoutMs`: how long each L1's RPC gets to answer. */
+export async function getDevnetStatus(probeTimeoutMs = 1500): Promise<DevnetStatus> {
   const l1s = listL1Names().map(readL1);
-  // "Running" = a deployed L1's RPC actually answers.
+  // "Running" = a deployed L1's RPC actually answers. The local network runs
+  // on this machine: a "local" RPC URL that points anywhere else (a hand-edited
+  // config) is not asked at all, and that L1 is not running.
   await Promise.all(
     l1s.map(async (l1) => {
-      if (l1.deployed && l1.rpcUrl) l1.running = await probeRpc(l1.rpcUrl);
+      if (l1.deployed && l1.rpcUrl && isLocalRpcUrl(l1.rpcUrl)) {
+        l1.running = await probeRpc(l1.rpcUrl, probeTimeoutMs);
+      }
     }),
   );
   return { running: l1s.some((l1) => l1.running), l1s };
+}
+
+/** Text from a file on disk, safe to print to a terminal: no control characters. */
+function printable(text: string, max: number): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: removing them is the point
+  return text.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").slice(0, max);
+}
+
+/**
+ * What Studio says about the local network when it exits. Studio never stops
+ * the network on its way out: the network is avalanche-cli's, and apps, a
+ * terminal or another Studio may be using it. So when its L1s still answer,
+ * Studio names them and says how to stop them. No lines when nothing is up.
+ */
+export async function devnetStillRunning(probeTimeoutMs = 1000): Promise<string[]> {
+  const up = (await getDevnetStatus(probeTimeoutMs)).l1s.filter((l1) => l1.running);
+  if (up.length === 0) return [];
+  return [
+    "The local Avalanche network keeps running. Studio leaves it up on purpose, because your apps and other tools may be using it:",
+    ...up.map((l1) => `  ${printable(l1.name, 64)}  ${printable(l1.rpcUrl ?? "", 200)}`),
+    "Stop it with: avalanche network stop   (its state is kept: avalanche network start brings it back)",
+  ];
 }
 
 // --- Actions: command sequences built from whitelisted values only ------------

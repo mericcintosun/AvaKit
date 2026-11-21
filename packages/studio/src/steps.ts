@@ -3,11 +3,19 @@
  * output line by line. The devnet and Fuji actions share it, so both get the
  * same guarantees: every command is spawned from an argument ARRAY (never a
  * shell string), `onDone` fires exactly once, and no line is emitted after it.
+ * Every run and every command it spawns is registered (processes.ts), so that
+ * stopping Studio stops them too.
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { constants } from "node:os";
 import { StringDecoder } from "node:string_decoder";
+import {
+  KILL_GRACE_MS,
+  type ProcessRegistry,
+  signalCommand,
+  studioProcesses,
+} from "./processes.js";
 
 export interface Step {
   cmd: string;
@@ -32,9 +40,6 @@ export interface RunHandle {
   /** Stop the running command. `onDone` still fires, once it has exited. */
   cancel: () => void;
 }
-
-/** How long a cancelled command gets to exit on SIGTERM before it is killed. */
-const KILL_GRACE_MS = 5000;
 
 /** A line with no newline yet is shown after this long without more output. */
 export const PARTIAL_LINE_MS = 250;
@@ -93,10 +98,14 @@ function signalExitCode(signal: NodeJS.Signals | null): number {
 
 /**
  * Told the pid of each command as soon as it is spawned, and null once it has
- * exited. The action lock records it: a command is detached, so it can outlive
- * Studio, and no other action may start while it runs (see lock.ts).
+ * exited. The action lock records it: a Studio that is killed outright (no
+ * chance to stop its command) leaves the command running, and no other action
+ * may start until it has ended (see lock.ts).
  */
 export type OnCommand = (pid: number | null) => void;
+
+/** The line a run ends with when Studio stops before its next command. */
+export const STOPPING_LINE = "■ cancelled — Studio is stopping";
 
 /**
  * Run `steps` in order, streaming each output line. Stops at the first step
@@ -107,11 +116,13 @@ export function runSteps(
   onLine: (line: string) => void,
   onDone: (exitCode: number) => void,
   onCommand?: OnCommand,
+  registry: ProcessRegistry = studioProcesses,
 ): RunHandle {
   let current: ChildProcess | null = null;
   let cancelled = false;
   let finished = false;
   let killTimer: ReturnType<typeof setTimeout> | undefined;
+  let unregister: () => void = () => {};
 
   const emit = (line: string): void => {
     if (!finished) onLine(line);
@@ -121,6 +132,7 @@ export function runSteps(
     finished = true;
     clearTimeout(killTimer);
     current = null;
+    unregister();
     onDone(exitCode);
   };
 
@@ -130,15 +142,22 @@ export function runSteps(
       finish(0);
       return;
     }
+    // Studio is stopping (shutdown.ts): nothing new starts.
+    if (registry.isStopping()) {
+      emit(STOPPING_LINE);
+      finish(signalExitCode("SIGTERM"));
+      return;
+    }
     if (step.note) emit(step.note);
-    emit(`$ ${step.cmd} ${step.args.join(" ")}`);
+    const commandLine = `${step.cmd} ${step.args.join(" ")}`;
+    emit(`$ ${commandLine}`);
 
     let child: ChildProcess;
     try {
-      // `detached` puts the CLI in its own process group so the local network
-      // (or the Fuji validator node) it boots survives even if Studio is
-      // stopped or restarted — and so that Ctrl+C on Studio, which signals the
-      // terminal's foreground group, never kills a command half-way.
+      // `detached` puts the CLI in its own process group, so the Ctrl+C that
+      // the terminal sends to Studio's group never reaches it half-way: Studio
+      // stops it itself (shutdown.ts), the way Cancel does, and waits for it.
+      // Only a Studio killed outright leaves it running (see lock.ts).
       child = spawn(step.cmd, step.args, { stdio: ["ignore", "pipe", "pipe"], detached: true });
     } catch (e) {
       emit(`error: ${e instanceof Error ? e.message : String(e)}`);
@@ -146,6 +165,7 @@ export function runSteps(
       return;
     }
     current = child;
+    registry.trackCommand(child, commandLine, { owned: true, group: true });
     // At once, in the same tick as the spawn: nothing (a signal handler
     // included) can run in between and miss the command.
     if (child.pid !== undefined) onCommand?.(child.pid);
@@ -207,20 +227,25 @@ export function runSteps(
     });
   };
 
-  runStep(0);
-
-  return {
-    cancel: () => {
-      if (finished || cancelled) return;
-      cancelled = true;
-      const child = current;
-      if (!child) {
-        finish(signalExitCode("SIGTERM"));
-        return;
-      }
-      child.kill();
-      killTimer = setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS);
-      killTimer.unref();
-    },
+  // Stopping a command signals its whole process group: the command, and what
+  // it started that is still in that group (as Ctrl+C on it in a terminal would).
+  const cancel = (): void => {
+    if (finished || cancelled) return;
+    cancelled = true;
+    const child = current;
+    if (!child) {
+      finish(signalExitCode("SIGTERM"));
+      return;
+    }
+    signalCommand(child, "SIGTERM", true);
+    killTimer = setTimeout(() => signalCommand(child, "SIGKILL", true), KILL_GRACE_MS);
+    killTimer.unref();
   };
+  const signal = (sig: NodeJS.Signals): void => {
+    if (current) signalCommand(current, sig, true);
+  };
+
+  unregister = registry.registerAction({ cancel, signal });
+  runStep(0);
+  return { cancel };
 }

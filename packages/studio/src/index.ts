@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { platform } from "node:os";
 import { parsePort } from "./args.js";
 import { banner, bannerColor } from "./banner.js";
-import { startServer } from "./server.js";
+import { serveDashboard } from "./dashboard.js";
 import { VERSION } from "./version.js";
 
 /** Best-effort: open the default browser. Never throws. */
@@ -57,12 +57,15 @@ async function main(): Promise<void> {
         "  -p, --port <n>   port to listen on (default: a free port)",
         "      --no-open    do not open the browser automatically",
         "",
+        "Stopping Studio (Ctrl+C) stops the avalanche-cli command it is running, if any.",
+        "The local Avalanche network keeps running: stop it with `avalanche network stop`.",
+        "",
       ].join("\n"),
     );
     return;
   }
 
-  const { url } = await startServer({ port: parsePort(argv), cwd: process.cwd() });
+  const { url } = await serveDashboard({ port: parsePort(argv), cwd: process.cwd() });
 
   const color = bannerColor(process.stdout);
   const boldUrl = color ? `\x1b[1m\x1b[97m${url}\x1b[0m` : url;

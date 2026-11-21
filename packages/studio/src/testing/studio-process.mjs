@@ -1,6 +1,8 @@
 // Test-only: a real, separate Studio process run straight from the TypeScript
 // sources, so a test can stop it with a signal the way a user (Ctrl+C) or an
-// agent's client (SIGTERM) would. Never shipped (the package publishes dist/).
+// agent's client (SIGTERM, a closed stdin) would. It starts each face the way
+// the `avakit-studio` binary does, so it stops the same way too. Never shipped
+// (the package publishes dist/).
 //
 //   node studio-process.mjs dashboard <webDir>   prints {"port":…,"token":"…"}
 //   node studio-process.mjs mcp                  an MCP server on stdio
@@ -32,8 +34,8 @@ if (mode === "mcp") {
   const { runMcp } = await import("../mcp.ts");
   await runMcp();
 } else if (mode === "dashboard") {
-  const { startServer } = await import("../server.ts");
-  const server = await startServer({ cwd: process.cwd(), webDir });
+  const { serveDashboard } = await import("../dashboard.ts");
+  const server = await serveDashboard({ cwd: process.cwd(), webDir });
   const shell = await (await fetch(server.url)).text();
   const token = /window\.__AVAKIT_STUDIO__=\{"token":"([0-9a-f]+)"\}/.exec(shell)?.[1];
   process.stdout.write(`${JSON.stringify({ port: server.port, token })}\n`);

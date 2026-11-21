@@ -8,15 +8,18 @@ import { configDefaults, defineConfig } from "vitest/config";
 // which needs no DOM; the React components themselves are built with Vite and
 // have no unit tests.
 
-// The stubs are POSIX shell launchers, so the suites that use the sandbox are
-// left out on Windows (the pure ones still run there).
+// The stubs are POSIX shell launchers, and stopping a process with SIGTERM
+// (which it may ignore) and SIGKILL is POSIX behaviour, so the suites that use
+// the sandbox or signals are left out on Windows (the pure ones still run there).
 const SANDBOXED = [
   "src/devnet.test.ts",
   "src/fuji.test.ts",
   "src/icm.test.ts",
   "src/lock.process.test.ts",
   "src/mcp.test.ts",
+  "src/processes.test.ts",
   "src/server.test.ts",
+  "src/shutdown.test.ts",
   "src/steps.test.ts",
 ];
 

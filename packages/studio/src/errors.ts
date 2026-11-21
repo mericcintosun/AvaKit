@@ -9,9 +9,13 @@ export class InputError extends Error {
   override name = "InputError";
 }
 
+/** The refusal of anything new once Studio has begun to stop (shutdown.ts). */
+export const STOPPING_MESSAGE = "Studio is stopping: no new action can start.";
+
 /**
- * Refused because another action holds Studio's action lock (see lock.ts). The
- * message is the shared busy message; the HTTP server answers these with 409.
+ * Refused because another action holds Studio's action lock (see lock.ts), or
+ * because Studio is stopping (STOPPING_MESSAGE, with no holder). The HTTP
+ * server answers these with 409.
  */
 export class BusyError extends Error {
   override name = "BusyError";
