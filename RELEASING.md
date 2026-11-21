@@ -162,11 +162,11 @@ once, and check them again after a fork, a transfer or a change of maintainers.
   in [`packages/mcp/REGISTRIES.md`](packages/mcp/REGISTRIES.md). It stays manual so that
   the release pipeline holds no token.
 - **The two Cloudflare Workers.** `services/faucet` and `services/telemetry` are
-  standalone npm projects outside the pnpm workspace. No workflow deploys them: each is
-  deployed by hand with `npx wrangler deploy` from its own directory, following its
-  `README.md`. Code merged to `main` under `services/` is therefore not running until
-  someone deploys it. The faucet and telemetry changes of the November review rounds
-  were deployed on 2026-11-19.
+  standalone npm projects outside the pnpm workspace, and `release.yml` never deploys
+  them. Their own workflow, `.github/workflows/deploy-workers.yml`, does that
+  separately, behind its own approval; [`services/DEPLOY.md`](services/DEPLOY.md)
+  describes it. Code merged to `main` under `services/` is not running until that
+  deploy has been approved and has finished.
 - **The website.** `apps/web` is private and is not published to npm.
 
 ## Nothing is published from a red tree
@@ -199,8 +199,7 @@ an approval-required state: they have no jobs until someone with write access cl
 **Approve workflows to run** in the PR's merge box, and a PR merged before that leaves
 them failed with no jobs, which the Actions tab labels *"This run likely failed because
 of a workflow file issue"*. That is what runs 44558954539 (#29) and 44565792970 (#31)
-are: nothing was wrong with `ci.yml`. (The version PRs of July 2026, #2, #3, #4, #5 and
-#10, show no run at all.)
+are: nothing was wrong with `ci.yml`.
 
 So a maintainer starts them, as step 3 of [the release flow](#the-release-flow) says:
 **Approve workflows to run** on the PR, once per update of the PR, because every push
