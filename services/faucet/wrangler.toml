@@ -30,13 +30,17 @@ FAUCET_CORS_ORIGIN = "*"
 FAUCET_DAILY_DRIPS = "50"
 FAUCET_DAILY_DRIPS_VERIFIED = "100"
 # GET /health reports "low": true under this balance (AVAX), and the monitor
-# workflow opens an issue. 1 AVAX is 50 drips at 0.02.
+# workflow opens an issue. 1 AVAX is 50 drips at 0.02: one day's worst case while
+# Turnstile is off. Keep it at one day's worst case or more, so raise it to 3
+# before setting TURNSTILE_SECRET (README, "Turnstile").
 FAUCET_LOW_BALANCE_AVAX = "1"
 # The origins that must send a Turnstile token. It does nothing until the
 # TURNSTILE_SECRET secret is set; with both, a request from avakit.dev needs a
 # token, while every other origin (and the MCP server, which sends none) may come
 # without one and draws on the unverified budget. Do not set the secret before
-# avakit.dev/new sends a token: README, "Turnstile".
+# avakit.dev/new sends a token: README, "Turnstile". On a faucet of your own that
+# already has the secret and wants a token from every caller, set this to "" (or
+# your own origins) before deploying: README, "Upgrading to the daily budgets".
 TURNSTILE_ORIGINS = "https://avakit.dev"
 
 # The rate limits and the send queue live in one SQLite-backed Durable Object per

@@ -81,9 +81,13 @@ Turnstile is off, since without the secret no request is verified, and
 1 + 100 × 0.02 = 3 AVAX once it is on.
 
 A budget is in drips, not AVAX: raising `FAUCET_DRIP_AVAX` raises the worst
-case with it. Keep the budgets small next to the balance, so the monitor's low
-balance warning (`FAUCET_LOW_BALANCE_AVAX`) comes days before the faucet is
-empty, not hours.
+case with it. Keep the budgets small next to the balance, and keep the low
+balance mark (`FAUCET_LOW_BALANCE_AVAX`) at one day's worst case or more. Then,
+even at the worst case, the faucet still has about a day of drips left when its
+balance crosses the mark: time for the monitor, which looks every six hours and
+often starts late, to open its issue, and for someone to top the faucet up.
+The hosted mark, 1 AVAX, is one day's worst case while Turnstile is off; it has
+to go up to 3 AVAX before Turnstile is turned on (README.md, "Turnstile").
 
 ## When to pause
 
@@ -99,7 +103,10 @@ npx wrangler secret delete FAUCET_PAUSED         # resume
 While paused, `POST /fund` answers `503 faucet_paused` and asks nothing of the
 chain, and `GET /health` says `"paused": true`. Set it as a secret, not as a
 dashboard variable: the next deploy removes dashboard variables, which would
-switch the faucet back on without anyone deciding to.
+switch the faucet back on without anyone deciding to. A rollback can get in
+the way of the switch twice: rolling back to a version from before the pause
+undoes it, and while a rolled-back version is live `wrangler secret put` fails
+(see "Rolling back" in [services/DEPLOY.md](../DEPLOY.md)).
 
 A key that may have leaked needs more than a pause: move what is left on it,
 then `npx wrangler secret put AVAKIT_FAUCET_KEY` with a new throwaway key.
