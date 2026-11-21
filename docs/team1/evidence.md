@@ -1,6 +1,6 @@
 # Evidence: run it yourself, without the maintainer's machine
 
-Everything here can be checked without trusting me. Last updated 2026-11-19.
+Everything here can be checked without trusting me. Last updated 2026-11-21.
 
 ## Three ways in
 
@@ -12,10 +12,11 @@ Everything here can be checked without trusting me. Last updated 2026-11-19.
 
 ## Proof
 
-- **Fresh machines, every day.** [`e2e-fuji.yml`](../../.github/workflows/e2e-fuji.yml) installs the published packages on GitHub-hosted runners: Ubuntu with Node.js 22, 24 and 26, macOS, and Windows, using only Node.js and npm. On each runner it scaffolds through the MCP server and builds the app. On one runner it also deploys and mints on Fuji. The schedule runs daily from 20 November 2026.
-  - Latest run, all green: https://github.com/mericcintosun/AvaKit/actions/runs/44567467935
-  - Its contract: https://build.avax.network/explorer/fuji/c-chain/address/0x3bEf9325F70d075343FE1f3590E73120337250a2
-  - Its mint: https://build.avax.network/explorer/fuji/c-chain/tx/0xd2f54127ef7561dbf5052aee21a7e305eecbb3a6e9bf3a0521bd199b51d32088
+- **Fresh machines, every day.** [`e2e-fuji.yml`](../../.github/workflows/e2e-fuji.yml) installs the published packages on GitHub-hosted runners: Ubuntu with Node.js 22, 24 and 26, macOS, and Windows, using only Node.js and npm. On each runner it scaffolds through the MCP server and builds the app. On one runner it also deploys and mints on Fuji. The schedule runs daily from 20 November 2026; GitHub starts it hours after its 05:23 UTC slot.
+  - Run by hand on 19 November, all green: https://github.com/mericcintosun/AvaKit/actions/runs/44567467935 ([contract](https://build.avax.network/explorer/fuji/c-chain/address/0x3bEf9325F70d075343FE1f3590E73120337250a2), [mint](https://build.avax.network/explorer/fuji/c-chain/tx/0xd2f54127ef7561dbf5052aee21a7e305eecbb3a6e9bf3a0521bd199b51d32088))
+  - Scheduled runs, all green: 20 November (https://github.com/mericcintosun/AvaKit/actions/runs/44750893968) and 21 November (https://github.com/mericcintosun/AvaKit/actions/runs/44909637601)
+  - The 21 November contract: https://build.avax.network/explorer/fuji/c-chain/address/0xCf59eE8a38F43302880984ddF1fce0D759620ba6
+  - Its mint: https://build.avax.network/explorer/fuji/c-chain/tx/0x87f4ec3e012e9aff4f3735914c480312e97e1451231d467c0ac9816cc44c1a99
   - The same check on your own machine: `node scripts/e2e-fuji.mjs --source npm`.
 - **Video (2:37, silent, captioned):** https://youtu.be/_u1CdTQYq_M. It was recorded on my Mac after I removed every AvaKit package, cache, configuration and scaffolded app; the first seconds show the check. One prompt to Claude Code scaffolds, deploys and mints. Then the same app runs in a fresh browser.
   - Agent mint: https://build.avax.network/explorer/fuji/c-chain/tx/0x3d60f5284c1553568afc7a0ac6f6f29a871fb34b14c67d755669e7565d6a3b49
@@ -25,12 +26,20 @@ Everything here can be checked without trusting me. Last updated 2026-11-19.
   - @avakit/core 0.2.2 and @avakit/react 0.2.2;
   - @avakit/mcp 0.2.1, listed in the official MCP Registry as `dev.avakit/avalanche`;
   - @avakit/studio 0.1.14.
-- **This week's work:** a review of the whole repository in nine areas found 108 issues, and 103 are fixed. The week also added the key-free agent path, the failure handling in [reliability.md](reliability.md), the daily run, and a hardened faucet. All of it is in https://github.com/mericcintosun/AvaKit/pull/26.
+- **On `main`, not on npm yet.** These ship in the next release:
+  - an RPC fallback in @avakit/core: PublicNode after Ava Labs' API, on Fuji and C-Chain;
+  - per-call write limits in the MCP server: only the contracts it deployed or that you list, and at most 0.1 AVAX a call by default;
+  - the eERC template on upstream's 2026-08-31 contract fixes;
+  - the three Avalanche CLI templates marked experimental;
+  - Node.js 22 as the floor of every package.
+- **On `main`, outside npm:** browser tests on every pull request; CodeQL, gitleaks and OpenSSF Scorecard; a publish that waits for my approval; a nonce-based Content-Security-Policy for avakit.dev; and a daily budget and kill switch for the faucet, live once the hosted faucet is next deployed.
+- **The work of 17–19 November:** a review of the whole repository in nine areas found 108 issues, and 103 are fixed. Those days also added the key-free agent path, the failure handling in [reliability.md](reliability.md), the daily run, and a hardened faucet. All of it is in https://github.com/mericcintosun/AvaKit/pull/26.
 
 ## Where it stands, honestly
 
-- **Usage is small.** The [public counter](https://avakit.dev/stats) shows 10 anonymous scaffolds between 15 July and 17 November 2026. On 18 November test runs added 52 by mistake; that day was removed on 19 November. None of these counts as a validated user.
+- **Usage is small.** The [public counter](https://avakit.dev/stats) shows 10 anonymous scaffolds between 15 July and 17 November 2026, and none since (checked 21 November). On 18 November test runs added 52 by mistake; that day was removed on 19 November. None of these counts as a validated user.
 - **Gaps:**
-  - Three of the eight templates (L1 launch, ICM messenger, token bridge) depend on Avalanche CLI, which is in maintenance mode. They were last proven end to end in July.
-  - No test drives a browser.
+  - Three of the eight templates (L1 launch, ICM messenger, token bridge) depend on Avalanche CLI, which is in maintenance mode. They were last proven end to end in July, and are now marked experimental.
+  - The browser tests drive avakit.dev/new and one scaffolded template (`nft-mint`). No test signs in with Google.
+  - The RPC fallback and the MCP write limits are on `main`, not on npm yet.
   - The full list is in [KNOWN-GAPS.md](../KNOWN-GAPS.md).

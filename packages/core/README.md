@@ -10,7 +10,7 @@ With a real wallet (Core / MetaMask, social login, a passkey wallet) the user's 
 npm install @avakit/core viem
 ```
 
-> **ESM-only.** `@avakit/core` ships ES modules (no CommonJS build) — use `import`, not `require`. In a CommonJS file, load it with a dynamic `await import("@avakit/core")`. Requires Node `>= 20.11`.
+> **ESM-only.** `@avakit/core` ships ES modules (no CommonJS build) — use `import`, not `require`. In a CommonJS file, load it with a dynamic `await import("@avakit/core")`. Requires Node.js `>= 22`, the oldest line AvaKit is tested on.
 
 ## Usage
 
@@ -34,8 +34,8 @@ Chains live at `@avakit/core/chains`. The two adapters that need an extra SDK si
 
 ## What's inside
 
-- **Chains** — `fuji`, `cChain`, `defineChain` for custom L1s, `isMainnet`; each chain carries its `explorerUrl` and, on a testnet, a `faucetUrl` (see [Explorer and faucet links](#explorer-and-faucet-links))
-- **Clients** — `getPublicClient`, `getWalletClient`, `toViemChain`
+- **Chains** — `fuji`, `cChain`, `defineChain` for custom L1s, `isMainnet`; each chain carries its `explorerUrl` and, on a testnet, a `faucetUrl` (see [Explorer and faucet links](#explorer-and-faucet-links)), and can list several RPC endpoints in `rpcUrls`, read in order with `rpcEndpoints` (see [RPC endpoints and fallback](#rpc-endpoints-and-fallback))
+- **Clients** — `getPublicClient`, `getWalletClient`, `getRpcTransport`, `toViemChain`
 - **Adapters** — `burnerAdapter({ chain })` (a throwaway in-browser wallet, zero setup — see the warning below) + `clearBurner()`; `injectedAdapter()` (Core / MetaMask); `web3authAdapter({ clientId })` (social login, from `@avakit/core/web3auth`); `coinbaseAdapter()` (passkey smart wallet, from `@avakit/core/coinbase`)
 - **Network** — `ensureChain(provider, chain)` (add + switch; once it resolves the wallet is on the chain, burner wallet included)
 - **Deploy** — `deployContract`, `waitForDeployment`, `getBytecode`
@@ -48,7 +48,8 @@ Chains live at `@avakit/core/chains`. The two adapters that need an extra SDK si
 `burnerAdapter()` is the zero-setup path: it lets someone try a real Fuji transaction without installing a wallet. It is the one place AvaKit itself handles a key, so be precise about what it does:
 
 - It calls viem's `generatePrivateKey()` **in the browser** and, by default, stores that key in **`localStorage` in the clear** (`avakit.burner.pk`). Any script running on the page can read it. There is no HSM and no enclave.
-- It is **testnet-only, enforced in code**: it refuses to connect on, or switch to, a mainnet chain, and `<AvaKitProvider>` (`@avakit/react`) disconnects it if the app moves to one. It does not take a chain definition's word for it either: before the first transaction on a chain it asks the node behind `rpcUrl` for its chain id and refuses on a mismatch, and it signs transactions only for the definition's chain id, so a testnet label on a mainnet RPC is refused with nothing signed or sent.
+- It is **testnet-only, enforced in code**: it refuses to connect on, or switch to, a mainnet chain, and `<AvaKitProvider>` (`@avakit/react`) disconnects it if the app moves to one. It does not take a chain definition's word for it either: before it first sends through one of the chain's RPC endpoints it asks that endpoint's node for its chain id and refuses on a mismatch, and it signs transactions only for the definition's chain id, so a testnet label on a mainnet RPC is refused with nothing signed or sent.
+- On a chain with several RPC endpoints, it sends each transaction through one of them: the first, in the chain's order, whose node has confirmed the chain. Every request of that send goes there, so a send never moves to another node halfway, and the burner never sends a transaction twice. An endpoint that stops answering is asked again on the next send, which moves on to the next endpoint if it is still gone. Reads it forwards for the app go over the endpoints like `getPublicClient`'s, once each, and the app's own client retries them.
 - Treat it as a throwaway session holding a faucet drip, not as a wallet. Never send real funds to a burner address. `clearBurner()` deletes the stored key; `persist: false` keeps the key out of `localStorage` and in memory only, so the adapter keeps its wallet across reconnects and a reload starts a fresh one.
 - `injectedAdapter()`, `web3authAdapter()` and `coinbaseAdapter()` are the upgrade path. With those, keys stay with the wallet provider.
 
@@ -59,6 +60,36 @@ Everything defaults to the Fuji testnet. `deployContract` refuses a mainnet chai
 A chain counts as mainnet unless its definition says `testnet: true`, and always when its id is a known mainnet (`43114`). A definition that leaves the flag out is therefore treated as a mainnet, not as a testnet.
 
 `deployContract` resolves only for a contract that really exists. A deployment transaction that reverted is rejected with `DeployFailedError`, and so is one that succeeded but left no code at the new address: after a successful receipt the code is read back with `eth_getCode`, and because a node can serve a receipt slightly before the state behind it, an empty read is repeated for up to two seconds before the deployment is given up on. `waitForDeployment(txHash, chain)` applies the same checks to a creation transaction you sent yourself (from a script or a server with its own key) and resolves with the same `{ address, txHash, explorerUrl }`.
+
+## RPC endpoints and fallback
+
+Added after 0.2.2. Up to 0.2.2, every chain has its `rpcUrl` alone.
+
+A chain can list more than one JSON-RPC endpoint. `rpcUrl` is the one AvaKit tries first, and the optional `rpcUrls` lists every endpoint in the order they are tried, `rpcUrl` first. `fuji` and `cChain` try Ava Labs' public API first and Allnodes' PublicNode second (`https://avalanche-fuji-c-chain-rpc.publicnode.com`, `https://avalanche-c-chain-rpc.publicnode.com`).
+
+```ts
+import { defineChain, getRpcTransport, rpcEndpoints, toViemChain } from "@avakit/core";
+import { createPublicClient } from "viem";
+
+const myL1 = defineChain({
+  id: 99999,
+  name: "My L1",
+  rpcUrl: "https://rpc-a.my-l1.example",
+  rpcUrls: ["https://rpc-a.my-l1.example", "https://rpc-b.my-l1.example"],
+  explorerUrl: "",
+  nativeCurrency: { name: "Token", symbol: "TKN", decimals: 18 },
+  testnet: true,
+});
+
+rpcEndpoints(myL1); // ["https://rpc-a.my-l1.example", "https://rpc-b.my-l1.example"]
+
+// A viem client of your own that talks to the chain the way getPublicClient does.
+const client = createPublicClient({ chain: toViemChain(myL1), transport: getRpcTransport(myL1) });
+```
+
+- **The order.** `rpcEndpoints(chain)` returns the endpoints in the order they are tried, without repeats. `rpcUrls` counts only when its first entry is `rpcUrl`, so a definition that spreads a built-in chain and replaces its `rpcUrl` (`{ ...fuji, rpcUrl: myNode }`) talks to `myNode` alone, never to the endpoints it replaced. `defineChain` refuses an entry that is not an http(s) URL.
+- **Reads.** `getPublicClient(chain)` reads through `getRpcTransport(chain)`, and you can pass that transport to your own viem (or wagmi) client. Every request gives up after 10 seconds. A request that fails on one endpoint (no answer, a timeout, an HTTP error) goes to the next one at once. When the last one fails too, the whole list is tried again, up to three more times, after 150, 300 and 600 ms (or what the endpoint's `Retry-After` says), as long as the failure can pass: a timeout, a network error, HTTP 403, 408, 413, 429, 500, 502, 503 or 504, or a JSON-RPC rate limit or internal error. A revert or a rejected request is the chain's answer, and is neither retried nor sent elsewhere. A call to a chain with N endpoints therefore makes at most 4 × N requests. A chain with one endpoint gets viem's single-endpoint behaviour: up to four attempts there. Nothing pings the endpoints in the background.
+- **Wallets.** `toViemChain(chain)` lists every endpoint, and `ensureChain` passes them all, primary first, to a wallet that has to add the chain. `getWalletClient(chain, provider)` sends through the wallet's own provider, so Core, MetaMask and social login use their own RPC, not this list. The burner wallet sends each transaction through one endpoint (see [above](#the-burner-wallet-holds-a-key-in-the-browser)).
 
 ## Explorer and faucet links
 
