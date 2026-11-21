@@ -656,7 +656,7 @@ AvaKit is an open-source, AI-native Avalanche developer toolkit.
 - Minting, like every other state-changing call, is done with \`write_contract\`. Reading is \`read_chain\`.
 - \`write_contract\` calls only the contracts this server deployed in this session (on the same chain) and the ones \`${WRITE_ALLOWLIST_ENV}\` lists in the server's environment, and one call sends at most \`${MAX_VALUE_ENV}\` AVAX (${DEFAULT_MAX_VALUE} when it is not set). A refusal names the variable; only the person running the server can change it, never a tool call.
 - Mainnet (\`chain: "c-chain"\`) needs all three: your own key in \`AVAKIT_DEPLOYER_KEY\`, \`confirm: true\` in the call, and \`AVAKIT_ALLOW_MAINNET=1\` in the server's environment. The session test wallet is never used on mainnet.
-- If the AvaKit faucet refuses (rate limit, empty), there are two ways forward: ${FUJI_FAUCET_FALLBACK}.
+- If the AvaKit faucet refuses (rate limit, daily limit, empty, paused), there are two ways forward: ${FUJI_FAUCET_FALLBACK}.
 
 ## @avakit/react
 - \`<AvaKitProvider chains={[...]} adapters={[...]}>\`, \`<ConnectAvalanche />\`

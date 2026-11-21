@@ -83,7 +83,7 @@ When the faucet says no, **nothing is sent**, and the tool returns the faucet's 
 The request is `requestFaucet` from `@avakit/core`, and it is repeated only when the answer could be different:
 
 - **Asked again:** no answer arrived (a network error, or nothing within ten seconds), or the faucet failed on its side — a 500, 502 or 504, a 503 in which the faucet says it is busy, or a 503 that an outage in front of the faucet answered.
-- **Not asked again:** a refusal. A 429 (this wallet was funded in the last 24 hours, or the hourly limit was reached), the faucet's own 503 for "empty", and every 4xx are answers, and repeating the question would only use up the allowance faster.
+- **Not asked again:** a refusal. A 429 (this wallet was funded in the last 24 hours, the limit for your network was reached, or the faucet's daily limit for all callers is spent), the faucet's own 503 for "empty" or "paused", and every 4xx are answers, and repeating the question would only use up the allowance faster. A daily limit is reported with the time until it resets, and a pause as a pause, not as an empty faucet.
 
 That is three attempts at most, ten seconds each, with a randomised pause between them that doubles its range each time. When an attempt got no answer, the server looks at the wallet's balance for another ten seconds before giving up, because the request may have been served all the same.
 

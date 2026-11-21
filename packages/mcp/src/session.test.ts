@@ -215,15 +215,38 @@ describe("on Fuji with no key configured", () => {
       ],
       [
         { status: 429, body: { code: "ip_limited" }, headers: { "retry-after": "900" } },
-        "its hourly limit for your network has been reached; it can be asked again in about 15 minutes",
+        "its limit for requests from your network has been reached; it can be asked again in about 15 minutes",
+      ],
+      [
+        {
+          status: 429,
+          body: {
+            error:
+              "The faucet has sent all the drips it gives out today. Try again after 00:00 UTC.",
+            code: "daily_limited",
+          },
+          headers: { "retry-after": "30600" },
+        },
+        "its daily limit for all callers together has been reached; the limit resets in about 9 hours",
       ],
       [{ status: 503, body: { code: "faucet_empty" } }, "it is out of test AVAX"],
+      [
+        {
+          status: 503,
+          body: { error: "The faucet is paused. Try again later.", code: "faucet_paused" },
+        },
+        "it has been paused by its operator until further notice",
+      ],
       [
         { status: 403, body: { code: "turnstile_required" } },
         "it asks for a human verification step that this server cannot complete",
       ],
       [
         { status: 400, body: { code: "unsupported_chain" } },
+        "it does not fund Avalanche Fuji, chain 43113 (check AVAKIT_FAUCET_URL if it is set)",
+      ],
+      [
+        { status: 400, body: { error: "A valid 0x address is required." } },
         "it rejected the request as invalid (HTTP 400)",
       ],
     ];

@@ -324,6 +324,69 @@ describe("automatic funding of a burner wallet", () => {
     expect(faucet.spy).toHaveBeenCalledTimes(1);
   });
 
+  // Two refusals that last: a pause until its operator ends it, a daily limit
+  // until 00:00 UTC. A pause also answers 503, like an empty faucet.
+  it.each([
+    {
+      what: "a paused faucet",
+      answer: () =>
+        json({ error: "The faucet is paused. Try again later.", code: "faucet_paused" }, 503),
+      code: "paused",
+      faucetCode: "faucet_paused",
+      status: 503,
+      retryAfterMs: undefined,
+      message: "The faucet is paused. Try again later.",
+    },
+    {
+      what: "a spent daily limit",
+      answer: () =>
+        json(
+          {
+            error:
+              "The faucet has sent all the drips it gives out today. Try again after 00:00 UTC.",
+            code: "daily_limited",
+          },
+          429,
+          { "retry-after": "18000" },
+        ),
+      code: "rate_limited",
+      faucetCode: "daily_limited",
+      status: 429,
+      retryAfterMs: 18_000_000,
+      message: "The faucet has sent all the drips it gives out today. Try again after 00:00 UTC.",
+    },
+  ])("shows $what as the refusal it is, and does not ask again", async (refusal) => {
+    const faucet = stubPendingFaucet();
+    const view = renderFaucet();
+    await connect(view);
+    await waitFor(() => {
+      expect(view.result.current.faucet.status).toBe("funding");
+    });
+
+    await act(async () => {
+      faucet.answer(refusal.answer());
+    });
+
+    await waitFor(() => {
+      expect(view.result.current.faucet.status).toBe("error");
+    });
+    const { error } = view.result.current.faucet;
+    expect(error).toBeInstanceOf(FaucetError);
+    expect(error).toMatchObject({
+      code: refusal.code,
+      faucetCode: refusal.faucetCode,
+      status: refusal.status,
+      retryable: false,
+    });
+    expect((error as FaucetError).retryAfterMs).toBe(refusal.retryAfterMs);
+    // The faucet's own words, which is what an app shows.
+    expect(error?.message).toBe(refusal.message);
+    expect(view.statuses).toEqual(["idle", "funding", "error"]);
+
+    await settle();
+    expect(faucet.spy).toHaveBeenCalledTimes(1);
+  });
+
   it("ends in an error after its bounded retries, and then stops", async () => {
     const faucet = stubFaucet(sendFailed);
     const view = renderFaucet();

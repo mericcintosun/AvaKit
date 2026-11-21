@@ -104,8 +104,8 @@ function TestFunds() {
 
 - `status` is `"idle"`, `"funding"`, `"success"` or `"error"`; `isFunding`, `result` (the drip's `txHash` and `amount`) and `error` go with it, and `reset()` returns to `"idle"`.
 - `"success"` means the faucet sent the drip. The balance follows once that transaction is mined, so refetch it (`useBalance().refetch()`).
-- A failure that may be temporary (the faucet is busy, could not send, or did not answer) is retried a bounded number of times before `status` becomes `"error"`; a refusal (rate limit, empty faucet, bad request) is reported at once. Nothing retries forever.
-- `error` from the faucet is a `FaucetError` (`@avakit/core`): `code` is `"rate_limited"`, `"empty"`, `"invalid"`, `"unavailable"` or `"network"`, `retryable` says whether trying again may help, and `retryAfterMs` how long the faucet asked to wait, when it said.
+- A failure that may be temporary (the faucet is busy, could not send, or did not answer) is retried a bounded number of times before `status` becomes `"error"`; a refusal (a rate or daily limit, an empty or paused faucet, a bad request) is reported at once. Nothing retries forever.
+- `error` from the faucet is a `FaucetError` (`@avakit/core`): `code` is `"rate_limited"`, `"empty"`, `"paused"` (after `@avakit/core` 0.2.2, which reads a pause as `"empty"`), `"invalid"`, `"unavailable"` or `"network"`, `retryable` says whether trying again may help, and `retryAfterMs` how long the faucet asked to wait, when it said. Its `message` is the faucet's own sentence when it sent one (the AvaKit faucet's are fixed text, such as "The faucet is paused. Try again later."), which is what the example above shows.
 - `fund(address?)` asks by hand, for the connected account or another address. Called while a request for the same address is in flight, it joins that request rather than sending a second one.
 - The state describes the connected account on the active chain, and reads `"idle"` again when either changes. On a mainnet `enabled` is false and `fund()` refuses without sending anything.
 

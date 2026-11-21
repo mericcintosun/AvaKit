@@ -48,7 +48,7 @@ None of this is on npm yet.
 | A template needs Avalanche CLI | `icm-messenger`, `l1-launch` and `token-bridge` are marked experimental. The wizard, a non-interactive run, `--help` and the MCP server's `list_templates` say so. Studio labels its Avalanche CLI views the same way. |
 | Old Node.js | Every package declares Node.js 22 or newer, not only the scaffolder, and CI checks that this is the oldest Node.js it tests on. |
 
-The faucet Worker is deployed apart from npm. Its code on `main` adds a daily drip budget and a kill switch, with two new refusals: `429 daily_limited` and `503 faucet_paused`. @avakit/core retries neither. They take effect when the hosted faucet is next deployed.
+The faucet Worker is deployed apart from npm. Its code on `main` adds a daily drip budget and a kill switch, with two new refusals: `429 daily_limited` and `503 faucet_paused`. @avakit/core retries neither. They take effect when the hosted faucet is next deployed. From the next release, @avakit/core reports a pause as `code: "paused"`, not as an empty faucet, and the MCP server says either that the faucet is paused or that its daily limit is reached and when it resets.
 
 ## Still open
 

@@ -49,8 +49,9 @@ export interface FaucetRequestOptions {
   /**
    * How many times to try again after a failure that may be temporary (a
    * `FaucetError` with `retryable: true`: the faucet failed on its side, or did
-   * not answer). Default 2, so at most three attempts. A refusal (rate limit,
-   * empty faucet, bad request) is never retried. `0` turns retries off.
+   * not answer). Default 2, so at most three attempts. A refusal (a rate or
+   * daily limit, an empty or paused faucet, a bad request) is never retried.
+   * `0` turns retries off.
    */
   retries?: number;
   /**
@@ -89,9 +90,12 @@ const MAX_RETRY_AFTER_MS = 5_000;
 
 /**
  * What the refusal codes of the AvaKit faucet Worker (`services/faucet`) mean
- * here. Its newer generation answers `{ error, code }`; the HTTP status alone
- * cannot tell a busy faucet (try again) from an empty one (do not), both 503.
- * An answer without a known code falls back to its status.
+ * here: every code its `POST /fund` can answer with (the MCP server's
+ * faucet.test.ts reads them from the Worker's source and fails on one that is
+ * missing here). Its newer generation answers `{ error, code }`; the HTTP
+ * status alone cannot tell a busy faucet (try again) from an empty or a paused
+ * one (do not), all three 503. An answer without a known code falls back to
+ * its status.
  */
 const FAUCET_CODES: ReadonlyMap<string, FaucetErrorCode> = new Map<string, FaucetErrorCode>([
   ["invalid_json", "invalid"],
@@ -103,7 +107,13 @@ const FAUCET_CODES: ReadonlyMap<string, FaucetErrorCode> = new Map<string, Fauce
   ["contract_recipient", "invalid"],
   ["address_limited", "rate_limited"],
   ["ip_limited", "rate_limited"],
+  // The faucet's budget for the UTC day, which all its callers share, is
+  // spent. Retry-After counts down to 00:00 UTC.
+  ["daily_limited", "rate_limited"],
   ["faucet_empty", "empty"],
+  // Switched off by its operator, with no Retry-After: until someone switches
+  // it back on. Not "empty", and nothing a second attempt could change.
+  ["faucet_paused", "paused"],
   ["faucet_busy", "unavailable"],
   ["turnstile_unavailable", "unavailable"],
   ["drip_failed", "unavailable"],
@@ -335,9 +345,9 @@ async function attempt(
  * Ask the faucet to fund `address`.
  *
  * Rejects with a `FaucetError` when the faucet refuses or cannot be reached. Its
- * `code` says which (`"rate_limited"`, `"empty"`, `"invalid"`, `"unavailable"`,
- * `"network"`), `retryable` whether trying again may help, and `retryAfterMs`
- * how long the faucet asked to wait, when it said.
+ * `code` says which (`"rate_limited"`, `"empty"`, `"paused"`, `"invalid"`,
+ * `"unavailable"`, `"network"`), `retryable` whether trying again may help,
+ * and `retryAfterMs` how long the faucet asked to wait, when it said.
  *
  * A failure that may be temporary is retried here, `retries` times (default 2)
  * with exponential backoff and jitter, so a caller gets either a drip or a

@@ -88,8 +88,13 @@ export class InsufficientFundsError extends AvaKitError {
 /**
  * Why a faucet request failed, for code to branch on:
  *
- * - `"rate_limited"`: this address, or this network, was funded recently (429).
+ * - `"rate_limited"`: a limit says no until a time the faucet usually names
+ *   (`retryAfterMs`): this address, or this network, was funded recently, or
+ *   the faucet has given out every drip its daily limit allows (429).
  * - `"empty"`: the faucet has run out of funds (503, as the faucet's own answer).
+ * - `"paused"`: whoever runs the faucet has switched it off, for as long as
+ *   they choose (the AvaKit faucet's `faucet_paused`, a 503). It is not empty,
+ *   and asking again does not end a pause.
  * - `"invalid"`: the request itself was refused, and sending it again will not
  *   help: a bad address, a chain the faucet does not serve, a missing or
  *   rejected captcha token (400 and every other 4xx), or a URL that answers
@@ -99,7 +104,13 @@ export class InsufficientFundsError extends AvaKitError {
  * - `"network"`: no answer arrived: the request could not be sent, timed out
  *   or was aborted.
  */
-export type FaucetErrorCode = "rate_limited" | "empty" | "invalid" | "unavailable" | "network";
+export type FaucetErrorCode =
+  | "rate_limited"
+  | "empty"
+  | "paused"
+  | "invalid"
+  | "unavailable"
+  | "network";
 
 /** What a `FaucetError` knows beyond its message and HTTP status. */
 export interface FaucetErrorDetails {
@@ -131,8 +142,8 @@ export class FaucetError extends AvaKitError {
   /**
    * Whether sending the same request again may work: true for `"unavailable"`
    * and `"network"`, false for a refusal (`"rate_limited"`, `"empty"`,
-   * `"invalid"`). `requestFaucet` itself retries nothing but a retryable
-   * failure.
+   * `"paused"`, `"invalid"`). `requestFaucet` itself retries nothing but a
+   * retryable failure.
    */
   readonly retryable: boolean;
   /**
@@ -143,9 +154,10 @@ export class FaucetError extends AvaKitError {
   readonly retryAfterMs?: number;
   /**
    * The faucet's own refusal code, when its answer carried one (for example
-   * `"address_limited"`, `"ip_limited"`, `"faucet_busy"` or
-   * `"turnstile_required"` from the AvaKit faucet Worker). More specific than
-   * `code`; undefined for a faucet that only sends a message.
+   * `"address_limited"`, `"ip_limited"`, `"daily_limited"`, `"faucet_paused"`,
+   * `"faucet_busy"` or `"turnstile_required"` from the AvaKit faucet Worker).
+   * More specific than `code`; undefined for a faucet that only sends a
+   * message.
    */
   readonly faucetCode?: string;
 

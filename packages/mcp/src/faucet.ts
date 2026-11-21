@@ -6,8 +6,8 @@
  * about asking again: at most three attempts, ten seconds each, a randomised and
  * growing pause between them, and a second attempt only after a failure that may
  * be temporary (no answer, or the faucet failing on its side). A refusal (funded
- * recently, rate limit, empty, a rejected request) is an answer and is never
- * repeated.
+ * recently, a rate or daily limit, empty or paused, a rejected request) is an
+ * answer and is never repeated.
  *
  * What this file adds is what an agent gets to read. The faucet's own wording is
  * never passed on: the reason is built here from the status and the faucet's
@@ -72,33 +72,85 @@ export function faucetUrl(env: NodeJS.ProcessEnv = process.env): string | undefi
   }
 }
 
+/** A wait in words ("about 20 minutes"), or undefined for one that is not a positive duration. */
+function about(ms: number | undefined): string | undefined {
+  if (ms === undefined || !Number.isFinite(ms) || ms <= 0) return undefined;
+  const seconds = ms / 1000;
+  if (seconds < 90) {
+    const count = Math.ceil(seconds);
+    return `about ${count} ${count === 1 ? "second" : "seconds"}`;
+  }
+  if (seconds < 5400) return `about ${Math.round(seconds / 60)} minutes`;
+  return `about ${Math.round(seconds / 3600)} hours`;
+}
+
 function comeBack(retryAfterMs: number | undefined): string {
-  if (retryAfterMs === undefined || !Number.isFinite(retryAfterMs) || retryAfterMs <= 0) return "";
-  const seconds = retryAfterMs / 1000;
-  if (seconds < 90) return `; it can be asked again in about ${Math.ceil(seconds)} seconds`;
-  if (seconds < 5400) return `; it can be asked again in about ${Math.round(seconds / 60)} minutes`;
-  return `; it can be asked again in about ${Math.round(seconds / 3600)} hours`;
+  const wait = about(retryAfterMs);
+  return wait ? `; it can be asked again in ${wait}` : "";
 }
 
 /**
- * The faucet's own refusal code (services/faucet/src/worker.js) in plain words,
- * or undefined for a code this server does not know. Matched against a fixed
- * list: the code is a string a server sent, and is never quoted.
+ * The faucet's own code (services/faucet/src/worker.js) in plain words, for
+ * every answer that ends the request: a refusal, or a "busy" that was still the
+ * answer on the last attempt. Undefined for a failure on the faucet's side,
+ * which `lastAttempt` names, and for a code this server does not know. Matched
+ * against a fixed list: the code is a string a server sent, and is never
+ * quoted. faucet.test.ts holds the list to every code the Worker can answer.
  */
 function byFaucetCode(error: FaucetError): string | undefined {
   switch (error.faucetCode) {
     case "address_limited":
       return `it already funded this wallet in the last 24 hours, and gives one drip per wallet per day${comeBack(error.retryAfterMs)}`;
     case "ip_limited":
-      return `its hourly limit for your network has been reached${comeBack(error.retryAfterMs)}`;
+      // The Worker's code both for a network that has had its 20 drips this
+      // hour and for one with 10 failed attempts in five minutes, so the limit
+      // is not named.
+      return `its limit for requests from your network has been reached${comeBack(error.retryAfterMs)}`;
+    case "daily_limited": {
+      // The Worker's Retry-After counts down to 00:00 UTC, when the day's
+      // drips start again.
+      const wait = about(error.retryAfterMs);
+      return `its daily limit for all callers together has been reached${wait ? `; the limit resets in ${wait}` : ""}`;
+    }
     case "faucet_empty":
       return "it is out of test AVAX";
+    case "faucet_paused":
+      // Not empty, and not a moment's wait: off until its operator turns it
+      // back on. The Worker names no time, so neither does this.
+      return `it has been paused by its operator${comeBack(error.retryAfterMs) || " until further notice"}`;
     case "faucet_busy":
       return "it is busy right now; calling this tool again in a few seconds may work";
     case "turnstile_required":
     case "turnstile_failed":
     case "turnstile_unavailable":
       return "it asks for a human verification step that this server cannot complete";
+    case "invalid_json":
+      return "it could not read the request as JSON";
+    case "invalid_address":
+      return "it rejected the wallet's address as invalid";
+    case "unsupported_chain":
+      return `it does not fund Avalanche Fuji, chain ${FUJI_CHAIN_ID} (check ${FAUCET_URL_ENV} if it is set)`;
+    case "contract_recipient":
+      return "it funds wallet addresses only, and took this one for a contract";
+    case "not_found":
+      return `the URL it was asked at is not its /fund endpoint (check ${FAUCET_URL_ENV} if it is set)`;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * A failure the faucet reported on its own side, which is asked again, in a
+ * few words. Undefined for any other code.
+ */
+function failedOnItsSide(error: FaucetError): string | undefined {
+  switch (error.faucetCode) {
+    case "drip_failed":
+      return "it could not send the drip";
+    case "misconfigured":
+      return "it is misconfigured";
+    case "internal":
+      return "an internal error";
     default:
       return undefined;
   }
@@ -120,7 +172,10 @@ function byStatus(error: FaucetError): string {
 
 /** How an attempt that got no usable answer went, in a few words. */
 function lastAttempt(error: FaucetError, timeoutMs: number): string {
-  if (error.code !== "network") return `HTTP ${error.status}`;
+  if (error.code !== "network") {
+    const said = failedOnItsSide(error);
+    return said ? `HTTP ${error.status}, ${said}` : `HTTP ${error.status}`;
+  }
   const cause = error.cause as { name?: unknown; cause?: { code?: unknown } } | null | undefined;
   if (cause?.name === "TimeoutError" || cause?.name === "AbortError") {
     return `no answer within ${timeoutMs / 1000} seconds`;

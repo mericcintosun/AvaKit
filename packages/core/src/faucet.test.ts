@@ -206,6 +206,8 @@ describe("requestFaucet failures are typed", () => {
     expect(error?.retryAfterMs).toBeUndefined();
   });
 
+  // Every code POST /fund of services/faucet can answer with. The MCP server's
+  // faucet.test.ts holds the same list to the Worker's source.
   const byFaucetCode: Array<
     [status: number, faucetCode: string, code: FaucetErrorCode, retryable: boolean]
   > = [
@@ -218,8 +220,10 @@ describe("requestFaucet failures are typed", () => {
     [400, "contract_recipient", "invalid", false],
     [429, "address_limited", "rate_limited", false],
     [429, "ip_limited", "rate_limited", false],
+    [429, "daily_limited", "rate_limited", false],
     [503, "faucet_empty", "empty", false],
     // The cases the status alone gets wrong: 503 is not always "empty".
+    [503, "faucet_paused", "paused", false],
     [503, "faucet_busy", "unavailable", true],
     [503, "turnstile_unavailable", "unavailable", true],
     [502, "drip_failed", "unavailable", true],
@@ -254,6 +258,55 @@ describe("requestFaucet failures are typed", () => {
     expect(busy.error?.retryable).toBe(true);
     expect(empty.error?.code).toBe("empty");
     expect(empty.error?.retryable).toBe(false);
+  });
+
+  // A paused faucet answers 503 like an empty one, which is what the status
+  // alone would make of it. It has funds; its operator has switched it off.
+  it("reads a paused faucet as paused, not empty, and does not ask it again", async () => {
+    const spy = stubFetch(() =>
+      json({ error: "The faucet is paused. Try again later.", code: "faucet_paused" }, 503),
+    );
+
+    const { error } = await settle(requestFaucet({ url: FAUCET, address: ADDRESS, retries: 5 }));
+
+    expect(error).toBeInstanceOf(FaucetError);
+    expect(error?.code).toBe("paused");
+    expect(error?.retryable).toBe(false);
+    expect(error?.faucetCode).toBe("faucet_paused");
+    expect(error?.status).toBe(503);
+    expect(error?.message).toBe("The faucet is paused. Try again later.");
+    // The Worker names no time for a pause.
+    expect(error?.retryAfterMs).toBeUndefined();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  // The day's drips are spent for every caller, until 00:00 UTC.
+  it("reports a spent daily limit as a rate limit, with the wait until it resets", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-21T19:00:00Z"));
+    const spy = stubFetch(() =>
+      json(
+        {
+          error: "The faucet has sent all the drips it gives out today. Try again after 00:00 UTC.",
+          code: "daily_limited",
+        },
+        429,
+        { "retry-after": "18000" },
+      ),
+    );
+
+    const { error } = await settle(requestFaucet({ url: FAUCET, address: ADDRESS, retries: 5 }));
+
+    expect(error?.code).toBe("rate_limited");
+    expect(error?.retryable).toBe(false);
+    expect(error?.faucetCode).toBe("daily_limited");
+    expect(error?.status).toBe(429);
+    expect(error?.message).toMatch(/Try again after 00:00 UTC\.$/);
+    // Five hours: midnight UTC, seen from 19:00.
+    expect(error?.retryAfterMs).toBe(5 * 60 * 60 * 1000);
+    // Asked once, and not sitting out the five hours either.
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("falls back to the status for a code it does not know", async () => {
@@ -397,15 +450,17 @@ describe("requestFaucet retries", () => {
   });
 
   it.each([
-    [429, { error: "Funded recently.", code: "address_limited" }],
-    [429, { error: "Rate limit reached." }],
-    [400, { error: "A valid 0x address is required." }],
-    [403, { error: "Verification required.", code: "turnstile_required" }],
-    [503, { error: "Faucet is empty. Please top it up." }],
-    [503, { error: "Faucet is empty. Please top it up.", code: "faucet_empty" }],
-  ])("never retries a refusal (HTTP %i %o)", async (status, body) => {
+    [429, { error: "Funded recently.", code: "address_limited" }, {}],
+    [429, { error: "Rate limit reached." }, {}],
+    [429, { error: "The day's drips are spent.", code: "daily_limited" }, { "retry-after": "1" }],
+    [400, { error: "A valid 0x address is required." }, {}],
+    [403, { error: "Verification required.", code: "turnstile_required" }, {}],
+    [503, { error: "Faucet is empty. Please top it up." }, {}],
+    [503, { error: "Faucet is empty. Please top it up.", code: "faucet_empty" }, {}],
+    [503, { error: "The faucet is paused. Try again later.", code: "faucet_paused" }, {}],
+  ])("never retries a refusal (HTTP %i %o)", async (status, body, headers) => {
     noJitter();
-    const spy = stubAnswers(() => json(body, status), drip);
+    const spy = stubAnswers(() => json(body, status, headers), drip);
 
     const { error } = await settle(requestFaucet({ url: FAUCET, address: ADDRESS, retries: 5 }));
 

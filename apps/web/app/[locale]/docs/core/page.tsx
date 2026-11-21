@@ -259,10 +259,11 @@ try {
       </P>
       <UL>
         <li>
-          <C>code</C>: <C>"rate_limited"</C> (this address or network was funded recently),{" "}
-          <C>"empty"</C> (the faucet has run out), <C>"invalid"</C> (the request was refused and
-          sending it again will not help), <C>"unavailable"</C> (the faucet failed on its side) or{" "}
-          <C>"network"</C> (no answer arrived: unreachable, timed out or aborted).
+          <C>code</C>: <C>"rate_limited"</C> (this address or network was funded recently, or the
+          faucet's daily limit is spent), <C>"empty"</C> (the faucet has run out), <C>"invalid"</C>{" "}
+          (the request was refused and sending it again will not help), <C>"unavailable"</C> (the
+          faucet failed on its side) or <C>"network"</C> (no answer arrived: unreachable, timed out
+          or aborted).
         </li>
         <li>
           <C>retryable</C>: true for <C>"unavailable"</C> and <C>"network"</C>, the only failures{" "}
@@ -279,6 +280,12 @@ try {
           <C>status</C>: the HTTP status of the faucet's answer; undefined when none arrived.
         </li>
       </UL>
+      <Note>
+        After <C>@avakit/core</C> 0.2.2, <C>code</C> can also be <C>"paused"</C>: the faucet's
+        operator has switched it off (its own <C>faucet_paused</C>), which is not retried. Up to
+        0.2.2 a paused faucet reads as <C>"empty"</C>, since both answer HTTP 503; its message says
+        which it is.
+      </Note>
       <P>
         A chain's <C>faucetUrl</C> (for example <C>fuji.faucetUrl</C>) is something else: a faucet
         page to link people to, not an endpoint to call. For Fuji it is the Builder Hub faucet,

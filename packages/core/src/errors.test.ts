@@ -132,17 +132,27 @@ describe("errors", () => {
   });
 
   it("FaucetError is retryable for exactly the failures that may pass", () => {
-    const retryable = (["rate_limited", "empty", "invalid", "unavailable", "network"] as const).map(
-      (code) => [code, new FaucetError("x", undefined, { code }).retryable],
-    );
+    const retryable = (
+      ["rate_limited", "empty", "paused", "invalid", "unavailable", "network"] as const
+    ).map((code) => [code, new FaucetError("x", undefined, { code }).retryable]);
 
     expect(retryable).toEqual([
       ["rate_limited", false],
       ["empty", false],
+      ["paused", false],
       ["invalid", false],
       ["unavailable", true],
       ["network", true],
     ]);
+  });
+
+  // A pause and an empty faucet both answer 503, so "paused" has to be said:
+  // the status alone still reads as "empty", as it does from an older faucet.
+  it("FaucetError is paused only when it is told so", () => {
+    expect(new FaucetError("Paused.", 503)).toMatchObject({ code: "empty" });
+    expect(
+      new FaucetError("Paused.", 503, { code: "paused", faucetCode: "faucet_paused" }),
+    ).toMatchObject({ code: "paused", retryable: false, status: 503, faucetCode: "faucet_paused" });
   });
 
   it("WalletNotAvailableError advises a browser wallet unless given a specific hint", () => {
