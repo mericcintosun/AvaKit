@@ -9,19 +9,25 @@
 #
 # Once a week this scaffolds every template from this checkout on Node.js 22,
 # takes `legacy-peer-deps` out of the app's .npmrc, moves @web3auth/modal to
-# its latest release and runs a plain `npm install` with an empty npm cache,
-# the way a new machine would.
+# its latest release and runs `npm install --ignore-scripts` with an empty npm
+# cache, the way a new machine would. The crash happens while npm works out the
+# dependency tree, before any install script would run, so leaving the scripts
+# out does not change the answer, and no dependency of the apps runs code here.
 #   - An install still fails: the run is green and nothing else happens. That
 #     is the expected state while the workaround is needed. The job summary
 #     says how each template failed, and a failure that is not the known crash
 #     is also raised as a warning.
 #   - Every install passes: the second job opens an issue labelled
-#     `web3auth-workaround`, or updates the open one, with the versions it
-#     passed on and what to remove.
+#     `web3auth-workaround`, or updates the newest one while it is open, with
+#     the versions it passed on and what to remove. A closed one is left
+#     alone: closing it is how a maintainer keeps the workaround anyway. If
+#     @web3auth/modal still lists vitest, the pass may come from a newer npm 10
+#     rather than from Web3Auth, so the issue asks for an older npm 10 first.
 #   - No template ships the workaround any more: there is nothing left to
 #     check. Delete this workflow.
 # The check itself runs with a read-only token; only the job that writes the
-# issue can write anything, and only issues.
+# issue can write anything, and only issues. That job checks every value it
+# takes from the first one before it uses any of them.
 name: Web3Auth · npm 10 workaround check
 
 on:
@@ -55,6 +61,7 @@ jobs:
       workaround: ${{ steps.check.outputs.workaround }}
       web3auth: ${{ steps.check.outputs.web3auth }}
       pinned: ${{ steps.check.outputs.pinned }}
+      vitest: ${{ steps.check.outputs.vitest }}
       node: ${{ steps.check.outputs.node }}
       npm: ${{ steps.check.outputs.npm }}
       templates: ${{ steps.check.outputs.templates }}
@@ -110,6 +117,18 @@ jobs:
             fi
           done
 
+          # What npm 10 crashes on is the vitest that @web3auth/modal lists
+          # among its runtime dependencies. While the latest release still
+          # lists it, a pass may come from a newer npm 10 rather than from
+          # Web3Auth, and the npm 10 of an older Node.js 22 may still crash.
+          # Empty when it is no longer listed.
+          vitest="$(npm view "@web3auth/modal@$latest" dependencies.vitest)"
+          range='^[0-9A-Za-z.^~<>=|*+ -]{1,100}$'
+          if [ -n "$vitest" ] && ! [[ "$vitest" =~ $range ]]; then
+            echo "::error::Could not read which vitest @web3auth/modal $latest depends on."
+            exit 1
+          fi
+
           cli="$PWD/packages/create-avalanche-app/dist/index.js"
           templates="$(node --input-type=module -e 'import { listTemplates } from "./packages/create-avalanche-app/dist/api.js"; console.log(listTemplates().map((t) => t.id).join(" "));')"
           work="$RUNNER_TEMP/web3auth-npm10"
@@ -141,7 +160,8 @@ jobs:
             (cd "$app" && npm pkg set "dependencies.@web3auth/modal=$latest")
 
             log="$work/$id.install.log"
-            if (cd "$app" && npm install --no-audit --no-fund) > "$log" 2>&1; then
+            # No install scripts: see the top of this file.
+            if (cd "$app" && npm install --no-audit --no-fund --ignore-scripts) > "$log" 2>&1; then
               result="passes"
             else
               passing=false
@@ -170,7 +190,13 @@ jobs:
           {
             echo "## Is the npm 10 workaround still needed?"
             echo
-            echo "Node.js $node_version, npm $npm_version, \`@web3auth/modal\` $latest (the scaffolder pins $pinned), \`legacy-peer-deps\` off."
+            echo "Node.js $node_version, npm $npm_version, \`@web3auth/modal\` $latest (the scaffolder pins $pinned), \`legacy-peer-deps\` off, install scripts off."
+            echo
+            if [ -n "$vitest" ]; then
+              echo "\`@web3auth/modal\` $latest still lists \`vitest\` (\`$vitest\`) among its runtime dependencies, which is what npm 10 crashes on."
+            else
+              echo "\`@web3auth/modal\` $latest no longer lists \`vitest\` among its runtime dependencies, which is what npm 10 crashed on."
+            fi
             echo
             echo "| Template | \`npm install\` |"
             echo "| --- | --- |"
@@ -178,6 +204,8 @@ jobs:
             echo
             if [ "$workaround" != true ]; then
               echo "No template ships \`legacy-peer-deps=true\` any more. There is nothing left to check: delete this workflow."
+            elif [ "$passing" = true ] && [ -n "$vitest" ]; then
+              echo "Every template installs without the workaround on this npm. \`@web3auth/modal\` still lists \`vitest\`, though, so the pass may come from npm rather than from Web3Auth, and an older npm 10 may still crash. The issue labelled \`web3auth-workaround\` says what to check before anything is removed."
             elif [ "$passing" = true ]; then
               echo "Every template installs without the workaround. The issue labelled \`web3auth-workaround\` lists what to remove."
             else
@@ -194,6 +222,7 @@ jobs:
             echo "workaround=$workaround"
             echo "web3auth=$latest"
             echo "pinned=$pinned"
+            echo "vitest=$vitest"
             echo "node=$node_version"
             echo "npm=$npm_version"
             echo "templates=${templates// /, }"
@@ -214,6 +243,7 @@ jobs:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       WEB3AUTH: ${{ needs.check.outputs.web3auth }}
       PINNED: ${{ needs.check.outputs.pinned }}
+      VITEST: ${{ needs.check.outputs.vitest }}
       NODE_VERSION: ${{ needs.check.outputs.node }}
       NPM_VERSION: ${{ needs.check.outputs.npm }}
       TEMPLATES: ${{ needs.check.outputs.templates }}
@@ -224,26 +254,59 @@ jobs:
           # `&` in a replacement below is literal text, not the matched placeholder.
           shopt -u patsub_replacement 2>/dev/null || true
 
+          # The values come from a job that installed packages from the
+          # registry. Each one must have the form that job writes before any
+          # of it goes into an issue. A value that does not is not printed.
+          must_match() {
+            if ! [[ "$2" =~ $3 ]]; then
+              echo "::error title=Unexpected value::$1 does not have the expected form, so no issue was written or changed."
+              exit 1
+            fi
+          }
+          semver='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+          must_match WEB3AUTH "$WEB3AUTH" "$semver"
+          must_match PINNED "$PINNED" "$semver"
+          must_match VITEST "$VITEST" '^([0-9A-Za-z.^~<>=|*+ -]{1,100})?$'
+          must_match NODE_VERSION "$NODE_VERSION" '^v22\.[0-9]+\.[0-9]+$'
+          must_match NPM_VERSION "$NPM_VERSION" '^10\.[0-9]+\.[0-9]+$'
+          must_match TEMPLATES "$TEMPLATES" '^[a-z0-9-]+(, [a-z0-9-]+)*$'
+
           gh label create web3auth-workaround --force --color FBCA04 \
             --description "The npm 10 workaround in scaffolded apps can be removed"
 
+          # The backticks are Markdown for the issue, not command substitution.
+          # shellcheck disable=SC2016
+          if [ -n "$VITEST" ]; then
+            vitest_note='`@web3auth/modal` __WEB3AUTH__ still lists `vitest` (`__VITEST__`) among its runtime dependencies, which is what npm 10 crashed on. So the pass may come from a newer npm 10 rather than from a fix in Web3Auth, and the npm 10 of an older Node.js 22 release may still crash. The first item below checks that.'
+            vitest_item='- [ ] Before anything else, install one scaffolded app without the workaround with the npm 10 of the oldest Node.js 22 release that the `engines` field of `create-avalanche-app` allows (https://nodejs.org/dist/index.json lists the npm of every release), for example with `npx -y npm@<that version> install --ignore-scripts`. If it crashes, keep the workaround and close this issue: the weekly check leaves a closed issue alone.'
+            vitest_item+=$'\n'
+          else
+            vitest_note='`@web3auth/modal` __WEB3AUTH__ no longer lists `vitest` among its runtime dependencies, which is what npm 10 crashed on.'
+            vitest_item=''
+          fi
+
           issue="$RUNNER_TEMP/issue.md"
           cat > "$issue" <<'EOF'
-          npm 10 now installs every scaffolded app without the workaround, so `legacy-peer-deps=true` can come out of the apps' `.npmrc`.
+          npm 10 now installs every scaffolded app without the workaround, `legacy-peer-deps=true` in the apps' `.npmrc`.
 
-          On __DATE__, [this run](__RUN_URL__) scaffolded every template (__TEMPLATES__) on Node.js __NODE__ with npm __NPM__, took `legacy-peer-deps=true` out of each app's `.npmrc`, moved `@web3auth/modal` to __WEB3AUTH__ (the scaffolder pins __PINNED__) and ran `npm install`. It passed for every one.
+          On __DATE__, [this run](__RUN_URL__) scaffolded every template (__TEMPLATES__) on Node.js __NODE__ with npm __NPM__, took `legacy-peer-deps=true` out of each app's `.npmrc`, moved `@web3auth/modal` to __WEB3AUTH__ (the scaffolder pins __PINNED__) and ran `npm install --ignore-scripts`. It passed for every one.
+
+          __VITEST_NOTE__
 
           To remove the workaround:
 
-          - [ ] If __WEB3AUTH__ is newer than __PINNED__, move every pin of `@web3auth/modal` to it in one change: `WEB3AUTH_MODAL_VERSION` in `packages/create-avalanche-app/src/api.ts`, the devDependency of `@avakit/core`, and the examples.
+          __VITEST_ITEM__- [ ] If __WEB3AUTH__ is newer than __PINNED__, move every pin of `@web3auth/modal` to it in one change: `WEB3AUTH_MODAL_VERSION` in `packages/create-avalanche-app/src/api.ts`, the devDependency of `@avakit/core`, and the examples.
           - [ ] Delete `packages/create-avalanche-app/templates/*/npmrc` and the `npmrc` entry of `RENAME_SEGMENT` in `packages/create-avalanche-app/src/scaffold.ts`.
           - [ ] Update the tests that expect the file: "gives every app the .npmrc that lets npm 10 install it" and the dot-file list in `api.test.ts`, and `scaffold.test.ts`.
           - [ ] Build one app with npm on Node.js 22 before the release. After it, the Node 22 leg of `e2e-fuji.yml` does the same with the published packages.
           - [ ] Take the entry out of `docs/KNOWN-GAPS.md`, add a changeset for `create-avalanche-app` and `@avakit/mcp`, and delete `.github/workflows/web3auth-npm10-check.yml`.
 
-          `.github/workflows/web3auth-npm10-check.yml` updates this issue every week while the check keeps passing.
+          `.github/workflows/web3auth-npm10-check.yml` updates this issue every week while it is open and the check keeps passing. Closing it without removing the workaround stops that: the check leaves a closed issue alone.
           EOF
           body="$(cat "$issue")"
+          # The two optional parts first: they hold placeholders of their own.
+          body="${body//__VITEST_NOTE__/$vitest_note}"
+          body="${body//__VITEST_ITEM__/$vitest_item}"
           body="${body//__DATE__/$(date -u +%Y-%m-%d)}"
           body="${body//__RUN_URL__/$RUN_URL}"
           body="${body//__TEMPLATES__/$TEMPLATES}"
@@ -251,14 +314,26 @@ jobs:
           body="${body//__NPM__/$NPM_VERSION}"
           body="${body//__WEB3AUTH__/$WEB3AUTH}"
           body="${body//__PINNED__/$PINNED}"
+          body="${body//__VITEST__/$VITEST}"
           printf '%s\n' "$body" > "$issue"
 
-          number="$(gh issue list --label web3auth-workaround --state open --limit 1 --json number --jq '.[0].number // empty')"
-          if [ -n "$number" ]; then
-            gh issue edit "$number" --body-file "$issue"
-            echo "Updated issue #$number." >> "$GITHUB_STEP_SUMMARY"
-          else
+          # The newest issue with the label, open or closed. Closing it without
+          # removing the workaround is a maintainer's answer, so a closed one
+          # is left alone instead of being reopened or followed by a new one.
+          newest="$(gh issue list --label web3auth-workaround --state all --limit 1 \
+            --json number,state --jq '.[0] // empty | "\(.number) \(.state)"')"
+          if [ -z "$newest" ]; then
             url="$(gh issue create --title "Remove the npm 10 workaround from scaffolded apps" \
               --label web3auth-workaround --body-file "$issue")"
             echo "Opened $url." >> "$GITHUB_STEP_SUMMARY"
+          else
+            number="${newest%% *}"
+            state="${newest#* }"
+            must_match "The issue number" "$number" '^[0-9]+$'
+            if [ "$state" = OPEN ]; then
+              gh issue edit "$number" --body-file "$issue"
+              echo "Updated issue #$number." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Issue #$number, the newest labelled \`web3auth-workaround\`, is closed, so this run left it alone. Reopen it to have this check keep it up to date, or take the label off it to have the next passing run open a new issue." >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi

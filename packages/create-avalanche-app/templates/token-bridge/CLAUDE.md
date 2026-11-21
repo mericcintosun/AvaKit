@@ -94,7 +94,7 @@ you put in its place must offer both, or the script and the UI must change with 
 ## Rules
 
 - shadcn/ui only; `@avakit/react` components are shadcn-styled. Black & white for now; dark/light via next-themes; both must work.
-- Animations: Framer Motion or GSAP only.
+- Animations: Framer Motion or GSAP only; `tw-animate-css` (imported in `app/globals.css`) is only for the enter/exit animations of shadcn/ui primitives such as the `@avakit/react` connect dialog.
 - Amounts are 18-decimal — always convert with `parseEther` / `formatEther`.
 - Never hardcode a real private key. The EWOQ key is a PUBLIC dev key — local devnet only — and
   even it is not written into this repo: the scripts read it from avalanche-cli, so secret scanners
