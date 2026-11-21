@@ -81,6 +81,6 @@
     "directory": "packages/core"
   },
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22"
   }
 }
