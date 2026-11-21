@@ -44,6 +44,30 @@ export function httpOrigin(url: string | undefined): string | null {
   }
 }
 
+/** The RPC fields of an @avakit/core chain. `rpcUrls` is missing from a core that predates it. */
+export interface RpcChain {
+  /** The endpoint core tries first. */
+  rpcUrl: string;
+  /** Every endpoint, `rpcUrl` first, then the fallbacks core moves on to when one fails. */
+  rpcUrls?: readonly string[];
+}
+
+/**
+ * The origins of every RPC endpoint the browser may call for this chain. When
+ * a chain lists fallbacks, @avakit/core sends a request to the next endpoint
+ * when one fails, a rate limit (HTTP 429) included, so the policy must allow
+ * all of them: a fallback it blocked would fail exactly when the first
+ * endpoint does. `rpcUrl` is listed too, so the result covers whichever of
+ * these endpoints core picks.
+ */
+export function rpcOrigins({ rpcUrl, rpcUrls = [] }: RpcChain): string[] {
+  return [
+    ...new Set(
+      [rpcUrl, ...rpcUrls].map(httpOrigin).filter((origin): origin is string => origin !== null),
+    ),
+  ];
+}
+
 export interface PolicyOptions {
   /** This response's nonce, from createNonce(). */
   nonce: string;
@@ -51,10 +75,17 @@ export interface PolicyOptions {
   dev?: boolean;
   /** The faucet /new asks for test AVAX: NEXT_PUBLIC_AVAKIT_FAUCET_URL, when the deploy sets it. */
   faucetUrl?: string;
+  /** The chain whose RPC endpoints /new's wallet and reads call: Fuji, unless a test passes another. */
+  chain?: RpcChain;
 }
 
 /** The header value for one response. */
-export function contentSecurityPolicy({ nonce, dev = false, faucetUrl }: PolicyOptions): string {
+export function contentSecurityPolicy({
+  nonce,
+  dev = false,
+  faucetUrl,
+  chain = fuji,
+}: PolicyOptions): string {
   const directives: Record<string, (string | null)[]> = {
     // Everything not listed below comes from the site itself: the fonts
     // (next/font serves Geist from the site), the videos, the web app manifest,
@@ -83,14 +114,14 @@ export function contentSecurityPolicy({ nonce, dev = false, faucetUrl }: PolicyO
     // is the textures <model-viewer> unpacks from a .glb, in the browsers where
     // three.js decodes them with an <img> (Safari before 17, Firefox before 98).
     "img-src": ["'self'", "data:", "blob:"],
-    // What the browser calls besides the site: the Fuji RPC behind /new's wallet
-    // and balance reads, the AvaKit faucet, the Draco decoder, and the blob: URLs
-    // three.js fetches those textures from in every other browser. /stats reads
-    // npm, GitHub and the telemetry collector on the server, where no policy
-    // applies.
+    // What the browser calls besides the site: the Fuji RPC endpoints behind
+    // /new's wallet and balance reads (fallbacks included), the AvaKit faucet,
+    // the Draco decoder, and the blob: URLs three.js fetches those textures from
+    // in every other browser. /stats reads npm, GitHub and the telemetry
+    // collector on the server, where no policy applies.
     "connect-src": [
       "'self'",
-      httpOrigin(fuji.rpcUrl),
+      ...rpcOrigins(chain),
       httpOrigin(faucetUrl),
       DRACO_DECODER_SOURCE,
       "blob:",
