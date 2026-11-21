@@ -8,7 +8,9 @@
 // so no real suite runs here.
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -18,7 +20,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
@@ -26,6 +28,7 @@ import {
   failuresFromReport,
   firstLine,
   hunt,
+  inlineCode,
   newSeed,
   parseArgs,
   renderFailures,
@@ -258,8 +261,8 @@ test("renderFailures gives the seed, the failing test and the command that repla
   assert.equal(renderFailures([passed], OPTIONS, MACHINE), "");
 
   const text = renderFailures([passed, failedRun()], OPTIONS, MACHINE);
-  assert.match(text, /\*\*@avakit\/react\*\*, round 2, seed `1234`/);
-  assert.match(text, /- `src\/a\.test\.tsx` › a › b/);
+  assert.match(text, /^\*\*`@avakit\/react`\*\*, round 2, seed `1234`$/m);
+  assert.match(text, /^- `src\/a\.test\.tsx` › `a › b`$/m);
   assert.ok(text.includes(replayCommand("@avakit/react", 1234, "src/a.test.tsx")));
   assert.doesNotMatch(text, /@avakit\/core/);
   // A message with a fence in it cannot close its own code block early.
@@ -271,8 +274,46 @@ test("renderFailures gives the seed, the failing test and the command that repla
     crash: { file: null, test: "(the run failed outside any test, exit status 1)", message: "x" },
   });
   const crashText = renderFailures([crashed], OPTIONS, MACHINE);
-  assert.match(crashText, /- \(the run failed outside any test, exit status 1\)/);
+  assert.match(crashText, /^- `\(the run failed outside any test, exit status 1\)`$/m);
   assert.ok(crashText.includes(replayCommand("@avakit/react", 1234)));
+});
+
+// failures.md is the body of a GitHub issue: a bare "@avakit/react" there could
+// mention the account of that name, and a bare "<AvaKitProvider>" would be
+// taken for an HTML tag and vanish.
+test("renderFailures puts every package name and test title in inline code", () => {
+  const run = failedRun({
+    failures: [
+      {
+        file: "src/api.test.ts",
+        test: "scaffold › pins @avakit/core from its own version, with <AvaKitProvider>",
+        message: "AssertionError: @avakit/core was not pinned",
+      },
+    ],
+  });
+  const lines = renderFailures([run], OPTIONS, MACHINE).split("\n");
+  assert.ok(lines.includes("**`@avakit/react`**, round 2, seed `1234`"), lines.join("\n"));
+  assert.ok(
+    lines.includes(
+      "- `src/api.test.ts` › `scaffold › pins @avakit/core from its own version, with <AvaKitProvider>`",
+    ),
+    lines.join("\n"),
+  );
+  // Outside code blocks, no line names a package or a tag except in inline code.
+  let inBlock = false;
+  for (const line of lines) {
+    if (/^`{3,}/.test(line)) inBlock = !inBlock;
+    if (inBlock || /^`{3,}/.test(line)) continue;
+    const prose = line.replace(/(`+)(?!`).*?[^`]\1(?!`)/g, "");
+    assert.doesNotMatch(prose, /@[a-z]|<[A-Za-z]/, line);
+  }
+});
+
+test("inlineCode picks a fence that no backtick in the text can close", () => {
+  assert.equal(inlineCode("@avakit/react"), "`@avakit/react`");
+  assert.equal(inlineCode("reads `0x` prefixes"), "``reads `0x` prefixes``");
+  assert.equal(inlineCode("a `` b"), "```a `` b```");
+  assert.equal(inlineCode("`edge`"), "`` `edge` ``");
 });
 
 test("renderFailures lists at most 40 failures and counts the rest", () => {
@@ -529,4 +570,147 @@ test("flaky-hunt.yml: hunts nightly and on demand, and reports only a failed hun
     /^ {4}needs: hunt\n {4}if: always\(\) && needs\.hunt\.result == 'failure'$/m,
   );
   assert.match(jobs.report, /--label flaky-test/);
+});
+
+/**
+ * The script of the step named `name` in a job's block: its `run: |` lines
+ * without their indentation, which is the file the runner hands to bash.
+ */
+function stepScript(block, name) {
+  const lines = block.split("\n");
+  const start = lines.indexOf(`      - name: ${name}`);
+  assert.notEqual(start, -1, `a step named "${name}"`);
+  const next = lines.findIndex((line, i) => i > start && /^ {6}- /.test(line));
+  const run = lines.indexOf("        run: |", start);
+  assert.ok(run !== -1 && (next === -1 || run < next), `"${name}" has a run block`);
+  const script = [];
+  for (const line of lines.slice(run + 1)) {
+    if (line !== "" && !line.startsWith(" ".repeat(10))) break;
+    script.push(line.slice(10));
+  }
+  return `${script.join("\n").trimEnd()}\n`;
+}
+
+// A stand-in for gh: it writes down each call and answers the two questions the
+// step asks, whether the label exists and which flaky-test issue is open.
+const STUB_GH = `#!/bin/sh
+printf '%s\\n' "$*" >> "$STUB_GH_CALLS"
+case "$1 $2" in
+  "label list") printf '%s' "$STUB_GH_LABELS" ;;
+  "issue list") printf '%s' "$STUB_GH_OPEN_ISSUE" ;;
+esac
+`;
+
+/**
+ * Run the report step's script under bash in a directory holding `files` (the
+ * reports as download-artifact left them), with STUB_GH in place of gh.
+ */
+function runReportStep(t, { files, labels = "bug\nflaky-test\n", openIssue = "" }) {
+  const dir = tempDir(t);
+  const work = join(dir, "work");
+  mkdirSync(work);
+  for (const [file, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(work, file)), { recursive: true });
+    writeFileSync(join(work, file), text);
+  }
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "gh"), STUB_GH, { mode: 0o755 });
+  const calls = join(dir, "gh-calls.txt");
+  writeFileSync(calls, "");
+  const script = join(dir, "step.sh");
+  writeFileSync(script, stepScript(jobs.report, "Open or update the flaky-test issue"));
+  const result = spawnSync("bash", ["-e", script], {
+    cwd: work,
+    encoding: "utf8",
+    env: {
+      PATH: `${bin}${delimiter}${process.env.PATH}`,
+      GH_TOKEN: "not-a-token",
+      GH_REPO: "example/not-a-repo",
+      RUN_URL: "https://github.com/example/not-a-repo/actions/runs/1",
+      COMMIT: "0123456789abcdef0123456789abcdef01234567",
+      STUB_GH_CALLS: calls,
+      STUB_GH_LABELS: labels,
+      STUB_GH_OPEN_ISSUE: openIssue,
+    },
+  });
+  const body = join(work, "body.md");
+  return {
+    ...result,
+    calls: readFileSync(calls, "utf8").split("\n").filter(Boolean),
+    body: existsSync(body) ? readFileSync(body, "utf8") : null,
+  };
+}
+
+// The report job runs only on a night when a leg failed, so a mistake in it
+// stays hidden until the failure it should have filed. download-artifact puts
+// several artifacts in reports/<name>/ but a single one straight in reports/,
+// and a leg that failed before its hunt began uploads nothing.
+const noBash = spawnSync("bash", ["--version"]).error ? "bash is not installed" : false;
+
+test("flaky-hunt.yml: the report step uses no expressions in its script", () => {
+  const script = stepScript(jobs.report, "Open or update the flaky-test issue");
+  assert.doesNotMatch(script, /\$\{\{/);
+  assert.match(script, /^set -euo pipefail$/m);
+});
+
+test("flaky-hunt.yml: with both legs' reports, the issue gets both", { skip: noBash }, (t) => {
+  const step = runReportStep(t, {
+    files: {
+      "reports/flaky-hunt-sequential/failures.md": "SEQUENTIAL FAILURES\n",
+      "reports/flaky-hunt-sequential/summary.md": "SEQUENTIAL SUMMARY\n",
+      "reports/flaky-hunt-under-load/failures.md": "UNDER-LOAD FAILURES\n",
+    },
+  });
+  assert.equal(step.status, 0, step.stderr);
+  assert.match(step.body, /^The flaky-test hunt failed on 0123456789ab: https:\/\/github\.com\//);
+  assert.match(step.body, /SEQUENTIAL FAILURES\n[\s\S]*UNDER-LOAD FAILURES\n/);
+  assert.doesNotMatch(step.body, /SUMMARY/);
+  assert.deepEqual(
+    step.calls.map((call) => call.split(" ").slice(0, 2).join(" ")),
+    ["label list", "issue list", "issue create"],
+  );
+  assert.match(step.calls[2], /--label flaky-test --body-file body\.md$/);
+});
+
+test("flaky-hunt.yml: one leg's report, straight in reports/, is filed", { skip: noBash }, (t) => {
+  const step = runReportStep(t, {
+    files: {
+      "reports/failures.md": "UNDER-LOAD FAILURES\n",
+      "reports/summary.md": "UNDER-LOAD SUMMARY\n",
+      "reports/round-1-avakit-react.log": "a log\n",
+    },
+    labels: "bug\n",
+    openIssue: "17\n",
+  });
+  assert.equal(step.status, 0, step.stderr);
+  assert.ok(step.body?.includes("UNDER-LOAD FAILURES"), String(step.body));
+  // The label did not exist, so the step made it; issue 17 was open, so the
+  // failure became a comment on it.
+  assert.ok(step.calls.some((call) => call.startsWith("label create flaky-test --color")));
+  assert.ok(step.calls.includes("issue comment 17 --body-file body.md"), step.calls.join("\n"));
+  assert.ok(!step.calls.some((call) => call.startsWith("issue create")));
+});
+
+test("flaky-hunt.yml: a report too long for a comment is cut short", { skip: noBash }, (t) => {
+  const step = runReportStep(t, { files: { "reports/failures.md": "x".repeat(70_000) } });
+  assert.equal(step.status, 0, step.stderr);
+  assert.ok(step.body.length < 61_000, String(step.body.length));
+  assert.match(
+    step.body,
+    /\(Cut short\. The whole report is in the artifacts of https:\/\/\S+\)\n$/,
+  );
+});
+
+test("flaky-hunt.yml: no report at all is a warning, and no issue", { skip: noBash }, (t) => {
+  for (const files of [{ "reports/summary.md": "SUMMARY\n" }, {}]) {
+    const step = runReportStep(t, { files });
+    assert.equal(step.status, 0, step.stderr);
+    assert.match(
+      step.stdout,
+      /^::warning title=Flaky-test hunt::A leg failed without reaching the tests/m,
+    );
+    assert.deepEqual(step.calls, []);
+    assert.equal(step.body, null);
+  }
 });
