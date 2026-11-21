@@ -23,8 +23,8 @@
 // verifiers that deploys have to accept those proofs: scripts/eerc-pin.mjs
 // checks that pin at the end.
 //
-// Usage (from contracts-ci/, needs forge and the network: upstream sources are
-// fetched once and cached, eerc-token's pin is read from GitHub every run):
+// Usage (from contracts-ci/, needs forge, and the network the first time: the
+// upstream sources and eerc-token's pin are fetched from GitHub, then cached):
 //   node scripts/check-artifacts.mjs                  verify; exit 1 on any drift
 //   node scripts/check-artifacts.mjs --write          rewrite what drifted, in place
 //   node scripts/check-artifacts.mjs --eerc-circuits  also hash eerc-token's ten

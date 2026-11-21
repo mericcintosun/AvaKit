@@ -15,9 +15,10 @@ node scripts/check-artifacts.mjs   # shipped abi + bytecode still match the sour
 node --test scripts/guards.test.mjs  # the two scripts above still catch what they are for
 ```
 
-`check-artifacts.mjs` needs the network: it fetches the pinned upstream
-sources once (then they are cached) and reads `eerc-token`'s pin from GitHub on
-every run.
+`check-artifacts.mjs` needs the network the first time: it fetches the pinned
+upstream sources and the files of `eerc-token`'s pin from GitHub, then keeps
+them in a cache (`$AVAKIT_UPSTREAM_CACHE`, by default
+`<tmpdir>/avakit-upstream-sources`).
 
 - **`scripts/sync.mjs`** copies each template contract into `src/` and fails if
   templates that ship the same contract have drifted apart (`erc20-token` /

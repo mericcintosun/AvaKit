@@ -24,33 +24,34 @@
 // SHA-256 with the pins: worth doing whenever the pin moves.
 //
 // It reads raw.githubusercontent.com. The files at a commit cannot change, so
-// a failure here means the pin moved, or upstream's layout did at the new pin.
+// a failure here means the pin moved, or upstream's layout did at the new pin;
+// and so the small ones are kept in upstream.mjs's cache after the first run.
 
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cacheDir, download, writeAtomically } from "./upstream.mjs";
 
 const REPOSITORY = "ava-labs/EncryptedERC";
 const TEMPLATE = "packages/create-avalanche-app/templates/eerc-token";
 const CONFIG = `${TEMPLATE}/lib/eerc-config.ts`;
 const DEPLOY = `${TEMPLATE}/scripts/deploy-eerc.mjs`;
 
-async function fetchBytes(commit, path) {
-  const url = `https://raw.githubusercontent.com/${REPOSITORY}/${commit}/${path}`;
-  let failure;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+/** One file of the repository at `commit`, which can never change: kept after
+ * the first download unless `keep` is false (the circuit files, 55 MB). */
+async function fetchBytes(commit, path, { keep = true } = {}) {
+  const cached = join(cacheDir(), "EncryptedERC", commit, path);
+  if (keep) {
     try {
-      const response = await fetch(url);
-      if (response.ok) return Buffer.from(await response.arrayBuffer());
-      failure = `HTTP ${response.status}`;
-      if (response.status === 404) break;
-    } catch (error) {
-      failure = error.cause?.code ?? error.message;
+      return readFileSync(cached);
+    } catch {
+      // not cached yet
     }
-    await new Promise((done) => setTimeout(done, 500 * attempt));
   }
-  throw new Error(`could not download ${url} (${failure})`);
+  const bytes = await download(`https://raw.githubusercontent.com/${REPOSITORY}/${commit}/${path}`);
+  if (keep) writeAtomically(cached, bytes);
+  return bytes;
 }
 
 /** The numeric constants a Solidity verifier declares, by name. */
@@ -171,7 +172,7 @@ export async function checkEercPin(repoRoot, { circuits = false } = {}) {
 
     if (circuits) {
       for (const { path, sha256 } of files) {
-        const bytes = await fetchBytes(commit, `circom/build/${path}`);
+        const bytes = await fetchBytes(commit, `circom/build/${path}`, { keep: false });
         const got = createHash("sha256").update(bytes).digest("hex");
         if (got === sha256) notes.push(`${path}: sha256 matches the pin`);
         else

@@ -79,7 +79,8 @@ const inRepository = (repository, path) =>
 const rawUrl = (repository, path) =>
   `https://raw.githubusercontent.com/${repository.repository}/${repository.commit}/${inRepository(repository, path)}`;
 
-async function download(url) {
+/** The body of a GET, retried twice on a network error or a server error. */
+export async function download(url) {
   let failure;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -95,7 +96,17 @@ async function download(url) {
   throw new Error(`could not download ${url} (${failure})`);
 }
 
-const cacheDir = () => ENV.AVAKIT_UPSTREAM_CACHE || join(tmpdir(), "avakit-upstream-sources");
+/** Where fetched upstream files are kept between runs. */
+export const cacheDir = () =>
+  ENV.AVAKIT_UPSTREAM_CACHE || join(tmpdir(), "avakit-upstream-sources");
+
+/** Put `bytes` at `path` in one step, so a concurrent run never reads half a file. */
+export function writeAtomically(path, bytes) {
+  mkdirSync(dirname(path), { recursive: true });
+  const partial = `${path}.${process.pid}.partial`;
+  writeFileSync(partial, bytes);
+  renameSync(partial, path);
+}
 
 /** The bytes of one pinned file: from the cache when the copy there still has
  * the pinned blob id, from GitHub otherwise. Fails when GitHub's copy does not
@@ -115,10 +126,7 @@ async function pinnedBytes(repository, path, id) {
   if (got !== id) {
     throw new Error(`${path}: ${url} has blob ${got}, the pin says ${id}`);
   }
-  mkdirSync(cacheDir(), { recursive: true });
-  const partial = `${cached}.${process.pid}.partial`;
-  writeFileSync(partial, bytes);
-  renameSync(partial, cached); // atomic, so a concurrent run never reads half a file
+  writeAtomically(cached, bytes);
   return bytes;
 }
 
