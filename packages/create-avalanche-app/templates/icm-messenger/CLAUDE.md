@@ -15,6 +15,9 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
 
 ## Tooling status
 
+- **This template is experimental.** It depends on Avalanche CLI, which has been in maintenance
+  mode since December 2025, and it was last proven end to end in July 2026. `create-avalanche-app`
+  labels it experimental and warns when it is chosen. Say so before the user relies on it.
 - The local network is driven by **Avalanche CLI** (`avalanche`, ava-labs/avalanche-cli). Ava Labs
   put it in maintenance mode in December 2025 and removed its pages from the Avalanche
   documentation on 2026-10-06 in favour of Platform CLI.

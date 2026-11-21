@@ -2,6 +2,10 @@
 
 Bridge an ERC-20 between two Avalanche L1s with **Interchain Token Transfer (ICTT)** — over a one-command local devnet. Scaffolded with [AvaKit](https://github.com/mericcintosun/AvaKit).
 
+> **Experimental.** This template depends on Avalanche CLI, which has been in maintenance mode
+> since December 2025, and it was last proven end to end in July 2026. `create-avalanche-app`
+> labels it experimental and warns when you choose it. See [Tooling status](#tooling-status).
+
 ## Getting started
 
 > Requires a Unix-like shell (macOS, Linux, or **WSL2** on Windows): `npm run bridge` runs bash +

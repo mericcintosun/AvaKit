@@ -8,6 +8,7 @@ import {
   AVAKIT_REACT_VERSION,
   assertChainSupported,
   assertSafeProjectName,
+  experimentalWarning,
   isChainId,
   listTemplates,
   scaffoldApp,
@@ -121,6 +122,83 @@ describe("template chains", () => {
       'Template "nft-mint" cannot be scaffolded for chain "c-chain". It supports: fuji.',
     );
     expect(() => assertChainSupported(nft, "mainnet")).toThrow(/It supports: fuji\./);
+  });
+});
+
+describe("template status", () => {
+  it("marks exactly the three templates that need Avalanche CLI as experimental", () => {
+    // Spelled out, like the chains: making a template experimental, or taking
+    // the label off again, is a decision that should take a change here.
+    const status = Object.fromEntries(listTemplates().map((t) => [t.id, t.status]));
+    expect(status).toEqual({
+      minimal: "stable",
+      "nft-mint": "stable",
+      "token-gated-app": "stable",
+      "erc20-token": "stable",
+      "eerc-token": "stable",
+      "icm-messenger": "experimental",
+      "l1-launch": "experimental",
+      "token-bridge": "experimental",
+    });
+  });
+
+  it("gives every experimental template a reason that names Avalanche CLI and the last full run", () => {
+    for (const template of listTemplates().filter((t) => t.status === "experimental")) {
+      expect(template.statusReason, template.id).toBe(
+        "It needs Avalanche CLI, which has been in maintenance mode since December 2025, " +
+          "and was last proven end to end in July 2026.",
+      );
+    }
+    for (const template of listTemplates().filter((t) => t.status === "stable")) {
+      expect(template, template.id).not.toHaveProperty("statusReason");
+    }
+  });
+
+  it("reads a manifest's status in the direction that warns", () => {
+    const manifests: Record<string, object | null> = {
+      "no-manifest": null,
+      "no-key": { title: "No key" },
+      stable: { status: "stable", statusReason: "Ignored on a stable template." },
+      experimental: { status: "experimental", statusReason: "  Needs a tool.  " },
+      "no-reason": { status: "experimental" },
+      "blank-reason": { status: "experimental", statusReason: "   " },
+      misspelt: { status: "experimantal", statusReason: "Typo." },
+      "not-a-string": { status: true },
+      "reason-not-a-string": { status: "experimental", statusReason: 42 },
+    };
+    for (const [id, manifest] of Object.entries(manifests)) {
+      mkdirSync(path.join(dir, id));
+      if (manifest) writeFileSync(path.join(dir, id, "manifest.json"), JSON.stringify(manifest));
+    }
+    const read = Object.fromEntries(
+      listTemplates(dir).map((t) => [t.id, { status: t.status, statusReason: t.statusReason }]),
+    );
+    expect(read).toEqual({
+      "no-manifest": { status: "stable", statusReason: undefined },
+      "no-key": { status: "stable", statusReason: undefined },
+      stable: { status: "stable", statusReason: undefined },
+      experimental: { status: "experimental", statusReason: "Needs a tool." },
+      "no-reason": { status: "experimental", statusReason: undefined },
+      "blank-reason": { status: "experimental", statusReason: undefined },
+      misspelt: { status: "experimental", statusReason: "Typo." },
+      "not-a-string": { status: "experimental", statusReason: undefined },
+      "reason-not-a-string": { status: "experimental", statusReason: undefined },
+    });
+  });
+
+  it("words the warning for an experimental template, and has none for a stable one", () => {
+    expect(experimentalWarning({ id: "minimal", status: "stable" })).toBeNull();
+    expect(
+      experimentalWarning({ id: "x", status: "stable", statusReason: "Never shown." }),
+    ).toBeNull();
+    expect(experimentalWarning({ id: "x", status: "experimental" })).toBe(
+      'Template "x" is experimental.',
+    );
+    const bridge = listTemplates().find((t) => t.id === "token-bridge");
+    expect(bridge && experimentalWarning(bridge)).toBe(
+      'Template "token-bridge" is experimental. It needs Avalanche CLI, which has been in ' +
+        "maintenance mode since December 2025, and was last proven end to end in July 2026.",
+    );
   });
 });
 

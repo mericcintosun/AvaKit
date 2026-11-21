@@ -2,6 +2,8 @@
 
 > Launch your own Avalanche L1 with one command, then explore it in a built-in dashboard (live blocks, transactions, balance, contract deploy). Next.js + @avakit/react + viem + avalanche-cli, no third-party explorer.
 
+Status: experimental. This template depends on Avalanche CLI, which has been in maintenance mode since December 2025, and it was last proven end to end in July 2026 (see "Tooling status" in README.md).
+
 ## Project map
 
 - [scripts/l1.sh](scripts/l1.sh): `npm run l1` — create + deploy a local Subnet-EVM L1, write l1.config.json.

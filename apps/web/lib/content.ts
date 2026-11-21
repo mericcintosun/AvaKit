@@ -68,9 +68,10 @@ const GOAL_ICONS = [Wallet, Frame, Coins, Lock, EyeOff, Send, Rocket, ArrowLeftR
 export type TemplateRunsOn = "fuji" | "devnet";
 
 // Facts about each template that do not change by language. `contracts`,
-// `runsOn` and `mainnet` mirror the template's manifest.json in
-// packages/create-avalanche-app/templates (`contracts`, `setup`, and whether
-// `chains` lists "c-chain"); keep them in step with it.
+// `runsOn`, `mainnet` and `experimental` mirror the template's manifest.json in
+// packages/create-avalanche-app/templates (`contracts`, `setup`, whether
+// `chains` lists "c-chain", and whether `status` is "experimental"); keep them
+// in step with it.
 const TEMPLATE_META: {
   id: string;
   contracts: boolean;
@@ -78,21 +79,73 @@ const TEMPLATE_META: {
   runsOn: TemplateRunsOn;
   /** Whether `--chain c-chain` (mainnet) is accepted for this template. */
   mainnet: boolean;
+  /** Whether the scaffolder labels it experimental and warns when it is chosen. */
+  experimental: boolean;
 }[] = [
-  { id: "minimal", contracts: false, art: "/minimal.jpg", runsOn: "fuji", mainnet: true },
-  { id: "nft-mint", contracts: true, art: "/nft-mint.jpg", runsOn: "fuji", mainnet: false },
+  {
+    id: "minimal",
+    contracts: false,
+    art: "/minimal.jpg",
+    runsOn: "fuji",
+    mainnet: true,
+    experimental: false,
+  },
+  {
+    id: "nft-mint",
+    contracts: true,
+    art: "/nft-mint.jpg",
+    runsOn: "fuji",
+    mainnet: false,
+    experimental: false,
+  },
   {
     id: "token-gated-app",
     contracts: true,
     art: "/token-gated.jpg",
     runsOn: "fuji",
     mainnet: false,
+    experimental: false,
   },
-  { id: "erc20-token", contracts: true, art: "/erc-20.jpg", runsOn: "fuji", mainnet: false },
-  { id: "icm-messenger", contracts: true, art: "/island.jpg", runsOn: "devnet", mainnet: false },
-  { id: "eerc-token", contracts: false, art: "/eERC.jpg", runsOn: "fuji", mainnet: false },
-  { id: "l1-launch", contracts: true, art: "/l1.jpg", runsOn: "devnet", mainnet: false },
-  { id: "token-bridge", contracts: false, art: "/ictt.jpg", runsOn: "devnet", mainnet: false },
+  {
+    id: "erc20-token",
+    contracts: true,
+    art: "/erc-20.jpg",
+    runsOn: "fuji",
+    mainnet: false,
+    experimental: false,
+  },
+  {
+    id: "icm-messenger",
+    contracts: true,
+    art: "/island.jpg",
+    runsOn: "devnet",
+    mainnet: false,
+    experimental: true,
+  },
+  {
+    id: "eerc-token",
+    contracts: false,
+    art: "/eERC.jpg",
+    runsOn: "fuji",
+    mainnet: false,
+    experimental: false,
+  },
+  {
+    id: "l1-launch",
+    contracts: true,
+    art: "/l1.jpg",
+    runsOn: "devnet",
+    mainnet: false,
+    experimental: true,
+  },
+  {
+    id: "token-bridge",
+    contracts: false,
+    art: "/ictt.jpg",
+    runsOn: "devnet",
+    mainnet: false,
+    experimental: true,
+  },
 ];
 // The recommender goal at index i maps to TEMPLATE_META[i]'s id.
 const GOAL_TEMPLATE_IDS = [
@@ -176,6 +229,8 @@ type Strings = {
     more: string;
     /** Badge text for where a template runs. */
     runsOn: { fuji: string; fujiAndMainnet: string; devnet: string };
+    /** Badge text on a template the scaffolder labels experimental. */
+    experimental: string;
     /** Shown on every template that needs Avalanche CLI. */
     devnetNote: string;
   };
@@ -427,6 +482,7 @@ const EN: Strings = {
       fujiAndMainnet: "Fuji testnet · C-Chain opt-in",
       devnet: "Local devnet · needs Avalanche CLI",
     },
+    experimental: "Experimental",
     devnetNote:
       "Runs on a local devnet started by Avalanche CLI, which has been in maintenance mode since December 2025. Needs a Unix-like shell (macOS, Linux or WSL2). Last proven end to end in July 2026.",
   },
@@ -812,6 +868,7 @@ const TR: Strings = {
       fujiAndMainnet: "Fuji testnet · C-Chain isteğe bağlı",
       devnet: "Yerel devnet · Avalanche CLI gerekir",
     },
+    experimental: "Deneysel",
     devnetNote:
       "Avalanche CLI'ın başlattığı yerel bir devnet'te çalışır; bu araç Aralık 2025'ten beri bakım modunda. Unix benzeri bir kabuk gerekir (macOS, Linux veya WSL2). Uçtan uca en son Temmuz 2026'da doğrulandı.",
   },
@@ -996,6 +1053,7 @@ export type Template = {
   art: string;
   runsOn: TemplateRunsOn;
   mainnet: boolean;
+  experimental: boolean;
   title: string;
   description: string;
   highlights: string[];

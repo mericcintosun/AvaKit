@@ -23,6 +23,12 @@ export type TemplateInfo = {
   description: string;
   /** The chains this template can be scaffolded for. */
   chains: string[];
+  /**
+   * For an experimental template, the one line to show once it is chosen (the
+   * scaffolder's `experimentalWarning`); it is also labelled in the list.
+   * Null or absent for a stable template.
+   */
+  warning?: string | null;
 };
 
 export type StepContext = {
@@ -59,7 +65,11 @@ function templatesFor(answers: Partial<Answers>, ctx: StepContext): TemplateInfo
 export function optionsFor(key: StepKey, answers: Partial<Answers>, ctx: StepContext): Option[] {
   switch (key) {
     case "template":
-      return templatesFor(answers, ctx).map((t) => ({ label: t.title, value: t.id }));
+      // An experimental template says so in the list, before it is picked.
+      return templatesFor(answers, ctx).map((t) => ({
+        label: t.warning ? `${t.title}  ·  experimental` : t.title,
+        value: t.id,
+      }));
     case "chain": {
       const chains = chainsFor(answers, ctx);
       return chains.map((id) => ({
@@ -100,4 +110,14 @@ export function restrictionNote(
     return `Only the templates that run on ${chainLabel(answers.chain)} are listed.`;
   }
   return null;
+}
+
+/**
+ * The warning for the template chosen so far, or null when none is chosen yet
+ * or the chosen one is stable. Shown with the answers from then on, so it is
+ * still on screen at "Create the app now?".
+ */
+export function templateWarning(answers: Partial<Answers>, ctx: StepContext): string | null {
+  if (answers.template === undefined) return null;
+  return ctx.templates.find((t) => t.id === answers.template)?.warning ?? null;
 }

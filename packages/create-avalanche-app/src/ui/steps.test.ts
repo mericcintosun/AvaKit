@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { chainLabel, optionsFor, restrictionNote, type StepContext } from "./steps.js";
+import {
+  chainLabel,
+  optionsFor,
+  restrictionNote,
+  type StepContext,
+  templateWarning,
+} from "./steps.js";
 
 const ctx: StepContext = {
   templates: [
@@ -9,6 +15,21 @@ const ctx: StepContext = {
   ],
   packageManagers: ["npm", "pnpm", "yarn", "bun"],
   detectedPackageManager: "npm",
+};
+
+/** The same templates plus an experimental one, as the CLI hands them over. */
+const withExperimental: StepContext = {
+  ...ctx,
+  templates: [
+    ...ctx.templates.map((t) => ({ ...t, warning: null })),
+    {
+      id: "l1-launch",
+      title: "Launch your own L1",
+      description: "",
+      chains: ["fuji"],
+      warning: 'Template "l1-launch" is experimental. It needs Avalanche CLI.',
+    },
+  ],
 };
 
 const values = (options: { value: string }[]) => options.map((option) => option.value);
@@ -34,6 +55,15 @@ describe("optionsFor", () => {
 
   it("offers every template when no network was chosen up front", () => {
     expect(values(optionsFor("template", {}, ctx))).toEqual(["minimal", "nft-mint", "eerc-token"]);
+  });
+
+  it("labels an experimental template in the list, and only that one", () => {
+    expect(optionsFor("template", {}, withExperimental)).toEqual([
+      { label: "Minimal", value: "minimal" },
+      { label: "NFT mint", value: "nft-mint" },
+      { label: "Confidential token (eERC)", value: "eerc-token" },
+      { label: "Launch your own L1  ·  experimental", value: "l1-launch" },
+    ]);
   });
 
   it("narrows the templates to those that run on a network chosen up front", () => {
@@ -78,6 +108,23 @@ describe("restrictionNote", () => {
   it("has nothing to say about the other steps", () => {
     expect(restrictionNote("pm", { template: "nft-mint", chain: "fuji" }, ctx)).toBeNull();
     expect(restrictionNote("projectName", {}, ctx)).toBeNull();
+  });
+});
+
+describe("templateWarning", () => {
+  it("is the chosen experimental template's warning", () => {
+    expect(templateWarning({ template: "l1-launch" }, withExperimental)).toBe(
+      'Template "l1-launch" is experimental. It needs Avalanche CLI.',
+    );
+  });
+
+  it("is null before a template is chosen, for a stable one, and for an unknown id", () => {
+    expect(templateWarning({}, withExperimental)).toBeNull();
+    expect(templateWarning({ chain: "fuji" }, withExperimental)).toBeNull();
+    expect(templateWarning({ template: "minimal" }, withExperimental)).toBeNull();
+    // A template handed over without the field is stable, too.
+    expect(templateWarning({ template: "minimal" }, ctx)).toBeNull();
+    expect(templateWarning({ template: "nope" }, withExperimental)).toBeNull();
   });
 });
 

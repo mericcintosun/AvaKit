@@ -72,6 +72,9 @@ export default function CliDocs() {
               <Badge variant="outline" className="font-mono text-[10px]">
                 {t.id}
               </Badge>
+              {t.experimental ? (
+                <Badge className="font-mono text-[10px]">Experimental</Badge>
+              ) : null}
             </div>
             <span className="text-muted-foreground text-sm">{t.description}</span>
           </div>
@@ -193,6 +196,7 @@ export default function CliDocs() {
       <CodeBlock
         code={`-t, --template <id>     minimal | nft-mint | token-gated-app | erc20-token |
                         icm-messenger | eerc-token | l1-launch | token-bridge
+                        experimental: icm-messenger, token-bridge, l1-launch
 -c, --chain <id>        fuji | c-chain        (default: fuji)
                         c-chain (mainnet) only with: minimal
     --pm <manager>      pnpm | npm | yarn | bun

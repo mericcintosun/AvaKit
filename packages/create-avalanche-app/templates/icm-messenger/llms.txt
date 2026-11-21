@@ -2,6 +2,8 @@
 
 > An Avalanche cross-chain dapp scaffolded with AvaKit. Send a message between two Avalanche L1s using Interchain Messaging (ICM / Teleporter), against a one-command local devnet. Next.js + @avakit/react + shadcn/ui + Foundry + avalanche-cli.
 
+Status: experimental. This template depends on Avalanche CLI, which has been in maintenance mode since December 2025, and it was last proven end to end in July 2026 (see "Tooling status" in README.md).
+
 ## Project map
 
 - [contracts/src/AvaKitMessenger.sol](contracts/src/AvaKitMessenger.sol): one contract that both sends and receives ICM messages (implements ITeleporterReceiver). Deployed per chain, then linked: each side registers the other as its trusted remote.

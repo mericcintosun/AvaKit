@@ -64,6 +64,15 @@ export function isChainId(value: unknown): value is ChainId {
 /** The `@avakit/core/chains` export each chain id stands for in a template's source. */
 const CHAIN_CONST: Record<ChainId, string> = { fuji: "fuji", "c-chain": "cChain" };
 
+/**
+ * How far a template can be relied on. `experimental`: it ships and builds, but
+ * something it depends on is not supported the way the rest of AvaKit is (the
+ * three local-devnet templates drive Avalanche CLI, which is in maintenance
+ * mode), so choosing it comes with a warning.
+ */
+export const TEMPLATE_STATUSES = ["stable", "experimental"] as const;
+export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
+
 export interface TemplateInfo {
   id: string;
   title: string;
@@ -77,9 +86,21 @@ export interface TemplateInfo {
    * Fuji-only: a template has to opt in to mainnet, not out of it.
    */
   chains: ChainId[];
+  /**
+   * From `status` in the manifest. A manifest that does not say is `stable`;
+   * one that says anything other than `stable` is `experimental`, so that a
+   * misspelt status still warns instead of quietly passing as stable.
+   */
+  status: TemplateStatus;
+  /** Why the template is experimental, in one sentence. Only on an experimental template. */
+  statusReason?: string;
 }
 
-type Manifest = Partial<Omit<TemplateInfo, "id" | "chains">> & { chains?: unknown };
+type Manifest = Partial<Omit<TemplateInfo, "id" | "chains" | "status" | "statusReason">> & {
+  chains?: unknown;
+  status?: unknown;
+  statusReason?: unknown;
+};
 
 /**
  * @param dir The directory holding one folder per template. Defaults to the
@@ -97,6 +118,11 @@ export function listTemplates(dir: string = templatesDir): TemplateInfo[] {
       // is missing, empty, or misspelt — means Fuji only: the safe direction.
       const listed: unknown[] = Array.isArray(manifest.chains) ? manifest.chains : [];
       const chains = CHAIN_IDS.filter((id) => listed.includes(id));
+      // Missing means stable; anything but "stable" means experimental: the
+      // direction that shows a warning rather than hiding one.
+      const status: TemplateStatus =
+        manifest.status === undefined || manifest.status === "stable" ? "stable" : "experimental";
+      const reason = typeof manifest.statusReason === "string" ? manifest.statusReason.trim() : "";
       return {
         id: e.name,
         title: manifest.title ?? e.name,
@@ -104,8 +130,23 @@ export function listTemplates(dir: string = templatesDir): TemplateInfo[] {
         contracts: manifest.contracts ?? false,
         ...(manifest.setup ? { setup: manifest.setup } : {}),
         chains: chains.length > 0 ? chains : ["fuji"],
+        status,
+        ...(status === "experimental" && reason ? { statusReason: reason } : {}),
       };
     });
+}
+
+/**
+ * The one-line warning to show when an experimental template is chosen, or
+ * null for a stable one. The CLI prints it and the wizard shows it, so the
+ * wording lives here, next to the manifest field it comes from.
+ */
+export function experimentalWarning(
+  template: Pick<TemplateInfo, "id" | "status" | "statusReason">,
+): string | null {
+  if (template.status !== "experimental") return null;
+  const reason = template.statusReason ? ` ${template.statusReason}` : "";
+  return `Template "${template.id}" is experimental.${reason}`;
 }
 
 /**

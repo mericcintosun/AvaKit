@@ -11,6 +11,7 @@ import {
   type StepContext,
   type StepKey,
   type TemplateInfo,
+  templateWarning,
 } from "./steps.js";
 import { C, crimsonAt, uiTheme } from "./theme.js";
 
@@ -125,6 +126,23 @@ function displayValue(templates: TemplateInfo[], key: StepKey, value: string): s
   return value;
 }
 
+/**
+ * An experimental template's warning, under the answers it belongs to. The
+ * mark has a column of its own, so a line that wraps carries on under the
+ * text, not under the mark.
+ */
+function TemplateWarning({ text }: { text: string | null }) {
+  if (!text) return null;
+  return (
+    <Box>
+      <Box width={2} flexShrink={0}>
+        <Text color={C.yellow}>!</Text>
+      </Box>
+      <Text color={C.yellow}>{text}</Text>
+    </Box>
+  );
+}
+
 // ── The wizard ──────────────────────────────────────────────────────────────
 function App(props: AppProps) {
   const { exit } = useApp();
@@ -207,6 +225,9 @@ function App(props: AppProps) {
   const answered = STEP_ORDER.filter((k) => k !== currentKey && answers[k] != null);
   // Says why a list is shorter than usual, e.g. a Fuji-only template's networks.
   const restriction = currentKey ? restrictionNote(currentKey, answers, props) : null;
+  // From the moment an experimental template is chosen (or preset) to the end.
+  // While its step is on screen, nothing is chosen yet, so nothing shows.
+  const warning = templateWarning(answers, props);
 
   return (
     <ThemeProvider theme={uiTheme}>
@@ -235,6 +256,7 @@ function App(props: AppProps) {
                     </Text>
                   </Text>
                 ))}
+                <TemplateWarning text={warning} />
               </Box>
             ) : null}
 
@@ -293,6 +315,7 @@ function App(props: AppProps) {
                   </Text>
                 </Text>
               ))}
+              <TemplateWarning text={warning} />
             </Box>
             <Box marginTop={1}>
               <Text color={C.crimsonBright}>Create the app now? </Text>
@@ -318,6 +341,7 @@ function App(props: AppProps) {
                   </Text>
                 </Text>
               ))}
+              <TemplateWarning text={warning} />
             </Box>
 
             <Box marginTop={1} flexDirection="column">

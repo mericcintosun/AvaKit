@@ -2,6 +2,10 @@
 
 Launch **your own Avalanche L1** with one command, then explore it in a built-in dashboard — live blocks and transactions, your balance, and a deploy-a-contract button. Scaffolded with [AvaKit](https://github.com/mericcintosun/AvaKit).
 
+> **Experimental.** This template depends on Avalanche CLI, which has been in maintenance mode
+> since December 2025, and it was last proven end to end in July 2026. `create-avalanche-app`
+> labels it experimental and warns when you choose it. See [Tooling status](#tooling-status).
+
 ## Getting started
 
 > Requires a Unix-like shell (macOS, Linux, or **WSL2** on Windows): `npm run l1` runs bash +
