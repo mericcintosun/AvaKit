@@ -1,30 +1,77 @@
 version: 2
 updates:
-  # JavaScript / pnpm workspace dependencies.
+  # JavaScript / pnpm workspace dependencies, including the catalog in
+  # pnpm-workspace.yaml.
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    # Dependabot proposes a version only once it is three days old (its default,
+    # written out here), and it runs pnpm with the same window
+    # (--config.minimum-release-age=4320, in minutes). pnpm then refuses to
+    # resolve any version the lockfile already pins that is younger than that,
+    # so a bump by hand to a release from the last three days fails every update
+    # of the next run: that is what failed the runs of 2026-09-03, -10 and -17
+    # (@types/node) and of 2026-11-19 (lucide-react 1.74.0). Keep this window
+    # and minimumReleaseAge in pnpm-workspace.yaml the same.
+    cooldown:
+      default-days: 3
+      # AvaKit's own packages, which the website installs from npm, are
+      # published by this repository's release workflow: no wait for those.
+      exclude:
+        - "@avakit/*"
     groups:
-      # One grouped PR per week keeps the noise down.
-      dependencies:
+      # Minor and patch updates of every workspace dependency: one pull request
+      # a week.
+      minor-and-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
+      # Major updates are deliberately not grouped. Each one (TypeScript 7,
+      # Vitest 5, Vite 8, tsup 9, ...) gets a pull request of its own, so a
+      # major that needs work never holds back the routine updates, and can be
+      # tried, merged or closed on its own.
 
   # The two Cloudflare Workers are standalone npm projects with their own
   # package-lock.json, outside the pnpm workspace, so the entry above never sees
-  # them. One grouped PR per week for both.
+  # them. They sit inside the workspace root, though, and from these directories
+  # Dependabot also reads the root pnpm-workspace.yaml: without the allow list it
+  # tries to update the workspace catalog (TypeScript, tsup, Vitest, @types/node)
+  # from here, with pnpm, and fails, as it did on 2026-11-19. The list names
+  # every dependency of the two Workers; when a Worker gains one, add it here.
   - package-ecosystem: npm
     directories:
       - "/services/faucet"
       - "/services/telemetry"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+    allow:
+      - dependency-name: viem
+      - dependency-name: wrangler
+    ignore:
+      # The faucet stays on viem 2.57.17 on purpose: from 2.57.18 on, viem turns
+      # the faucet's wrong-chain refusal into a different error than the one the
+      # Worker reports (commit 4b7417c). Remove this rule together with the pin,
+      # once the faucet handles the newer error.
+      - dependency-name: viem
+        versions:
+          - ">=2.57.18"
     groups:
-      services:
+      # Minor and patch updates for both Workers: one pull request a week. A
+      # major update gets a pull request of its own.
+      services-minor-and-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
 
   # Not covered: the scaffolder templates (packages/create-avalanche-app/templates/*).
   # They are not workspace members either, but their package.json files carry
@@ -39,3 +86,16 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      # Minor and patch releases of the actions: one pull request a week. A
+      # new major (actions/checkout v8, say) can change inputs or the runtime,
+      # and gets a pull request of its own.
+      actions-minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
