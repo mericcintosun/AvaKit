@@ -12,7 +12,7 @@
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.mjs"
   },
   "dependencies": {
-    "viem": "2.57.17"
+    "viem": "2.57.20"
   },
   "devDependencies": {
     "wrangler": "4.164.0"
