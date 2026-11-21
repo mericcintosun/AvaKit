@@ -2,25 +2,37 @@
 # Chromium by Playwright. The tests and how to run them on your own machine are
 # in apps/web/playwright.config.ts and apps/web/e2e/.
 #
-# On every pull request and push to main. Nothing the app asks for leaves the
-# runner: Fuji's JSON-RPC is answered by a local anvil node with Fuji's chain
-# id, the faucet by a stand-in that funds through anvil, and any other external
-# request fails the test.
+# On every pull request and push to main, and by hand. Nothing the browser
+# requests leaves the runner: Fuji's JSON-RPC is answered by a local anvil node
+# with Fuji's chain id, the faucet by a stand-in that funds through anvil, and
+# any other request the browser makes outside the app fails the test. The
+# Next.js server is not routed: the server-rendered /stats page may still read
+# npm and GitHub.
 #   site      avakit.dev/new from a production build: the temporary wallet
 #             appears, gets funded, deploys the NFT contract and mints, and the
 #             chain agrees. Every key route loads with no console error and no
-#             Content Security Policy violation.
+#             Content Security Policy violation, and so does the 404 page.
 #   template  nft-mint, scaffolded and built from this checkout's packages: the
 #             temporary wallet connects, deploys and mints; social login is
 #             offered and starts Web3Auth with the app's client ID.
 #
-# Daily, and by hand (workflow_dispatch):
+# Daily, and by hand unless the run is started with live=false:
 #   fuji      /new on the real Fuji testnet with AvaKit's hosted faucet: one
 #             drip and two transactions per run, never retried.
 #   external  The template's social login against Web3Auth's real servers: its
 #             sign-in opens. Nobody signs in.
-#   A failure of either opens an issue labelled e2e-failure, or comments on the
-#   one that is already open.
+#   A scheduled failure of either opens an issue labelled e2e-browser-failure,
+#   or comments on the one that is already open. The label is this workflow's
+#   own, so no other workflow's report (e2e-fuji.yml files under e2e-failure)
+#   comments on that issue or closes it.
+#
+# Required checks: a pull request that a workflow opens with GITHUB_TOKEN (the
+# version PR) gets its pull_request runs only once someone approves them. So
+# site and template can be required on main only once release.yml's version-ci
+# job also starts this workflow on the version branch, as it does ci.yml:
+#   gh workflow run e2e-browser.yml --ref "$BRANCH" -f live=false
+# live=false runs site and template alone, and their checks count for the
+# branch's head commit.
 name: E2E · browser
 
 on:
@@ -33,6 +45,11 @@ on:
     # draws on the same faucet.
     - cron: "41 6 * * *"
   workflow_dispatch:
+    inputs:
+      live:
+        description: "Also run fuji (one faucet drip, two Fuji transactions) and external (Web3Auth's servers)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -55,7 +72,10 @@ env:
 jobs:
   site:
     name: Site · /new on anvil · key routes
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    # Also on a manual run, so a dispatch on a pull request's branch reports
+    # this check for its head commit instead of skipping it (a skipped job
+    # counts as passed).
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -120,7 +140,7 @@ jobs:
 
   template:
     name: Template · nft-mint on anvil
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -192,9 +212,10 @@ jobs:
 
   fuji:
     name: Fuji · /new on the real testnet
-    # A fork that enables scheduled workflows should not draw on the faucet every day.
+    # A fork that enables scheduled workflows should not draw on the faucet
+    # every day, and a manual run started with live=false does not draw on it.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && inputs.live) ||
       (github.event_name == 'schedule' && github.repository == 'mericcintosun/AvaKit')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -262,7 +283,7 @@ jobs:
   external:
     name: Template · social login against Web3Auth
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && inputs.live) ||
       (github.event_name == 'schedule' && github.repository == 'mericcintosun/AvaKit')
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -341,23 +362,28 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      # This workflow's own label, so no other workflow's report (e2e-fuji.yml
+      # files under e2e-failure) comments on this issue or closes it.
+      LABEL: e2e-browser-failure
       TITLE: "Scheduled browser E2E failed"
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       FUJI: ${{ needs.fuji.result }}
       EXTERNAL: ${{ needs.external.result }}
     steps:
-      - name: Open or update the e2e-failure issue
+      - name: Open or update the e2e-browser-failure issue
+        # bash -eo pipefail: a failed lookup stops the step instead of opening a duplicate.
+        shell: bash
         run: |
-          gh label create e2e-failure --force --color B60205 \
-            --description "A scheduled end-to-end run failed"
+          gh label create "$LABEL" --force --color B60205 \
+            --description "A scheduled run of e2e-browser.yml failed"
           summary="$(date -u +%Y-%m-%d): fuji ${FUJI}, external ${EXTERNAL}. Run: ${RUN_URL}"
-          number="$(gh issue list --label e2e-failure --state open --limit 100 \
-            --json number,title --jq '.[] | select(.title == env.TITLE) | .number' | head -n 1)"
+          number="$(gh issue list --label "$LABEL" --state open --limit 100 \
+            --json number,title --jq '[.[] | select(.title == env.TITLE)][0].number // empty')"
           if [ -n "$number" ]; then
             gh issue comment "$number" --body "Failed again on ${summary}"
             exit 0
           fi
-          body="$RUNNER_TEMP/e2e-failure.md"
+          body="$RUNNER_TEMP/e2e-browser-failure.md"
           {
             echo "The scheduled run of .github/workflows/e2e-browser.yml failed on ${summary}"
             echo
@@ -366,4 +392,4 @@ jobs:
             echo
             echo "Later failures are added here as comments. Close this issue once the cause is fixed."
           } > "$body"
-          gh issue create --title "$TITLE" --label e2e-failure --body-file "$body"
+          gh issue create --title "$TITLE" --label "$LABEL" --body-file "$body"

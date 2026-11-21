@@ -8,10 +8,13 @@ import { defineConfig, devices, type PlaywrightTestConfig } from "@playwright/te
  *
  *   site (default)  The website, against a production build of it. /new runs
  *                   its whole flow (temporary wallet, faucet, deploy, mint)
- *                   against a local anvil chain, and the key routes must load
- *                   without a console error or a CSP violation. Nothing leaves
- *                   the machine: Fuji's RPC and the faucet are answered
- *                   locally and any other external request fails the test.
+ *                   against a local anvil chain, and the key routes and the
+ *                   404 page must load without a console error or a CSP
+ *                   violation. Nothing the browser requests leaves the
+ *                   machine: Fuji's RPC and the faucet are answered locally
+ *                   and any other external request fails the test. (The
+ *                   server is not routed: the server-rendered /stats page may
+ *                   still read npm and GitHub.)
  *   template        A scaffolded nft-mint app (production build), the same
  *                   way: connect the temporary wallet, deploy, mint, and the
  *                   social login (Web3Auth) entry point. Set
