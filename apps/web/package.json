@@ -11,7 +11,8 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/*.test.mjs\"",
-    "clean": "rm -rf .next .turbo"
+    "test:e2e": "playwright test",
+    "clean": "rm -rf .next .turbo e2e/.results e2e/.report"
   },
   "dependencies": {
     "@avakit/core": "^0.2.2",
@@ -37,6 +38,7 @@
     "viem": "2.58.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@tailwindcss/postcss": "4.3.5",
     "@types/node": "26.6.6",
     "@types/react": "19.3.0",
