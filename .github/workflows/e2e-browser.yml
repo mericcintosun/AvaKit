@@ -1,0 +1,369 @@
+# Browser end to end: the website and a scaffolded app, clicked through in
+# Chromium by Playwright. The tests and how to run them on your own machine are
+# in apps/web/playwright.config.ts and apps/web/e2e/.
+#
+# On every pull request and push to main. Nothing the app asks for leaves the
+# runner: Fuji's JSON-RPC is answered by a local anvil node with Fuji's chain
+# id, the faucet by a stand-in that funds through anvil, and any other external
+# request fails the test.
+#   site      avakit.dev/new from a production build: the temporary wallet
+#             appears, gets funded, deploys the NFT contract and mints, and the
+#             chain agrees. Every key route loads with no console error and no
+#             Content Security Policy violation.
+#   template  nft-mint, scaffolded and built from this checkout's packages: the
+#             temporary wallet connects, deploys and mints; social login is
+#             offered and starts Web3Auth with the app's client ID.
+#
+# Daily, and by hand (workflow_dispatch):
+#   fuji      /new on the real Fuji testnet with AvaKit's hosted faucet: one
+#             drip and two transactions per run, never retried.
+#   external  The template's social login against Web3Auth's real servers: its
+#             sign-in opens. Nobody signs in.
+#   A failure of either opens an issue labelled e2e-failure, or comments on the
+#   one that is already open.
+name: E2E · browser
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Daily, away from the top of the hour and from e2e-fuji.yml (05:23), which
+    # draws on the same faucet.
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request replaces its run; scheduled and manual runs
+# are never cancelled.
+concurrency:
+  group: e2e-browser-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The faucet avakit.dev is built with. /new bakes it in at build time, and the
+  # tests answer it locally (or, on Fuji, use it), so build and test share it.
+  NEXT_PUBLIC_AVAKIT_FAUCET_URL: https://avakit-faucet.avakit.workers.dev/fund
+  # A test run is not usage.
+  AVAKIT_TELEMETRY_DISABLED: "1"
+  DO_NOT_TRACK: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  site:
+    name: Site · /new on anvil · key routes
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # anvil, the local chain. Same Foundry release as the contracts job in ci.yml.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: v1.7.1
+
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @avakit/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Playwright browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium-headless-shell
+
+      - name: Install the Playwright browser
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @avakit/web exec playwright install --with-deps --only-shell chromium
+
+      - name: Install the browser's system libraries
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @avakit/web exec playwright install-deps chromium
+
+      - name: Build the site
+        run: pnpm --filter @avakit/web build
+
+      - name: Run the site suite
+        run: pnpm --filter @avakit/web test:e2e
+
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-browser-site
+          path: |
+            apps/web/e2e/.report
+            apps/web/e2e/.results
+          retention-days: 14
+          if-no-files-found: ignore
+
+  template:
+    name: Template · nft-mint on anvil
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: v1.7.1
+
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @avakit/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Playwright browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium-headless-shell
+
+      - name: Install the Playwright browser
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @avakit/web exec playwright install --with-deps --only-shell chromium
+
+      - name: Install the browser's system libraries
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @avakit/web exec playwright install-deps chromium
+
+      - name: Build @avakit/* and the scaffolder
+        run: pnpm --filter "@avakit/core" --filter "@avakit/react" --filter create-avalanche-app build
+
+      # The same scaffold, install, typecheck and build as the smoke matrix in
+      # ci.yml, against this checkout's @avakit/core and @avakit/react.
+      - name: Scaffold and build nft-mint
+        run: bash scripts/smoke-template.sh nft-mint "$RUNNER_TEMP/e2e-template"
+
+      - name: Run the template suite
+        env:
+          AVAKIT_E2E_SUITE: template
+          AVAKIT_E2E_TEMPLATE_DIR: ${{ runner.temp }}/e2e-template/smoke-nft-mint
+        run: pnpm --filter @avakit/web test:e2e
+
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-browser-template
+          path: |
+            apps/web/e2e/.report
+            apps/web/e2e/.results
+          retention-days: 14
+          if-no-files-found: ignore
+
+  fuji:
+    name: Fuji · /new on the real testnet
+    # A fork that enables scheduled workflows should not draw on the faucet every day.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.repository == 'mericcintosun/AvaKit')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # One run at a time: the faucet is shared, and so is its rate limit.
+    concurrency:
+      group: e2e-browser-fuji
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @avakit/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Playwright browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium-headless-shell
+
+      - name: Install the Playwright browser
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @avakit/web exec playwright install --with-deps --only-shell chromium
+
+      - name: Install the browser's system libraries
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @avakit/web exec playwright install-deps chromium
+
+      - name: Build the site
+        run: pnpm --filter @avakit/web build
+
+      # Runs once: the suite has no retries, so a failure never asks the faucet again.
+      - name: Deploy and mint on Fuji from /new
+        env:
+          AVAKIT_E2E_SUITE: fuji
+        run: pnpm --filter @avakit/web test:e2e
+
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-browser-fuji
+          path: |
+            apps/web/e2e/.report
+            apps/web/e2e/.results
+          retention-days: 14
+          if-no-files-found: ignore
+
+  external:
+    name: Template · social login against Web3Auth
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.repository == 'mericcintosun/AvaKit')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @avakit/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Playwright browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium-headless-shell
+
+      - name: Install the Playwright browser
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @avakit/web exec playwright install --with-deps --only-shell chromium
+
+      - name: Install the browser's system libraries
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @avakit/web exec playwright install-deps chromium
+
+      - name: Build @avakit/* and the scaffolder
+        run: pnpm --filter "@avakit/core" --filter "@avakit/react" --filter create-avalanche-app build
+
+      - name: Scaffold and build nft-mint
+        run: bash scripts/smoke-template.sh nft-mint "$RUNNER_TEMP/e2e-template"
+
+      - name: Open the social login against Web3Auth's servers
+        env:
+          AVAKIT_E2E_SUITE: template
+          AVAKIT_E2E_TEMPLATE_DIR: ${{ runner.temp }}/e2e-template/smoke-nft-mint
+          AVAKIT_E2E_EXTERNAL: "1"
+        run: pnpm --filter @avakit/web test:e2e --grep @external
+
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-browser-external
+          path: |
+            apps/web/e2e/.report
+            apps/web/e2e/.results
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # The only job that may write: it files the failure where someone will see it.
+  report:
+    name: Report a failed scheduled run
+    needs: [fuji, external]
+    if: >-
+      failure() && github.event_name == 'schedule' &&
+      github.repository == 'mericcintosun/AvaKit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: "Scheduled browser E2E failed"
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      FUJI: ${{ needs.fuji.result }}
+      EXTERNAL: ${{ needs.external.result }}
+    steps:
+      - name: Open or update the e2e-failure issue
+        run: |
+          gh label create e2e-failure --force --color B60205 \
+            --description "A scheduled end-to-end run failed"
+          summary="$(date -u +%Y-%m-%d): fuji ${FUJI}, external ${EXTERNAL}. Run: ${RUN_URL}"
+          number="$(gh issue list --label e2e-failure --state open --limit 100 \
+            --json number,title --jq '.[] | select(.title == env.TITLE) | .number' | head -n 1)"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Failed again on ${summary}"
+            exit 0
+          fi
+          body="$RUNNER_TEMP/e2e-failure.md"
+          {
+            echo "The scheduled run of .github/workflows/e2e-browser.yml failed on ${summary}"
+            echo
+            echo "- **fuji** drives avakit.dev/new on the real Fuji testnet through AvaKit's hosted faucet. A faucet refusal (rate limit, empty faucet) or a Fuji RPC outage fails it too; the failing step says which."
+            echo "- **external** opens the nft-mint template's social login against Web3Auth's servers."
+            echo
+            echo "Later failures are added here as comments. Close this issue once the cause is fixed."
+          } > "$body"
+          gh issue create --title "$TITLE" --label e2e-failure --body-file "$body"

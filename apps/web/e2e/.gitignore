@@ -1,0 +1,3 @@
+# Playwright output: traces, screenshots and the HTML report of the last run.
+.results/
+.report/
