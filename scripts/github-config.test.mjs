@@ -1,13 +1,15 @@
-// Tripwires for .github/dependabot.yml and the three security workflows
-// (codeql.yml, secret-scan.yml, scorecard.yml). ci.yml and release.yml have
-// their own in scripts/workflows.test.mjs.
+// Tripwires for .github/dependabot.yml, the three security workflows
+// (codeql.yml, secret-scan.yml, scorecard.yml) and .gitleaks.toml, and for
+// the name of the one check the main branch ruleset requires. ci.yml and
+// release.yml have their own in scripts/workflows.test.mjs.
 //
-// Read as text, not parsed: the repo has no YAML dependency, and these files
-// are short. If you restructure one, keep what it guarantees and update the
-// test with it.
+// Read as text, not parsed: the repo has no YAML or TOML dependency, and these
+// files are short. If you restructure one, keep what it guarantees and update
+// the test with it.
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -207,7 +209,160 @@ test("the secret scan reads the full history with a pinned, checksum-verified gi
     /^\s+echo .* \| sha256sum --check --strict$/m,
     "the download must be checked before it runs",
   );
-  assert.match(scan, /^\s+gitleaks git --redact /m, "findings must not print the secret");
+  // The whole command, so no flag can narrow it: no `-1` or other limit in
+  // --log-opts, no --exit-code 0, no other config, baseline or ignore file.
+  // Findings never print the secret (--redact).
+  assert.match(
+    scan,
+    /^ {10}gitleaks git --redact --no-banner --verbose --log-opts="--full-history \$\{SCOPE\}" \.$/m,
+    "the scan must read the full history of SCOPE, with no flag that narrows it",
+  );
+  assert.match(
+    scan,
+    /^ {10}SCOPE: \$\{\{ \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\) && '--all' \|\| 'HEAD' \}\}$/m,
+    "SCOPE must be the commit under test, or every branch and tag on the weekly and hand-started runs",
+  );
+});
+
+test("nothing in the secret scan lets a finding pass", () => {
+  const scan = security["secret-scan.yml"];
+  // Lines that are not comments.
+  const code = scan
+    .split("\n")
+    .filter((line) => !/^\s*#/.test(line))
+    .join("\n");
+  assert.doesNotMatch(code, /continue-on-error/, "no job or step may continue on error");
+  assert.doesNotMatch(code, /^\s+if:/m, "no job or step may be conditional");
+  assert.doesNotMatch(code, /--exit-code[ =]0\b/, "a finding must fail the scan");
+  // GITLEAKS_CONFIG or GITLEAKS_CONFIG_TOML would replace .gitleaks.toml.
+  assert.doesNotMatch(code, /GITLEAKS_CONFIG/, "the scan must read .gitleaks.toml");
+});
+
+test("the secret scan checks first that .gitleaks.toml still finds a planted key", () => {
+  const scan = security["secret-scan.yml"];
+  // Script lines (indented ten spaces), not the comments that quote them.
+  const canary = scan.search(/^ {10}gitleaks dir .*--config \.gitleaks\.toml --exit-code 99 /m);
+  assert.notEqual(
+    canary,
+    -1,
+    "the planted-key step must scan with .gitleaks.toml and --exit-code 99",
+  );
+  assert.ok(canary < scan.search(/^ {10}gitleaks git /m), "it must run before the scan");
+  assert.match(scan, /^ {10}printf 'api_key = "%s"\\n' "\$\(openssl rand -hex 32\)" > /m);
+  assert.match(
+    scan,
+    /^ {10}if \[ "\$status" -ne 99 \]; then$/m,
+    "only exit code 99 means it was found",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// .gitleaks.toml
+
+/** The tables of .gitleaks.toml, `[{ header, body }]`, comments and blank lines left out. */
+const gitleaksTables = read(".gitleaks.toml")
+  .split("\n")
+  .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
+  .join("\n")
+  .split(/^(?=\[)/m)
+  .filter((table) => table.startsWith("["))
+  .map((table) => {
+    const [header, ...body] = table.split("\n");
+    return { header, body: body.join("\n").trim() };
+  });
+
+test(".gitleaks.toml extends the default rules instead of replacing them", () => {
+  // Without useDefault the file replaces the default rules, and the scan
+  // finds nothing at all. disabledRules would switch one of them off.
+  const extend = gitleaksTables.filter((t) => t.header === "[extend]");
+  assert.equal(extend.length, 1, ".gitleaks.toml must have one [extend] table");
+  assert.equal(
+    extend[0].body,
+    "useDefault = true",
+    "[extend] must be `useDefault = true` and nothing else",
+  );
+});
+
+/** The TOML literal strings ('''...''') of an array value `key = [...]` in a table body. */
+function literalsOf(body, key) {
+  const array = body.match(new RegExp(`^${key} = \\[([\\s\\S]*?)\\]$`, "m"))?.[1] ?? "";
+  return [...array.matchAll(/'''(.*?)'''/g)].map((m) => m[1]);
+}
+
+/** A gitleaks (Go) regex as a JavaScript one: these files use only syntax both read alike. */
+function goRegex(source) {
+  return source.startsWith("(?i)") ? new RegExp(source.slice(4), "i") : new RegExp(source);
+}
+
+test(".gitleaks.toml allows only exact values, or one kind of value in named files", () => {
+  const allowlists = gitleaksTables.filter((t) => t.header === "[[allowlists]]");
+  assert.ok(allowlists.length > 0, ".gitleaks.toml has no allowlists");
+  const hex = (bytes) => randomBytes(bytes).toString("hex");
+  for (const { body } of allowlists) {
+    const description = body.match(/^description = "(.+)"$/m)?.[1];
+    assert.ok(description, "every allowlist must say what it allows");
+    assert.doesNotMatch(
+      body,
+      /^(commits|stopwords) =/m,
+      `${description}: allow by value or path only`,
+    );
+    const regexes = literalsOf(body, "regexes");
+    const paths = literalsOf(body, "paths");
+    assert.ok(regexes.length > 0, `${description}: an allowlist must name the values it allows`);
+    // A regex that is not anchored at both ends matches inside a longer value.
+    for (const regex of [...regexes, ...paths]) {
+      assert.match(
+        regex,
+        /^(\(\?i\))?\^.*\$$/,
+        `${description}: \`${regex}\` must be anchored with ^ and $`,
+      );
+    }
+    if (paths.length === 0) {
+      // Allowed everywhere, so it must allow one value, not any key.
+      for (const value of [hex(32), `0x${hex(32)}`, hex(20)]) {
+        for (const regex of regexes) {
+          assert.doesNotMatch(value, goRegex(regex), `${description}: \`${regex}\` allows any key`);
+        }
+      }
+    } else {
+      // Allowed in named files only: their path and the value must both match,
+      // for the rule that misreads them.
+      assert.match(
+        body,
+        /^condition = "AND"$/m,
+        `${description}: a path allowlist needs condition AND`,
+      );
+      assert.match(
+        body,
+        /^targetRules = \[.+\]$/m,
+        `${description}: a path allowlist must name its rules`,
+      );
+      for (const path of [".env", "packages/core/src/index.ts", "services/faucet/src/index.mjs"]) {
+        for (const regex of paths) {
+          assert.doesNotMatch(path, goRegex(regex), `${description}: \`${regex}\` allows ${path}`);
+        }
+      }
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// The "CI passed" check
+
+test('only ci.yml names a job "CI passed", the check the main branch ruleset requires', () => {
+  // Another job of that name, in any workflow, would report the same check,
+  // and a pull request could pass the ruleset on its result.
+  const dir = join(root, ".github", "workflows");
+  const named = readdirSync(dir)
+    .filter((name) => /\.ya?ml$/.test(name))
+    .flatMap((name) =>
+      [
+        ...read(".github", "workflows", name).matchAll(
+          /^[ \t]+name:[ \t]*["']?CI passed["']?[ \t]*$/gim,
+        ),
+      ].map(() => name),
+    );
+  assert.deepEqual(named, ["ci.yml"], `jobs named "CI passed": ${named.join(", ") || "none"}`);
 });
 
 test("the Scorecard workflow keeps the rules the Scorecard API checks before it accepts results", () => {

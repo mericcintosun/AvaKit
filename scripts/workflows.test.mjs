@@ -110,7 +110,20 @@ test("ci.yml runs on every push and pull request to main, by hand, and on every 
   }
   // A required check whose run never starts keeps a pull request waiting forever.
   assert.doesNotMatch(ci, /^\s*paths(-ignore)?:/m, "no trigger in ci.yml may be path-filtered");
+  // So would a narrower pull_request trigger: `types: [opened]` starts no run
+  // for the pull request's next push, another branch none for its first.
+  assert.match(
+    on,
+    /^ {2}pull_request:\n {4}branches: \[main\]\n(?! {4})/m,
+    "the pull_request trigger must be exactly `branches: [main]`",
+  );
 });
+
+/** ci.yml without its comment lines, for the checks a comment could trip. */
+const ciCode = ci
+  .split("\n")
+  .filter((line) => !/^\s*#/.test(line))
+  .join("\n");
 
 test("ci.yml gives its token read access only", () => {
   assert.match(
@@ -119,6 +132,31 @@ test("ci.yml gives its token read access only", () => {
     "ci.yml must set `permissions: contents: read` at the top level, and nothing else there",
   );
   assert.doesNotMatch(ci, /^\s+[a-z-]+: write\s*$/m, "no job in ci.yml may ask for write access");
+  // Nor in flow style (`permissions: { contents: write }`), nor through the
+  // shorthands (`permissions: write-all`, `permissions: read-all`).
+  assert.doesNotMatch(ciCode, /:\s*write\b/, "no job in ci.yml may ask for write access");
+  assert.doesNotMatch(
+    ciCode,
+    /\b(read|write)-all\b/,
+    "no job in ci.yml may use read-all or write-all",
+  );
+});
+
+test("no job or step in ci.yml can fail without failing the run", () => {
+  assert.doesNotMatch(
+    ciCode,
+    /continue-on-error/,
+    "no job or step in ci.yml may continue on error",
+  );
+  // A step's `if:` can skip a check while its job still succeeds. The one kind
+  // allowed runs a step even after an earlier step failed.
+  for (const [, condition] of ciCode.matchAll(/^ {8}if: (.+)$/gm)) {
+    assert.match(
+      condition,
+      /^\$\{\{ !cancelled\(\) \}\}\s*$/,
+      `a step in ci.yml may only be conditional on !cancelled(), not ${condition.trim()}`,
+    );
+  }
 });
 
 test("every job in ci.yml has a timeout", () => {
@@ -201,6 +239,13 @@ test("ci.yml fails on a high or critical advisory, in the lockfiles and in a pul
   assert.match(review, /^ {4}if: github\.event_name == 'pull_request'\s*$/m);
   assert.match(review, /uses: actions\/dependency-review-action@/);
   assert.match(review, /^\s+fail-on-severity: high\s*$/m);
+  // The action's default is runtime only, and the dependency graph scopes
+  // devDependencies and the Workers' wrangler trees as development.
+  assert.match(
+    review,
+    /^\s+fail-on-scopes: runtime, development, unknown\s*$/m,
+    "the review must fail on an advisory in any scope",
+  );
 });
 
 test('"CI passed" waits for every other job in ci.yml and cannot be skipped', () => {

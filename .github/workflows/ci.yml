@@ -10,11 +10,13 @@ on:
     branches: [main]
   # Runs CI on any branch by hand, or from another workflow:
   #   gh workflow run ci.yml --ref <branch>
-  # GitHub starts no pull_request run for a pull request that GITHUB_TOKEN opened
-  # or updated (the "chore: version packages" PR), but it does start a
-  # workflow_dispatch run that GITHUB_TOKEN asks for. The dispatched run's checks
-  # land on the branch's head commit, which is the pull request's head commit, so
-  # they count for the pull request's required "CI passed" check.
+  # GitHub holds the pull_request runs of a pull request that GITHUB_TOKEN
+  # opened or updated (the "chore: version packages" PR) for approval, and runs
+  # none of their jobs until someone with write access approves them; a
+  # workflow_dispatch run that GITHUB_TOKEN asks for starts at once. The
+  # dispatched run's checks land on the branch's head commit, which is the pull
+  # request's head commit, so they count for the pull request's required "CI
+  # passed" check.
   workflow_dispatch:
 
 # Read-only. No job here pushes, comments or publishes; a job that needs more
@@ -145,8 +147,11 @@ jobs:
 
   # The dependencies a pull request adds or changes, compared base against head
   # in GitHub's dependency graph: one with a known high or critical advisory
-  # fails the job. It runs for pull requests only, and is the one job "CI
-  # passed" lets be skipped, on a push or a dispatched run.
+  # fails the job, whatever its scope. (Left to its default, the action fails on
+  # runtime dependencies only, and the graph scopes the devDependencies of each
+  # package.json and the Workers' wrangler trees as development.) It runs for
+  # pull requests only, and is the one job "CI passed" lets be skipped, on a
+  # push or a dispatched run.
   dependency-review:
     name: Dependency review · new high and critical advisories
     if: github.event_name == 'pull_request'
@@ -157,6 +162,7 @@ jobs:
         uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
         with:
           fail-on-severity: high
+          fail-on-scopes: runtime, development, unknown
 
   # Scaffold every create-avalanche-app template from the LOCAL build and verify it
   # installs, type-checks, and production-builds — the real `npm create avalanche-app`
