@@ -1,0 +1,212 @@
+# Deploy the two Cloudflare Workers, services/faucet and services/telemetry,
+# from GitHub Actions instead of from a maintainer's machine, so the version
+# answering on workers.dev is a commit on main that anyone can look up.
+#
+# What it does
+#   - Runs on a push to main that changes a Worker's code or config, and by hand
+#     (Actions → Deploy · Cloudflare Workers → Run workflow, choosing a Worker).
+#     A push deploys only the Worker whose files changed; a change to Markdown
+#     alone deploys nothing.
+#   - Every deploy job runs in the `cloudflare-workers` environment, which waits
+#     for a maintainer's approval and only accepts main. The Cloudflare token is a
+#     secret of that environment, so no other job and no pull request can read it,
+#     and only the one step that deploys is given it.
+#   - Installs the service from its own lockfile with install scripts off, runs
+#     its tests, and deploys with the wrangler version that lockfile pins.
+#   - Passes the commit to the Worker as GIT_SHA (`wrangler deploy --var`), so
+#     GET /health answers `"version": "<commit>"`, and tags the new Worker version
+#     with the same commit and a message naming this run (Workers → the Worker →
+#     Deployments, or `npx wrangler deployments list`).
+#   - Asks GET /health afterwards and fails unless the new commit answers there.
+#
+# What it never does
+#   - Read, set or delete a Worker secret (AVAKIT_FAUCET_KEY, TELEMETRY_SALT,
+#     TURNSTILE_SECRET, FAUCET_PAUSED, …). Those stay as `wrangler secret put`
+#     left them. Plain-text variables, though, are the ones in wrangler.toml: a
+#     deploy removes any that were typed into the dashboard.
+#   - Deploy from a fork: the jobs are skipped outside mericcintosun/AvaKit.
+#
+# What it needs, once: the environment secrets CLOUDFLARE_API_TOKEN and
+# CLOUDFLARE_ACCOUNT_ID. services/DEPLOY.md lists the token's permissions and
+# the steps; without them the first step says which one is missing and stops.
+name: Deploy · Cloudflare Workers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/faucet/**"
+      - "services/telemetry/**"
+      - "!services/**/*.md"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Which Worker to deploy
+        type: choice
+        options:
+          - faucet
+          - telemetry
+          - both
+        default: both
+
+# Nothing by default; each job names what it needs.
+permissions: {}
+
+jobs:
+  plan:
+    name: Pick the Workers to deploy
+    if: github.repository == 'mericcintosun/AvaKit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      services: ${{ steps.pick.outputs.services }}
+    steps:
+      # Only the commit itself; the commit before a push is fetched on its own below.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Pick
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          SERVICE: ${{ inputs.service }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error title=Deploy from main::The Workers are deployed from main only, not from $GITHUB_REF."
+            exit 1
+          fi
+
+          deploy=()
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            case "$SERVICE" in
+              faucet | telemetry) deploy=("$SERVICE") ;;
+              both) deploy=(faucet telemetry) ;;
+              *)
+                echo "::error title=Unknown Worker::'$SERVICE' is not faucet, telemetry or both."
+                exit 1
+                ;;
+            esac
+          elif [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^0+$ ]] ||
+            ! git fetch --quiet --no-tags --depth=1 origin "$BEFORE"; then
+            # A new branch, or a history rewritten under the push: nothing to compare with.
+            echo "::notice title=Deploying both Workers::There is no earlier commit to compare this push with."
+            deploy=(faucet telemetry)
+          else
+            # Two trees are enough for a diff, so neither side needs its history.
+            # A diff that fails stops the step here, instead of reading as "nothing changed".
+            diff="$(git diff --name-only "$BEFORE" HEAD -- services/)"
+            changed="$(grep -v '\.md$' <<<"$diff" || true)"
+            for service in faucet telemetry; do
+              if grep -q "^services/$service/" <<<"$changed"; then deploy+=("$service"); fi
+            done
+          fi
+
+          if [ "${#deploy[@]}" -eq 0 ]; then
+            services='[]'
+            echo "Nothing to deploy." >> "$GITHUB_STEP_SUMMARY"
+          else
+            services="$(jq -cn '$ARGS.positional' --args "${deploy[@]}")"
+            echo "Deploying: ${deploy[*]} (waiting for approval in the cloudflare-workers environment)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy · ${{ matrix.service }}
+    needs: plan
+    if: github.repository == 'mericcintosun/AvaKit' && needs.plan.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.plan.outputs.services) }}
+    environment:
+      name: cloudflare-workers
+      url: https://avakit-${{ matrix.service }}.avakit.workers.dev/health
+    permissions:
+      contents: read
+    # One deploy of a Worker at a time; a newer one waits instead of cancelling it.
+    concurrency:
+      group: deploy-worker-${{ matrix.service }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    env:
+      HEALTH_URL: https://avakit-${{ matrix.service }}.avakit.workers.dev/health
+      SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the Cloudflare credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=()
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing+=(CLOUDFLARE_API_TOKEN)
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error title=Cloudflare credentials missing::Missing secret(s) of the cloudflare-workers environment: ${missing[*]}. Add them under Settings → Environments → cloudflare-workers → Environment secrets; services/DEPLOY.md says how to create the token and what it may do. Nothing was deployed."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: services/${{ matrix.service }}/package-lock.json
+
+      # No dependency runs code at install time; the tests and the deploy need none of it.
+      - name: Install from the lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Test
+        run: npm test
+
+      # The token reaches this step only. wrangler is the version the lockfile pins.
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          ./node_modules/.bin/wrangler deploy
+          --var "GIT_SHA:$SHA"
+          --tag "$SHA"
+          --message "Deployed from $SHA by $RUN_URL"
+
+      # A new version reaches every location within seconds; two minutes is plenty.
+      - name: Check that the new version answers
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from "node:fs";
+          const { HEALTH_URL: url, SHA: sha, GITHUB_STEP_SUMMARY: summary } = process.env;
+          let last = "no answer";
+          for (let attempt = 1; attempt <= 12; attempt += 1) {
+            try {
+              const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+              const body = await response.json().catch(() => null);
+              last = `HTTP ${response.status} ${JSON.stringify(body)}`;
+              if (response.ok && body?.ok === true && body.version === sha) {
+                console.log(`${url} answers: ${last}`);
+                appendFileSync(summary, `${url} answers \`version: ${sha}\`.\n`);
+                process.exit(0);
+              }
+            } catch (error) {
+              last = String(error);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 10_000));
+          }
+          console.log(`::error title=Deployed version not answering::${url} did not answer ok with version ${sha} within two minutes. Last answer: ${last}`);
+          process.exit(1);
+          JS
