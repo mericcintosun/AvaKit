@@ -1,0 +1,14 @@
+# A test fixture, never deployed: a Durable Object that lays out the faucet's
+# `drips` table as it was before the daily budgets and then opens it with the
+# current src/limits.js, in workerd. See test/upgrade.test.mjs.
+name = "avakit-faucet-upgrade-fixture"
+main = "worker.js"
+compatibility_date = "2026-07-01"
+
+[[durable_objects.bindings]]
+name = "UPGRADE"
+class_name = "Upgrade"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Upgrade"]

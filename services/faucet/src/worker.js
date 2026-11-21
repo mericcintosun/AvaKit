@@ -1,5 +1,16 @@
 import { DurableObject } from "cloudflare:workers";
-import { isAddress, parseEther } from "viem";
+import { isAddress } from "viem";
+import {
+  dailyBudgets,
+  deployedVersion,
+  dripAmount,
+  isPaused,
+  lowBalance,
+  tokenRequired,
+  turnstileOrigins,
+  UNVERIFIED,
+  VERIFIED,
+} from "./config.js";
 import { clientKey } from "./ip.js";
 import { BUSY_RETRY_S, DripLimits, FAILURE_WINDOW_MS, IP_WINDOW_MS } from "./limits.js";
 import {
@@ -20,20 +31,21 @@ import { verifyTurnstile } from "./turnstile.js";
  * Worker secret, so AvaKit client code never touches a private key.
  *
  *   POST /fund   { address, chainId?, turnstileToken? }  → { txHash, amount, chainId }
- *   GET  /health                → { ok, address, chainId, balance, amount, turnstile }
+ *   GET  /health → { ok, version, address, chainId, balance, low, lowBelow, amount,
+ *                    turnstile, paused, today }
  *
  * Point a dapp at it: <AvaKitProvider faucetUrl="https://<worker>/fund">
  *
  * The Worker itself is stateless: it validates the request, checks a Turnstile
- * token if one is required, and hands the drip to the `Faucet` Durable Object.
- * That object is the one place that both counts drips and signs them, which is
- * what makes the rate limits exact and keeps two drips off the same nonce.
+ * token if one was sent or is required, and hands the drip to the `Faucet`
+ * Durable Object. That object is the one place that both counts drips and
+ * signs them, which is what makes the limits exact and keeps two drips off the
+ * same nonce.
  *
  * ⚠️ Testnet only. CHAINS is an allowlist, so this can never drip real funds.
- *    The rate limits bound what one network can take; a captcha is what stops
- *    a thousand of them. Set TURNSTILE_SECRET for that — but only once every
- *    client of this faucet sends a token (README, "Turnstile"), because from
- *    then on a request without one is refused.
+ *    The per-client limits bound what one network can take, and the daily
+ *    budgets bound what all of them can take together; FAUCET_PAUSED stops
+ *    everything. PROTECTION.md says what each of these does and does not stop.
  */
 
 /**
@@ -55,6 +67,11 @@ const REFUSALS = {
   not_found: [404, "Not found."],
   address_limited: [429, "This address was funded recently. Try again later."],
   ip_limited: [429, "Rate limit reached. Try again later."],
+  daily_limited: [
+    429,
+    "The faucet has sent all the drips it gives out today. Try again after 00:00 UTC.",
+  ],
+  faucet_paused: [503, "The faucet is paused. Try again later."],
   faucet_busy: [503, "The faucet is busy. Try again in a few seconds."],
   faucet_empty: [503, "Faucet is empty. Please top it up."],
   drip_failed: [502, "The faucet could not send the drip. Try again shortly."],
@@ -111,50 +128,123 @@ function preflight(env) {
 
 const KEY_MISSING = { code: "misconfigured", message: "Faucet key not configured." };
 
-/**
- * What one drip is: `amount` as configured (AVAX, as text) and `value` in wei.
- * Throws FaucetConfigError if FAUCET_DRIP_AVAX is not an amount.
- */
-function dripAmount(env) {
-  const amount = env.FAUCET_DRIP_AVAX || "0.05";
-  let value = 0n;
-  try {
-    value = parseEther(amount);
-  } catch {
-    // Falls through to the check below.
-  }
-  if (value <= 0n) throw new FaucetConfigError("FAUCET_DRIP_AVAX is not a valid amount.");
-  return { amount, value };
+/** The one Durable Object that counts and sends the drips for `chainId`. */
+function faucetFor(env, chainId) {
+  return env.FAUCET.get(env.FAUCET.idFromName(String(chainId)));
 }
 
 /**
- * The faucet's state, for a client or an operator to read without a drip. It
- * names the faucet's own address and that address's balance, nothing else.
+ * The faucet's state, for a client, an operator or a monitor to read without
+ * a drip. It names the faucet's own address and balance, the commit it was
+ * deployed from and today's use of the budgets, and no secret.
+ *
+ * `ok` says the faucet is set up and its Durable Object answers; whether it
+ * would drip right now is `paused`, `low` and `today`. `turnstile` is answered
+ * for the origin this request came from (hence `Vary: Origin`).
  */
-async function health(env) {
-  if (!env.AVAKIT_FAUCET_KEY) return refuse(KEY_MISSING, env);
+async function health(request, env) {
+  const version = deployedVersion(env);
+  // Not cached by anything on the way: the balance and the counts are live.
+  const headers = { "cache-control": "no-store", vary: "origin" };
+  const failed = (status, error, code) =>
+    json({ ok: false, version, error, ...(code ? { code } : {}) }, status, env, headers);
 
-  const { account, client } = connect(DEFAULT_CHAIN_ID, env);
-  const { amount } = dripAmount(env);
-  const balance = await client.getBalance({ address: account.address }).catch(() => null);
+  let settings;
+  try {
+    if (!env.AVAKIT_FAUCET_KEY) throw new FaucetConfigError(KEY_MISSING.message);
+    // Every setting is read here, so that /health — and the deploy workflow,
+    // which asks it after every deploy — reports a bad one before a drip does.
+    settings = {
+      connection: connect(DEFAULT_CHAIN_ID, env),
+      amount: dripAmount(env).amount,
+      low: lowBalance(env),
+      turnstile: tokenRequired(env, request.headers.get("origin")),
+    };
+    dailyBudgets(env);
+    turnstileOrigins(env);
+  } catch (e) {
+    if (e instanceof FaucetConfigError) return failed(500, e.message, "misconfigured");
+    throw e;
+  }
+
+  const { account, client } = settings.connection;
+  const [balance, today] = await Promise.all([
+    client.getBalance({ address: account.address }).catch(() => null),
+    faucetFor(env, DEFAULT_CHAIN_ID)
+      .usage()
+      .catch((e) => {
+        console.error(
+          JSON.stringify({
+            message: "health: no answer from the Durable Object",
+            error: String(e),
+          }),
+        );
+        return null;
+      }),
+  ]);
+  if (today === null) return failed(503, "The faucet's Durable Object did not answer.");
+
   return json(
     {
       ok: true,
+      version,
       address: account.address,
       chainId: DEFAULT_CHAIN_ID,
       // Wei, as text; null when the RPC could not be asked.
       balance: balance != null ? balance.toString() : null,
+      // Whether the balance is under `lowBelow` (AVAX); null when it is unknown.
+      low: balance != null ? balance < settings.low.value : null,
+      lowBelow: settings.low.text,
       // What one drip sends, in AVAX — the `amount` POST /fund answers with.
-      amount,
-      // Whether POST /fund expects a `turnstileToken`.
-      turnstile: Boolean(env.TURNSTILE_SECRET),
+      amount: settings.amount,
+      // Whether POST /fund, sent from the same origin as this request, needs a `turnstileToken`.
+      turnstile: settings.turnstile,
+      // Whether FAUCET_PAUSED has switched POST /fund off.
+      paused: isPaused(env),
+      // Drips given out today (UTC) from each budget, and each budget's size.
+      today,
     },
     200,
     env,
+    headers,
   );
 }
 
+/**
+ * Which budget a request draws on, or the refusal that ends it here.
+ *
+ * Without TURNSTILE_SECRET there is no captcha and every drip is unverified. With
+ * it, a token that was sent is always checked, and a good one makes the drip a
+ * verified one, whatever the request's origin. A request without a token is
+ * refused if its origin is one that has to send one (every origin, unless
+ * TURNSTILE_ORIGINS narrows that down), and otherwise draws on the unverified
+ * budget like any other.
+ */
+async function laneFor(request, env, body, ip) {
+  if (!env.TURNSTILE_SECRET) return { lane: UNVERIFIED };
+
+  if (!body.turnstileToken) {
+    if (tokenRequired(env, request.headers.get("origin"))) {
+      return { refused: { code: "turnstile_required" } };
+    }
+    return { lane: UNVERIFIED };
+  }
+
+  // It runs here, at the edge, so a bot never gets as far as the Durable Object.
+  const verdict = await verifyTurnstile({
+    secret: env.TURNSTILE_SECRET,
+    token: body.turnstileToken,
+    ip,
+    // Unset in production: it only lets a test stand in for Cloudflare.
+    url: env.TURNSTILE_VERIFY_URL || undefined,
+  });
+  if (verdict !== "ok") return { refused: { code: `turnstile_${verdict}` } };
+  return { lane: VERIFIED };
+}
+
 async function fund(request, env, ctx) {
+  // The kill switch comes first: while it is on, nothing else is looked at.
+  if (isPaused(env)) return refuse({ code: "faucet_paused" }, env);
   if (!env.AVAKIT_FAUCET_KEY) return refuse(KEY_MISSING, env);
 
   let body;
@@ -177,23 +267,13 @@ async function fund(request, env, ctx) {
 
   const ip = request.headers.get("cf-connecting-ip");
 
-  // Opt-in: enforced only once the operator has set the secret. It runs here,
-  // at the edge, so a bot never gets as far as the Durable Object.
-  if (env.TURNSTILE_SECRET) {
-    if (!body.turnstileToken) return refuse({ code: "turnstile_required" }, env);
-    const verdict = await verifyTurnstile({
-      secret: env.TURNSTILE_SECRET,
-      token: body.turnstileToken,
-      ip,
-      // Unset in production: it only lets a test stand in for Cloudflare.
-      url: env.TURNSTILE_VERIFY_URL || undefined,
-    });
-    if (verdict !== "ok") return refuse({ code: `turnstile_${verdict}` }, env);
-  }
+  const { lane, refused } = await laneFor(request, env, body, ip);
+  if (refused) return refuse(refused, env);
 
   // One object per chain: it owns that chain's limits and the account's nonce.
-  const faucet = env.FAUCET.get(env.FAUCET.idFromName(String(chainId)));
-  const drip = (async () => faucet.drip({ chainId, to: body.address, client: clientKey(ip) }))();
+  const faucet = faucetFor(env, chainId);
+  const drip = (async () =>
+    faucet.drip({ chainId, to: body.address, client: clientKey(ip), lane }))();
   // If the caller hangs up, stay with the drip until the object has answered.
   ctx.waitUntil(drip.catch(() => {}));
 
@@ -208,7 +288,9 @@ export default {
 
     try {
       const url = new URL(request.url);
-      if (request.method === "GET" && url.pathname === "/health") return await health(env);
+      if (request.method === "GET" && url.pathname === "/health") {
+        return await health(request, env);
+      }
       if (request.method === "POST" && url.pathname === "/fund") {
         return await fund(request, env, ctx);
       }
@@ -248,13 +330,28 @@ export class Faucet extends DurableObject {
   /**
    * Fund `to`, unless a limit says no. Never throws for an expected failure:
    * the caller gets `{ ok: false, code }` and maps it to a response.
+   *
+   * `lane` is the daily budget the drip is drawn from: "verified" only when
+   * the Worker checked a Turnstile token for it, "unverified" otherwise — and
+   * for anything else, so a caller from before the budgets is counted too.
    */
-  async drip({ chainId, to, client }) {
+  async drip({ chainId, to, client, lane }) {
     const address = to.toLowerCase();
+    const drawn = lane === VERIFIED ? VERIFIED : UNVERIFIED;
+    let budget;
+    try {
+      budget = dailyBudgets(this.env)[drawn];
+    } catch (e) {
+      if (e instanceof FaucetConfigError) {
+        return { ok: false, code: "misconfigured", message: e.message };
+      }
+      throw e;
+    }
+    const limit = { address, client, lane: drawn, budget };
 
     // Cheap, read-only refusals first, so a caller that is over a limit, keeps
     // failing or is flooding costs neither an RPC call nor a storage write.
-    const refused = this.limits.refusal({ address, client });
+    const refused = this.limits.refusal(limit);
     if (refused) return { ok: false, ...refused };
     const mine = this.activeBy.get(client) ?? 0;
     if (this.active >= MAX_ACTIVE_DRIPS || mine >= MAX_ACTIVE_PER_CLIENT) {
@@ -271,7 +368,7 @@ export class Faucet extends DurableObject {
       // Only now, with a transaction ready to send, is a slot taken — an empty
       // faucet or an unreachable RPC is turned away above without writing a
       // row. Other requests ran during that await, so reserve() checks again.
-      reservation = this.limits.reserve({ address, client });
+      reservation = this.limits.reserve(limit);
       if (reservation.refused) return { ok: false, ...reservation.refused };
       await this.#scheduleCleanup(IP_WINDOW_MS);
 
@@ -312,6 +409,21 @@ export class Faucet extends DurableObject {
       if (left > 0) this.activeBy.set(client, left);
       else this.activeBy.delete(client);
     }
+  }
+
+  /**
+   * Today's use of the daily budgets, for /health: the drips each one has
+   * given out since 00:00 UTC (those still being sent included) and its size.
+   * Reads only, and nothing in it names a caller.
+   */
+  usage() {
+    const budgets = dailyBudgets(this.env);
+    const used = this.limits.usage();
+    return {
+      day: used.day,
+      [UNVERIFIED]: { drips: used[UNVERIFIED], max: budgets[UNVERIFIED] },
+      [VERIFIED]: { drips: used[VERIFIED], max: budgets[VERIFIED] },
+    };
   }
 
   /**

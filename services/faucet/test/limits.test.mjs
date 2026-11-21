@@ -3,26 +3,33 @@ import { describe, it } from "node:test";
 import {
   ADDRESS_WINDOW_MS,
   BUSY_RETRY_S,
+  DAY_MS,
   DripLimits,
   FAILURE_MAX,
   FAILURE_WINDOW_MS,
   IP_MAX,
   IP_WINDOW_MS,
+  utcDayStart,
 } from "../src/limits.js";
 import { memorySql } from "./helpers/sql.mjs";
 
 const MINUTE = 60 * 1000;
 const T0 = Date.UTC(2026, 10, 18, 9, 0, 0);
+/** 00:00 UTC after T0, when the daily budgets start over. */
+const MIDNIGHT = Date.UTC(2026, 10, 19, 0, 0, 0);
 const CLIENT = "203.0.113.9";
 
 let counter = 0;
 /** A fresh, never-funded address. */
 const address = () => `0x${(++counter).toString(16).padStart(40, "0")}`;
+let clients = 0;
+/** A client nobody has seen, so only the daily budget can say no to it. */
+const someClient = () => `198.18.0.${++clients}`;
 
 /** Reserve and settle `n` drips to fresh addresses from `client` at `now`. */
-function drip(limits, client, now, n = 1) {
+function drip(limits, client, now, n = 1, budget = {}) {
   for (let i = 0; i < n; i += 1) {
-    const reservation = limits.reserve({ address: address(), client }, now);
+    const reservation = limits.reserve({ address: address(), client, ...budget }, now);
     assert.ok("id" in reservation, `drip ${i + 1} of ${n} was refused`);
     limits.settle(reservation.id);
   }
@@ -231,6 +238,151 @@ describe("failed attempts", () => {
         .map((row) => row.client),
       [CLIENT],
     );
+  });
+});
+
+describe("the daily budget", () => {
+  const unverified = (budget) => ({ lane: "unverified", budget });
+  const verified = (budget) => ({ lane: "verified", budget });
+
+  it("refuses everyone once the day's drips are spent, until 00:00 UTC", () => {
+    // The per-client limits stop one network; this stops all of them together.
+    const limits = new DripLimits(memorySql());
+    for (let i = 0; i < 3; i += 1) drip(limits, someClient(), T0, 1, unverified(3));
+
+    const refusal = { code: "daily_limited", retryAfter: (MIDNIGHT - T0) / 1000 };
+    assert.deepEqual(
+      limits.refusal({ address: address(), client: someClient(), ...unverified(3) }, T0),
+      refusal,
+    );
+    assert.deepEqual(
+      limits.reserve({ address: address(), client: someClient(), ...unverified(3) }, T0),
+      { refused: refusal },
+    );
+    assert.equal(
+      limits.refusal({ address: address(), client: someClient(), ...unverified(3) }, MIDNIGHT - 1)
+        .retryAfter,
+      1,
+    );
+
+    // A new day, a new budget — although the drips themselves are still stored.
+    drip(limits, someClient(), MIDNIGHT, 3, unverified(3));
+    assert.equal(
+      limits.refusal({ address: address(), client: someClient(), ...unverified(3) }, MIDNIGHT).code,
+      "daily_limited",
+    );
+  });
+
+  it("keeps the two budgets apart", () => {
+    // A script that spends the open budget must not spend the one that only a
+    // request with a verified Turnstile token can reach.
+    const limits = new DripLimits(memorySql());
+    drip(limits, someClient(), T0, 2, unverified(2));
+
+    assert.equal(
+      limits.refusal({ address: address(), client: someClient(), ...unverified(2) }, T0).code,
+      "daily_limited",
+    );
+    drip(limits, someClient(), T0, 2, verified(2));
+    assert.equal(
+      limits.refusal({ address: address(), client: someClient(), ...verified(2) }, T0).code,
+      "daily_limited",
+    );
+    assert.deepEqual(limits.usage(T0), { day: "2026-11-18", unverified: 2, verified: 2 });
+  });
+
+  it("counts a drip that is still being sent, and gives back one that failed", () => {
+    const limits = new DripLimits(memorySql());
+    const sending = limits.reserve(
+      { address: address(), client: someClient(), ...unverified(1) },
+      T0,
+    );
+
+    assert.equal(
+      limits.refusal({ address: address(), client: someClient(), ...unverified(1) }, T0).code,
+      "daily_limited",
+    );
+    assert.equal(limits.usage(T0).unverified, 1);
+
+    limits.release(sending.id);
+    assert.equal(limits.usage(T0).unverified, 0);
+    drip(limits, someClient(), T0, 1, unverified(1));
+  });
+
+  it("gives back the share of a send that died with the object", () => {
+    const sql = memorySql();
+    const before = new DripLimits(sql);
+    before.reserve({ address: address(), client: someClient(), ...unverified(1) }, T0);
+
+    const after = new DripLimits(sql);
+    assert.equal(after.usage(T0).unverified, 0);
+    drip(after, someClient(), T0, 1, unverified(1));
+  });
+
+  it("lets a caller over a limit of its own hear about that one first", () => {
+    const limits = new DripLimits(memorySql());
+    drip(limits, CLIENT, T0, IP_MAX, unverified(IP_MAX));
+
+    assert.equal(
+      limits.refusal({ address: address(), client: CLIENT, ...unverified(IP_MAX) }, T0).code,
+      "ip_limited",
+    );
+    assert.equal(
+      limits.refusal({ address: address(), client: someClient(), ...unverified(IP_MAX) }, T0).code,
+      "daily_limited",
+    );
+  });
+
+  it("is closed at 0 and absent when no budget is given", () => {
+    const limits = new DripLimits(memorySql());
+    assert.equal(
+      limits.refusal({ address: address(), client: someClient(), ...unverified(0) }, T0).code,
+      "daily_limited",
+    );
+    // Without a budget only the per-client limits apply, as before there were budgets.
+    for (let i = 0; i < 2 * IP_MAX; i += 1) drip(limits, someClient(), T0);
+    assert.equal(limits.usage(T0).unverified, 2 * IP_MAX);
+  });
+
+  it("keeps every drip of the day in storage, so the count is never short", () => {
+    // The budget counts the drips table, which is pruned after the address window.
+    assert.ok(ADDRESS_WINDOW_MS >= DAY_MS);
+    const sql = memorySql();
+    const limits = new DripLimits(sql);
+    const dayStart = utcDayStart(T0);
+    drip(limits, someClient(), dayStart, 1, unverified(10));
+    drip(limits, someClient(), MIDNIGHT - 1, 1, unverified(10));
+
+    limits.prune(MIDNIGHT - 1);
+    assert.equal(limits.usage(MIDNIGHT - 1).unverified, 2);
+    limits.prune(MIDNIGHT);
+    assert.deepEqual(limits.usage(MIDNIGHT), { day: "2026-11-19", unverified: 0, verified: 0 });
+    assert.equal(sql.exec("SELECT COUNT(*) AS n FROM drips").one().n, 1);
+  });
+
+  it("upgrades a table from before the budgets, counting its drips as unverified", () => {
+    // The live faucet's object was created before the `lane` column existed,
+    // and CREATE TABLE IF NOT EXISTS leaves such a table as it is.
+    const sql = memorySql();
+    sql.exec(`
+      CREATE TABLE drips (
+        id INTEGER PRIMARY KEY,
+        address TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        settled INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    const who = address();
+    sql.exec("INSERT INTO drips (address, at, settled) VALUES (?, ?, 1)", who, T0);
+
+    const limits = new DripLimits(sql);
+
+    assert.deepEqual(limits.usage(T0), { day: "2026-11-18", unverified: 1, verified: 0 });
+    assert.equal(limits.refusal({ address: who, client: CLIENT }, T0).code, "address_limited");
+    drip(limits, someClient(), T0, 1, verified(1));
+    assert.deepEqual(limits.usage(T0), { day: "2026-11-18", unverified: 1, verified: 1 });
+    // Constructing the object again does not try to add the column twice.
+    assert.deepEqual(new DripLimits(sql).usage(T0), limits.usage(T0));
   });
 });
 
