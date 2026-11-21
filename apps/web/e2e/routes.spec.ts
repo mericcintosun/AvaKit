@@ -49,6 +49,34 @@ for (const route of ROUTES) {
   });
 }
 
+/*
+ * A path no page matches gets the 404 page, and it loads as cleanly as the
+ * others. The 404 page is the easiest one to leave out of a Content Security
+ * Policy: prerendered at build time, its scripts carry no nonce. The only
+ * console error allowed is the browser's own line about the 404 response.
+ */
+const UNKNOWN_ROUTES = ["/no-such-page", "/tr/no-such-page", "/docs/no-such-page"];
+
+for (const route of UNKNOWN_ROUTES) {
+  test(`${route} answers 404 without console errors or CSP violations`, async ({
+    page,
+    network,
+    issues,
+  }) => {
+    const response = await page.goto(route);
+    expect(response?.status(), `HTTP status of ${route}`).toBe(404);
+    await expect(page.getByRole("heading", { name: /could not be found/i })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+
+    expect(network.blocked, "requests to hosts these tests do not serve").toEqual([]);
+    expect(issues.cspViolations, "CSP violations").toEqual([]);
+    expect(issues.pageErrors, "uncaught errors").toEqual([]);
+    expect(issues.consoleErrors, "console errors").toEqual([
+      `Failed to load resource: the server responded with a status of 404 (Not Found) (at ${page.url()})`,
+    ]);
+  });
+}
+
 /** Scroll down a screen at a time, so content that waits to be scrolled into view loads. */
 async function scrollToBottom(page: Page) {
   await page.evaluate(async () => {
