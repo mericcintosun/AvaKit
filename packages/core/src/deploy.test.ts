@@ -2,7 +2,7 @@ import type { EIP1193Provider, Hex } from "viem";
 import { parseTransaction } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { burnerAdapter } from "./adapters/burner.js";
-import { type AvaChain, cChain, defineChain, fuji } from "./chains.js";
+import { type AvaChain, cChain, defineChain, fuji, rpcEndpoints } from "./chains.js";
 import { deployContract, getBytecode, waitForDeployment } from "./deploy.js";
 import {
   DeployFailedError,
@@ -546,7 +546,14 @@ describe("deployContract result", () => {
       );
       expect(error?.message).toContain("header not found");
       expect(error?.cause).toBeDefined();
-      expect(getCodeCalls(calls)).toHaveLength(5);
+      // Five reads, and each one asked Fuji's every endpoint in order before
+      // it counted as failed: a node that lags (header not found) may be the
+      // only one that has not seen the block yet.
+      const urls = rpcEndpoints(fuji).map(endpoint);
+      expect(urls).toHaveLength(2);
+      expect(getCodeCalls(calls).map((call) => call.url)).toEqual(
+        Array.from({ length: 5 }, () => urls).flat(),
+      );
     });
 
     it("applies on a mainnet too", async () => {

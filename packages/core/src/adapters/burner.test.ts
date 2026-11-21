@@ -8,11 +8,11 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type AvaChain, cChain, defineChain, fuji } from "../chains.js";
+import { type AvaChain, cChain, defineChain, fuji, rpcEndpoints } from "../chains.js";
 import { getWalletClient } from "../clients.js";
 import { WalletConnectionError } from "../errors.js";
 import { ensureChain } from "../network.js";
-import { endpoint, type RpcCall, type RpcHandlers, stubRpc } from "../testing/rpc.js";
+import { cutOff, endpoint, type RpcCall, type RpcHandlers, stubRpc } from "../testing/rpc.js";
 import { burnerAdapter, clearBurner } from "./burner.js";
 
 // A well-known throwaway test key (Hardhat/anvil account #0). Never real funds.
@@ -29,6 +29,14 @@ const otherTestnet = defineChain({
   nativeCurrency: { name: "Test", symbol: "TST", decimals: 18 },
   testnet: true,
 });
+
+// Fuji with its primary RPC URL only, the way every chain with a single
+// endpoint is defined. The tests that use it hold the burner to what it does
+// with one endpoint, which is what it did before chains had fallbacks.
+const fujiOneRpc = defineChain({ ...fuji, rpcUrls: [fuji.rpcUrl] });
+
+// Fuji's own endpoints: Ava Labs' API first, then PublicNode.
+const [FUJI_PRIMARY = "", FUJI_FALLBACK = ""] = rpcEndpoints(fuji).map(endpoint);
 
 /** In-memory localStorage mock for the persistence tests. */
 function mockStorage() {
@@ -310,7 +318,7 @@ describe("burnerAdapter", () => {
         throw { code: -32601, message: "the method eth_chainId does not exist" };
       };
       const calls = stubRpc(node(() => answer()));
-      const { send } = await connectOn(fuji);
+      const { send } = await connectOn(fujiOneRpc);
 
       const first = send();
       await expect(first).rejects.toBeInstanceOf(WalletConnectionError);
@@ -337,7 +345,7 @@ describe("burnerAdapter", () => {
       ["an object", { chainId: numberToHex(fuji.id) }],
     ])("treats %s as no answer, and never as a match", async (_label, malformed) => {
       const calls = stubRpc(node(() => malformed));
-      const { send } = await connectOn(fuji);
+      const { send } = await connectOn(fujiOneRpc);
 
       const first = send();
       await expect(first).rejects.toBeInstanceOf(WalletConnectionError);
@@ -500,7 +508,7 @@ describe("burnerAdapter", () => {
         }
         return answer(input, init);
       });
-      const { provider, send } = await connectOn(fuji);
+      const { provider, send } = await connectOn(fujiOneRpc);
 
       const onFuji = send();
       await ensureChain(provider, otherTestnet);
@@ -513,6 +521,169 @@ describe("burnerAdapter", () => {
         (call) => call.method === "eth_chainId" && call.url === endpoint(otherTestnet.rpcUrl),
       );
       expect(asked).toHaveLength(1);
+    });
+
+    // Fuji lists two RPC URLs. A send goes through one of them, and only after
+    // that URL's own node has confirmed the chain: the node that answered the
+    // question is the node that gets the transaction.
+    describe("on a chain with several RPC URLs", () => {
+      const urls = rpcEndpoints(fuji);
+      const broadcastTo = (calls: RpcCall[]) =>
+        calls.filter((call) => call.method === "eth_sendRawTransaction").map((call) => call.url);
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("asks the next URL when the first cannot be reached, and sends through it alone", async () => {
+        const calls = stubRpc(node(() => numberToHex(fuji.id)));
+        const { attempts } = cutOff([FUJI_PRIMARY]);
+        const { send } = await connectOn(fuji);
+
+        expect(await send()).toBe(txHash);
+
+        // One question went to the first URL, unanswered. Everything else,
+        // the question that was answered first, went to the second.
+        expect(attempts[0]).toBe(FUJI_PRIMARY);
+        expect(attempts.filter((url) => url === FUJI_PRIMARY)).toHaveLength(1);
+        expect(calls[0]).toMatchObject({ method: "eth_chainId", url: FUJI_FALLBACK });
+        expect(calls.every((call) => call.url === FUJI_FALLBACK)).toBe(true);
+        const [raw] = calls.filter((call) => call.method === "eth_sendRawTransaction");
+        expect(parseTransaction(raw?.params[0] as Hex).chainId).toBe(fuji.id);
+      });
+
+      it("keeps to the URL that answered, without asking the first again", async () => {
+        const calls = stubRpc(node(() => numberToHex(fuji.id)));
+        const { down, attempts } = cutOff([FUJI_PRIMARY]);
+        const { send } = await connectOn(fuji);
+
+        await send();
+        // The first URL is back, and the wallet stays where it is sending.
+        down.clear();
+        await send();
+        await send();
+
+        expect(attempts.filter((url) => url === FUJI_PRIMARY)).toHaveLength(1);
+        expect(count(calls, "eth_chainId")).toBe(1);
+        expect(broadcastTo(calls)).toEqual([FUJI_FALLBACK, FUJI_FALLBACK, FUJI_FALLBACK]);
+      });
+
+      it("refuses before signing when a fallback URL's node is a mainnet", async () => {
+        const calls = stubRpc(
+          node((url) => numberToHex(url === FUJI_FALLBACK ? cChain.id : fuji.id)),
+        );
+        cutOff([FUJI_PRIMARY]);
+        const { send } = await connectOn(fuji);
+
+        const sent = send();
+
+        await expect(sent).rejects.toBeInstanceOf(WalletConnectionError);
+        await expect(sent).rejects.toThrow(
+          "Nothing was signed or sent: Avalanche Fuji is defined as chain 43113, but the node at " +
+            `${urls[1]}, one of its rpcUrls, reports chain 43114, which is a mainnet. The ` +
+            "temporary (burner) wallet is testnet-only. Point every URL in the definition's " +
+            "rpcUrls at a chain 43113 node, or connect a real wallet (injected / social) to use " +
+            "mainnet.",
+        );
+        // The fallback was asked which chain it is, and for nothing else.
+        expect(methods(calls)).toEqual(["eth_chainId"]);
+      });
+
+      it("refuses a fallback URL's node on another testnet, naming the list to fix", async () => {
+        const calls = stubRpc(
+          node((url) => numberToHex(url === FUJI_FALLBACK ? otherTestnet.id : fuji.id)),
+        );
+        cutOff([FUJI_PRIMARY]);
+        const { send } = await connectOn(fuji);
+
+        await expect(send()).rejects.toThrow(
+          "Nothing was signed or sent: Avalanche Fuji is defined as chain 43113, but the node at " +
+            `${urls[1]}, one of its rpcUrls, reports chain 43113001. The temporary (burner) ` +
+            "wallet signs only for the chain its definition names. Make the definition's id and " +
+            "rpcUrls describe the same chain, then try again.",
+        );
+        expect(broadcastTo(calls)).toEqual([]);
+      });
+
+      // The first URL answering for another chain is the definition's own
+      // contradiction: refused at once, and the fallback is never consulted.
+      it("refuses outright when the first URL's node names another chain", async () => {
+        const calls = stubRpc(
+          node((url) => numberToHex(url === FUJI_PRIMARY ? cChain.id : fuji.id)),
+        );
+        const { send } = await connectOn(fuji);
+
+        await expect(send()).rejects.toThrow(/its rpcUrl reports chain 43114, which is a mainnet/);
+        expect(calls.map((call) => [call.method, call.url])).toEqual([
+          ["eth_chainId", FUJI_PRIMARY],
+        ]);
+      });
+
+      it("names every URL when none of them can say which chain it serves", async () => {
+        const calls = stubRpc(node(() => null));
+        cutOff([FUJI_PRIMARY]);
+        const { send } = await connectOn(fuji);
+
+        const sent = send();
+
+        await expect(sent).rejects.toBeInstanceOf(WalletConnectionError);
+        await expect(sent).rejects.toThrow(
+          "Nothing was signed or sent: the temporary (burner) wallet could not confirm that any " +
+            "of Avalanche Fuji's 2 RPC URLs serves chain 43113. " +
+            `At ${urls[0]}, its eth_chainId request failed: HTTP request failed. ` +
+            `At ${urls[1]}, it answered eth_chainId with null, which is not a chain id. ` +
+            "Check the RPCs and try again.",
+        );
+        expect(broadcastTo(calls)).toEqual([]);
+      });
+
+      it("moves on once the URL it sends through stops answering, and resends nothing", async () => {
+        vi.useFakeTimers();
+        const calls = stubRpc(node(() => numberToHex(fuji.id)));
+        const { down } = cutOff();
+        const { send } = await connectOn(fuji);
+        expect(await send()).toBe(txHash);
+
+        down.add(FUJI_PRIMARY);
+        const failed = send().then(
+          () => null,
+          (error: unknown) => error,
+        );
+        // The send keeps to its URL, retried with backoff (150, 300, 600 ms).
+        await vi.advanceTimersByTimeAsync(2_000);
+        const error = await failed;
+        // viem's account of the node, not a refusal, and the fallback was not
+        // handed the send behind the wallet's back.
+        expect(error).toBeInstanceOf(Error);
+        expect(error).not.toBeInstanceOf(WalletConnectionError);
+        expect(calls.some((call) => call.url === FUJI_FALLBACK)).toBe(false);
+
+        // The next send asks the first URL again, finds it gone, and moves on.
+        expect(await send()).toBe(txHash);
+        expect(broadcastTo(calls)).toEqual([FUJI_PRIMARY, FUJI_FALLBACK]);
+        expect(
+          calls.filter((call) => call.method === "eth_chainId").map((call) => call.url),
+        ).toEqual([FUJI_PRIMARY, FUJI_FALLBACK]);
+      });
+
+      // With nowhere else to go, a failed send leaves the node's answer as it
+      // was, exactly as before chains had fallbacks.
+      it("keeps the answer of a chain's only URL after a send fails there", async () => {
+        vi.useFakeTimers();
+        const calls = stubRpc(node(() => numberToHex(fuji.id)));
+        const { down } = cutOff();
+        const { send } = await connectOn(fujiOneRpc);
+        await send();
+
+        down.add(FUJI_PRIMARY);
+        const failed = send().catch((error: unknown) => error);
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(await failed).not.toBeInstanceOf(WalletConnectionError);
+        down.clear();
+
+        expect(await send()).toBe(txHash);
+        expect(count(calls, "eth_chainId")).toBe(1);
+      });
     });
 
     // connect() must keep working offline and with a slow RPC, and a message
@@ -536,6 +707,71 @@ describe("burnerAdapter", () => {
         }),
       ).toBe(true);
       expect(calls).toEqual([]);
+    });
+  });
+
+  // Everything the burner does not answer itself (balances, calls, receipts) it
+  // forwards to the chain's RPC, the way a wallet's own provider would.
+  describe("reads it forwards", () => {
+    async function connectFuji() {
+      return (await burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji }).connect())
+        .provider;
+    }
+
+    it("go to the chain's next RPC URL when the first cannot be reached", async () => {
+      const calls = stubRpc({ eth_blockNumber: () => "0x10" });
+      const { attempts } = cutOff([FUJI_PRIMARY]);
+      const provider = await connectFuji();
+
+      expect(await provider.request({ method: "eth_blockNumber" })).toBe("0x10");
+
+      expect(attempts).toEqual([FUJI_PRIMARY, FUJI_FALLBACK]);
+      // A read is not a transaction: no node check comes before it.
+      expect(calls.map((call) => call.method)).toEqual(["eth_blockNumber"]);
+    });
+
+    // The app's own client (viem's custom transport over this provider)
+    // retries what fails, so the burner adds no retries of its own on top.
+    it("are tried once on every URL, and fail with the last one's error", async () => {
+      stubRpc({});
+      const { attempts } = cutOff([FUJI_PRIMARY, FUJI_FALLBACK]);
+      const provider = await connectFuji();
+
+      await expect(provider.request({ method: "eth_blockNumber" })).rejects.toThrow(
+        /HTTP request failed/,
+      );
+      expect(attempts).toEqual([FUJI_PRIMARY, FUJI_FALLBACK]);
+    });
+
+    // A forwarded error used to reach the app as a bare message, so viem read a
+    // revert as "An unknown RPC error occurred." and lost its data.
+    it("keep the node's JSON-RPC error code and data, and a revert is not asked elsewhere", async () => {
+      const revert = { code: 3, message: "execution reverted: sold out", data: "0x08c379a0" };
+      const calls = stubRpc({
+        eth_call: () => {
+          throw revert;
+        },
+      });
+      const provider = await connectFuji();
+
+      await expect(
+        provider.request({
+          method: "eth_call",
+          params: [{ to: TEST_ADDRESS, data: "0x" }, "latest"],
+        }),
+      ).rejects.toMatchObject({ code: 3, data: "0x08c379a0" });
+      expect(calls.map((call) => call.url)).toEqual([FUJI_PRIMARY]);
+    });
+
+    it("follow the wallet to the chain it switched to", async () => {
+      const calls = stubRpc({ eth_blockNumber: () => "0x10" });
+      const adapter = burnerAdapter({ privateKey: TEST_KEY, persist: false, chain: fuji });
+      const { provider } = await adapter.connect();
+
+      await adapter.switchChain?.(otherTestnet);
+      await provider.request({ method: "eth_blockNumber" });
+
+      expect(calls.map((call) => call.url)).toEqual([endpoint(otherTestnet.rpcUrl)]);
     });
   });
 

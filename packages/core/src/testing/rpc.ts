@@ -75,3 +75,31 @@ export function stubRpc(handlers: RpcHandlers): RpcCall[] {
 
   return calls;
 }
+
+/** The URL a `fetch` call was made with, normalised like `endpoint`. */
+function urlOf(input: string | URL | Request): string {
+  return endpoint(typeof input === "string" || input instanceof URL ? String(input) : input.url);
+}
+
+/**
+ * Cut endpoints off at the network: a request to a URL in the returned `down`
+ * set fails the way one to an unreachable host does, before it reaches the
+ * `fetch` that was stubbed before this call (`stubRpc`'s, usually). The set is
+ * live and holds URLs as `endpoint` gives them, so a test can take an endpoint
+ * down or bring it back between calls. `attempts` lists the endpoint of every
+ * request made, reached or not.
+ */
+export function cutOff(urls: Iterable<string> = []): { down: Set<string>; attempts: string[] } {
+  const down = new Set([...urls].map(endpoint));
+  const attempts: string[] = [];
+  const reach = globalThis.fetch;
+  vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    const url = urlOf(input);
+    attempts.push(url);
+    if (down.has(url)) {
+      throw new TypeError("fetch failed");
+    }
+    return reach(input, init);
+  });
+  return { down, attempts };
+}
