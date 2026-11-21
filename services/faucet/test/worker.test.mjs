@@ -277,6 +277,23 @@ describe("the daily budget", () => {
     assert.deepEqual((await today()).unverified, { drips: max, max });
   });
 
+  it("holds exactly when many callers arrive at once", async () => {
+    // Every request passes the first look while the others are still asking
+    // the RPC; the Durable Object checks again before it takes a slot.
+    const max = await leave(3);
+    chain.delay = 5;
+
+    const results = await Promise.all(Array.from({ length: 12 }, () => fund()));
+
+    assert.equal(count(results, 200), 3);
+    assert.equal(count(results, 429), 9);
+    for (const refused of results.filter((result) => result.status === 429)) {
+      assert.equal(refused.body.code, "daily_limited");
+    }
+    assert.equal(chain.accepted.length, 3);
+    assert.equal((await today()).unverified.drips, max);
+  });
+
   it("refuses without asking the RPC anything", async () => {
     await leave(0);
     const calls = chain.calls.length;
