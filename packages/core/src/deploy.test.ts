@@ -544,7 +544,10 @@ describe("deployContract result", () => {
       expect(error?.message).toContain(
         `${fuji.explorerUrl}/address/0x5FbDB2315678afecb367f032d93F642f64180aa3`,
       );
-      expect(error?.message).toContain("header not found");
+      // What each endpoint said, once.
+      expect(error?.message).toMatch(
+        /The last read failed with: Every RPC endpoint of Avalanche Fuji failed: https:\/\/api\.avax-test\.network answered "header not found"; https:\/\/avalanche-fuji-c-chain-rpc\.publicnode\.com answered "header not found"\.$/,
+      );
       expect(error?.cause).toBeDefined();
       // Five reads, and each one asked Fuji's every endpoint in order before
       // it counted as failed: a node that lags (header not found) may be the
@@ -554,6 +557,21 @@ describe("deployContract result", () => {
       expect(getCodeCalls(calls).map((call) => call.url)).toEqual(
         Array.from({ length: 5 }, () => urls).flat(),
       );
+    });
+
+    // viem files -32000 under "Missing or invalid parameters", so the node's
+    // own words are added in brackets, as before chains had fallbacks.
+    it("adds what the node said on a chain with one RPC URL", async () => {
+      vi.useFakeTimers();
+      const fujiOneRpc = defineChain({ ...fuji, rpcUrls: [fuji.rpcUrl] });
+      stubDeployed({ eth_getCode: codeReads(new Error("header not found")) });
+
+      const outcome = deployOn(fujiOneRpc);
+      await vi.advanceTimersByTimeAsync(2000);
+      const { error } = await outcome;
+
+      expect(error).toBeInstanceOf(DeployFailedError);
+      expect(error?.message).toMatch(/The last read failed with: .+ \(header not found\)$/s);
     });
 
     it("applies on a mainnet too", async () => {

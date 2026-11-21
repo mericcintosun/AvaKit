@@ -91,3 +91,5 @@ export {
 } from "./faucet.js";
 // Network switching
 export { type AvaChainSwitcher, ensureChain } from "./network.js";
+// RPC endpoints: what a call that failed at every one of them rejects with
+export { RpcEndpointsError } from "./rpc-failover.js";

@@ -82,14 +82,17 @@ function reason(cause: unknown): string {
 /**
  * What the node itself said, in brackets, when viem keeps it apart from its own
  * short message (which for a failed read is often just "RPC Request failed.").
- * Empty when there is nothing more to add.
+ * Empty when there is nothing more to add, as when the short message already
+ * quotes it (an `RpcEndpointsError` names what every endpoint said).
  */
 function nodeDetails(cause: unknown): string {
   const details =
     typeof cause === "object" && cause !== null
       ? (cause as { details?: unknown }).details
       : undefined;
-  return typeof details === "string" && details ? ` (${details})` : "";
+  return typeof details === "string" && details && !reason(cause).includes(details)
+    ? ` (${details})`
+    : "";
 }
 
 /**
