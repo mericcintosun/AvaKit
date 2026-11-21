@@ -78,20 +78,28 @@ async function walk(dir: string, inContracts = false): Promise<string[]> {
   return files.flat();
 }
 
+/**
+ * Every file `scaffold` copies from `templateDir` into an app, as absolute
+ * paths: the template without what tools left behind (see `isLeftBehind`) and
+ * without the template-only files. A check of what an app gets should read
+ * exactly these, so it skips nothing a scaffold copies.
+ */
+export async function templateFiles(templateDir: string): Promise<string[]> {
+  const files = await walk(templateDir);
+  return files.filter((abs) => !TEMPLATE_ONLY.has(path.relative(templateDir, abs)));
+}
+
 /** Copy a template into targetDir, renaming dot-files and replacing placeholders. */
 export async function scaffold({
   templateDir,
   targetDir,
   replacements,
 }: ScaffoldOptions): Promise<string[]> {
-  const files = await walk(templateDir);
+  const files = await templateFiles(templateDir);
   const written: string[] = [];
 
   for (const abs of files) {
     const rel = path.relative(templateDir, abs);
-    if (TEMPLATE_ONLY.has(rel)) {
-      continue;
-    }
     const outRel = rel
       .split(path.sep)
       .map((segment) => RENAME_SEGMENT[segment] ?? segment)

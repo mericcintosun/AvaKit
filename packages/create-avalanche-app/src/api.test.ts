@@ -145,8 +145,8 @@ describe("template status", () => {
   it("gives every experimental template a reason that names Avalanche CLI and the last full run", () => {
     for (const template of listTemplates().filter((t) => t.status === "experimental")) {
       expect(template.statusReason, template.id).toBe(
-        "It needs Avalanche CLI, which has been in maintenance mode since December 2025, " +
-          "and was last proven end to end in July 2026.",
+        "It needs Avalanche CLI, which has been in maintenance mode since December 2025. " +
+          "It was last proven end to end in July 2026.",
       );
     }
     for (const template of listTemplates().filter((t) => t.status === "stable")) {
@@ -197,7 +197,7 @@ describe("template status", () => {
     const bridge = listTemplates().find((t) => t.id === "token-bridge");
     expect(bridge && experimentalWarning(bridge)).toBe(
       'Template "token-bridge" is experimental. It needs Avalanche CLI, which has been in ' +
-        "maintenance mode since December 2025, and was last proven end to end in July 2026.",
+        "maintenance mode since December 2025. It was last proven end to end in July 2026.",
     );
   });
 });
