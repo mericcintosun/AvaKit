@@ -19,9 +19,11 @@ hosted services running.
 
 Not from a laptop. Changesets versions the packages, and `.github/workflows/release.yml`
 publishes them through npm trusted publishing (OIDC): there is no npm token among the
-secrets of the repository or of its environments, and every tarball carries a provenance
-attestation that ties it to the workflow run that built it. [`RELEASING.md`](RELEASING.md)
-has the steps.
+secrets of the repository or of its environments, and every version published this way
+carries a provenance attestation that ties it to the workflow run that built it. The
+earlier versions were published before trusted publishing and have none: `@avakit/core`
+and `@avakit/react` up to 0.1.6, `@avakit/mcp` and `create-avalanche-app` up to 0.1.21,
+and `@avakit/studio` up to 0.1.11. [`RELEASING.md`](RELEASING.md) has the steps.
 
 ## Adding a second maintainer
 
