@@ -108,9 +108,16 @@ describe("the collector in workerd", () => {
     assert.equal(await scaffold({ ip: "2001:db8:1:2::1" }), 202);
   });
 
-  it("answers /health", async () => {
+  it("answers /health with the commit it was deployed from", async () => {
     const response = await worker.fetch("/health");
-    assert.deepEqual([response.status, await response.json()], [200, { ok: true }]);
+    assert.deepEqual([response.status, await response.json()], [200, { ok: true, version: "dev" }]);
+
+    // What `wrangler deploy --var GIT_SHA:<commit>` in the deploy workflow sets.
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+    await worker.configure({ ...SALT, GIT_SHA: sha });
+    const deployed = await worker.fetch("/health");
+    assert.deepEqual([deployed.status, await deployed.json()], [200, { ok: true, version: sha }]);
+    await worker.configure(SALT);
   });
 });
 
