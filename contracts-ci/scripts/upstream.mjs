@@ -17,6 +17,9 @@
 // raw.githubusercontent.com once and then kept in a cache named by its blob id
 // ($AVAKIT_UPSTREAM_CACHE, by default <tmpdir>/avakit-upstream-sources); a
 // cached copy is checked like a fetched one, and replaced when it fails.
+// pinnedFile() reads one file the same way: eerc-pin.mjs reads the files of
+// ava-labs/EncryptedERC it checks through it, pinned in
+// contracts-ci/upstream/EncryptedERC/sources.json (nothing is built from those).
 //
 // Moving a pin: change the commit (and tag) of the first repository in
 // sources.json, then
@@ -25,6 +28,11 @@
 // listed contracts through the remappings in foundry.toml and rewrites the
 // rest of sources.json. It reads GitHub's API (set GITHUB_TOKEN past its
 // anonymous rate limit). Then regenerate: node scripts/check-artifacts.mjs --write
+// (EncryptedERC is re-pinned by eerc-pin.mjs instead: see that file.)
+//
+// Every request goes through download(), which retries what a busy or briefly
+// unreachable GitHub answers and sends GITHUB_TOKEN (or GH_TOKEN), when one is
+// set, to GitHub's hosts and to nothing else.
 
 import { createHash } from "node:crypto";
 import {
@@ -76,24 +84,91 @@ function repositoryOf(repositories, path) {
 const inRepository = (repository, path) =>
   repository.path === "" ? path : path.slice(repository.path.length + 1);
 
-const rawUrl = (repository, path) =>
+/** Where a file of the layout is served at its repository's pinned commit. */
+export const rawUrl = (repository, path) =>
   `https://raw.githubusercontent.com/${repository.repository}/${repository.commit}/${inRepository(repository, path)}`;
 
-/** The body of a GET, retried twice on a network error or a server error. */
-export async function download(url) {
-  let failure;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return Buffer.from(await response.arrayBuffer());
-      failure = `HTTP ${response.status}`;
-      if (response.status === 404) break; // a missing path does not appear on retry
-    } catch (error) {
-      failure = error.cause?.code ?? error.message;
-    }
-    await new Promise((done) => setTimeout(done, 500 * attempt));
+/** A download that did not complete: the network or GitHub failed, so nothing
+ * was compared. A file that arrives but is not the pinned one is a plain Error. */
+export class FetchError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "FetchError";
   }
-  throw new Error(`could not download ${url} (${failure})`);
+}
+
+// Seconds to wait before each retry of a request (Retry-After, when GitHub
+// sends one, instead). A longer Retry-After than LONGEST_WAIT is a rate limit
+// that outlasts a CI job, so it fails the download at once.
+const RETRY_DELAYS = [1, 2, 4, 8, 16];
+const LONGEST_WAIT = 60;
+// A request that has not completed after this long is dropped and retried:
+// long enough for the largest circuit file (15 MB) at 250 KB/s, short enough
+// that a GitHub that stalls fails a CI job in minutes.
+const REQUEST_TIMEOUT_MS = 60_000;
+// GITHUB_TOKEN lifts the anonymous rate limit of these hosts. It goes nowhere
+// else: fetch drops the header on a redirect to another origin.
+const GITHUB_HOSTS = new Set(["raw.githubusercontent.com", "api.github.com"]);
+
+const pause = (seconds) => new Promise((done) => setTimeout(done, seconds * 1000));
+
+/** The seconds a response's Retry-After header asks for, or undefined. */
+function retryAfter(response) {
+  const value = response.headers.get("retry-after")?.trim();
+  if (!value) return undefined;
+  const seconds = /^\d+$/.test(value) ? Number(value) : (Date.parse(value) - Date.now()) / 1000;
+  return Number.isNaN(seconds) ? undefined : Math.max(0, Math.ceil(seconds));
+}
+
+/**
+ * The body of a GET. A dropped connection, a timeout, HTTP 408, 429 or 5xx is
+ * retried up to five times, after 1, 2, 4, 8 and 16 s or what Retry-After asks;
+ * any other answer fails at once. With GITHUB_TOKEN (or GH_TOKEN) set, a GitHub
+ * host gets it; one that GitHub refuses (401, 403, 404: a public file answers
+ * 404 to a bad token) is dropped and the request made again without it.
+ * Throws a FetchError. `sleep` is for tests.
+ */
+export async function download(url, { headers = {}, sleep = pause } = {}) {
+  const token = ENV.GITHUB_TOKEN || ENV.GH_TOKEN;
+  let authorize = Boolean(token) && GITHUB_HOSTS.has(new URL(url).hostname);
+  let failure;
+  let attempt = 0;
+  for (;;) {
+    let wait = RETRY_DELAYS[attempt];
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "user-agent": "avakit-contracts-ci",
+          ...headers,
+          ...(authorize ? { authorization: `Bearer ${token}` } : {}),
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (response.ok) return Buffer.from(await response.arrayBuffer());
+      if (response.body) await response.body.cancel().catch(() => {});
+      failure = `HTTP ${response.status}`;
+      if (authorize && [401, 403, 404].includes(response.status)) {
+        authorize = false;
+        continue;
+      }
+      if (response.status !== 408 && response.status !== 429 && response.status < 500) break;
+      const asked = retryAfter(response);
+      if (asked > LONGEST_WAIT) {
+        failure += `, asked to retry after ${asked} s`;
+        break;
+      }
+      wait = asked ?? wait;
+    } catch (error) {
+      failure = error.name === "TimeoutError" ? "timed out" : (error.cause?.code ?? error.message);
+    }
+    if (attempt === RETRY_DELAYS.length) break;
+    attempt++;
+    await sleep(wait);
+  }
+  const tries = attempt + 1;
+  throw new FetchError(
+    `could not fetch ${url} (${failure}${tries > 1 ? `, ${tries} attempts` : ""})`,
+  );
 }
 
 /** Where fetched upstream files are kept between runs. */
@@ -110,8 +185,9 @@ export function writeAtomically(path, bytes) {
 
 /** The bytes of one pinned file: from the cache when the copy there still has
  * the pinned blob id, from GitHub otherwise. Fails when GitHub's copy does not
- * have it either: the pin and the upstream repository disagree. */
-async function pinnedBytes(repository, path, id) {
+ * have it either: the pin and the upstream repository disagree. A download
+ * that fails throws a FetchError. */
+export async function pinnedBytes(repository, path, id) {
   const cached = join(cacheDir(), id);
   try {
     const bytes = readFileSync(cached);
@@ -130,6 +206,24 @@ async function pinnedBytes(repository, path, id) {
   return bytes;
 }
 
+/** Refuse an entry of a pin that could name a file outside the layout or the
+ * cache: the path is laid out as given, the blob id names the cached copy. */
+function checkEntry(name, path, id) {
+  if (posix.normalize(path) !== path || path.startsWith("../") || posix.isAbsolute(path)) {
+    throw new Error(`${name}: ${path} is not a plain relative path`);
+  }
+  if (!/^[0-9a-f]{40}$/.test(id)) throw new Error(`${name}: ${path} has no git blob id`);
+}
+
+/** The bytes of the file at `path` of the pinned project `name`, checked
+ * against its blob id like every file materialize() lays out. */
+export async function pinnedFile(name, path, pin = readPin(name)) {
+  const id = pin.files?.[path];
+  if (id === undefined) throw new Error(`${name}: sources.json pins no ${path}`);
+  checkEntry(name, path, id);
+  return pinnedBytes(repositoryOf(pin.repositories, path), path, id);
+}
+
 /**
  * Lay the pinned project `name` out in `into` (its foundry.toml and every
  * source file, each checked against its blob id) and return `into`, ready for
@@ -139,12 +233,7 @@ export async function materialize(name, into) {
   const pin = readPin(name);
   const files = Object.entries(pin.files ?? {});
   if (files.length === 0) throw new Error(`${name}: sources.json lists no files`);
-  for (const [path, id] of files) {
-    if (posix.normalize(path) !== path || path.startsWith("../") || posix.isAbsolute(path)) {
-      throw new Error(`${name}: ${path} is not a plain relative path`);
-    }
-    if (!/^[0-9a-f]{40}$/.test(id)) throw new Error(`${name}: ${path} has no git blob id`);
-  }
+  for (const [path, id] of files) checkEntry(name, path, id);
   const contents = await Promise.all(
     files.map(([path, id]) => pinnedBytes(repositoryOf(pin.repositories, path), path, id)),
   );
@@ -159,13 +248,12 @@ export async function materialize(name, into) {
 
 // ---- pin: rebuild sources.json from the commit of its first repository ----
 
-async function githubJson(path) {
-  const headers = { accept: "application/vnd.github+json", "user-agent": "avakit-contracts-ci" };
-  const token = ENV.GITHUB_TOKEN || ENV.GH_TOKEN;
-  if (token) headers.authorization = `Bearer ${token}`;
-  const response = await fetch(`https://api.github.com/${path}`, { headers });
-  if (!response.ok) throw new Error(`GitHub API ${path}: HTTP ${response.status}`);
-  return response.json();
+/** A GET of GitHub's REST API, as JSON. */
+export async function githubJson(path) {
+  const body = await download(`https://api.github.com/${path}`, {
+    headers: { accept: "application/vnd.github+json" },
+  });
+  return JSON.parse(body.toString("utf8"));
 }
 
 /** `prefix=target` pairs of the `remappings` array in a foundry.toml. */
@@ -175,13 +263,19 @@ function remappingsOf(toml) {
   return [...list.matchAll(/"([^"=]+)=([^"]+)"/g)].map(([, prefix, target]) => [prefix, target]);
 }
 
+/** `text` (Solidity or TypeScript) without its comments, so that what is read
+ * from it is code. Strings are not parsed: a "//" or "/*" inside one is taken
+ * for the start of a comment. That is enough for the upstream files read this
+ * way, whose new versions are reviewed whenever a pin moves. */
+export const withoutComments = (text) =>
+  text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
 /** Every path a Solidity file imports, comments aside. A file this misses
  * fails the build, so the pin can be incomplete only loudly. */
 export function importsOf(text) {
-  const code = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-  return [...code.matchAll(/^\s*import\s+(?:[^;"']*?\bfrom\s+)?["']([^"']+)["']/gm)].map(
-    (match) => match[1],
-  );
+  return [
+    ...withoutComments(text).matchAll(/^\s*import\s+(?:[^;"']*?\bfrom\s+)?["']([^"']+)["']/gm),
+  ].map((match) => match[1]);
 }
 
 async function pin(name) {

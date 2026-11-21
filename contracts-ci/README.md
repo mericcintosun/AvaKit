@@ -16,9 +16,16 @@ node --test scripts/guards.test.mjs  # the two scripts above still catch what th
 ```
 
 `check-artifacts.mjs` needs the network the first time: it fetches the pinned
-upstream sources and the files of `eerc-token`'s pin from GitHub, then keeps
-them in a cache (`$AVAKIT_UPSTREAM_CACHE`, by default
-`<tmpdir>/avakit-upstream-sources`).
+upstream sources and the files of `eerc-token`'s pin from GitHub (48 small
+files), then keeps them in a cache (`$AVAKIT_UPSTREAM_CACHE`, by default
+`<tmpdir>/avakit-upstream-sources`). Each cached file is named by its git blob
+id and checked against it on every read, so a stale or edited copy is fetched
+again rather than used. A request that GitHub drops, times out or answers with
+HTTP 408, 429 or 5xx is retried up to five times, 1 to 16 s apart or as long as
+`Retry-After` asks. Set `GITHUB_TOKEN` (or `GH_TOKEN`) to lift GitHub's
+anonymous rate limit: the token goes to GitHub's hosts only, and a request
+GitHub refuses it on is made again without it. A download that still fails is
+reported as one (`could not fetch …`), not as drift: nothing was compared.
 
 - **`scripts/sync.mjs`** copies each template contract into `src/` and fails if
   templates that ship the same contract have drifted apart (`erc20-token` /
@@ -69,20 +76,26 @@ them in a cache (`$AVAKIT_UPSTREAM_CACHE`, by default
   circuit files of `ava-labs/EncryptedERC` at `CIRCUIT_COMMIT`
   (`lib/eerc-config.ts`), and `npm run deploy:eerc` deploys that repository's
   contracts at `COMMIT` (`scripts/deploy-eerc.mjs`) with its own deploy script.
-  The check fails unless the two are one commit, upstream's deploy script there
-  deploys the production verifiers (`deployVerifiers(<signer>, true)`), and each
-  production verifier carries exactly the verification key published next to
-  its circuit's proving key, with a delta that is not its gamma (a key made
-  without a phase-2 contribution accepts forged proofs). The pin before
-  upstream's 2026-08-31 fixes failed it: its deploy script deployed generated
-  verifiers that rejected every proof the app made. It reads the files from
-  GitHub at the pinned commit; `node scripts/check-artifacts.mjs --eerc-circuits`
-  (or `node scripts/eerc-pin.mjs --circuits`) also downloads the ten pinned
-  circuit files (55 MB) and compares their SHA-256 with the pins, for when the
-  pin moves. Whether those proving keys really belong to those verification
-  keys is not something a file comparison can show: a live register, mint,
-  transfer and burn against an instance deployed at the pin does, and was run
-  on Fuji on 2026-11-21.
+  The check fails unless the two are one commit, the one
+  `upstream/EncryptedERC/sources.json` records; the SHA-256 the app checks each
+  circuit file against is the one recorded from that file at the commit (so a
+  pin moved without new hashes fails here, not in the app); every
+  `deployVerifiers(...)` call in the code of upstream's deploy script (comments
+  aside) is `deployVerifiers(<signer>, true)`, which deploys the production
+  verifiers; and each production verifier carries exactly the verification key
+  published next to its circuit's proving key, with a delta that is not its
+  gamma (a key made without a phase-2 contribution accepts forged proofs). The
+  pin before upstream's 2026-08-31 fixes failed it: its deploy script deployed
+  generated verifiers that rejected every proof the app made. The upstream
+  files it reads are the twelve `sources.json` lists, each checked against its
+  git blob id, from GitHub or the cache (see
+  [eerc-token's pin](#eerc-tokens-pin)). `node scripts/check-artifacts.mjs
+  --eerc-circuits` (or `node scripts/eerc-pin.mjs --circuits`) also downloads
+  the ten circuit files (55 MB) and checks each against its blob id and its
+  pinned SHA-256. Whether those proving keys really belong to those
+  verification keys is not something a file comparison can show: a live
+  register, mint, transfer and burn against an instance deployed at the pin
+  does, and was run on Fuji on 2026-11-21.
 - **`scripts/guards.test.mjs`** tests the scripts themselves (Node's
   built-in test runner, no dependencies). Each test copies the files the
   scripts read into a temporary directory, breaks one thing there (a
@@ -90,8 +103,14 @@ them in a cache (`$AVAKIT_UPSTREAM_CACHE`, by default
   stale `DemoToken`, one changed byte in the code or the metadata hash of a
   bridge contract, an upstream source that is not the pinned one, a damaged
   cached source, an artifact nobody listed, `eerc-token` pinned back to the
-  commit before upstream's fixes or to two different commits) and expects the
-  script to notice.
+  commit before upstream's fixes, to two different commits or to one
+  `sources.json` does not record, a production verifier with another key, a
+  key whose delta is its gamma, a production call left only in a comment, a
+  cached copy that is not the pinned file, a circuit hash that is not the
+  file's, an upstream file that cannot be fetched) and expects the script to
+  notice. The download retries are tested against a stubbed `fetch`. Tests
+  that change cached files work on a copy of the warm cache, so the suite
+  downloads only the few files it fetches on purpose.
 
 `examples/web3auth-demo` ships a different, simpler `AvaKitNFT` on purpose. It
 is an example app, not a template, so its contract is not compiled into this
@@ -150,6 +169,28 @@ hand since. Rebuilt from the pinned sources, their code was the same byte for
 byte, and so was their ABI apart from the order of its items and keys; only the
 metadata hash at the end of each differed, since it hashes those paths. The
 entries now hold this build, so all of every entry is checked.
+
+## eerc-token's pin
+
+`upstream/EncryptedERC/sources.json` records `ava-labs/EncryptedERC` at the
+commit `eerc-token` pins: the git blob id of each of the twelve files
+`scripts/eerc-pin.mjs` reads (upstream's deploy script and test helpers, and the
+production verifier and verification key of each of the five circuits), and
+the blob id and SHA-256 of each of the ten circuit files the app downloads.
+Nothing is built from it. To move the pin:
+
+```bash
+# 1. point CIRCUIT_COMMIT (lib/eerc-config.ts) and COMMIT
+#    (scripts/deploy-eerc.mjs) at the new commit, then
+node scripts/eerc-pin.mjs pin                  # rewrites sources.json; prints new hashes
+# 2. put any SHA-256 it prints in lib/eerc-config.ts, then
+node scripts/check-artifacts.mjs --eerc-circuits
+```
+
+`pin` reads the git tree at the commit from GitHub's API (set `GITHUB_TOKEN` if
+its anonymous rate limit is in the way) and downloads only the circuit files
+whose blob changed. Review what changed upstream before committing, then deploy
+a new shared instance with the template's `npm run deploy:eerc`.
 
 ## Toolchain
 
