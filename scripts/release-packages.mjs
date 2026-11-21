@@ -1,25 +1,28 @@
 // The packages the release workflow publishes, and the one thing it does to
 // them before anything is published: packing.
 //
-// .github/workflows/release.yml runs this in its verify job, after the gates
-// (lint, typecheck, tests, the changeset check, the MCP install smoke test):
+// .github/workflows/release.yml runs it in two jobs:
 //
 //   node scripts/release-packages.mjs state
-//     Whether changesets are pending: `pending=true` means the run opens or
-//     updates the version PR and publishes nothing, `pending=false` means the
-//     run may publish. Changesets in pre mode is refused: the publish job
-//     publishes to the `latest` dist-tag only.
+//     In the verify job, after the gates (lint, typecheck, tests, the
+//     changeset check, the MCP install smoke test). Whether changesets are
+//     pending: `pending=true` means the run opens or updates the version PR
+//     and publishes nothing, `pending=false` means the run may publish.
+//     Changesets in pre mode is refused: the publish job publishes to the
+//     `latest` dist-tag only.
 //
 //   node scripts/release-packages.mjs pack <dir> [--registry <url>]
-//     Packs every publishable package of the workspace into <dir> with
-//     `pnpm pack`. pnpm writes the real version over `workspace:` and
-//     `catalog:` ranges there, as publishing does, and this fails when a
-//     packed package.json still holds such a range, or names another package
-//     or version than the source. It then asks the npm registry which
-//     name@version it does not have yet, and writes <dir>/manifest.json (for
-//     each tarball: name, version, file, sha256, integrity, and whether npm
-//     already has that version) and <dir>/SHA256SUMS. The publish job checks
-//     both before it publishes a byte.
+//     In the pack job, on a fresh checkout that was installed without install
+//     scripts and built. Packs every publishable package of the workspace
+//     into <dir> with `pnpm pack`. pnpm writes the real version over
+//     `workspace:` and `catalog:` ranges there, as publishing does, and this
+//     fails when a packed package.json still holds such a range, or names
+//     another package or version than the source. It then asks the npm
+//     registry which name@version it does not have yet, and writes
+//     <dir>/manifest.json (for each tarball: name, version, file, sha256,
+//     integrity, and whether npm already has that version) and
+//     <dir>/SHA256SUMS. The publish job checks both before it publishes a
+//     byte.
 //
 // Both commands write `key=value` lines to $GITHUB_OUTPUT and a summary to
 // $GITHUB_STEP_SUMMARY when those are set. Nothing here publishes: the npm
