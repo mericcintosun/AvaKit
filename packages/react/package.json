@@ -33,7 +33,8 @@
   },
   "peerDependencies": {
     "react": ">=19",
-    "react-dom": ">=19"
+    "react-dom": ">=19",
+    "viem": "^2.58.0"
   },
   "dependencies": {
     "@avakit/core": "workspace:*",
