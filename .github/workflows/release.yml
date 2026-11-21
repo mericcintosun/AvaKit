@@ -207,15 +207,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-  # Since June 2026 GitHub creates the pull_request runs of a PR that a
+  # Since mid-2026 (GitHub changelog: "Bot-created pull requests can run
+  # workflows if approved") GitHub creates the pull_request runs of a PR that a
   # workflow opened or updated with GITHUB_TOKEN in an approval-required state:
   # they have no jobs until someone with write access clicks "Approve workflows
   # to run", and a PR merged before that leaves them failed with no jobs ("This
   # run likely failed because of a workflow file issue", runs 44558954539 and
   # 44565792970 for #29 and #31). Before that change such PRs started no run at
-  # all. A workflow_dispatch event is the exception GitHub documents: one that
-  # GITHUB_TOKEN creates always starts a run. So this job dispatches ci.yml on
-  # the version branch, with no other credential.
+  # all (#2, #3, #4, #5 and #10 have none). A workflow_dispatch event is the
+  # exception GitHub documents: one that GITHUB_TOKEN creates always starts a
+  # run. So this job dispatches ci.yml on the version branch, with no other
+  # credential.
   #
   # Why that is enough for a required check: GitHub matches a required status
   # check by its name and the PR's head commit, not by the event that ran it.

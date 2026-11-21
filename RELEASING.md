@@ -32,8 +32,8 @@ dependencies:
 | --- | --- | --- | --- |
 | `verify` | always | `contents: read` | The gates below, then whether changesets are pending. With none pending it builds and packs every publishable package (`scripts/release-packages.mjs pack`), records each tarball's sha256 and whether npm has that version, and uploads the tarballs. |
 | `version` | changesets are pending | `contents: write`, `pull-requests: write` | changesets/action opens or updates the version PR. It installs with `--ignore-scripts` and publishes nothing. |
-| `version-ci` | the version PR was opened or updated | `actions: write` | Starts `ci.yml` on `changeset-release/main`, so the PR has its checks (see below). |
-| `publish` | nothing is pending and npm lacks a version | `id-token: write`, `contents: read`, environment `npm-publish` | Waits for approval, then checks the tarballs (sha256 against what `verify` recorded, name and version inside each, one of the five packages, no `workspace:` range left) and publishes what npm still lacks, one at a time, dependencies first, with `npm publish <tarball> --provenance`. No checkout, no install. |
+| `version-ci` | the version PR was opened or updated | `actions: write`, `contents: read` | Starts `ci.yml` on `changeset-release/main`, so the PR has its checks (see below). |
+| `publish` | nothing is pending and npm lacks a version | `id-token: write`, `contents: read`, environment `npm-publish` | Waits for approval, then checks the tarballs (sha256 against what `verify` recorded, name and version inside each, one of the five packages, no `workspace:` or `catalog:` range left) and publishes what npm still lacks, one at a time, dependencies first, with `npm publish <tarball> --provenance`. No checkout, no install. |
 | `tag` | after `publish` | `contents: write` | The git tag and GitHub release of each package that reached npm, as changesets/action made them (`scripts/release-tags.mjs`). |
 | `publish-dry-run` | Run workflow with **dry run** | `contents: read`, no environment, no id-token | The same download and checks as `publish`, then `npm publish --dry-run`. |
 
@@ -143,13 +143,15 @@ the release workflow again.
 
 ## The version PR's checks
 
-The **"chore: version packages"** PR is opened with `GITHUB_TOKEN`. Since June 2026
-GitHub creates the `pull_request` runs of such a PR in an approval-required state: they
-have no jobs until someone with write access clicks **Approve workflows to run**, and a
-PR merged before that leaves them failed with no jobs, which the Actions tab labels
+The **"chore: version packages"** PR is opened with `GITHUB_TOKEN`. Since mid-2026
+(GitHub changelog: *"Bot-created pull requests can run workflows if approved"*) GitHub
+creates the `pull_request` runs of such a PR in an approval-required state: they have
+no jobs until someone with write access clicks **Approve workflows to run**, and a PR
+merged before that leaves them failed with no jobs, which the Actions tab labels
 *"This run likely failed because of a workflow file issue"*. That is what runs
 44558954539 (#29) and 44565792970 (#31) are: nothing was wrong with `ci.yml`. (Before
-the change such PRs started no run at all.)
+the change such PRs started no run at all: the version PRs #2, #3, #4, #5 and #10 have
+none.)
 
 So the `version-ci` job runs `gh workflow run ci.yml --ref changeset-release/main` with
 `GITHUB_TOKEN`: a `workflow_dispatch` event always starts a run, even from that token.
