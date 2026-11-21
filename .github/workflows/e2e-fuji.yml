@@ -40,6 +40,24 @@
 #   package: read that line before anything else, and wait out a rate limit
 #   before running the workflow again.
 #
+# Who hears about a red run
+#   The report job keeps one issue labelled e2e-failure open while the
+#   workflow fails, on a schedule or from Run workflow: it opens the issue (and
+#   the label) on the first failure and comments on it after every further one,
+#   with the run, each leg that did not pass and that leg's "Failed at" line.
+#   The next run that tests `latest` and passes closes it. GitHub notifies
+#   whoever watches the repository (its owner, by default) of a new issue and
+#   of a comment on it, so a red night reaches someone without anyone opening
+#   the Actions tab. (scripts/e2e-fuji-report.mjs)
+#
+# When the schedule fires
+#   Not at 05:23 UTC: GitHub delays scheduled runs when Actions is busy, and
+#   the first two started at 14:10 UTC (2026-11-20) and 13:35 UTC
+#   (2026-11-21). Nothing should depend on the hour. GitHub also turns the
+#   schedule off in a public repository after 60 days without activity on it,
+#   and says so in the Actions tab; re-enable the workflow there if that
+#   happens.
+#
 # To repeat it on your own machine, with Node.js 22 or 24 and nothing else:
 #   node scripts/e2e-fuji.mjs --source npm
 name: E2E · Fuji · published packages
@@ -149,3 +167,39 @@ jobs:
           name: e2e-fuji-${{ matrix.os }}-node${{ matrix.node }}
           path: e2e-summary.json
           if-no-files-found: error
+
+  # Open, comment on or close the e2e-failure issue (see "Who hears about a red
+  # run" above). It reads the legs' results and their uploaded summaries, which
+  # is why it runs after them whatever they did, but not after a run that was
+  # cancelled, and not in a fork, whose scheduled legs do not run. The only job
+  # here that can write to issues.
+  report:
+    name: Report · e2e-failure issue
+    needs: e2e
+    if: ${{ !cancelled() && github.repository == 'mericcintosun/AvaKit' && needs.e2e.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # fetch the script
+      actions: read # read this run's jobs and download the legs' summaries
+      issues: write # create the label; open, comment on and close the issue
+    steps:
+      - name: Fetch the script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/e2e-fuji-report.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Open, update or close the e2e-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ needs.e2e.result }}
+          VERSION: ${{ inputs.version || 'latest' }}
+        run: node scripts/e2e-fuji-report.mjs

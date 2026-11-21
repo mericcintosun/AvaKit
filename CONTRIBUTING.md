@@ -119,7 +119,7 @@ pnpm build
 node scripts/e2e-fuji.mjs --source workspace [--skip-chain] [--keep] [--json <file>]
 ```
 
-- **`--source npm`** tests what users get. It is what `.github/workflows/e2e-fuji.yml` runs, daily and from **Run workflow**, on fresh GitHub-hosted runners (Ubuntu with Node 22, 24 and 26, macOS, Windows) that have Node.js and npm and nothing of AvaKit. `--version` picks the `@avakit/mcp` version or dist-tag (default `latest`).
+- **`--source npm`** tests what users get. It is what `.github/workflows/e2e-fuji.yml` runs, daily and from **Run workflow**, on fresh GitHub-hosted runners (Ubuntu with Node 22, 24 and 26, macOS, Windows) that have Node.js and npm and nothing of AvaKit. `--version` picks the `@avakit/mcp` version or dist-tag (default `latest`). When a run of that workflow fails, its report job opens an issue labelled `e2e-failure` (or comments on the open one) with each failing leg's "Failed at" line, and the next passing run of `latest` closes it (`scripts/e2e-fuji-report.mjs`).
 - **`--source workspace`** tests your changes to the MCP server before they are released. The scaffolded app is installed and built only when the `@avakit/core` and `@avakit/react` versions it pins are on npm; otherwise that half is reported as skipped, and `scripts/smoke-template.sh` is what covers it against this checkout.
 
 **The on-chain half spends one drip of the shared Fuji faucet per run.** Without `AVAKIT_DEPLOYER_KEY` in the environment the server signs with its session test wallet and asks AvaKit's faucet to fund it. That faucet is shared and rate-limited, and it is what a newcomer's first run depends on, so:
@@ -170,13 +170,14 @@ pnpm changeset       # describe the change + pick patch / minor / major
 
 Commit the generated file in `.changeset/` with your PR. A change to `@avakit/core` needs a changeset for `@avakit/mcp` too: the server bundles core, so it is not bumped with it automatically, and `node scripts/check-changesets.mjs` fails CI when that changeset is missing.
 
-The release flow is automated:
+The release flow is automated, with one person in the loop:
 
 1. You open a PR that includes a changeset.
-2. After it merges to `main`, the Release workflow opens (or updates) a **"Version Packages"** PR that applies the version bumps and updates changelogs.
-3. Merging that PR publishes the affected packages to npm.
+2. After it merges to `main`, the Release workflow opens (or updates) a **"chore: version packages"** PR that applies the version bumps and updates changelogs, and starts CI on it.
+3. A maintainer checks that PR and its checks, and merges it. The Release workflow runs the gates again, packs the packages, and its publish job waits for approval in the `npm-publish` environment.
+4. A maintainer with review rights on that environment approves the deployment (**Review deployments** on the run). The publish job then publishes what npm does not have yet, with provenance, and the tag job creates the git tags and GitHub releases.
 
-Docs-only or internal-only changes (nothing user-facing) don't need a changeset. See [`RELEASING.md`](./RELEASING.md) for the full release process.
+Docs-only or internal-only changes (nothing user-facing) don't need a changeset. See [`RELEASING.md`](./RELEASING.md) for the full release process, including the dry run that rehearses a publish.
 
 ## Conventions (binding)
 

@@ -1,65 +1,104 @@
+# Version the packages, or publish them to npm.
+#
+# Runs on every push to main, and from Run workflow. Each job holds only what
+# it needs, and the one that can mint an npm publish credential runs no code
+# of this repository and none of its dependencies:
+#
+#   verify      contents: read. The gates (lint, typecheck, tests, the
+#               changeset check, the MCP install smoke test) on the commit
+#               that is about to be versioned or published, then whether
+#               changesets are pending. With none pending (the run after the
+#               version PR is merged, or any other push), it builds and packs
+#               every publishable package, records each tarball's sha256 and
+#               whether npm already has that version, and uploads the
+#               tarballs.
+#   version     Pending changesets only. contents: write, pull-requests:
+#               write. changesets/action opens or updates the "chore: version
+#               packages" PR (branch changeset-release/main) and publishes
+#               nothing.
+#   version-ci  actions: write. Starts ci.yml on the version PR's branch, so
+#               that the PR has its checks (see the job).
+#   publish     Nothing pending and something npm does not have yet. Waits for
+#               a reviewer to approve the npm-publish environment, then
+#               publishes the uploaded tarballs with npm trusted publishing
+#               (OIDC) and a provenance attestation. id-token: write and
+#               contents: read, no checkout, no install.
+#   tag         contents: write. The git tag and the GitHub release of every
+#               package that was published, as changesets/action made them.
+#
+# Run workflow with "dry run" ticked (the default) runs verify and then
+# `npm publish --dry-run` on the tarballs, in a job with no environment and no
+# id-token: the publish path end to end, publishing nothing. npm refuses a
+# version it already has even in a dry run, so on main that job checks the
+# tarballs and finds nothing to publish; run it on changeset-release/main to
+# rehearse the version PR's publish before merging it. With "dry run"
+# unticked on main it is a release like a push.
+#
+# What the split does not change: the tarballs are built in verify, next to
+# the dependencies and the tests, so a dependency that is compromised there
+# can still change what they contain. It can no longer publish anything by
+# itself: publishing needs the approval, publishes exactly the bytes verify
+# summed, and npm's provenance attestation names this workflow and commit.
+# See RELEASING.md.
 name: Release
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: verify, pack, then npm publish --dry-run. Untick to release main for real."
+        type: boolean
+        default: true
 
+# Nothing by default: every job states its own permissions.
+permissions: {}
+
+# One release at a time per branch, as before. A dry run queues on its own, so
+# it can never take the place of a release that is waiting to start.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.ref }}${{ inputs.dry_run && '-dry-run' || '' }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Version or Publish
+  verify:
+    name: Verify · pack
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
-      contents: write
-      pull-requests: write
-      id-token: write
+      contents: read
+    outputs:
+      pending: ${{ steps.state.outputs.pending }}
+      unpublished: ${{ steps.pack.outputs.unpublished }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
+      # No dependency cache anywhere in this workflow. A cache entry is saved by
+      # whichever job on main first ran with its key (ci.yml saves the pnpm
+      # store that way), and what a restore brought in here would be built into
+      # the tarballs that are published.
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-
-      # OIDC trusted publishing needs npm >= 11.5.1, so the runner's bundled npm
-      # can be too old to exchange the id-token — but this must NOT be `npm@latest`.
-      #
-      # npm 12 changed `npm info <pkg> --json` to return an array where 11 returned
-      # the packument object. Changesets reads `pkgInfo.versions` off that result,
-      # which is `undefined` on an array, so it concluded every package was
-      # unpublished, tried to republish all five, and npm refused with "cannot
-      # publish over the previously published versions" — turning every release red
-      # while the real publishes actually succeeded. Pinning to 11 keeps OIDC (11.18
-      # >= 11.5.1) and keeps the shape changesets can read.
-      #
-      # Revisit only once changesets handles npm 12's output.
-      - name: Use an npm that supports OIDC
-        run: npm install -g npm@11
+          package-manager-cache: false
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
       # Gate: nothing is versioned or published from a red tree.
       #
-      # ci.yml runs the same checks on this push, but as a separate workflow that
-      # this one does not wait for, and the "chore: version packages" PR never
-      # gets a CI run of its own (GitHub starts no workflows for a pull request
-      # opened with GITHUB_TOKEN). Without these steps, merging that PR published
-      # whatever built, tests failing or not. So the checks run here as well, on
-      # the exact commit that is about to be versioned or published, and a failure
-      # stops the job before changesets/action runs. `pnpm release` below still
-      # does the full build.
+      # ci.yml runs the same checks on this push, but as a separate workflow
+      # that this one does not wait for. So the checks run here as well, on the
+      # exact commit that is about to be versioned or published, and a failure
+      # stops this job, which every other job needs.
       - name: Lint (Biome)
         run: pnpm lint
 
@@ -84,20 +123,337 @@ jobs:
       - name: Smoke · the packed MCP server installs and starts
         run: bash scripts/smoke-mcp.sh "$RUNNER_TEMP/smoke-mcp"
 
-      # When changesets exist on main, opens/updates a "Version Packages" PR.
-      # When that PR is merged (versions bumped, changesets consumed), publishes.
+      # pending=true: the version job runs. pending=false: the packages are
+      # packed, and the publish job runs if npm lacks one of their versions.
+      - name: Changesets · are versions pending?
+        id: state
+        run: node scripts/release-packages.mjs state
+
+      - name: Build the packages
+        if: steps.state.outputs.pending == 'false' || inputs.dry_run
+        run: pnpm exec turbo run build --filter='./packages/*'
+
+      # `pnpm pack` writes the real versions over the workspace: and catalog:
+      # ranges, as publishing does, and the script fails if one is left. It
+      # writes manifest.json (name, version, file, sha256, integrity and
+      # whether npm has the version, for each tarball) and SHA256SUMS.
+      - name: Pack every publishable package
+        id: pack
+        if: steps.state.outputs.pending == 'false' || inputs.dry_run
+        run: node scripts/release-packages.mjs pack "$RUNNER_TEMP/release"
+
+      - name: Upload the tarballs
+        if: steps.pack.outcome == 'success' && (inputs.dry_run || steps.pack.outputs.unpublished != '0')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-tarballs
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+          # A deployment waits at most 30 days for its approval.
+          retention-days: 30
+
+  version:
+    name: Version · open or update the version PR
+    needs: verify
+    if: github.ref == 'refs/heads/main' && !inputs.dry_run && needs.verify.outputs.pending == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the changeset-release/main branch
+      pull-requests: write # open or update the PR
+    outputs:
+      pr_number: ${{ steps.changesets.outputs.pullRequestNumber }}
+    steps:
+      # The credentials stay in the checkout: changesets/action pushes the
+      # version branch with them.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # The gates ran in verify on this same commit. All that runs here is
+      # `changeset version` and the server.json sync of `pnpm version-packages`,
+      # so no install script runs next to a token that can push.
+      - name: Install (no install scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Opens or updates the "chore: version packages" PR. The PR is produced
+      # by `pnpm version-packages`: `changeset version`, then @avakit/mcp's
+      # `sync:server-json`, so the MCP Registry listing moves with the version.
       #
-      # Publishing uses npm **trusted publishing (OIDC)** — no long-lived NPM_TOKEN.
-      # Each package must have a Trusted Publisher configured on npmjs.com pointing
-      # at this repo + `release.yml`. The exchanged id-token also produces a
-      # provenance attestation, so npm can prove the tarball was built here.
-      - name: Create Release PR or Publish
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
+      # `publish` is never run: the action runs it only when no changesets are
+      # pending, and this job runs only when some are. It is set because the
+      # action words the PR body by it ("merge this and the packages will be
+      # published to npm automatically"); without it the PR would tell its
+      # reader to publish by hand, which npm refuses for these packages. If it
+      # ever runs, it fails.
+      - name: Open or update the version PR
+        id: changesets
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           version: pnpm version-packages
-          publish: pnpm release
+          publish: node -e "console.error('release.yml publishes in its publish job only.'); process.exit(1)"
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+          GITHUB_TOKEN: ${{ github.token }}
+
+  # Since mid-2026 (GitHub changelog: "Bot-created pull requests can run
+  # workflows if approved") GitHub creates the pull_request runs of a PR that a
+  # workflow opened or updated with GITHUB_TOKEN in an approval-required state:
+  # they have no jobs until someone with write access clicks "Approve workflows
+  # to run", and a PR merged before that leaves them failed with no jobs ("This
+  # run likely failed because of a workflow file issue", runs 44558954539 and
+  # 44565792970 for #29 and #31). Before that change such PRs started no run at
+  # all (#2, #3, #4, #5 and #10 have none). A workflow_dispatch event is the
+  # exception GitHub documents: one that GITHUB_TOKEN creates always starts a
+  # run. So this job dispatches ci.yml on the version branch, with no other
+  # credential.
+  #
+  # Why that is enough for a required check: GitHub matches a required status
+  # check by its name and the PR's head commit, not by the event that ran it.
+  # The dispatched run checks out the head of changeset-release/main, which is
+  # the version PR's head commit, so its check runs (ci.yml's "CI passed"
+  # among them) are that commit's checks. changesets/action builds that branch
+  # from the main commit this workflow runs on, so it is tested as it would be
+  # merged; when main moves, the next run of this workflow rebuilds the branch
+  # and dispatches again. The pending pull_request runs can be left alone.
+  version-ci:
+    name: Version · run CI on the version PR
+    needs: version
+    if: needs.version.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # create the workflow_dispatch event
+      contents: read
+    steps:
+      - name: Start ci.yml on changeset-release/main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: changeset-release/${{ github.ref_name }}
+          PR_NUMBER: ${{ needs.version.outputs.pr_number }}
+        run: |
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          echo "Started CI on $BRANCH for #$PR_NUMBER: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PR_NUMBER/checks" >> "$GITHUB_STEP_SUMMARY"
+
+  # Publishing uses npm trusted publishing (OIDC): no NPM_TOKEN exists. Each
+  # package's Trusted Publisher on npmjs.com names this repository, this file
+  # (release.yml) and the npm-publish environment, and the exchanged id-token
+  # also produces the provenance attestation.
+  #
+  # Nothing of this repository runs here: no checkout and no install. The job
+  # downloads what verify packed, checks it, and runs npm, which the next steps
+  # install from the registry.
+  publish:
+    name: Publish · npm
+    needs: verify
+    if: github.ref == 'refs/heads/main' && !inputs.dry_run && needs.verify.outputs.pending == 'false' && needs.verify.outputs.unpublished != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and the provenance attestation
+    outputs:
+      released: ${{ steps.record.outputs.released }}
+    steps:
+      - &download-tarballs
+        name: Download the tarballs verify packed
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-tarballs
+          path: ${{ runner.temp }}/release
+
+      - &setup-node-for-npm
+        name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      # OIDC trusted publishing needs npm >= 11.5.1, so the runner's bundled npm
+      # can be too old to exchange the id-token — but this must NOT be
+      # `npm@latest`.
+      #
+      # npm 12 changed `npm info <pkg> --json` to return an array where 11
+      # returned the packument object. Changesets, which published from this
+      # workflow until the jobs were split, read `pkgInfo.versions` off that
+      # result, got `undefined`, concluded every package was unpublished, tried
+      # to republish all five, and npm refused with "cannot publish over the
+      # previously published versions": every release went red while the real
+      # publishes succeeded. Nothing here reads `npm info` any more, but a new
+      # npm major is the publishing tool changing under the release: move to it
+      # on purpose, after a dry run, not whenever it ships. 11 keeps OIDC
+      # (11.21 >= 11.5.1).
+      - &npm-11
+        name: Use an npm that supports OIDC
+        run: npm install -g npm@11
+
+      # Before anything is published: the bytes are those verify summed, every
+      # tarball is the package and version the manifest names and one of the
+      # five this workflow publishes, and no packed package.json keeps a range
+      # that only works inside this workspace. Then npm is asked again which
+      # versions it lacks, since the approval can come long after verify asked:
+      # what it has now is skipped, the rest goes into to-publish.tsv in the
+      # order verify packed them, dependencies first.
+      - &check-tarballs
+        name: Check the tarballs
+        working-directory: ${{ runner.temp }}/release
+        env:
+          PUBLISHABLE: "@avakit/core @avakit/react @avakit/mcp @avakit/studio create-avalanche-app"
+        run: |
+          set -euo pipefail
+          fail() { echo "::error title=Release::$*"; exit 1; }
+
+          sha256sum --check --strict SHA256SUMS
+
+          listed="$(jq -r '.packages[].file' manifest.json | sort)"
+          summed="$(sed -E 's/^[0-9a-f]{64} [ *]//' SHA256SUMS | sort)"
+          present="$(find . -maxdepth 1 -type f -name '*.tgz' -printf '%f\n' | sort)"
+          [ -n "$listed" ] || fail "manifest.json lists no tarball"
+          [ "$listed" = "$summed" ] || fail "manifest.json and SHA256SUMS do not list the same tarballs"
+          [ "$listed" = "$present" ] || fail "the artifact does not hold exactly the tarballs manifest.json lists"
+
+          : > "$RUNNER_TEMP/to-publish.tsv"
+          : > "$RUNNER_TEMP/already-on-npm.txt"
+          mapfile -t entries < <(jq -r '.packages[] | [.name, .version, .file, (.published | tostring)] | @tsv' manifest.json)
+          for entry in "${entries[@]}"; do
+            IFS=$'\t' read -r name version file published <<< "$entry"
+            case " $PUBLISHABLE " in
+              *" $name "*) ;;
+              *) fail "$file is $name, which this workflow does not publish" ;;
+            esac
+            packed="$(tar -xzOf "$file" package/package.json)"
+            [ "$(jq -r .name <<< "$packed")" = "$name" ] || fail "$file is not $name"
+            [ "$(jq -r .version <<< "$packed")" = "$version" ] || fail "$file is not $name@$version"
+            local_ranges="$(jq -r '[.dependencies, .peerDependencies, .optionalDependencies, .devDependencies | (. // {}) | to_entries[] | select(.value | test("^(workspace|catalog|link|file):")) | "\(.key) \(.value)"] | join(", ")' <<< "$packed")"
+            [ -z "$local_ranges" ] || fail "$file still has workspace-only ranges: $local_ranges"
+            # On npm before this run: an earlier release, not this one.
+            [ "$published" = "false" ] || continue
+            status="$(curl --silent --show-error --retry 3 --max-time 30 --output /dev/null --write-out '%{http_code}' "https://registry.npmjs.org/${name/\//%2F}/$version")"
+            case "$status" in
+              404) printf '%s\t%s\t%s\n' "$name" "$version" "$file" >> "$RUNNER_TEMP/to-publish.tsv"
+                   echo "to publish: $name@$version ($file)" ;;
+              200) echo "$name@$version" >> "$RUNNER_TEMP/already-on-npm.txt"
+                   echo "already on npm, skipped: $name@$version" ;;
+              *) fail "the npm registry answered HTTP $status for $name@$version" ;;
+            esac
+          done
+
+      # One package at a time, dependencies first, and the first failure stops
+      # the job: a package is never published after one it depends on failed.
+      # A re-run skips what is already on npm and publishes the rest.
+      - name: Publish
+        working-directory: ${{ runner.temp }}/release
+        run: |
+          set -euo pipefail
+          : > "$RUNNER_TEMP/published.txt"
+          mapfile -t entries < "$RUNNER_TEMP/to-publish.tsv"
+          if [ "${#entries[@]}" -eq 0 ]; then
+            echo "Nothing left to publish: npm has every version."
+            exit 0
+          fi
+          for entry in "${entries[@]}"; do
+            IFS=$'\t' read -r name version file <<< "$entry"
+            echo "::group::npm publish $name@$version"
+            npm publish "./$file" --provenance --access public --tag latest --ignore-scripts < /dev/null
+            echo "::endgroup::"
+            echo "$name@$version" >> "$RUNNER_TEMP/published.txt"
+          done
+
+      # Also after a failed publish: what reached npm is tagged all the same.
+      - name: Record what was released
+        id: record
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          touch "$RUNNER_TEMP/already-on-npm.txt" "$RUNNER_TEMP/published.txt"
+          released="$(cat "$RUNNER_TEMP/already-on-npm.txt" "$RUNNER_TEMP/published.txt" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+          echo "released=$released" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release · npm"
+            echo
+            if [ -s "$RUNNER_TEMP/published.txt" ]; then
+              sed 's/^/- published: /' "$RUNNER_TEMP/published.txt"
+            else
+              echo "Nothing was published by this job."
+            fi
+            if [ -s "$RUNNER_TEMP/already-on-npm.txt" ]; then
+              sed 's/^/- already on npm: /' "$RUNNER_TEMP/already-on-npm.txt"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The tags and releases changesets/action created after it published: an
+  # annotated tag `<name>@<version>` on the released commit, tagged by
+  # github-actions[bot], and a release of it whose body is the CHANGELOG.md
+  # entry. The script reads the changelogs and package.json files of this
+  # commit and refuses a name@version that is not one of its packages. No
+  # install: it uses Node.js and the GitHub API only.
+  tag:
+    name: Tag · GitHub releases
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.outputs.released != '' && needs.publish.outputs.released != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create tags and releases
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Tag and release what was published
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASED: ${{ needs.publish.outputs.released }}
+        run: node scripts/release-tags.mjs
+
+  # The publish path without publishing: the same download, checks and npm as
+  # the publish job, then `npm publish --dry-run`. No environment and no
+  # id-token, so nothing here can publish.
+  publish-dry-run:
+    name: Publish · dry run
+    needs: verify
+    if: inputs.dry_run
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - *download-tarballs
+      - *setup-node-for-npm
+      - *npm-11
+      - *check-tarballs
+      - name: npm publish --dry-run
+        working-directory: ${{ runner.temp }}/release
+        run: |
+          set -euo pipefail
+          mapfile -t entries < "$RUNNER_TEMP/to-publish.tsv"
+          if [ "${#entries[@]}" -eq 0 ]; then
+            echo "::notice title=Release dry run::npm has every version in the manifest, and refuses a version it has even in a dry run, so there is nothing to run npm publish --dry-run on. Run this on changeset-release/main to rehearse the version PR's publish."
+            exit 0
+          fi
+          for entry in "${entries[@]}"; do
+            IFS=$'\t' read -r name version file <<< "$entry"
+            echo "::group::npm publish --dry-run $name@$version"
+            npm publish "./$file" --dry-run --access public --tag latest --ignore-scripts < /dev/null
+            echo "::endgroup::"
+          done
