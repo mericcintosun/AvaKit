@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
@@ -125,21 +126,31 @@ export default async function LocaleLayout({
   if (!hasLocale(routing.locales, locale)) notFound();
   setRequestLocale(locale);
   const messages = await getMessages();
+  // The nonce proxy.ts made for this request (see lib/csp.ts). Next.js adds it to
+  // its own scripts; the two inline scripts below are ours. Reading it renders
+  // every page on request: a page prerendered at build time would carry one
+  // fixed nonce, or none, and the policy would block its scripts.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang={locale} suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <script
           type="application/ld+json"
+          nonce={nonce}
           // biome-ignore lint/security/noDangerouslySetInnerHtml: static, non-user JSON-LD
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <NextIntlClientProvider messages={messages}>
+          {/* next-themes writes an inline script that sets the theme class before
+              the first paint, so the page never flashes the wrong theme. Without
+              the nonce the policy would block it. */}
           <ThemeProvider
             attribute="class"
             defaultTheme="system"
             enableSystem
             disableTransitionOnChange
+            nonce={nonce}
           >
             <TooltipProvider>
               <div className="flex min-h-dvh flex-col">
