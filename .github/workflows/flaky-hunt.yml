@@ -1,0 +1,168 @@
+# Nightly hunt for flaky tests.
+#
+# Why
+#   A test that passes or fails depending on the order it runs in, or on how busy
+#   the machine is, turns a run red at random. The release job of 19 November
+#   2026 went red twice that way: React tests raced the provider's effects when
+#   Turborepo ran every package's suite at once on a small runner, and passed
+#   again on the next push. A pull request's CI runs each suite once, in file
+#   order, so it rarely sees such a test fail; this sees it fail on purpose.
+#
+# What it does
+#   Every package whose `test` script runs Vitest is run several times on each
+#   leg, with Vitest shuffling both the files and the tests in them, under a new
+#   seed for every run (printed before the run starts). One leg runs the suites
+#   one at a time on an otherwise idle runner, which isolates order: a test that
+#   depends on what ran before it. The other runs all suites at the same time,
+#   with coverage on as in `pnpm test`, next to one busy-looping process per
+#   CPU, which brings out timing: a test that races its own asynchronous work.
+#   scripts/flaky-hunt.mjs does the runs; its header says more.
+#
+# When something fails
+#   The report job opens an issue labelled flaky-test, or comments on the one
+#   that is open, with each failing test, the seed of its run and the command
+#   that replays that order. It is the only job that can write, it can write
+#   issues and nothing else, and it runs no code from the repository or its
+#   dependencies: it reads the reports the hunt legs uploaded and calls gh.
+#   Fix a flaky test by finding the race or the leak. Do not add retries: a
+#   retry hides the next one as well.
+#
+# To hunt on your own machine:
+#   pnpm build && node scripts/flaky-hunt.mjs --rounds 5 --parallel --load auto
+name: Flaky-test hunt
+
+on:
+  schedule:
+    # Nightly, away from the top of the hour and from the E2E run (05:23).
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: Runs of each package's suite on each leg
+        type: number
+        default: 8
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flaky-hunt
+  cancel-in-progress: false
+
+jobs:
+  hunt:
+    name: Hunt · ${{ matrix.leg }}
+    # A fork that enables scheduled workflows should not open issues every night.
+    if: github.event_name != 'schedule' || github.repository == 'mericcintosun/AvaKit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: one suite at a time
+            slug: sequential
+            flags: ""
+          - leg: all suites at once, under load
+            slug: under-load
+            flags: --parallel --load auto --coverage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The suites import the built @avakit/core and create-avalanche-app, and
+      # some start built servers, as in ci.yml, where `pnpm build` runs first.
+      - name: Build the packages
+        run: pnpm turbo run build --filter="./packages/*"
+
+      # Exits 1 when any run failed, after writing summary.md (also appended to
+      # the job summary), failures.md and every run's log.
+      - name: Hunt (${{ matrix.leg }})
+        env:
+          ROUNDS: ${{ inputs.rounds || 8 }}
+          FLAGS: ${{ matrix.flags }}
+        run: node scripts/flaky-hunt.mjs --rounds "$ROUNDS" $FLAGS --out "$RUNNER_TEMP/flaky-hunt"
+
+      - name: Upload the reports and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flaky-hunt-${{ matrix.slug }}
+          path: ${{ runner.temp }}/flaky-hunt
+          if-no-files-found: ignore
+          retention-days: 30
+
+  report:
+    name: Report · flaky-test issue
+    needs: hunt
+    if: always() && needs.hunt.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # Artifacts of this run need no token: the runner's own is enough.
+      - name: Download the reports
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: flaky-hunt-*
+          path: reports
+
+      # One open issue at a time: a new failure is a comment on it, so a test
+      # that keeps failing adds its seeds to one thread instead of opening more.
+      - name: Open or update the flaky-test issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          reports=(reports/*/failures.md)
+          if [ "${#reports[@]}" -eq 0 ]; then
+            # The hunt failed before it ran a suite (install, build): that is
+            # not a flaky test, and the red run says enough.
+            echo "::warning title=Flaky-test hunt::A leg failed without reaching the tests. See $RUN_URL"
+            exit 0
+          fi
+          {
+            echo "The flaky-test hunt failed on ${COMMIT:0:12}: $RUN_URL"
+            echo
+            echo "Each run's log, JSON report and summary are in the run's artifacts."
+            echo
+            cat "${reports[@]}"
+          } > body.md
+          # GitHub refuses a comment over 65,536 characters.
+          if [ "$(wc -c < body.md)" -gt 60000 ]; then
+            head -c 60000 body.md > cut.md
+            printf '\n\n(Cut short. The whole report is in the artifacts of %s)\n' "$RUN_URL" >> cut.md
+            mv cut.md body.md
+          fi
+          if ! gh label list --search flaky-test --json name --jq '.[].name' | grep -qx flaky-test; then
+            gh label create flaky-test --color d93f0b \
+              --description "A test that passes or fails depending on order or timing"
+          fi
+          issue=$(gh issue list --label flaky-test --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body-file body.md
+          else
+            gh issue create --title "Flaky tests found by the nightly hunt" --label flaky-test --body-file body.md
+          fi
