@@ -1,10 +1,12 @@
 // Tests for the two guard scripts, scripts/sync.mjs and
-// scripts/check-artifacts.mjs. A guard that misses what it exists to catch
+// scripts/check-artifacts.mjs (with scripts/upstream.mjs, which fetches the
+// upstream sources it builds). A guard that misses what it exists to catch
 // fails silently, so each test runs the real script against a throwaway copy of
 // the files it reads, changes one thing in that copy and checks that the script
 // notices. The checkout itself is never modified.
 //
-// Usage (from contracts-ci/, needs forge): node --test scripts/guards.test.mjs
+// Usage (from contracts-ci/, needs forge and, for the upstream sources not yet
+// in the cache, the network): node --test scripts/guards.test.mjs
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -22,12 +24,38 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { blobId, importsOf, materialize, readPin } from "./upstream.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
 const TEMPLATES = "packages/create-avalanche-app/templates";
 const NFT_MINT_CONFIG = `${TEMPLATES}/nft-mint/contracts/foundry.toml`;
 const ICTT = `${TEMPLATES}/token-bridge/lib/ictt-artifacts.json`;
+const ICM_PIN = "contracts-ci/upstream/icm-contracts/sources.json";
+// Every entry of the ICTT file: the demo token is the repo's own contract, the
+// other three are built from the pinned ava-labs/icm-contracts sources.
+const ICTT_ENTRIES = ["ERC20TokenHome", "ERC20TokenRemote", "TeleporterRegistry", "DemoToken"];
+// eerc-token's pin: the commit of ava-labs/EncryptedERC its app proves with
+// and the one its deploy script builds from.
+const EERC_CONFIG = `${TEMPLATES}/eerc-token/lib/eerc-config.ts`;
+const EERC_DEPLOY = `${TEMPLATES}/eerc-token/scripts/deploy-eerc.mjs`;
+// The commit eerc-token was pinned to until upstream's fixes of 2026-08-31:
+// its deploy script deployed verifiers that match none of the circuits.
+const EERC_BEFORE_FIXES = "c7eb0e09bc9315e68c35d3c09f5dce4b794d0485";
+
+/** Point one or both of eerc-token's pins at `commit`. */
+function pinEerc(root, commit, { config = true, deploy = true } = {}) {
+  if (config) {
+    edit(root, EERC_CONFIG, (text) =>
+      text.replace(/const CIRCUIT_COMMIT = "[0-9a-f]{40}";/, `const CIRCUIT_COMMIT = "${commit}";`),
+    );
+  }
+  if (deploy) {
+    edit(root, EERC_DEPLOY, (text) =>
+      text.replace(/const COMMIT = "[0-9a-f]{40}";/, `const COMMIT = "${commit}";`),
+    );
+  }
+}
 
 // What a working tree may hold beside the sources: none of it is the scripts'
 // to read, and a build has to start from the sources alone.
@@ -47,10 +75,12 @@ function fixture(t) {
   };
   copy("contracts-ci/foundry.toml");
   copy("contracts-ci/scripts");
+  copy("contracts-ci/upstream");
   for (const template of readdirSync(join(repoRoot, TEMPLATES))) {
     copy(`${TEMPLATES}/${template}/contracts`);
     copy(`${TEMPLATES}/${template}/lib`);
   }
+  copy(EERC_DEPLOY);
   copy("examples/web3auth-demo/contracts");
   copy("examples/web3auth-demo/lib");
   copy("packages/studio/src/messenger-artifact.ts");
@@ -66,6 +96,26 @@ function run(root, script, ...args) {
     { cwd: join(root, "contracts-ci"), encoding: "utf8" },
   );
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
+}
+
+/** `text` with the hex digit at `index` of `entry`'s bytecode changed, and
+ * every other byte of the file as it was. */
+function flipBytecodeDigit(text, entry, index) {
+  const { bytecode } = JSON.parse(text)[entry];
+  const flipped = bytecode[index] === "0" ? "1" : "0";
+  const at = text.indexOf(`"${entry}"`);
+  return (
+    text.slice(0, at) +
+    text.slice(at).replace(bytecode, bytecode.slice(0, index) + flipped + bytecode.slice(index + 1))
+  );
+}
+
+/** Where the IPFS hash of the (first) CBOR metadata block of a bytecode starts,
+ * as an index into its hex string. */
+function metadataHashAt(bytecode) {
+  const at = bytecode.search(/a264697066735822[0-9a-f]{68}64736f6c6343[0-9a-f]{6}0033/);
+  assert.ok(at > 0, "the bytecode carries no CBOR metadata");
+  return at + "a264697066735822".length;
 }
 
 /** Rewrite one file of a fixture. */
@@ -169,12 +219,13 @@ test("sync rejects a multi-line string, whose lines would read as a table of pin
   assert.doesNotMatch(output, new RegExp(`pinned ${NFT_MINT_CONFIG}`));
 });
 
-// ---- check-artifacts.mjs: the entry of ours in a JSON artifact file ----
+// ---- check-artifacts.mjs: the entries of token-bridge's JSON artifact file ----
 
-test("check-artifacts passes on the repo as it is and checks DemoToken", (t) => {
+test("check-artifacts passes on the repo as it is and checks every entry of the ICTT file", (t) => {
   const { status, output } = run(fixture(t), "check-artifacts.mjs");
   assert.equal(status, 0, output);
-  assert.match(output, new RegExp(`ok ${ICTT} \\(DemoToken\\)`));
+  for (const entry of ICTT_ENTRIES) assert.match(output, new RegExp(`ok ${ICTT} \\(${entry}\\)`));
+  assert.match(output, /ok \S+\/eerc-token \(pinned ava-labs\/EncryptedERC\) @ [0-9a-f]{12}\n/);
 });
 
 test("check-artifacts catches a stale DemoToken and --write regenerates only that entry", (t) => {
@@ -223,7 +274,7 @@ test("check-artifacts leaves a file that is in sync untouched under --write", (t
   assert.equal(readFileSync(join(root, ICTT), "utf8"), shipped);
 });
 
-test("check-artifacts --write keeps the bytes of the upstream entries in any formatting", (t) => {
+test("check-artifacts --write rewrites only the entry that drifted, in any formatting", (t) => {
   const root = fixture(t);
   const shipped = JSON.parse(readFileSync(join(root, ICTT), "utf8"));
   // The whole file without the spaces it ships with, and a stale DemoToken.
@@ -233,10 +284,155 @@ test("check-artifacts --write keeps the bytes of the upstream entries in any for
 
   const { status, output } = run(root, "check-artifacts.mjs", "--write");
   assert.equal(status, 0, output);
+  assert.match(output, new RegExp(`updated ${ICTT} \\(DemoToken\\)`));
+  assert.doesNotMatch(output, new RegExp(`updated ${ICTT} \\((?!DemoToken)`));
   const regenerated = readFileSync(join(root, ICTT), "utf8");
-  const upstream = compact.slice(0, compact.indexOf('"DemoToken"'));
-  assert.ok(regenerated.startsWith(upstream), "the upstream entries were rewritten");
+  const inSync = compact.slice(0, compact.indexOf('"DemoToken"'));
+  assert.ok(regenerated.startsWith(inSync), "entries that were in sync were rewritten");
   assert.deepEqual(JSON.parse(regenerated), shipped);
+});
+
+// The bridge contracts are built from their sources, fetched at the pinned
+// commit, and every byte that ships is compared with that build: the code, and
+// the metadata hash after it, which names the sources the code was built from.
+test("check-artifacts catches one changed byte of an upstream contract, in its code or its metadata", (t) => {
+  const root = fixture(t);
+  const shipped = readFileSync(join(root, ICTT), "utf8");
+  edit(root, ICTT, (text) => {
+    const { ERC20TokenHome, TeleporterRegistry } = JSON.parse(text);
+    // A byte halfway through ERC20TokenHome, far from its metadata...
+    const code = flipBytecodeDigit(text, "ERC20TokenHome", ERC20TokenHome.bytecode.length >> 1);
+    // ...and one inside the metadata hash of TeleporterRegistry.
+    return flipBytecodeDigit(
+      code,
+      "TeleporterRegistry",
+      metadataHashAt(TeleporterRegistry.bytecode) + 10,
+    );
+  });
+
+  const stale = run(root, "check-artifacts.mjs");
+  assert.equal(stale.status, 1, stale.output);
+  const report = (entry) =>
+    stale.output.match(new RegExp(`ARTIFACT DRIFT: ${ICTT} \\(${entry}\\)\\n(?:  .*\\n)*`))?.[0];
+  const home = report("ERC20TokenHome");
+  assert.ok(home, stale.output);
+  assert.match(
+    home,
+    /source: upstream icm-contracts \(ava-labs\/icm-contracts v1\.0\.9 @ dac65983fb95\)/,
+  );
+  assert.match(home, /- bytecode differs from the build\n/);
+  const registry = report("TeleporterRegistry");
+  assert.ok(registry, stale.output);
+  assert.match(registry, /- bytecode differs from the build only in its metadata hash/);
+  for (const entry of ["ERC20TokenRemote", "DemoToken"]) {
+    assert.match(stale.output, new RegExp(`ok ${ICTT} \\(${entry}\\)`));
+  }
+
+  // --write puts back exactly the bytes the repo ships.
+  const written = run(root, "check-artifacts.mjs", "--write");
+  assert.equal(written.status, 0, written.output);
+  assert.match(written.output, new RegExp(`updated ${ICTT} \\(ERC20TokenHome\\)`));
+  assert.match(written.output, new RegExp(`updated ${ICTT} \\(TeleporterRegistry\\)`));
+  assert.equal(readFileSync(join(root, ICTT), "utf8"), shipped);
+});
+
+test("check-artifacts builds nothing from an upstream source that is not the pinned one", (t) => {
+  const root = fixture(t);
+  // The pin names a blob GitHub does not have at that path, so the file that
+  // comes back is not the one the pin means.
+  const file = "contracts/ictt/TokenHome/TokenHome.sol";
+  edit(root, ICM_PIN, (text) => {
+    const pin = JSON.parse(text);
+    pin.files[file] = blobId(Buffer.from("// not the pinned source\n"));
+    return `${JSON.stringify(pin, null, 2)}\n`;
+  });
+  const { status, output } = run(root, "check-artifacts.mjs");
+  assert.equal(status, 1, output);
+  assert.match(output, /UPSTREAM SOURCE: icm-contracts\n/);
+  assert.match(output, new RegExp(`${file}: \\S+/${file} has blob [0-9a-f]{40}, the pin says`));
+  assert.doesNotMatch(output, /^ok /m);
+});
+
+test("upstream sources are checked in the cache too, and a damaged copy is fetched again", async (t) => {
+  const cache = mkdtempSync(join(tmpdir(), "avakit-upstream-cache-"));
+  const layouts = mkdtempSync(join(tmpdir(), "avakit-upstream-layout-"));
+  const ENV = process.env;
+  const previous = ENV.AVAKIT_UPSTREAM_CACHE;
+  ENV.AVAKIT_UPSTREAM_CACHE = cache;
+  t.after(() => {
+    if (previous === undefined) delete ENV.AVAKIT_UPSTREAM_CACHE;
+    else ENV.AVAKIT_UPSTREAM_CACHE = previous;
+    for (const dir of [cache, layouts]) rmSync(dir, { recursive: true, force: true });
+  });
+
+  const file = "contracts/ictt/TokenHome/TokenHome.sol";
+  const id = readPin("icm-contracts").files[file];
+  await materialize("icm-contracts", join(layouts, "first"));
+  writeFileSync(join(cache, id), "// not what the pin says\n");
+
+  const second = await materialize("icm-contracts", join(layouts, "second"));
+  assert.equal(blobId(readFileSync(join(second, file))), id, "laid out from a damaged copy");
+  assert.equal(blobId(readFileSync(join(cache, id))), id, "the damaged copy is still cached");
+});
+
+// ---- check-artifacts.mjs: eerc-token's pin (scripts/eerc-pin.mjs) ----
+
+test("check-artifacts rejects eerc-token's pin from before upstream's 2026-08-31 fixes", (t) => {
+  // At that commit `npm run deploy:eerc` deployed the generated verifiers,
+  // whose keys match none of the circuit files the app proves with.
+  const root = fixture(t);
+  pinEerc(root, EERC_BEFORE_FIXES);
+  const { status, output } = run(root, "check-artifacts.mjs");
+  assert.equal(status, 1, output);
+  assert.match(output, /EERC PIN DRIFT: \S+\/eerc-token \(pinned ava-labs\/EncryptedERC\)\n/);
+  assert.match(
+    output,
+    /deploy-standalone\.ts at c7eb0e09\S* does not deploy the production verifiers/,
+  );
+  // Everything else is still checked, and fine.
+  for (const entry of ICTT_ENTRIES) assert.match(output, new RegExp(`ok ${ICTT} \\(${entry}\\)`));
+});
+
+test("eerc-pin rejects an app and a deploy script pinned to different commits", (t) => {
+  const root = fixture(t);
+  pinEerc(root, EERC_BEFORE_FIXES, { config: false });
+  const { status, output } = run(root, "eerc-pin.mjs");
+  assert.equal(status, 1, output);
+  assert.match(
+    output,
+    new RegExp(
+      `CIRCUIT_COMMIT \\(\\S+\\) is [0-9a-f]{40} but COMMIT \\(\\S+\\) is ${EERC_BEFORE_FIXES}`,
+    ),
+  );
+});
+
+test("eerc-pin checks that each production verifier carries its circuit's key", (t) => {
+  const root = fixture(t);
+  const { status, output } = run(root, "eerc-pin.mjs");
+  assert.equal(status, 0, output);
+  for (const name of ["registration", "mint", "transfer", "withdraw", "burn"]) {
+    assert.match(
+      output,
+      new RegExp(`ok ${name}: contracts/prod/\\w+Verifier\\.sol carries the key`),
+    );
+  }
+});
+
+test("upstream.mjs names files by git's blob id and finds every form of import", () => {
+  // `git hash-object` of an empty file and of "hello\n".
+  assert.equal(blobId(Buffer.from("")), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391");
+  assert.equal(blobId(Buffer.from("hello\n")), "ce013625030ba8dba906f756967f9e9ca394464a");
+  const source = [
+    'import "./A.sol";',
+    'import "@x/B.sol" as B;',
+    'import * as C from "../C.sol";',
+    "import {D, E} from",
+    '    "@y/DE.sol";',
+    '// import "./commented.sol";',
+    '/* import "./block.sol"; */',
+    "contract F {}",
+  ].join("\n");
+  assert.deepEqual(importsOf(source), ["./A.sol", "@x/B.sol", "../C.sol", "@y/DE.sol"]);
 });
 
 test("check-artifacts reports a missing DemoToken entry", (t) => {

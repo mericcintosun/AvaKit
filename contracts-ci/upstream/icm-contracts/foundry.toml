@@ -1,0 +1,34 @@
+# How the three ICTT contracts in
+# packages/create-avalanche-app/templates/token-bridge/lib/ictt-artifacts.json
+# (ERC20TokenHome, ERC20TokenRemote, TeleporterRegistry) are built from
+# ava-labs/icm-contracts. scripts/upstream.mjs lays the pinned sources out next
+# to this file (sources.json lists them) and check-artifacts.mjs builds them
+# here and compares the result with every byte the template ships.
+#
+# This is not the harness's compiler, on purpose: these are someone else's
+# contracts, built with their own pins. Only two settings differ from
+# icm-contracts' own foundry.toml, and both are what the template has always
+# shipped: `cancun` instead of `shanghai` (the bundled code uses MCOPY), and
+# forge's default IPFS metadata hash instead of `bytecode_hash = "none"`.
+[profile.default]
+src = "contracts"
+out = "out"
+libs = []
+# The remappings of icm-contracts' remappings.txt that these contracts use, and
+# the one OpenZeppelin's upgradeable contracts need for their own imports.
+# Spelled out, with forge's guessing turned off, so the build (and the source
+# paths in its metadata hash) cannot change with what else is on disk.
+auto_detect_remappings = false
+remappings = [
+  "@avalabs/subnet-evm-contracts@1.2.2/=lib/subnet-evm/contracts/",
+  "@openzeppelin/contracts-upgradeable@5.0.2/=lib/openzeppelin-contracts-upgradeable/contracts/",
+  "@openzeppelin/contracts@5.0.2/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/",
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/",
+  "@teleporter/=contracts/teleporter/",
+  "@utilities/=contracts/utilities/",
+]
+# icm-contracts v1.0.9 pins solc 0.8.25.
+solc_version = "0.8.25"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200

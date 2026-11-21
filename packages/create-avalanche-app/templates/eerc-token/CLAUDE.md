@@ -43,16 +43,27 @@ no browser-deploy step, unlike AvaKit's other templates.
 ## Pinned upstream version
 
 - **Circuits + contracts:** `ava-labs/EncryptedERC` at commit
-  `c7eb0e09bc9315e68c35d3c09f5dce4b794d0485` — `CIRCUIT_COMMIT` in `lib/eerc-config.ts` (the circuit
-  files the browser proves against, each with a pinned SHA-256) and `COMMIT` in
-  `scripts/deploy-eerc.mjs` (the contracts `npm run deploy:eerc` builds). Keep the two equal:
-  contracts and circuits have to be the same version.
+  `8dc98cd4d63ad3aa6d86b70b8f4bbcd70f1e8be1` (upstream's security fixes of 2026-08-31, untagged)
+  — `CIRCUIT_COMMIT` in `lib/eerc-config.ts` (the circuit files the browser proves against, each
+  with a pinned SHA-256) and `COMMIT` in `scripts/deploy-eerc.mjs` (the contracts
+  `npm run deploy:eerc` builds). Keep the two equal: the verifiers it deploys have to carry the
+  keys of those circuit files. At this commit upstream's `scripts/deploy-standalone.ts` deploys
+  the production verifiers (`contracts/prod`), which do; at the earlier pin it deployed generated
+  ones that matched none of the circuit files.
+- **Fixed at this pin:** the contract fixes (a registered account cannot replace its key, the
+  pending history of incoming amounts per account is capped at 300 entries). The shared instance
+  (`SHARED_EERC_CONTRACT_ADDRESS`) was deployed from this commit with `npm run deploy:eerc` on
+  2026-11-21; its owner and auditor is a throwaway key that was not kept.
+- **Not fixed yet:** the circuit fixes of the same commit. Upstream has not published circuit
+  files (`circom/build`) built from the fixed circuits, so the app proves with the earlier ones: a
+  sender can still attach an extra hidden value to an encrypted amount, or encrypt their own
+  amount with zero randomness so anyone can read it. Neither moves tokens. When upstream publishes
+  new circuit files with production verifiers to match, move the pin: change both constants
+  together, recompute all ten SHA-256 hashes from the source repository (not the CDN), deploy a
+  new instance with `npm run deploy:eerc` and point both addresses in `lib/eerc-config.ts` at it —
+  never change one of these alone.
 - **SDK:** `@avalabs/eerc-sdk` `1.0.2` (exact, in `package.json`), with `wagmi` `2.19.5` because
   the SDK peer-depends on `wagmi: ^2.0.0`.
-- Upstream merged security fixes with regenerated verifier keys on 2026-08-31 that are not in a tagged release yet; this template has not been moved to them.
-  Moving to them means changing both constants together, recomputing all ten SHA-256 hashes from
-  the source repository, and deploying a new instance with `npm run deploy:eerc` — never change one
-  of these alone.
 - **Testnet only:** Avalanche Fuji, and nothing else (see "Fuji only" under Rules). Never point this
   template at a mainnet or put real funds behind it.
 

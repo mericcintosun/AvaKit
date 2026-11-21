@@ -20,9 +20,14 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Must match CIRCUIT_COMMIT in lib/eerc-config.ts: the contracts you deploy
-// and the circuits the browser proves against have to be the same version.
-const COMMIT = "c7eb0e09bc9315e68c35d3c09f5dce4b794d0485";
+// Must match CIRCUIT_COMMIT in lib/eerc-config.ts: the verifiers you deploy
+// have to carry the keys of the circuit files the browser proves with.
+// This is upstream's "Security/crypto review fixes" commit of 2026-08-31, which
+// no release tag points at yet. From this commit on, upstream's deploy script
+// deploys its production verifiers, whose keys are those of the circuit files
+// in circom/build. Before it, the script deployed keys generated without a
+// phase-2 contribution, which reject every real proof and accept forged ones.
+const COMMIT = "8dc98cd4d63ad3aa6d86b70b8f4bbcd70f1e8be1";
 const REPO = "https://github.com/ava-labs/EncryptedERC.git";
 const FUJI_RPC = "https://api.avax-test.network/ext/bc/C/rpc";
 
