@@ -25,9 +25,9 @@ const nextConfig: NextConfig = {
     // delivered at 75.
     qualities: [75, 95],
   },
-  // Baseline response headers for every route. Deliberately no
-  // Content-Security-Policy yet: the theme script and the JSON-LD block are
-  // inline, so a CSP needs nonces and its own rollout.
+  // Baseline response headers for every route. The Content-Security-Policy is
+  // not among them: it carries a nonce made for each request, so proxy.ts sets
+  // it on every page (see lib/csp.ts).
   async headers() {
     return [
       {
