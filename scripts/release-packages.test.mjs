@@ -384,7 +384,9 @@ test("pnpm pack resolves workspace: ranges in what packAll publishes", {
 }, async (t) => {
   const root = tempDir(t);
   writeTree(root, {
-    "package.json": { name: "root", private: true },
+    // The pnpm the repository pins, so this runs the pnpm the release job runs
+    // (a newer global pnpm resolves workspace: ranges without an install).
+    "package.json": { name: "root", private: true, packageManager: PINNED_PNPM },
     "pnpm-workspace.yaml": "packages:\n  - 'packages/*'\n",
     "packages/lib/package.json": { name: "lib", version: "1.4.0" },
     "packages/lib/index.js": "export const lib = 1;\n",
@@ -396,6 +398,14 @@ test("pnpm pack resolves workspace: ranges in what packAll publishes", {
     },
     "packages/app/index.js": "export const app = 2;\n",
   });
+  // pnpm pack reads a workspace: range from the installed workspace, so install
+  // it first, as the release workflow's pack job does before it packs.
+  const install = spawnSync(
+    "pnpm",
+    ["install", "--offline", "--ignore-scripts", "--no-frozen-lockfile"],
+    { cwd: root, encoding: "utf8", shell: process.platform === "win32" },
+  );
+  assert.equal(install.status, 0, install.stderr || install.stdout);
   const outDir = join(tempDir(t), "release");
   const manifest = await packAll({ root, outDir, fetch: fakeFetch({}).fetch });
   assert.deepEqual(
@@ -410,6 +420,10 @@ test("pnpm pack resolves workspace: ranges in what packAll publishes", {
   assert.deepEqual(packed.dependencies, { lib: "1.4.0" });
   assert.deepEqual(packed.peerDependencies, { lib: "^1.4.0" });
 });
+
+const PINNED_PNPM = JSON.parse(
+  readFileSync(join(fileURLToPath(new URL("..", import.meta.url)), "package.json"), "utf8"),
+).packageManager;
 
 function hasPnpm() {
   const result = spawnSync("pnpm", ["--version"], {
