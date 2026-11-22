@@ -13,7 +13,7 @@ cp .env.example .env.local
 #      for a testnet app, on Sapphire Mainnet for a mainnet app (see .env.example)
 
 # 2. run it
-npm run dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (social login with the demo key works only on this port)
 ```
 
 Then connect a wallet, read your balance, and send a first transaction on the chain this app was scaffolded for: `__CHAIN_CONST__` in `app/providers.tsx` (`fuji` is the Avalanche Fuji testnet, `cChain` is Avalanche C-Chain mainnet).

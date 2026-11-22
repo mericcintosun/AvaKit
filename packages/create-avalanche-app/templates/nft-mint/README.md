@@ -12,7 +12,7 @@ cp .env.example .env.local
 #    → https://dashboard.web3auth.io (Sapphire Devnet, EVM)
 
 # 2. run it
-npm run dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (social login with the demo key works only on this port)
 ```
 
 Then: connect a wallet → **Deploy NFT contract** → **Mint NFT**. Deploying and minting cost gas; a new wallet gets its first test AVAX from a faucet (see [Test AVAX](#test-avax)), and both buttons wait until it has arrived.
