@@ -1,5 +1,18 @@
 # @avakit/example-hello-avax
 
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [b6294bc]
+- Updated dependencies [b6294bc]
+- Updated dependencies [763ddf0]
+- Updated dependencies [763ddf0]
+- Updated dependencies [eca2483]
+- Updated dependencies [d2df8f4]
+  - @avakit/core@0.2.3
+  - @avakit/react@0.2.3
+
 ## 0.0.7
 
 ### Patch Changes
