@@ -198,14 +198,17 @@ jobs:
       # reader to publish by hand, which npm refuses for these packages. If it
       # ever runs, it fails.
       - name: Open or update the version PR
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        # v2 renamed the inputs (version-script, publish-script, commit-message,
+        # pr-title) and reads the token only from `github-token`, whose default is
+        # this job's GITHUB_TOKEN. It pushes the version commit through the GitHub
+        # API, so the commit on changeset-release/main is signed by GitHub.
         with:
-          version: pnpm version-packages
-          publish: node -e "console.error('release.yml publishes in its publish job only.'); process.exit(1)"
-          commit: "chore: version packages"
-          title: "chore: version packages"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+          github-token: ${{ github.token }}
+          version-script: pnpm version-packages
+          publish-script: node -e "console.error('release.yml publishes in its publish job only.'); process.exit(1)"
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
 
   # The tarballs, packed apart from everything verify ran. This job starts from
   # a fresh checkout of the same commit on a runner of its own, installs the

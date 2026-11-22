@@ -115,6 +115,13 @@ setting is unticked, so the `version` job cannot open the version PR.
    `@avakit/mcp`'s `sync:server-json` script when the package defines one. Changesets
    does not know `packages/mcp/server.json` (the MCP Registry listing), so that script is
    what bumps the listing in the same PR instead of leaving it a release behind.
+   The repository uses Changesets CLI 3 and changesets/action 2. `.changeset/config.json`
+   sets `bumpVersionsWithWorkspaceProtocolOnly`, so only `workspace:` ranges move: the
+   packages depend on each other that way, while the website (`apps/web`) depends on
+   the published versions through npm ranges. Without it, the version PR would move the
+   website's ranges to versions npm does not have yet, and its `pnpm install
+   --frozen-lockfile` would fail. Move the website to a new release by hand, in a
+   pull request, once the release is on npm.
 
    While **Allow GitHub Actions to create and approve pull requests** is unticked (the
    third item of [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)),

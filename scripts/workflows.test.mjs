@@ -340,9 +340,11 @@ test("release.yml: changesets/action only versions", () => {
   const action = stepsOf(release, "version").find((step) =>
     usesOf(step)?.startsWith("changesets/action@"),
   );
-  assert.match(action, /^ +version: pnpm version-packages$/m);
+  // changesets/action v2 input names: the v1 names (version, publish) are ignored.
+  assert.match(action, /^ +version-script: pnpm version-packages$/m);
   // Set only for the PR's wording; it can never run, and fails if it does.
-  assert.match(action, /^ +publish: node -e ".*process\.exit\(1\)"$/m);
+  assert.match(action, /^ +publish-script: node -e ".*process\.exit\(1\)"$/m);
+  assert.doesNotMatch(action, /^ +(?:version|publish|commit|title): /m);
   assert.match(
     stepsOf(release, "version").find((step) => /pnpm install/.test(step)),
     /run: pnpm install --frozen-lockfile --ignore-scripts$/m,
