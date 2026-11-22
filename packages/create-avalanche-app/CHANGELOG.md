@@ -1,5 +1,17 @@
 # create-avalanche-app
 
+## 0.5.0
+
+### Minor Changes
+
+- 0dad431: The three templates that need Avalanche CLI (`icm-messenger`, `l1-launch` and `token-bridge`) are now marked experimental in their manifests: the wizard labels them in the list and warns once one is chosen, a non-interactive `--template` run prints the same warning before it scaffolds, `--help` names them, `listTemplates()` reports every template's `status`, and the MCP server's `list_templates` shows it too, because the server ships this scaffolder.
+
+### Patch Changes
+
+- 2398655: The eerc-token template is pinned to the 2026-08-31 security fixes of `ava-labs/EncryptedERC`, so `npm run deploy:eerc`, which at the old pin stopped at its compile step on a clean machine and would otherwise have deployed verifiers that reject every proof the app makes and accept forged ones, now deploys an instance the app can register, mint, transfer and burn on, and new apps start on a shared Fuji instance deployed the same way (`@avakit/mcp` is released with it because the server pins the scaffolder it ships).
+- 485ca7b: The status dots in the `icm-messenger`, `l1-launch` and `token-bridge` apps no longer pulse with CSS animations, in line with AvaKit's rule that animations use Framer Motion or GSAP and that `tw-animate-css` is only for shadcn/ui's own enter and exit animations, which those apps' CLAUDE.md now spells out for coding agents.
+- 5657374: The token-bridge template's bridge contracts (`ERC20TokenHome`, `ERC20TokenRemote` and `TeleporterRegistry` in `lib/ictt-artifacts.json`) are now the build of `ava-labs/icm-contracts` v1.0.9 that the AvaKit repository repeats and compares byte for byte on every change, with the same code and ABI as before and only the metadata hash at the end of each bytecode changed; `@avakit/mcp` is released with it because the server pins the scaffolder it ships.
+
 ## 0.4.3
 
 ### Patch Changes

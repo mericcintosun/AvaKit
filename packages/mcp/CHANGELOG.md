@@ -1,5 +1,25 @@
 # @avakit/mcp
 
+## 0.3.0
+
+### Minor Changes
+
+- 08c3bea: `write_contract` now calls only the contracts the server deployed in the same session and the ones listed in `AVAKIT_WRITE_ALLOWLIST` (`*` allows any), and one `deploy_contract` or `write_contract` call sends at most `AVAKIT_MAX_VALUE` AVAX (0.1 by default). A refusal names the variable to change and says that nothing was signed or sent. The limits apply to each call: repeated calls are not capped, and a contract the server deployed can pass on the calls and AVAX it receives. If you call a contract deployed outside the current server session, list its address in `AVAKIT_WRITE_ALLOWLIST`.
+
+### Patch Changes
+
+- 2398655: The eerc-token template is pinned to the 2026-08-31 security fixes of `ava-labs/EncryptedERC`, so `npm run deploy:eerc`, which at the old pin stopped at its compile step on a clean machine and would otherwise have deployed verifiers that reject every proof the app makes and accept forged ones, now deploys an instance the app can register, mint, transfer and burn on, and new apps start on a shared Fuji instance deployed the same way (`@avakit/mcp` is released with it because the server pins the scaffolder it ships).
+- 0dad431: The three templates that need Avalanche CLI (`icm-messenger`, `l1-launch` and `token-bridge`) are now marked experimental in their manifests: the wizard labels them in the list and warns once one is chosen, a non-interactive `--template` run prints the same warning before it scaffolds, `--help` names them, `listTemplates()` reports every template's `status`, and the MCP server's `list_templates` shows it too, because the server ships this scaffolder.
+- b6294bc: When the AvaKit faucet does not fund the session test wallet, the server now gives a reason of its own for every code the faucet can answer with: a paused faucet is reported as paused until further notice rather than "out of test AVAX", a spent daily limit as the daily limit for all callers being reached, with the time until it resets, and the limit for your network no longer calls itself hourly, because the faucet gives the same answer after ten failed attempts in five minutes; a rejected address, a chain the faucet does not serve, a contract recipient and a URL that is not the faucet's `/fund` endpoint each get their own reason, and a failure on the faucet's side names what it reported. Neither new refusal is asked again. `@avakit/mcp` is also released for the `@avakit/core` it bundles, which now reads a pause as `"paused"`.
+- 763ddf0: `@avakit/mcp` now declares Node.js 22 or newer in `engines.node`, which the scaffolder it installs (`create-avalanche-app`) already required; Node.js 20 reached end of life in April 2026.
+- d2df8f4: When a chain's RPC endpoint fails a request (it cannot be reached, gives no answer within 10 seconds, answers with an HTTP error, or answers that it is busy, behind, over a limit or without the method), `getPublicClient`, the new `getRpcTransport(chain)` and the temporary (burner) wallet move on to the chain's next endpoint: Fuji and C-Chain try Allnodes' PublicNode after Ava Labs' public API, and a custom chain can list its own in the new optional `rpcUrls`, read through `rpcEndpoints(chain)`. A node's answer about the request itself, such as a revert, "nonce too low" or "insufficient funds", is returned as that node gave it and never sent on to another endpoint, and a call that fails at every endpoint rejects with the new `RpcEndpointsError`, which names each endpoint by its origin (never a password or API key from the URL), says how each failed and keeps viem's error for the last one as its `cause`. `toViemChain(chain).rpcUrls.default.http` and the `wallet_addEthereumChain` request that `ensureChain` makes now list every endpoint, primary first; the burner sends each transaction through one endpoint whose node has confirmed the chain, and the reads it forwards now have the same 10-second limit and keep the node's JSON-RPC error code and data, so a revert no longer reaches the app as "An unknown RPC error occurred.". A call that gets no answer at any endpoint can now take up to four attempts × the number of endpoints × 10 seconds (80 seconds on Fuji and C-Chain, against 40 before), and `@avakit/mcp` is released with this change because it bundles `@avakit/core`.
+- 5657374: The token-bridge template's bridge contracts (`ERC20TokenHome`, `ERC20TokenRemote` and `TeleporterRegistry` in `lib/ictt-artifacts.json`) are now the build of `ava-labs/icm-contracts` v1.0.9 that the AvaKit repository repeats and compares byte for byte on every change, with the same code and ABI as before and only the metadata hash at the end of each bytecode changed; `@avakit/mcp` is released with it because the server pins the scaffolder it ships.
+- Updated dependencies [2398655]
+- Updated dependencies [0dad431]
+- Updated dependencies [485ca7b]
+- Updated dependencies [5657374]
+  - create-avalanche-app@0.5.0
+
 ## 0.2.1
 
 ### Patch Changes

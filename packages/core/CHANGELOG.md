@@ -1,5 +1,13 @@
 # @avakit/core
 
+## 0.2.3
+
+### Patch Changes
+
+- b6294bc: A faucet its operator has paused (the AvaKit faucet's `503 faucet_paused`) now makes `requestFaucet` reject with the new `FaucetError` code `"paused"`, no longer with `"empty"`, which is what a 503 reads as by its status alone; it is not retried, and the message is still the faucet's own. The faucet's other new refusal, a spent daily limit (`429 daily_limited`), is now read as `"rate_limited"` by its code, as it already was by its status, with a `retryAfterMs` that counts down to 00:00 UTC.
+- 763ddf0: `@avakit/core` now declares Node.js 22 or newer in `engines.node`, the oldest release line AvaKit is tested on; Node.js 20 reached end of life in April 2026, and the social login SDK it works with (`@web3auth/modal`) already requires Node.js 22.
+- d2df8f4: When a chain's RPC endpoint fails a request (it cannot be reached, gives no answer within 10 seconds, answers with an HTTP error, or answers that it is busy, behind, over a limit or without the method), `getPublicClient`, the new `getRpcTransport(chain)` and the temporary (burner) wallet move on to the chain's next endpoint: Fuji and C-Chain try Allnodes' PublicNode after Ava Labs' public API, and a custom chain can list its own in the new optional `rpcUrls`, read through `rpcEndpoints(chain)`. A node's answer about the request itself, such as a revert, "nonce too low" or "insufficient funds", is returned as that node gave it and never sent on to another endpoint, and a call that fails at every endpoint rejects with the new `RpcEndpointsError`, which names each endpoint by its origin (never a password or API key from the URL), says how each failed and keeps viem's error for the last one as its `cause`. `toViemChain(chain).rpcUrls.default.http` and the `wallet_addEthereumChain` request that `ensureChain` makes now list every endpoint, primary first; the burner sends each transaction through one endpoint whose node has confirmed the chain, and the reads it forwards now have the same 10-second limit and keep the node's JSON-RPC error code and data, so a revert no longer reaches the app as "An unknown RPC error occurred.". A call that gets no answer at any endpoint can now take up to four attempts × the number of endpoints × 10 seconds (80 seconds on Fuji and C-Chain, against 40 before), and `@avakit/mcp` is released with this change because it bundles `@avakit/core`.
+
 ## 0.2.2
 
 ### Patch Changes

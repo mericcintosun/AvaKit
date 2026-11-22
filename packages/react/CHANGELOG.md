@@ -1,5 +1,17 @@
 # @avakit/react
 
+## 0.2.3
+
+### Patch Changes
+
+- b6294bc: `useFaucet().error` now reports a faucet its operator has paused with `code: "paused"` from `@avakit/core`, no longer as `"empty"`; it is not retried, and the message is still the faucet's own, so a notice that shows the message needs no change.
+- 763ddf0: `@avakit/react` now declares Node.js 22 or newer in `engines.node`, the oldest release line AvaKit is tested on; Node.js 20 reached end of life in April 2026.
+- eca2483: `viem` (2.58.0 or a later 2.x) is now a peer dependency of `@avakit/react`, because the types of its hooks and components use viem's `Address`, `Hex`, `Abi` and `EIP1193Provider`, which an app with a strict package layout could not resolve, so they silently became `any`.
+- Updated dependencies [b6294bc]
+- Updated dependencies [763ddf0]
+- Updated dependencies [d2df8f4]
+  - @avakit/core@0.2.3
+
 ## 0.2.2
 
 ### Patch Changes

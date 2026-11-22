@@ -1,5 +1,16 @@
 # @avakit/studio
 
+## 0.1.15
+
+### Patch Changes
+
+- 763ddf0: `@avakit/studio` now declares Node.js 22 or newer in `engines.node`, the oldest release line AvaKit is tested on; Node.js 20 reached end of life in April 2026.
+- 50b33f7: Stopping Studio (Ctrl+C, SIGTERM, a closed terminal, or an agent's client closing `avakit-studio mcp`) now stops the avalanche-cli command it started and waits for it before exiting, then says which local L1s keep running and how to stop them; Interchain transactions are signed inside Studio with the public EWOQ devnet key, which no longer appears on any command line and is refused for an RPC URL that is not on this machine or that answers for another chain, so the Interchain view no longer needs Foundry; and the Devnet, Launch on Fuji and Interchain views and their MCP tools are labeled experimental.
+- Updated dependencies [b6294bc]
+- Updated dependencies [763ddf0]
+- Updated dependencies [d2df8f4]
+  - @avakit/core@0.2.3
+
 ## 0.1.14
 
 ### Patch Changes
