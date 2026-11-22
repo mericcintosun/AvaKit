@@ -12,7 +12,7 @@ cp .env.example .env.local
 #    → https://dashboard.web3auth.io (Sapphire Devnet, EVM)
 
 # 2. run it
-npm run dev    # http://localhost:3000 (or the port Next prints)
+npm run dev    # http://localhost:3000 (social login with the demo key works only on this port)
 ```
 
 Then: connect a wallet → **Register** (one-time, on-chain) → **Unlock private balance** (free,
