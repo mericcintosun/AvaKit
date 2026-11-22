@@ -57,14 +57,14 @@ The `devnet_*` and `icm_*` tools are experimental, like the views they mirror: t
 
 - [Avalanche CLI](https://github.com/ava-labs/avalanche-cli) (the `avalanche` command) for the Devnet, Launch on Fuji and Interchain views (Studio detects it and shows the install command if missing).
 
-From the release after 0.1.14, nothing else: the Interchain view talks to each local L1's RPC itself (0.1.14 still needs Foundry's `cast` for it). The Environment view also reports [Foundry](https://getfoundry.sh) (`forge`, `cast`) for your own contracts, and the Data and Environment views work without Avalanche CLI.
+From 0.1.15, nothing else: the Interchain view talks to each local L1's RPC itself (0.1.14 and earlier need Foundry's `cast` for it). The Environment view also reports [Foundry](https://getfoundry.sh) (`forge`, `cast`) for your own contracts, and the Data and Environment views work without Avalanche CLI.
 
 ## Experimental: the Avalanche CLI views
 
 To create, start and stop devnets and L1s, Studio runs Avalanche CLI and reads what it prints. The Interchain view runs no CLI command, but it works on the local L1s the CLI set up, from the files the CLI keeps about them. That makes the Devnet, Launch on Fuji and Interchain views, and the tools that mirror them, experimental. What to know before you rely on them:
 
 - Ava Labs put Avalanche CLI in maintenance mode in December 2025, and on 2026-10-06 removed its pages from the Avalanche documentation in favour of Platform CLI.
-- The Devnet, Launch on Fuji and Interchain views were last proven end to end in July 2026. Studio has changed since then (see `CHANGELOG.md`, and `.changeset/studio-stop-what-it-started.md` until the next release writes it into `CHANGELOG.md`; the Interchain view, for one, now signs its transactions inside Studio instead of with `cast`), and the changed version is covered by unit tests with stand-ins for the CLI and its L1s, not by a full run against a live network. Another CLI version may print something Studio does not expect.
+- The Devnet, Launch on Fuji and Interchain views were last proven end to end in July 2026. Studio has changed since then (see `CHANGELOG.md`; the Interchain view, for one, now signs its transactions inside Studio instead of with `cast`), and the changed version is covered by unit tests with stand-ins for the CLI and its L1s, not by a full run against a live network. Another CLI version may print something Studio does not expect.
 - Moving Studio to the supported toolchain has not been done.
 
 ## Why it's safe
@@ -76,7 +76,7 @@ Studio is a tool **you launch yourself** from your terminal (like Prisma Studio)
 - gates its API behind a per-session token injected into the served page (a cross-origin page can't read it),
 - refuses to be embedded in a frame, and starts an action only from a `POST` (never a `GET`),
 - runs external tools only via `spawn`/`execFile` with argument arrays — never a shell string, so there's no command injection. The few request-derived values that can reach an argument (an L1's name, chain id and token symbol, a transfer amount) are validated first. The text of an Interchain message never reaches a command line at all: Studio checks its length, ABI-encodes it, and sends it to the L1 itself,
-- signs Interchain transactions with **EWOQ**, the well-known public key avalanche-cli funds on every local network. Anyone can read that key, so it holds nothing of value, and from the release after 0.1.14 Studio keeps it local (0.1.14 passes it, and the encoded message, to `cast` on the command line): it signs in its own process, so the key is never on a command line where other processes could read it, and it signs only for an L1 whose RPC URL is on this machine (`localhost`, `127.0.0.0/8` or `::1`) and, when avalanche-cli recorded a chain ID for that L1, answers for that chain ID. It never follows a redirect from that RPC. Anything else is refused before a transaction is built,
+- signs Interchain transactions with **EWOQ**, the well-known public key avalanche-cli funds on every local network. Anyone can read that key, so it holds nothing of value, and from 0.1.15 Studio keeps it local (0.1.14 and earlier pass it, and the encoded message, to `cast` on the command line): it signs in its own process, so the key is never on a command line where other processes could read it, and it signs only for an L1 whose RPC URL is on this machine (`localhost`, `127.0.0.0/8` or `::1`) and, when avalanche-cli recorded a chain ID for that L1, answers for that chain ID. It never follows a redirect from that RPC. Anything else is refused before a transaction is built,
 - stops what it started when it stops (see [Stopping Studio](#stopping-studio)).
 
 MIT © AvaKit contributors

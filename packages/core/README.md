@@ -63,7 +63,7 @@ A chain counts as mainnet unless its definition says `testnet: true`, and always
 
 ## RPC endpoints and fallback
 
-Added after 0.2.2. Up to 0.2.2, every chain has its `rpcUrl` alone.
+Added in 0.2.3. Up to 0.2.2, every chain has its `rpcUrl` alone.
 
 A chain can list more than one JSON-RPC endpoint. `rpcUrl` is the one AvaKit tries first, and the optional `rpcUrls` lists every endpoint in the order they are tried, `rpcUrl` first. `fuji` and `cChain` try Ava Labs' public API first and Allnodes' PublicNode second (`https://avalanche-fuji-c-chain-rpc.publicnode.com`, `https://avalanche-c-chain-rpc.publicnode.com`).
 
@@ -113,14 +113,14 @@ When the faucet refuses or cannot be reached, it rejects with a `FaucetError`. T
 | --- | --- | --- |
 | `"rate_limited"` | A limit says no for now (HTTP 429): this address, or this network, was funded recently, or the faucet has given out every drip its daily limit allows (`faucetCode` `"daily_limited"`, with `Retry-After` until 00:00 UTC) | no |
 | `"empty"` | The faucet has run out of funds (a 503 that carries the faucet's own answer) | no |
-| `"paused"` | Whoever runs the faucet has switched it off, for as long as they choose (the faucet's own `faucet_paused`, a 503). Added after 0.2.2, which reads a pause as `"empty"` | no |
+| `"paused"` | Whoever runs the faucet has switched it off, for as long as they choose (the faucet's own `faucet_paused`, a 503). Added in 0.2.3; 0.2.2 reads a pause as `"empty"` | no |
 | `"invalid"` | The request itself was refused: a bad address, a chain the faucet does not serve, a missing or rejected captcha token (400 and every other 4xx) | no |
 | `"unavailable"` | The faucet failed on its side: it could not send the drip, is busy or is down (500, 502 and every other 5xx, including a 503 that is a platform or proxy error page rather than the faucet's answer) | yes |
 | `"network"` | No answer arrived: the request could not be sent, timed out or was aborted | yes |
 
 The error also carries `status` (the HTTP status, undefined when no answer arrived), `retryAfterMs` (the faucet's `Retry-After`, when it sent one) and `faucetCode` (the faucet's own, more specific refusal code, such as `"address_limited"`, `"daily_limited"` or `"faucet_busy"`, when its answer had one). Where the faucet's own code is known it decides `code` ahead of the status, which is how a busy faucet (retryable) is told from an empty or a paused one although all three answer 503; a 4xx is never treated as retryable, whatever it carries. An answer that is a web page rather than JSON is rejected as `"invalid"` even with a 200: that is what a wrong URL gets from a site that serves its app for every path, and it is not a drip.
 
-The faucet's code on `main` adds two refusals, which the hosted faucet gives once it is next deployed: `daily_limited` (HTTP 429), when the day's drip budget for that kind of request (with a verified Turnstile token or without) is spent for every caller (its `Retry-After` counts down to 00:00 UTC), and `faucet_paused` (HTTP 503), when its operator has switched it off. Version 0.2.2 does not know either code and goes by the status, so they reach you as `"rate_limited"` and `"empty"`, with `faucetCode` set to the faucet's own code; mapping both codes is part of the release after 0.2.2.
+The AvaKit faucet has two refusals of its own: `daily_limited` (HTTP 429), when the day's drip budget for that kind of request (with a verified Turnstile token or without) is spent for every caller (its `Retry-After` counts down to 00:00 UTC), and `faucet_paused` (HTTP 503), when its operator has switched it off. From 0.2.3 they reach you as `"rate_limited"` and `"paused"`. Version 0.2.2 does not know either code and goes by the status, so there they arrive as `"rate_limited"` and `"empty"`, with `faucetCode` set to the faucet's own code.
 
 ```ts
 import { FaucetError, requestFaucet } from "@avakit/core";

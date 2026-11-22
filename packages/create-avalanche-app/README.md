@@ -18,7 +18,7 @@ It then prints the exact next steps for your choices (they vary by template). Wi
 
 ```bash
 cd my-app
-# Optional: social login works on localhost via a bundled demo key. Only your own
+# Optional: social login works on http://localhost:3000 via a bundled demo key. Only your own
 # deployment needs a client id — then copy .env.example and add it:
 cp .env.example .env.local
 # devnet templates only — start the local Avalanche network first:
@@ -68,7 +68,7 @@ after the build, without touching the testnet or its faucet).
 
 Every generated app ships **shadcn/ui** (neutral/grayscale with dark/light from day one), a wallet chooser via `@avakit/react` (a zero-setup burner up front and Core/MetaMask, plus social login in the five Fuji templates), and AI context files (`CLAUDE.md`, `llms.txt`, `.cursor/rules`) so Claude Code / Cursor understand the project out of the box.
 
-The `icm-messenger`, `l1-launch`, and `token-bridge` templates are experimental: they run a local devnet via `avalanche-cli`, which has been in maintenance mode since December 2025, and they were last proven end to end in July 2026. The CLI labels them and warns when one is chosen (0.4.3 does not). They need a Unix-like shell (macOS, Linux, or **WSL2** on Windows). The other five are pure Fuji and need no Unix shell. On native Windows, only `nft-mint` is scaffolded and built in CI (the Windows leg of the end-to-end workflow), and nobody has reported using AvaKit there yet.
+The `icm-messenger`, `l1-launch`, and `token-bridge` templates are experimental: they run a local devnet via `avalanche-cli`, which has been in maintenance mode since December 2025, and they were last proven end to end in July 2026. The CLI labels them and warns when one is chosen (from 0.5.0). They need a Unix-like shell (macOS, Linux, or **WSL2** on Windows). The other five are pure Fuji and need no Unix shell. On native Windows, only `nft-mint` is scaffolded and built in CI (the Windows leg of the end-to-end workflow), and nobody has reported using AvaKit there yet.
 
 ## Networks
 
