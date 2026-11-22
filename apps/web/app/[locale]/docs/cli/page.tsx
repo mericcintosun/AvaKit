@@ -208,6 +208,11 @@ export default function CliDocs() {
 -v, --version           print version
 -h, --help              print this help`}
       />
+      <P>
+        The <C>experimental:</C> line, and the warning when one of those templates is chosen, arrive
+        in the release after <C>create-avalanche-app</C> 0.4.3; 0.4.3, the version on npm, prints
+        neither.
+      </P>
 
       <H2>When something goes wrong</H2>
       <UL>

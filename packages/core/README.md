@@ -155,7 +155,7 @@ import { AVAKIT_FAUCET_URL, requestFaucet } from "@avakit/core";
 const { txHash } = await requestFaucet({ url: AVAKIT_FAUCET_URL, address: "0x…", chainId: 43113 });
 ```
 
-It is a shared courtesy, not infrastructure: it can be empty or busy. For anything serious, deploy your own from [`services/faucet`](https://github.com/mericcintosun/AvaKit/tree/main/services/faucet) and pass that URL instead. Nothing in AvaKit falls back to the hosted faucet — it is used only where you pass it.
+It is a shared courtesy, not infrastructure: it can be empty or busy. For anything serious, deploy your own from [`services/faucet`](https://github.com/mericcintosun/AvaKit/tree/main/services/faucet) and pass that URL instead. Nothing in `@avakit/core` or `@avakit/react` falls back to the hosted faucet: they use it only where you pass it. The MCP server's session wallet and the five Fuji templates do pass it by default; `AVAKIT_FAUCET_URL` (MCP) and `NEXT_PUBLIC_AVAKIT_FAUCET_URL` (templates, `off` for none) change that.
 
 For React components and hooks, see [`@avakit/react`](https://www.npmjs.com/package/@avakit/react). To scaffold a full app, use [`create-avalanche-app`](https://www.npmjs.com/package/create-avalanche-app).
 

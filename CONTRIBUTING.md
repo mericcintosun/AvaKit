@@ -17,7 +17,7 @@ cd AvaKit
 pnpm install
 ```
 
-Common commands (all run through Turborepo from the repo root):
+Common commands, from the repo root (`build`, `test` and `typecheck` run through Turborepo; `lint`, `format` and `lint:fix` run Biome directly):
 
 ```bash
 pnpm build       # build all packages
@@ -45,7 +45,7 @@ Before opening a PR, make sure `pnpm lint`, `pnpm typecheck`, `pnpm build`, and 
 - the checks on the repo's own scripts: `node --test scripts/*.test.mjs`, `node scripts/check-template-deps.mjs`, `node scripts/check-template-commands.mjs` and `node scripts/check-changesets.mjs` (see [Changesets](#changesets-versioning));
 - a dependency audit that fails on a high or critical advisory (`pnpm audit`, and `npm audit` in each Worker) and, on a pull request, a dependency review that fails on a new one.
 
-The last job of `ci.yml`, **CI passed**, fails on a pull request unless every other job succeeded, and it is the check the ruleset on `main` requires before a pull request can merge. A pull request also runs the browser tests (`.github/workflows/e2e-browser.yml`, see [`apps/web/e2e/README.md`](apps/web/e2e/README.md)), CodeQL and the secret scan.
+The last job of `ci.yml`, **CI passed**, fails on a pull request unless every other job succeeded. The ruleset on `main` requires it and the two browser-test checks of `.github/workflows/e2e-browser.yml`, **Site · /new on anvil · key routes** and **Template · nft-mint on anvil** (see [`apps/web/e2e/README.md`](apps/web/e2e/README.md)), before a pull request can merge. A pull request also runs CodeQL and the secret scan.
 
 A further workflow, `.github/workflows/e2e-fuji.yml`, is not part of a pull request's checks: it runs the [end-to-end script](#end-to-end-run-on-fuji) against the packages published on npm, daily and on demand.
 
@@ -176,8 +176,8 @@ Commit the generated file in `.changeset/` with your PR. A change to `@avakit/co
 The release flow is automated, with one person in the loop:
 
 1. You open a PR that includes a changeset.
-2. After it merges to `main`, the Release workflow opens (or updates) a **"chore: version packages"** PR that applies the version bumps and updates changelogs. GitHub does not start CI on a PR the workflow's own token opened or updated until someone with write access allows it.
-3. A maintainer clicks **Approve workflows to run** on that PR (again after every update of it), waits for **CI passed**, checks the PR and merges it. The Release workflow runs the gates again, packs the packages, and its publish job waits for approval in the `npm-publish` environment.
+2. After it merges to `main`, the Release workflow opens (or updates) a **"chore: version packages"** PR that applies the version bumps and updates changelogs. It can do so only while **Allow GitHub Actions to create and approve pull requests** is ticked in the repository's Actions settings (it is unticked today; see RELEASING.md, "One-time setup"). It can open that PR only while **Allow GitHub Actions to create and approve pull requests** is ticked in the repository's Actions settings; it is unticked today, so the workflow pushes the PR's branch, `changeset-release/main`, and a maintainer opens the PR by hand (see [`RELEASING.md`](./RELEASING.md), "One-time setup"). GitHub does not start CI on a PR the workflow's own token opened or updated until someone with write access allows it.
+3. A maintainer clicks **Approve workflows to run** on that PR (again after every update of it), waits for **CI passed** and the two E2E · browser checks (**Site · /new on anvil · key routes**, **Template · nft-mint on anvil**), checks the PR and merges it. The Release workflow runs the gates again, packs the packages, and its publish job waits for approval in the `npm-publish` environment.
 4. A maintainer with review rights on that environment approves the deployment (**Review deployments** on the run). The publish job then publishes what npm does not have yet, with provenance, and the tag job creates the git tags and GitHub releases.
 
 Docs-only or internal-only changes (nothing user-facing) don't need a changeset. See [`RELEASING.md`](./RELEASING.md) for the full release process, including the dry run that rehearses a publish.

@@ -46,7 +46,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   from `localStorage`.
 - `components/demo.tsx` — the dashboard/explorer: polls the RPC for height, gas, the latest blocks and their transactions; deploys the demo ERC-20; mints.
 - `contracts/src/AvaKitToken.sol` + `lib/token-artifact.ts` — a minimal self-contained ERC-20 (browser deploy, no Foundry at runtime).
-- `app/providers.tsx` — `<AvaKitProvider chains={[chain]}>` with the injected wallet.
+- `app/providers.tsx` — `<AvaKitProvider chains={[chain]}>` with the injected wallet and a temporary burner wallet (`burnerAdapter({ chain })`), which the connect dialog offers first ("Start instantly"). It starts empty on your L1 and no faucet funds it: fund it from the EWOQ account, or use an injected wallet with the EWOQ key imported (on Fuji, your own funded wallet).
 
 ## The flow
 
@@ -102,7 +102,7 @@ a custom Fuji L1 — this app's built-in explorer keeps working by pointing at y
 What the script does, in order:
 
 1. Reads the chain ID and token from `l1.config.json` (override with `L1_CHAIN_ID` / `L1_TOKEN`) and
-   picks the Fuji config name: `L1_FUJI_NAME`, else `<L1_NAME>fuji`, else `<name in l1.config.json>fuji`.
+   picks the Fuji config name: `L1_FUJI_NAME`, else `<L1_NAME>fuji`, else, when `l1.config.json` already points at Fuji (`network: "fuji"`), the name recorded there, else `<name in l1.config.json>fuji` (`mychainfuji` by default).
 2. Looks at avalanche-cli's own record of that name (`~/.avalanche-cli/subnets/<name>/sidecar.json`):
    - no config → creates one: sovereign, `--proof-of-authority`, `--production-defaults`, owned by
      the Fuji key's address (or `L1_OWNER`);

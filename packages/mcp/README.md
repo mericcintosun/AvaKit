@@ -2,7 +2,7 @@
 
 The [AvaKit](https://github.com/mericcintosun/AvaKit) MCP server — scaffold, deploy, mint, and read Avalanche from Claude Code / Cursor over the [Model Context Protocol](https://modelcontextprotocol.io).
 
-Avalanche's official MCP server is read-only: it looks things up and never signs. This one also performs **write actions** — it creates a dapp, deploys a contract and sends contract calls — on a testnet, behind explicit gates: a wallet that can only sign for Fuji, contract calls only to the contracts it deployed itself or that you list, a limit on the AVAX one call can send, and three separate requirements before anything touches mainnet.
+Avalanche's official MCP server is read-only: it looks things up and never signs. This one also performs **write actions** — it creates a dapp, deploys a contract and sends contract calls — on a testnet, behind explicit gates: a wallet that can only sign for Fuji, three separate requirements before anything touches mainnet and, from the release after 0.2.1, contract calls only to the contracts it deployed itself or that you list and a limit on the AVAX one call can send. (0.2.1, the version `npx -y @avakit/mcp` installs until then, calls any contract and, with your own key on Fuji, sends any value.)
 
 Listed in the official [MCP Registry](https://registry.modelcontextprotocol.io) as **`dev.avakit/avalanche`**.
 
@@ -198,6 +198,8 @@ Reads of the chain are retried a few times by the RPC client on network errors. 
 
 ## Write limits
 
+These limits arrive in the release after 0.2.1. Version 0.2.1, the one `npx -y @avakit/mcp` installs until then, has neither: its `write_contract` calls any contract and, with your own key on Fuji, sends any value.
+
 An agent decides what to call, and an agent can be steered by what it reads: a README, an issue, a web page. So that a prompt-injected agent cannot point this server's wallet at any contract it likes, the two signing tools are held to two limits that come from the server's environment. A tool call cannot change either of them. Set these in your user-level MCP client config, not in a project file an agent can edit (such as `.mcp.json` or `.cursor/mcp.json`).
 
 ### Which contracts `write_contract` calls
@@ -338,8 +340,8 @@ a tool call.
 | `AVAKIT_TEST_WALLET` | Set to `0` to turn the session test wallet off, so nothing is signed without `AVAKIT_DEPLOYER_KEY`. |
 | `AVAKIT_FAUCET_URL` | Another deployment of the AvaKit faucet for the session wallet to ask, instead of the hosted one. |
 | `AVAKIT_ALLOW_MAINNET` | Set to `1` to allow mainnet transactions (which also need your own key and `confirm: true`). Unset, the server is testnet-only. |
-| `AVAKIT_WRITE_ALLOWLIST` | Comma-separated addresses `write_contract` may call besides the contracts the server deployed in this session; `*` allows any. Unset, only this session's deployments. See [Write limits](#write-limits). |
-| `AVAKIT_MAX_VALUE` | The most AVAX one `deploy_contract` or `write_contract` call may send, as a decimal number. Unset, `0.1`; `0` allows none. |
+| `AVAKIT_WRITE_ALLOWLIST` | From the release after 0.2.1: comma-separated addresses `write_contract` may call besides the contracts the server deployed in this session; `*` allows any. Unset, only this session's deployments. See [Write limits](#write-limits). |
+| `AVAKIT_MAX_VALUE` | From the release after 0.2.1: the most AVAX one `deploy_contract` or `write_contract` call may send, as a decimal number. Unset, `0.1`; `0` allows none. |
 | `AVAKIT_MCP_ROOT` | The directory `scaffold_app` creates projects in and `artifactPath` reads from, instead of the server's working directory. Needed when the server is started in the filesystem root. |
 
 ## License

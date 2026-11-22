@@ -23,5 +23,5 @@ Status: experimental. This template depends on Avalanche CLI, which has been in 
 ## External docs
 
 - ICTT contracts: https://github.com/ava-labs/icm-contracts (contracts/ictt)
-- ICTT overview: https://build.avax.network/docs/avalanche-l1s/interchain-token-transfer
+- ICTT overview: https://build.avax.network/docs/cross-chain/interchain-token-transfer/overview
 - Avalanche CLI (https://github.com/ava-labs/avalanche-cli) drives the local network. It has been in maintenance mode since December 2025; this template was last proven end to end with 1.9.6 in July 2026 (see "Tooling status" in README.md).

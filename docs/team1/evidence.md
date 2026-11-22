@@ -32,7 +32,7 @@ Everything here can be checked without trusting me. Last updated 2026-11-21.
   - the eERC template on upstream's 2026-08-31 contract fixes;
   - the three Avalanche CLI templates marked experimental;
   - Node.js 22 as the floor of every package.
-- **On `main`, outside npm:** browser tests on every pull request; CodeQL, gitleaks and OpenSSF Scorecard; a publish that waits for my approval; a nonce-based Content-Security-Policy for avakit.dev; and a daily budget and kill switch for the faucet, live once the hosted faucet is next deployed.
+- **On `main`, outside npm:** browser tests on every pull request; CodeQL, gitleaks and OpenSSF Scorecard; a publish job that waits for my approval in the `npm-publish` environment (npm enforces that approval only once each package's Trusted Publisher names that environment, an owner step that is still open); a nonce-based Content-Security-Policy for avakit.dev; and a daily budget and kill switch for the faucet, live once the hosted faucet is next deployed.
 - **The work of 17–19 November:** a review of the whole repository in nine areas found 108 issues, and 103 are fixed. Those days also added the key-free agent path, the failure handling in [reliability.md](reliability.md), the daily run, and a hardened faucet. All of it is in https://github.com/mericcintosun/AvaKit/pull/26.
 
 ## Where it stands, honestly

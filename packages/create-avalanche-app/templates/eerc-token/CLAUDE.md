@@ -17,7 +17,7 @@ no browser-deploy step, unlike AvaKit's other templates.
 ## Why this template deviates from the others
 
 - **No bundled contracts.** eERC's contracts depend on real cryptographic primitives (Poseidon
-  hashing, a BabyJubJub library, four separate Groth16 verifiers) generated from circuits — not the
+  hashing, a BabyJubJub library, five separate Groth16 verifiers (registration, mint, transfer, withdraw, burn)) generated from circuits — not the
   "self-contained, zero-dependency Solidity" pattern other AvaKit templates use. Vendoring the
   circuits/contracts would also pull in Ava Labs' Ecosystem License (not MIT) into an MIT repo, so
   this template consumes the official `@avalabs/eerc-sdk` (ISC-licensed) as an npm dependency
