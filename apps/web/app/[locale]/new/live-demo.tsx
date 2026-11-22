@@ -38,10 +38,10 @@ const FAUCET_URL = process.env.NEXT_PUBLIC_AVAKIT_FAUCET_URL;
  * It is the Builder Hub faucet and asks for a free Builder Hub sign-in, which
  * the copy below says up front.
  *
- * Written out rather than read from `fuji.faucetUrl`: this site still installs
- * the published @avakit/core 0.2.0, whose `fuji.faucetUrl` is the older
- * core.app address that only redirects here. From the next release the chain
- * definition carries this same URL.
+ * Written out rather than read from `fuji.faucetUrl`: @avakit/core before 0.2.1
+ * pointed `fuji.faucetUrl` at the older core.app address that only redirects
+ * here. The site now installs 0.2.3, whose chain definition carries this same
+ * URL, so this constant could read it instead.
  */
 const PUBLIC_FAUCET_URL = "https://build.avax.network/console/primary-network/faucet";
 /** A faucet that takes the request and then stalls is a failure, not a wait. */
@@ -254,13 +254,12 @@ function Flow() {
   }, [address, funded, refetchBalance]);
 
   // This page asks the faucet itself instead of handing `faucetUrl` to
-  // <AvaKitProvider>. That is because of the version it runs on: the site still
-  // installs the published @avakit/react 0.2.0, whose automatic drip swallows a
-  // refusal and never retries, which would leave the visitor on a spinner with
-  // no reason and no way forward. Here every outcome ends in a state the step
-  // below can render. From the next release the provider reports its drip
-  // through useFaucet(), refusal included, and retries a temporary failure; once
-  // the site has moved to those packages this request can go back to it.
+  // <AvaKitProvider>. It was written for @avakit/react 0.2.0, whose automatic
+  // drip swallowed a refusal and never retried, which would leave the visitor
+  // on a spinner with no reason and no way forward. Here every outcome ends in a
+  // state the step below can render. The site now installs 0.2.3, whose
+  // provider reports its drip through useFaucet(), refusal included, and
+  // retries a temporary failure, so this request could go back to it.
   const requestDrip = useCallback(async (to: Address) => {
     if (!FAUCET_URL) return;
     drippedFor.current = to;

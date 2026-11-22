@@ -21,9 +21,8 @@ The path this project publishes by is the `publish` job of
 **`npm-publish` environment**, so it waits until a reviewer approves it, and then
 exchanges a GitHub OIDC id-token for a short-lived publish credential. Each package's
 Trusted Publisher on npmjs.com must name this repository, `release.yml` and that
-environment: [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)
-says how, and what is open until it does. Naming the environment there is an owner step
-that has not been done yet. The exchange is also what produces the
+environment, as all five do: [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)
+says how. The exchange is also what produces the
 **provenance attestation** on each tarball (`npm publish --provenance`), so npm can
 prove the tarball was built from this repo, by this workflow, at this commit.
 
@@ -36,7 +35,7 @@ dependencies:
 | Job | Runs when | Permissions | What it does |
 | --- | --- | --- | --- |
 | `verify` | always | `contents: read` | The gates below, then whether changesets are pending. |
-| `version` | changesets are pending | `contents: write`, `pull-requests: write` | changesets/action pushes `changeset-release/main` and opens or updates the version PR; it cannot open it while **Allow GitHub Actions to create and approve pull requests** is unticked (see [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)). It installs with `--ignore-scripts` and publishes nothing. GitHub holds the PR's CI runs until a maintainer approves them (see [The version PR's checks](#the-version-prs-checks)). |
+| `version` | changesets are pending | `contents: write`, `pull-requests: write` | changesets/action pushes `changeset-release/main` and opens or updates the version PR; it can open it only while **Allow GitHub Actions to create and approve pull requests** is ticked (see [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)). It installs with `--ignore-scripts` and publishes nothing. GitHub holds the PR's CI runs until a maintainer approves them (see [The version PR's checks](#the-version-prs-checks)). |
 | `pack` | nothing is pending (on `main`), or a dry run | `contents: read` | On a runner of its own, from a fresh checkout: installs with `--ignore-scripts`, builds the packages, packs every publishable one (`scripts/release-packages.mjs pack`), records each tarball's sha256 and whether npm has that version, and uploads the tarballs. Nothing else runs there. |
 | `publish` | nothing is pending and npm lacks a version | `id-token: write`, `contents: read`, environment `npm-publish` | Waits for approval, then checks the tarballs (sha256 against what `pack` recorded, name and version inside each, one of the five packages, no `workspace:` or `catalog:` range left) and publishes what npm still lacks, one at a time, dependencies first, with `npm publish <tarball> --provenance`. No checkout, no install. |
 | `tag` | after `publish` | `contents: write` | The git tag and GitHub release of each package that reached npm, as changesets/action made them (`scripts/release-tags.mjs`). |
@@ -58,9 +57,13 @@ saved can end up in a tarball.
 Three settings outside this repository's files hold the release path together. Set them
 once, and check them again after a fork, a transfer or a change of maintainers.
 
-Where they stand: the `npm-publish` environment exists, with the maintainer as its required reviewer, `main` as its only deployment branch, and **Allow administrators to bypass configured protection rules** unticked. The Trusted Publishers do not name it yet. Setting the environment name in each of the five is an owner step that is still open ([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md), "Owner steps"),
-so until then the approval is GitHub's alone, as the second item below explains. The third
-setting is unticked, so the `version` job cannot open the version PR.
+Where they stand: all three are set. The `npm-publish` environment has the maintainer as
+its required reviewer, `main` as its only deployment branch, and **Allow administrators to
+bypass configured protection rules** unticked. The Trusted Publishers of all five packages
+name it. **Allow GitHub Actions to create and approve pull requests** is ticked. The release
+of 2026-11-22 went through the whole flow below: the `version` job opened the version PR
+(#35), its held runs were approved, it was merged, and the publish was approved (Release run
+45056347905).
 
 1. **The `npm-publish` environment** (GitHub: **Settings** → **Environments** → **New
    environment**, name `npm-publish`):
@@ -80,19 +83,18 @@ setting is unticked, so the `version` job cannot open the version PR.
    name `npm-publish`. Keep **Publishing access** on *Require two-factor
    authentication and disallow tokens*.
 
-   Until the environment name is set there, npm accepts an id-token from any run of
+   Without the environment name there, npm accepts an id-token from any run of
    `release.yml`, on any branch, in any job given `id-token: write`, and the approval
    is GitHub's alone. Once it is set, npm itself refuses every job except one that a
    reviewer let into `npm-publish`, which deploys from `main` only.
 3. **Whether Actions may open the version PR** (GitHub: **Settings** → **Actions** →
    **General** → **Workflow permissions**): **Allow GitHub Actions to create and approve
    pull requests**. GitHub has one setting for both creating and approving, and the
-   `version` job opens the PR with `GITHUB_TOKEN`. It is unticked today, which also keeps
-   that token from approving a pull request, so the `version` job pushes
-   `changeset-release/main` and then fails with "GitHub Actions is not permitted to create
-   or approve pull requests" (Release run 45011571752). Until it is ticked, or the `version`
-   job uses a GitHub App token ([The version PR's checks](#the-version-prs-checks)), a
-   maintainer opens the version PR by hand (step 2 below).
+   `version` job opens the PR with `GITHUB_TOKEN`, so tick it. With it unticked, the
+   `version` job pushes `changeset-release/main` and then fails with "GitHub Actions is
+   not permitted to create or approve pull requests" (Release run 45011571752, while it
+   was unticked), and a maintainer opens the version PR by hand (step 2 below), unless the
+   `version` job uses a GitHub App token ([The version PR's checks](#the-version-prs-checks)).
 
 ## The release flow
 
@@ -123,10 +125,10 @@ setting is unticked, so the `version` job cannot open the version PR.
    --frozen-lockfile` would fail. Move the website to a new release by hand, in a
    pull request, once the release is on npm.
 
-   While **Allow GitHub Actions to create and approve pull requests** is unticked (the
+   If **Allow GitHub Actions to create and approve pull requests** is unticked (the
    third item of [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)),
    the workflow pushes the branch but cannot open the PR, and its `version` job fails.
-   Open the PR yourself, from `changeset-release/main` to `main`, titled "chore: version
+   Then open the PR yourself, from `changeset-release/main` to `main`, titled "chore: version
    packages". The workflow's later pushes to that branch update it. GitHub holds the runs
    those pushes start; that is the next step.
 
@@ -198,9 +200,9 @@ setting is unticked, so the `version` job cannot open the version PR.
   them. Their own workflow, `.github/workflows/deploy-workers.yml`, does that
   separately, behind its own approval; [`services/DEPLOY.md`](services/DEPLOY.md)
   describes it. Code merged to `main` under `services/` is not running until that
-  deploy has been approved and has finished. Until the owner adds `CLOUDFLARE_API_TOKEN`
-  to the `cloudflare-workers` environment, the deploy stops at its credential check and
-  names the missing secret.
+  deploy has been approved and has finished. Its `cloudflare-workers` environment holds
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; without either, the deploy stops at
+  its credential check and names the missing secret.
 - **The website.** `apps/web` is private and is not published to npm.
 
 ## Nothing is published from a tree that fails the release gate
@@ -227,8 +229,8 @@ the release workflow again.
 ## The version PR's checks
 
 The **"chore: version packages"** PR is opened and updated by changesets/action with
-`GITHUB_TOKEN`; while **Allow GitHub Actions to create and approve pull requests** is
-unticked, the action cannot open it, and a maintainer opens it by hand
+`GITHUB_TOKEN`, which needs **Allow GitHub Actions to create and approve pull requests**
+ticked; with it unticked, a maintainer opens the PR by hand
 ([One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)). Since
 mid-2026 (GitHub changelog: *"Bot-created pull requests can run workflows if approved"*;
 GitHub docs:
@@ -330,8 +332,8 @@ red:
   prereleases; run `pnpm changeset pre exit`.
 - `Open or update the version PR` failed with "GitHub Actions is not permitted to create
   or approve pull requests" → the version bumps were pushed to `changeset-release/main`,
-  but **Allow GitHub Actions to create and approve pull requests** is unticked. Open the
-  PR by hand ([the release flow](#the-release-flow), step 2).
+  but **Allow GitHub Actions to create and approve pull requests** is unticked. Tick it
+  again, or open the PR by hand ([the release flow](#the-release-flow), step 2).
 - `Install (no install scripts)` or `Build the packages` failed in `pack` while
   `verify` passed → the packages do not build from a fresh checkout without install
   scripts. Find what needs one; do not let `pack` run install scripts.
@@ -356,7 +358,7 @@ red:
 - `@avakit/core` — `dist/` (ESM + types), `README.md`, `LICENSE`. `@web3auth/modal` and
   the Coinbase SDK are **optional** peer dependencies.
 - `@avakit/react` — `dist/`, `README.md`, `LICENSE`. Peer deps: `react` and `react-dom`,
-  and from the release after 0.2.2 also `viem` (`^2.58.0`), whose types its hooks and
+  and from 0.2.3 also `viem` (`^2.58.0`), whose types its hooks and
   components use.
 - `@avakit/mcp` — `dist/`, `README.md`, `LICENSE`. Bin: `avakit-mcp`.
 - `@avakit/studio` — `dist/` only (the UI is bundled into it; npm adds `README.md` +
@@ -377,7 +379,8 @@ it again before it publishes.
 ## Notes
 
 - Every published package declares Node `>=22` via `engines`. Up to core and react 0.2.2,
-  mcp 0.2.1 and studio 0.1.14 the four libraries declared `>=20.11`;
+  mcp 0.2.1 and studio 0.1.14 the four libraries declared `>=20.11` (from core and react
+  0.2.3, mcp 0.3.0 and studio 0.1.15 they declare `>=22`);
   `create-avalanche-app` already declares `>=22`, because its wizard library, `ink`,
   requires 22. The scaffolder reads that floor from its own `package.json` and refuses to
   run below it with one line. `scripts/workflows.test.mjs` checks that every package's

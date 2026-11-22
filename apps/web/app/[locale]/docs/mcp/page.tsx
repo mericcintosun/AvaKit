@@ -58,7 +58,7 @@ const FIRST_PROMPT = `Create an NFT app called my-first-dapp with AvaKit, deploy
 and mint the first NFT. Give me the explorer links.`;
 
 // The two write limits, set where the client configures the server (see
-// packages/mcp/src/limits.ts). Both arrive in the release after @avakit/mcp 0.2.1.
+// packages/mcp/src/limits.ts). Both are in @avakit/mcp from 0.3.0.
 const LIMITS_CONFIG = `{
   "mcpServers": {
     "avakit": {
@@ -129,11 +129,11 @@ const ENVIRONMENT: { name: string; does: string }[] = [
   },
   {
     name: "AVAKIT_WRITE_ALLOWLIST",
-    does: "From the release after 0.2.1: comma-separated contract addresses write_contract may call besides the contracts the server deployed in this session; * allows any. Unset, only this session's deployments.",
+    does: "From 0.3.0: comma-separated contract addresses write_contract may call besides the contracts the server deployed in this session; * allows any. Unset, only this session's deployments.",
   },
   {
     name: "AVAKIT_MAX_VALUE",
-    does: "From the release after 0.2.1: the most AVAX one deploy_contract or write_contract call may send, as a decimal number. Unset, 0.1; 0 allows none.",
+    does: "From 0.3.0: the most AVAX one deploy_contract or write_contract call may send, as a decimal number. Unset, 0.1; 0 allows none.",
   },
   {
     name: "AVAKIT_MCP_ROOT",
@@ -339,8 +339,8 @@ export default function McpDocs() {
 
       <H2>Write limits</H2>
       <Note>
-        The write limits arrive in the <C>@avakit/mcp</C> release after 0.2.1. Version 0.2.1, the
-        one on npm today, has neither of them.
+        The write limits are in <C>@avakit/mcp</C> from 0.3.0. Versions up to 0.2.1 have neither of
+        them.
       </Note>
       <P>
         An agent can be steered by what it reads: a README, an issue, a web page. So the two signing
@@ -407,8 +407,8 @@ export default function McpDocs() {
         Leave <C>AVAKIT_ALLOW_MAINNET</C> unset for everyday work: Fuji needs none of this, and a
         mainnet call then fails with a message that names the variable. A mainnet transaction spends
         real AVAX from that key, so give it a dedicated key that holds only what the work needs.{" "}
-        <C>write_contract</C> never sends AVAX with a mainnet call, and from the release after 0.2.1
-        it is held to the write limits there as on Fuji.
+        <C>write_contract</C> never sends AVAX with a mainnet call, and from 0.3.0 it is held to the
+        write limits there as on Fuji.
       </P>
 
       <H2>Where projects are created</H2>

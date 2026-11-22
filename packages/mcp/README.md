@@ -2,7 +2,7 @@
 
 The [AvaKit](https://github.com/mericcintosun/AvaKit) MCP server — scaffold, deploy, mint, and read Avalanche from Claude Code / Cursor over the [Model Context Protocol](https://modelcontextprotocol.io).
 
-Avalanche's official MCP server is read-only: it looks things up and never signs. This one also performs **write actions** — it creates a dapp, deploys a contract and sends contract calls — on a testnet, behind explicit gates: a wallet that can only sign for Fuji, three separate requirements before anything touches mainnet and, from the release after 0.2.1, contract calls only to the contracts it deployed itself or that you list and a limit on the AVAX one call can send. (0.2.1, the version `npx -y @avakit/mcp` installs until then, calls any contract and, with your own key on Fuji, sends any value.)
+Avalanche's official MCP server is read-only: it looks things up and never signs. This one also performs **write actions** — it creates a dapp, deploys a contract and sends contract calls — on a testnet, behind explicit gates: a wallet that can only sign for Fuji, three separate requirements before anything touches mainnet and, from 0.3.0, contract calls only to the contracts it deployed itself or that you list and a limit on the AVAX one call can send. (0.2.1 and earlier call any contract and, with your own key on Fuji, send any value.)
 
 Listed in the official [MCP Registry](https://registry.modelcontextprotocol.io) as **`dev.avakit/avalanche`**.
 
@@ -73,9 +73,10 @@ A new wallet is empty. Before it sends, if the session wallet cannot pay for the
 
 - one drip per wallet per 24 hours, of 0.02 AVAX — enough for the deploy and the mint above at Fuji's usual fees, and not enough when fees are many times higher;
 - 20 drips per hour from one network address, shared by everyone behind it;
-- it can run empty.
+- a daily drip budget shared by every caller;
+- it can run empty, and its operator can pause it.
 
-The faucet's code on `main` adds a daily drip budget shared by every caller and a kill switch. Once the hosted faucet is deployed from there, it can also refuse with `429 daily_limited` (the day's budget is spent, until 00:00 UTC) and `503 faucet_paused` (its operator has switched it off). The server names both from the release after 0.2.1; 0.2.1 goes by their HTTP status and reports them as a rate limit and as an empty faucet.
+The daily budget and the pause have refusals of their own: `429 daily_limited` (the day's budget is spent, until 00:00 UTC) and `503 faucet_paused` (its operator has switched it off). The server names both from 0.3.0; 0.2.1 and earlier go by their HTTP status and report them as a rate limit and as an empty faucet.
 
 When the faucet says no, **nothing is sent**, and the tool returns the faucet's reason and the two ways forward:
 
@@ -85,7 +86,7 @@ When the faucet says no, **nothing is sent**, and the tool returns the faucet's 
 The request is `requestFaucet` from `@avakit/core`, and it is repeated only when the answer could be different:
 
 - **Asked again:** no answer arrived (a network error, or nothing within ten seconds), or the faucet failed on its side — a 500, 502 or 504, a 503 in which the faucet says it is busy, or a 503 that an outage in front of the faucet answered.
-- **Not asked again:** a refusal. A 429 (this wallet was funded in the last 24 hours, the limit for your network was reached, or the faucet's daily limit for all callers is spent), the faucet's own 503 for "empty" or "paused", and every 4xx are answers, and repeating the question would only use up the allowance faster. From the release after 0.2.1, a daily limit is reported with the time until it resets, and a pause as a pause, not as an empty faucet.
+- **Not asked again:** a refusal. A 429 (this wallet was funded in the last 24 hours, the limit for your network was reached, or the faucet's daily limit for all callers is spent), the faucet's own 503 for "empty" or "paused", and every 4xx are answers, and repeating the question would only use up the allowance faster. From 0.3.0, a daily limit is reported with the time until it resets, and a pause as a pause, not as an empty faucet.
 
 That is three attempts at most, ten seconds each, with a randomised pause between them that doubles its range each time. When an attempt got no answer, the server looks at the wallet's balance for another ten seconds before giving up, because the request may have been served all the same.
 
@@ -194,11 +195,11 @@ The messages are written to answer the question that comes next: was anything se
 | The transaction is not mined within 60 seconds | Reports it as sent but not confirmed, with the hash and a link, and never sends it again — so a retry cannot deploy or mint twice |
 | The transaction is mined but reverted | An error with the transaction's link, never a success |
 
-Reads of the chain are retried a few times by the RPC client on network errors. A transaction is signed once and broadcast without retries. From the release after 0.2.1, which bundles core's RPC fallback, the broadcast goes to the chain's RPC endpoints in `@avakit/core` in order, each at most once, and moves on to the next one only when an endpoint gives no answer or answers that it cannot serve the request now: a node that rejects the transaction ("nonce too low", "insufficient funds") is reported as above, and the transaction is not handed to another endpoint. 0.2.1 has one endpoint per chain. The same signed transaction can run at most once.
+Reads of the chain are retried a few times by the RPC client on network errors. A transaction is signed once and broadcast without retries. From 0.3.0, which bundles core's RPC fallback, the broadcast goes to the chain's RPC endpoints in `@avakit/core` in order, each at most once, and moves on to the next one only when an endpoint gives no answer or answers that it cannot serve the request now: a node that rejects the transaction ("nonce too low", "insufficient funds") is reported as above, and the transaction is not handed to another endpoint. 0.2.1 and earlier have one endpoint per chain. The same signed transaction can run at most once.
 
 ## Write limits
 
-These limits arrive in the release after 0.2.1. Version 0.2.1, the one `npx -y @avakit/mcp` installs until then, has neither: its `write_contract` calls any contract and, with your own key on Fuji, sends any value.
+These limits are in the server from 0.3.0. Versions up to 0.2.1 have neither: their `write_contract` calls any contract and, with your own key on Fuji, sends any value.
 
 An agent decides what to call, and an agent can be steered by what it reads: a README, an issue, a web page. So that a prompt-injected agent cannot point this server's wallet at any contract it likes, the two signing tools are held to two limits that come from the server's environment. A tool call cannot change either of them. Set these in your user-level MCP client config, not in a project file an agent can edit (such as `.mcp.json` or `.cursor/mcp.json`).
 
@@ -340,8 +341,8 @@ a tool call.
 | `AVAKIT_TEST_WALLET` | Set to `0` to turn the session test wallet off, so nothing is signed without `AVAKIT_DEPLOYER_KEY`. |
 | `AVAKIT_FAUCET_URL` | Another deployment of the AvaKit faucet for the session wallet to ask, instead of the hosted one. |
 | `AVAKIT_ALLOW_MAINNET` | Set to `1` to allow mainnet transactions (which also need your own key and `confirm: true`). Unset, the server is testnet-only. |
-| `AVAKIT_WRITE_ALLOWLIST` | From the release after 0.2.1: comma-separated addresses `write_contract` may call besides the contracts the server deployed in this session; `*` allows any. Unset, only this session's deployments. See [Write limits](#write-limits). |
-| `AVAKIT_MAX_VALUE` | From the release after 0.2.1: the most AVAX one `deploy_contract` or `write_contract` call may send, as a decimal number. Unset, `0.1`; `0` allows none. |
+| `AVAKIT_WRITE_ALLOWLIST` | From 0.3.0: comma-separated addresses `write_contract` may call besides the contracts the server deployed in this session; `*` allows any. Unset, only this session's deployments. See [Write limits](#write-limits). |
+| `AVAKIT_MAX_VALUE` | From 0.3.0: the most AVAX one `deploy_contract` or `write_contract` call may send, as a decimal number. Unset, `0.1`; `0` allows none. |
 | `AVAKIT_MCP_ROOT` | The directory `scaffold_app` creates projects in and `artifactPath` reads from, instead of the server's working directory. Needed when the server is started in the filesystem root. |
 
 ## License

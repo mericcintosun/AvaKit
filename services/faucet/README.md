@@ -63,8 +63,7 @@ back on success. What it does:
 - Today's budget starts with the drips already sent today, not from zero.
 - Two refusals are new, and an older client reads them by their status:
   `429 daily_limited` (with `Retry-After` until 00:00 UTC) as a rate limit,
-  and `503 faucet_paused` as an empty faucet. `@avakit/core` after 0.2.2 reads
-  both by their code, the pause as `"paused"`. Neither is retried by
+  and `503 faucet_paused` as an empty faucet. `@avakit/core` 0.2.3 and later read both by their code, the pause as `"paused"`. Neither is retried by
   `@avakit/core`, and both carry the faucet's own message.
 - `GET /health` gains `version`, `low`, `lowBelow`, `paused` and `today`, and
   answers `ok: false` with the reason when it cannot work.
@@ -353,8 +352,7 @@ On a faucet of your own:
    await requestFaucet({ url, address, chainId: 43113, turnstileToken: () => getToken() });
    ```
 
-   Both options are in the releases of `@avakit/core` and `@avakit/react` after
-   0.2.1; an older client cannot send a token. Any other client puts the token
+   Both options are in `@avakit/core` and `@avakit/react` from 0.2.2; an older client cannot send a token. Any other client puts the token
    in the request body as `turnstileToken`.
 3. Set `TURNSTILE_ORIGINS` to the origins of those pages, or leave it empty if
    every caller of your faucet sends a token.

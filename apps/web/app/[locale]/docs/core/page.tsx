@@ -25,8 +25,8 @@ export default function CoreDocs() {
       <Note>
         <C>@avakit/core</C> is <strong>ESM-only</strong> — use <C>import</C>, not <C>require</C>. In
         a CommonJS file, load it with a dynamic <C>await import("@avakit/core")</C>. Requires
-        Node.js <C>&gt;= 20.11</C> up to 0.2.2, and <C>&gt;= 22</C> from the next release; AvaKit is
-        tested on Node 22, 24 and 26.
+        Node.js <C>&gt;= 22</C> from 0.2.3 (<C>&gt;= 20.11</C> up to 0.2.2); AvaKit is tested on
+        Node 22, 24 and 26.
       </Note>
 
       <H2>Chains</H2>
@@ -169,8 +169,8 @@ const client = createPublicClient({ chain: toViemChain(myL1), transport: getRpcT
         </li>
       </UL>
       <Note>
-        <C>rpcUrls</C>, <C>rpcEndpoints</C>, <C>getRpcTransport</C> and <C>RpcEndpointsError</C>{" "}
-        come after <C>@avakit/core</C> 0.2.2. Up to 0.2.2, every chain has its <C>rpcUrl</C> alone.
+        <C>rpcUrls</C>, <C>rpcEndpoints</C>, <C>getRpcTransport</C> and <C>RpcEndpointsError</C> are
+        in <C>@avakit/core</C> from 0.2.3. Up to 0.2.2, every chain has its <C>rpcUrl</C> alone.
       </Note>
 
       <H2>Deploy & data</H2>
@@ -290,18 +290,18 @@ try {
         </li>
       </UL>
       <Note>
-        After <C>@avakit/core</C> 0.2.2, <C>code</C> can also be <C>"paused"</C>: the faucet's
+        From <C>@avakit/core</C> 0.2.3, <C>code</C> can also be <C>"paused"</C>: the faucet's
         operator has switched it off (its own <C>faucet_paused</C>), which is not retried. Up to
         0.2.2 a paused faucet reads as <C>"empty"</C>, since both answer HTTP 503; its message says
         which it is.
       </Note>
       <P>
-        The faucet's code on <C>main</C> adds two refusals, which the hosted faucet gives once it is
-        next deployed: <C>daily_limited</C> (HTTP 429), when the day's drip budget is spent for
-        every caller until 00:00 UTC, and <C>faucet_paused</C> (HTTP 503), when its operator has
-        switched it off. <C>@avakit/core</C> 0.2.2 does not know either code and goes by the status,
-        so they arrive as <C>"rate_limited"</C> and <C>"empty"</C>, with <C>faucetCode</C> set to
-        the faucet's own code. Mapping both codes is part of the next release.
+        The AvaKit faucet has two refusals of its own: <C>daily_limited</C> (HTTP 429), when the
+        day's drip budget is spent for every caller until 00:00 UTC, and <C>faucet_paused</C> (HTTP
+        503), when its operator has switched it off. From 0.2.3 they arrive as <C>"rate_limited"</C>{" "}
+        and <C>"paused"</C>. <C>@avakit/core</C> 0.2.2 does not know either code and goes by the
+        status, so there they arrive as <C>"rate_limited"</C> and <C>"empty"</C>, with{" "}
+        <C>faucetCode</C> set to the faucet's own code.
       </P>
       <P>
         A chain's <C>faucetUrl</C> (for example <C>fuji.faucetUrl</C>) is something else: a faucet

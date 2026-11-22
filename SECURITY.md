@@ -4,8 +4,9 @@ AvaKit deals with wallets and on-chain deployments. This file says what it does 
 what stands between a user and a mainnet transaction, what protects the hosted faucet, the
 website and the releases, and how to report a vulnerability.
 
-Some protections below are on `main` but not on npm yet, or not deployed yet. Each of them
-says so; a package names the last version on npm that does not have it.
+Some protections below arrived on 2026-11-22, in that day's release (`@avakit/core` and
+`@avakit/react` 0.2.3, `@avakit/mcp` 0.3.0, `@avakit/studio` 0.1.15, `create-avalanche-app`
+0.5.0) or the faucet's deploy. Each of them names the first version that has it.
 
 ## Core guarantees
 
@@ -22,7 +23,7 @@ says so; a package names the last version on npm that does not have it.
   from environment variables and are never written to logs or tool output. (The
   Web3Auth client ID bundled in the scaffolded templates is not a secret: a client ID
   is a public identifier that reaches every browser anyway, and this demo one only
-  allows localhost origins, so social login works with zero setup. Set
+  allows `http://localhost:3000`, so social login works with zero setup there. Set
   `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` to use your own.)
 - **Mainnet is opt-in.** Everything defaults to the Fuji testnet, and a mainnet
   transaction is refused until it is confirmed explicitly — see [Mainnet](#mainnet).
@@ -45,9 +46,9 @@ up: the five Fuji templates on Fuji, the other three on their local devnet.
     definition names. Any node it asks that names another chain stops the send there.
   - It signs every transaction for the definition's chain id only. A node that passes the
     check and then lies still gets nothing but a signature that every other chain rejects.
-  - A chain can list several endpoints (`rpcUrls`; `@avakit/core` up to 0.2.2 has one per
-    chain). The burner sends each transaction through one of them: the first, in the
-    chain's order, whose node has confirmed the chain. Every request of that send goes
+  - A chain can list several endpoints (`rpcUrls`, from `@avakit/core` 0.2.3; up to 0.2.2
+    it has one per chain). The burner sends each transaction through one of them: the
+    first, in the chain's order, whose node has confirmed the chain. Every request of that send goes
     there, so a send never moves to another node halfway, and the burner never sends a
     transaction twice. An endpoint whose node does not answer passes the question to the
     next one; when none answers, nothing is signed. A refusal names such an endpoint by its
@@ -80,8 +81,8 @@ without a key being created, funded and configured first.
   forward what the faucet gave it. It is never used when `AVAKIT_DEPLOYER_KEY` is set,
   and `AVAKIT_TEST_WALLET=0` (also `false`, `off` or `no`) in the server's environment
   turns it off. Every result of a signing tool names the signer and its source
-  (`session` or `env`), and `wallet_status` shows it without sending anything. From the
-  `@avakit/mcp` release after 0.2.1 (0.2.1 does not have them), like any signer of the
+  (`session` or `env`), and `wallet_status` shows it without sending anything. From
+  `@avakit/mcp` 0.3.0 (0.2.1 and earlier do not have them), like any signer of the
   server, it is held to the [write limits](#the-mcp-servers-write-limits).
 - **What it must never be used for.** Anything that has to outlive the server process,
   and anything of value. It cannot sign for a mainnet, and nothing should be sent to
@@ -105,7 +106,7 @@ without a key being created, funded and configured first.
   `AVAKIT_DEPLOYER_KEY` and `AVAKIT_ALLOW_MAINNET` in your user-level MCP client config,
   not in a project file such as `.mcp.json` or `.cursor/mcp.json`. The environment gate
   is checked again when the transaction is signed. `write_contract` does not send AVAX
-  with a call on mainnet, and from the release after 0.2.1 it is held to the write limits
+  with a call on mainnet, and from 0.3.0 it is held to the write limits
   there as on Fuji. Leave `AVAKIT_ALLOW_MAINNET` unset for everyday testnet work.
 - **`create-avalanche-app`.** Only the `minimal` template can be scaffolded for C-Chain
   mainnet (`--chain c-chain`); the scaffolder and the MCP server's `scaffold_app`
@@ -114,7 +115,7 @@ without a key being created, funded and configured first.
 
 ## The MCP server's write limits
 
-On `main`, in the `@avakit/mcp` release after 0.2.1 (0.2.1 does not have them). An agent
+From `@avakit/mcp` 0.3.0 (0.2.1 and earlier do not have them). An agent
 can be steered by what it reads, so the two signing tools are held to two limits from the
 server's environment, which a tool call cannot change:
 
@@ -151,12 +152,9 @@ The five Fuji templates and the MCP session test wallet ask AvaKit's shared fauc
   flight and 10 failed attempts per five minutes. One transaction is sent at a time, so
   two requests never sign the same nonce; a transaction whose answer was lost is looked up
   by hash; contract recipients and mainnet chain ids are refused, and a drip pays for at
-  most 100,000 gas. This version has run the hosted faucet since 2026-11-19, with
-  Turnstile off.
-- **On `main`, not deployed yet.** The hosted faucet gets these with its next deploy
-  (until then its `GET /health` reports no `version`). That deploy waits for an owner step:
-  the Cloudflare API token that `.github/workflows/deploy-workers.yml` needs is not set yet
-  ([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md), "Owner steps").
+  most 100,000 gas.
+- **Since the deploy of 2026-11-22**, through `.github/workflows/deploy-workers.yml` and
+  its approval, the hosted faucet also has:
   - **Daily budgets** per UTC day, over all callers together: 50 drips for requests
     without a verified Turnstile token (`FAUCET_DAILY_DRIPS`) and 100 for verified ones
     (`FAUCET_DAILY_DRIPS_VERIFIED`). Once a budget is spent, every request that draws on
@@ -166,8 +164,9 @@ The five Fuji templates and the MCP session test wallet ask AvaKit's shared fauc
     `503 faucet_paused` at once, without asking the chain.
   - **A Turnstile lane.** Once `TURNSTILE_SECRET` is set, a request from an origin in
     `TURNSTILE_ORIGINS` (`https://avakit.dev`) must carry a token. A verified token draws
-    on the verified budget, and every other request on the unverified one. It stays off
-    until avakit.dev/new sends a token.
+    on the verified budget, and every other request on the unverified one. It is off on
+    the hosted faucet until avakit.dev/new sends a token
+    ([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md)).
   - **Watching.** `GET /health` reports the deployed commit, a low balance, the pause and
     today's use, and `.github/workflows/monitor.yml` checks it every six hours.
 - **Why CORS stays open.** Scaffolded apps ask the faucet from whatever origin they run
@@ -197,8 +196,8 @@ without it are the 404 pages of the paths `proxy.ts` does not see: a path with a
   script that does (`'strict-dynamic'`). An injected `<script>` or inline event handler
   does not run, and JavaScript `eval` is refused.
 - The browser may connect only to the site itself, the Fuji RPC endpoints of the
-  `@avakit/core` the site is built with (0.2.2 has one), the faucet and the decoder the 3D
-  models need.
+  `@avakit/core` the site is built with (0.2.3 names two: Ava Labs' API and PublicNode),
+  the faucet and the decoder the 3D models need.
 - No plugins, no `<base>` or form posts pointing to another site, and no framing by
   another site.
 
@@ -222,11 +221,9 @@ nonce.
   installs none of the repository's dependencies, only npm 11 from the registry
   (`npm install -g npm@11`) to publish with, and it publishes the tarballs the `pack` job
   packed, after checking each one against the sha256 that job recorded.
-- **npm's side of that approval is an owner step.** Until each package's Trusted Publisher
-  on npmjs.com names the `npm-publish` environment, npm accepts the id-token of any job of
-  `release.yml` that is given `id-token: write`, and the approval is enforced by GitHub
-  alone. That setting has not been made yet ([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md),
-  "Owner steps").
+- **npm enforces that approval too.** Each package's Trusted Publisher on npmjs.com names
+  the `npm-publish` environment, so npm refuses the id-token of every job except one that
+  the maintainer let into that environment, which deploys from `main` only.
 - **Nothing is published from a tree that fails the release gate.** `verify` first runs
   lint, typecheck, the tests, the changeset check and the MCP install smoke test on the
   commit it releases. It does not wait for `ci.yml`, so a commit whose other CI jobs fail
@@ -245,8 +242,9 @@ nonce.
 - **The `main` branch.** A ruleset requires a pull request, CI's `CI passed` check and the
   browser tests' `Site · /new on anvil · key routes` and `Template · nft-mint on anvil`
   checks before anything lands on `main`, and blocks force pushes and deletion, with no
-  bypass. The repository's default Actions token is read-only and cannot create or approve
-  pull requests.
+  bypass. The repository's default Actions token is read-only. Actions may create pull
+  requests, which changesets/action needs to open the version PR, and only the `version`
+  job of `release.yml` is given `pull-requests: write`.
 - **CI** runs with a read-only token: lint, typecheck, build and tests on Node.js 22 and
   24, with coverage thresholds for core, react, mcp and the scaffolder. It scaffolds and
   builds every template, and rebuilds every shipped contract artifact with Foundry and
@@ -278,12 +276,12 @@ by design and is scoped to local/testnet use:
 
 - **The EWOQ key** (`0x56289e99…8027`) in Studio's source is Avalanche's well-known
   **public** development key, which avalanche-cli funds on every local network. It is
-  never a real secret. From the Studio release after 0.1.14, Studio signs its Interchain
+  never a real secret. From Studio 0.1.15, Studio signs its Interchain
   transactions with it in its own process, so the key is on no command line. It signs only
   for an L1 whose RPC URL is on this machine (`localhost`, `127.0.0.0/8` or `::1`), follows
   no redirect, and refuses an RPC that answers for another chain ID than the one
-  avalanche-cli recorded for that L1. Studio 0.1.14 still passes the key to `cast` on the
-  command line, where other processes on the machine can read it. The templates' devnet
+  avalanche-cli recorded for that L1. Studio 0.1.14 and earlier pass the key to `cast` on
+  the command line, where other processes on the machine can read it. The templates' devnet
   scripts read the key from avalanche-cli instead of carrying it.
 - **`@avakit/mcp` with your own key.** `AVAKIT_DEPLOYER_KEY` in the server's
   environment replaces the session test wallet. The key is never logged or returned,
@@ -307,10 +305,10 @@ by design and is scoped to local/testnet use:
   argument or a filesystem path (L1 name, chain id, token symbol, amount) is
   whitelist-validated first. An Interchain message must be non-empty, at most 256 bytes
   of UTF-8, and may not start with `-`; its text never reaches a command line, because
-  Studio ABI-encodes the call (and, from the release after 0.1.14, signs and sends it
+  Studio ABI-encodes the call (and, from 0.1.15, signs and sends it
   itself). avalanche-cli actions run one at a time across every Studio process on the
-  machine, and are owned by the Studio server, not by the browser tab. From the release
-  after 0.1.14, stopping Studio stops the avalanche-cli command it started (`SIGTERM`,
+  machine, and are owned by the Studio server, not by the browser tab. From 0.1.15,
+  stopping Studio stops the avalanche-cli command it started (`SIGTERM`,
   then `SIGKILL` after 5 seconds); the local network stays up on purpose, and Studio
   says how to stop it.
 
@@ -337,5 +335,5 @@ AvaKit is in early (0.x) releases. Security fixes target the latest published ve
 and the `main` branch until a stable release line is established.
 
 AvaKit needs Node.js 22 or newer: Node.js 20 reached end of life in April 2026 and gets no
-security fixes. Every package declares `>=22` in `engines.node` on `main`;
-`create-avalanche-app` already does on npm, and the other four do from their next release.
+security fixes. Every package declares `>=22` in `engines.node`: the four libraries from
+`@avakit/core` and `@avakit/react` 0.2.3, `@avakit/mcp` 0.3.0 and `@avakit/studio` 0.1.15.

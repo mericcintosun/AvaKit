@@ -169,9 +169,9 @@ export default function CliDocs() {
       <P>The CLI prints the exact next steps for your choices. Two things vary:</P>
       <UL>
         <li>
-          Social login works on localhost via a bundled demo key, so there is nothing to set up to
-          try it. Only your own deployment needs a client id — then copy <C>.env.example</C> to{" "}
-          <C>.env.local</C> and add it.
+          Social login works on <C>http://localhost:3000</C> via a bundled demo key (no other port),
+          so there is nothing to set up to try it. Only your own deployment needs a client id — then
+          copy <C>.env.example</C> to <C>.env.local</C> and add it.
         </li>
         <li>
           The <C>icm-messenger</C>, <C>l1-launch</C>, and <C>token-bridge</C> templates run a local
@@ -209,9 +209,8 @@ export default function CliDocs() {
 -h, --help              print this help`}
       />
       <P>
-        The <C>experimental:</C> line, and the warning when one of those templates is chosen, arrive
-        in the release after <C>create-avalanche-app</C> 0.4.3; 0.4.3, the version on npm, prints
-        neither.
+        The <C>experimental:</C> line, and the warning when one of those templates is chosen, are in{" "}
+        <C>create-avalanche-app</C> from 0.5.0; 0.4.3 and earlier print neither.
       </P>
 
       <H2>When something goes wrong</H2>
