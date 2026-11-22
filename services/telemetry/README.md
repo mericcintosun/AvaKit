@@ -26,11 +26,15 @@ rows/day against KV's 1k writes/day.
 
 ## Deploy
 
-The hosted collector is deployed by GitHub Actions: a change to this directory
-on `main` waits for a maintainer's approval and then deploys, and
-`GET /health` names the commit that is running. [`../DEPLOY.md`](../DEPLOY.md)
-has the details and the one-time setup. The steps below are for a collector of
-your own, or for deploying by hand.
+The hosted collector is meant to be deployed by GitHub Actions
+(`.github/workflows/deploy-workers.yml`): a change to this directory on `main`
+waits for a maintainer's approval and then deploys, and `GET /health` then names
+the commit that is running. Until the owner adds `CLOUDFLARE_API_TOKEN` to the
+`cloudflare-workers` environment, the deploy stops at its credential check, and
+the hosted collector runs an earlier hand-deployed Worker whose `/health` answers
+`{ ok: true }` without a version. [`../DEPLOY.md`](../DEPLOY.md) has the details
+and the one-time setup. The steps below are for a collector of your own, or for
+deploying by hand.
 
 ```bash
 cd services/telemetry

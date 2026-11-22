@@ -27,7 +27,7 @@ On Fuji, `app/providers.tsx` passes `faucetUrl` to `<AvaKitProvider>`: the tempo
 ## External docs
 
 - eERC contracts + deploy scripts: https://github.com/ava-labs/EncryptedERC
-- eERC SDK: https://avacloud.gitbook.io/encrypted-erc/d87pGPcNAEEw9ISVd17M/usage/sdk-overview
+- eERC SDK: https://avacloud.gitbook.io/encrypted-erc/usage/sdk-overview
 - Avalanche Builder Hub: https://build.avax.network/llms.txt
 - Official Fuji faucet (needs a free Builder Hub sign-in; the app's temporary wallet is funded without one, see "Test AVAX"): https://build.avax.network/console/primary-network/faucet
 - Run your own faucet: https://github.com/mericcintosun/AvaKit/tree/main/services/faucet

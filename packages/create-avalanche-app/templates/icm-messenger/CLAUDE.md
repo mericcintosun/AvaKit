@@ -46,7 +46,7 @@ Next.js 16 (App Router) · React 19 · `@avakit/react` · `@avakit/core` · viem
   UI after `eth_getCode` confirms bytecode. A devnet reset reuses chainIds 1001/1002 but creates
   new chains, so old addresses are dropped and the cards go back to "Deploy messenger". Never read
   a contract address straight from `localStorage`.
-- `app/providers.tsx` — `<AvaKitProvider chains={[chain1, chain2]}>` with the injected wallet.
+- `app/providers.tsx` — `<AvaKitProvider chains={[chain1, chain2]}>` with the injected wallet and a temporary burner wallet (`burnerAdapter({ chain: chain1 })`). The connect dialog leads with the burner ("Start instantly"); on the local devnet it starts empty and no faucet funds it, so send it funds from the EWOQ account or connect an injected wallet with the EWOQ key imported.
 - `components/demo.tsx` — the **Devnet Studio**: live chain cards (block height + ICM status), deploy on both chains, send, and watch the message land on the other chain. When the devnet isn't up yet it shows a copy-command setup panel (`npm run devnet`) — it never runs shell itself.
 - `scripts/devnet.sh` — the one-command local ICM devnet. After deploying the two chains it reads
   their RPC URL, hex blockchain ID and TeleporterMessenger address from

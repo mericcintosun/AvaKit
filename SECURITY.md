@@ -80,8 +80,9 @@ without a key being created, funded and configured first.
   forward what the faucet gave it. It is never used when `AVAKIT_DEPLOYER_KEY` is set,
   and `AVAKIT_TEST_WALLET=0` (also `false`, `off` or `no`) in the server's environment
   turns it off. Every result of a signing tool names the signer and its source
-  (`session` or `env`), and `wallet_status` shows it without sending anything. Like any
-  signer of the server, it is held to the [write limits](#the-mcp-servers-write-limits).
+  (`session` or `env`), and `wallet_status` shows it without sending anything. From the
+  `@avakit/mcp` release after 0.2.1 (0.2.1 does not have them), like any signer of the
+  server, it is held to the [write limits](#the-mcp-servers-write-limits).
 - **What it must never be used for.** Anything that has to outlive the server process,
   and anything of value. It cannot sign for a mainnet, and nothing should be sent to
   its address except test AVAX.
@@ -185,10 +186,12 @@ The five Fuji templates and the MCP session test wallet ask AvaKit's shared fauc
 
 `avakit.dev/new` keeps a temporary wallet whose key sits in `localStorage`, and signs Fuji
 transactions with one click, so any script that runs on the site could read that key. The
-site therefore sends a nonce-based Content-Security-Policy with every page
-([`apps/web/lib/csp.ts`](apps/web/lib/csp.ts), set by `apps/web/proxy.ts`). The one page
-sent without it is the 404 page of a path with a dot in it (`/x.php`), which `proxy.ts`
-does not see; it shows what it takes from the request only escaped.
+site therefore sends a nonce-based Content-Security-Policy with its pages
+([`apps/web/lib/csp.ts`](apps/web/lib/csp.ts), set by `apps/web/proxy.ts`). The pages sent
+without it are the 404 pages of the paths `proxy.ts` does not see: a path with a dot in it
+(`/x.php`), a path that starts with `api`, `_next` or `_vercel` (`/api/x`, `/apix`,
+`/_vercel/x`), and a path under `/icon/`, `/apple-icon/`, `/opengraph-image/` or
+`/twitter-image/`. Each shows what it takes from the request only escaped.
 
 - A script runs only if it carries the nonce made for that response, or was loaded by a
   script that does (`'strict-dynamic'`). An injected `<script>` or inline event handler
@@ -207,20 +210,28 @@ nonce.
 
 - **No npm token.** Neither the repository nor its environments hold an npm token. The
   five packages are published through npm trusted publishing (OIDC) by
-  `.github/workflows/release.yml` only, and every version it publishes carries a
-  provenance attestation that names the workflow run and the commit.
+  `.github/workflows/release.yml`, and every version it publishes carries a provenance
+  attestation that names the workflow run and the commit. npm refuses access tokens for
+  them ("Require two-factor authentication and disallow tokens"), but it still accepts an
+  interactive `npm publish` with a 2FA prompt from the packages' npm owner. Not publishing
+  from a laptop is this project's rule ([`MAINTAINERS.md`](MAINTAINERS.md)), not something
+  npm enforces.
 - **A person approves each publish.** The `publish` job runs in the `npm-publish`
   environment, which accepts `main` only and waits for the maintainer's approval. It is
-  the only job of the workflow that can ask for an id-token, and it checks out and
-  installs nothing: it publishes the tarballs the `pack` job packed, after checking each
-  one against the sha256 that job recorded.
+  the only job of the workflow that can ask for an id-token. It checks out nothing and
+  installs none of the repository's dependencies, only npm 11 from the registry
+  (`npm install -g npm@11`) to publish with, and it publishes the tarballs the `pack` job
+  packed, after checking each one against the sha256 that job recorded.
 - **npm's side of that approval is an owner step.** Until each package's Trusted Publisher
   on npmjs.com names the `npm-publish` environment, npm accepts the id-token of any job of
   `release.yml` that is given `id-token: write`, and the approval is enforced by GitHub
   alone. That setting has not been made yet ([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md),
   "Owner steps").
-- **Nothing is published from a red tree.** `verify` first runs lint, typecheck, the
-  tests, the changeset check and the MCP install smoke test on the commit it releases.
+- **Nothing is published from a tree that fails the release gate.** `verify` first runs
+  lint, typecheck, the tests, the changeset check and the MCP install smoke test on the
+  commit it releases. It does not wait for `ci.yml`, so a commit whose other CI jobs fail
+  can still reach the publish approval. The ruleset's required checks on the pull request
+  are what keep such a commit off `main`.
 - **What this does not stop.** `pack` builds the tarballs on a runner of its own, from a
   fresh checkout installed without install scripts, and runs nothing but the packages'
   builds and `pnpm pack`; the tests and the smoke test run in `verify` and never touch
@@ -231,9 +242,11 @@ nonce.
 
 ## How the code is checked
 
-- **The `main` branch.** A ruleset requires a pull request and CI's `CI passed` check
-  before anything lands on `main`, and blocks force pushes and deletion, with no bypass.
-  The repository's default Actions token is read-only and cannot approve pull requests.
+- **The `main` branch.** A ruleset requires a pull request, CI's `CI passed` check and the
+  browser tests' `Site · /new on anvil · key routes` and `Template · nft-mint on anvil`
+  checks before anything lands on `main`, and blocks force pushes and deletion, with no
+  bypass. The repository's default Actions token is read-only and cannot create or approve
+  pull requests.
 - **CI** runs with a read-only token: lint, typecheck, build and tests on Node.js 22 and
   24, with coverage thresholds for core, react, mcp and the scaffolder. It scaffolds and
   builds every template, and rebuilds every shipped contract artifact with Foundry and

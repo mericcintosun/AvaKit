@@ -44,7 +44,7 @@ asks no faucet at all.
 - Minting is **owner-only** (eERC design, for compliance), so it stays disabled against the shared
   demo instance. Deploy your own with one command — `DEPLOYER_PRIVATE_KEY=0x... npm run deploy:eerc` —
   then connect the deployer wallet: the app walks you through the one-click auditor step and mint
-  unlocks. Confidential transfer and burn work for any registered wallet.
+  unlocks. Confidential transfer and burn are open to any registered wallet that holds tokens. On the shared instance nobody can mint (its owner key was not kept), so a new wallet there can register and unlock but has nothing to transfer or burn; deploy your own instance to try the whole flow.
 
 ## Pinned version and status
 

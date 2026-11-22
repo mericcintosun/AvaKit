@@ -25,7 +25,8 @@ export default function CoreDocs() {
       <Note>
         <C>@avakit/core</C> is <strong>ESM-only</strong> — use <C>import</C>, not <C>require</C>. In
         a CommonJS file, load it with a dynamic <C>await import("@avakit/core")</C>. Requires
-        Node.js <C>&gt;= 22</C>; AvaKit is tested on Node 22, 24 and 26.
+        Node.js <C>&gt;= 20.11</C> up to 0.2.2, and <C>&gt;= 22</C> from the next release; AvaKit is
+        tested on Node 22, 24 and 26.
       </Note>
 
       <H2>Chains</H2>

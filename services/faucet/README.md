@@ -5,8 +5,9 @@ user's first transaction with zero wallet setup. It holds the funding key as a
 Worker secret and counts drips in a Durable Object, so AvaKit client code never
 touches a private key.
 
-This is the faucet behind **AvaKit Cloud** and `avakit.dev/new`. MIT — run your
-own if you'd rather not use ours.
+This is the faucet behind `avakit.dev/new`, the scaffolded Fuji apps' first-run
+funding and the MCP server's session wallet. MIT — run your own if you'd rather not
+use ours.
 
 > Not part of the pnpm workspace; it deploys on its own. Cloudflare's free tier
 > covers it (100k requests/day, and SQLite-backed Durable Objects are included).
@@ -16,11 +17,15 @@ What protects it from being drained, and what cannot, is in
 
 ## Deploy
 
-The hosted faucet is deployed by GitHub Actions: a change to this directory on
-`main` waits for a maintainer's approval and then deploys, and `GET /health`
-names the commit that is running. [`../DEPLOY.md`](../DEPLOY.md) has the
-details and the one-time setup. The steps below are for a faucet of your own,
-or for deploying by hand.
+The hosted faucet is meant to be deployed by GitHub Actions
+(`.github/workflows/deploy-workers.yml`): a change to this directory on `main`
+waits for a maintainer's approval and then deploys, and `GET /health` then names
+the commit that is running. That path is not live yet. Until the owner adds
+`CLOUDFLARE_API_TOKEN` to the `cloudflare-workers` environment, the deploy stops
+at its credential check, and the hosted faucet keeps running an earlier
+hand-deployed Worker whose `/health` has no `version`. [`../DEPLOY.md`](../DEPLOY.md)
+has the details and the one-time setup. The steps below are for a faucet of your
+own, or for deploying by hand.
 
 ```bash
 cd services/faucet

@@ -15,12 +15,15 @@ Steps that only the owner can take, on GitHub, npmjs.com or Cloudflare.
 
 Already in place: Dependabot alerts and security updates; private vulnerability reporting,
 secret scanning and push protection; a default Actions token that is read-only and cannot
-approve pull requests; the `npm-publish` and `cloudflare-workers` environments, each with the
-maintainer as its required reviewer and `main` as its only deployment branch, the second one
-holding `CLOUDFLARE_ACCOUNT_ID`; and a ruleset on `main` that requires a pull request and the
-`CI passed` check from GitHub Actions, blocks force pushes and deletion, and has no bypass
-actors. `CI passed` is the last job of `.github/workflows/ci.yml`, and on a pull request it
-fails unless every other job succeeded.
+create or approve pull requests (the setting "Allow GitHub Actions to create and approve pull
+requests" is off, which also keeps changesets/action from opening the version PR: see item 4);
+the `npm-publish` and `cloudflare-workers` environments, each with the maintainer as its
+required reviewer and `main` as its only deployment branch, the second one holding
+`CLOUDFLARE_ACCOUNT_ID`; and a ruleset on `main` that requires a pull request and three checks
+from GitHub Actions, blocks force pushes and deletion, and has no bypass actors. The three
+checks are `CI passed`, the last job of `.github/workflows/ci.yml`, which on a pull request
+fails unless every other job succeeded, and `Site · /new on anvil · key routes` and
+`Template · nft-mint on anvil`, two jobs of `.github/workflows/e2e-browser.yml`. Neither environment lets administrators bypass its rules, and the Actions settings require every action to be pinned to a full-length commit SHA.
 
 1. **The hardened faucet and the collector are not deployed.** *High.* The daily budgets,
    the kill switch and the version in `GET /health` are in `services/`, but the hosted
@@ -45,11 +48,13 @@ fails unless every other job succeeded.
 3. **Turnstile is not required on the hosted faucet.** *Medium.* The faucet Worker can
    require a token from avakit.dev (`TURNSTILE_ORIGINS`) and keeps verified and unverified
    drips in separate daily budgets. But `TURNSTILE_SECRET` is not set, and setting it now
-   would refuse every drip /new asks for, because avakit.dev/new renders no Turnstile widget
-   yet. So once the budgets are deployed, every drip draws on the unverified budget, which
-   one script can spend for the whole day.
-   - Evidence: `curl https://avakit-faucet.avakit.workers.dev/health` answers
-     `"turnstile": false`; `services/faucet/README.md`, "Turnstile";
+   would refuse every drip from every caller, because the hosted faucet still runs its
+   2026-11-19 version, which asks every request for a token (`TURNSTILE_ORIGINS` arrives with
+   item 1's deploy). After that deploy it would still refuse every drip /new asks for, because
+   avakit.dev/new renders no Turnstile widget yet. So once the budgets are deployed, every
+   drip draws on the unverified budget, which one script can spend for the whole day.
+   - Evidence: `curl -H 'Origin: https://avakit.dev' https://avakit-faucet.avakit.workers.dev/health`
+     answers `"turnstile": false`; `services/faucet/README.md`, "Turnstile";
      `services/faucet/wrangler.toml:44`.
    - Closes when: /new renders the widget and sends its token, and the site's CSP allows
      Turnstile's script and frame (`challenges.cloudflare.com`; `default-src 'self'` blocks
@@ -58,20 +63,29 @@ fails unless every other job succeeded.
      gives. This is required before the USDC drip of deliverable D2
      (`services/faucet/PROTECTION.md`).
 4. **Each release waits on the owner.** *Low.* By design. For each release the owner:
-   - clicks **Approve workflows to run** on the "chore: version packages" pull request,
-     again after every update of it. Changesets opens and updates that PR with
-     `GITHUB_TOKEN`, and GitHub holds the `pull_request` runs of such a PR until someone with
-     write access approves them: its CI, browser tests, CodeQL and secret scan start only
-     then. A run started by hand with `workflow_dispatch` does not stand in for them, because
-     GitHub does not count a dispatched run's checks for a pull request's required checks;
-   - merges the PR once `CI passed` is green, which the ruleset requires;
+   - opens the "chore: version packages" pull request from `changeset-release/main` by hand.
+     Changesets pushes the version bumps to that branch with `GITHUB_TOKEN`, but it cannot
+     open the PR while the repository setting "Allow GitHub Actions to create and
+     approve pull requests" is off: Release run 45011571752 of df7b974 (2026-11-22) failed
+     with "GitHub Actions is not permitted to create or approve pull requests." This step
+     stays until the `version` job uses a GitHub App token or that setting is turned back on;
+   - clicks **Approve workflows to run** on that pull request, again after every update of
+     it. GitHub holds the `pull_request` runs that `GITHUB_TOKEN`'s updates of that PR start
+     until someone with write access approves them: its CI, browser tests, CodeQL and secret
+     scan start only then. A run started by hand with `workflow_dispatch` does not stand in
+     for them, because GitHub does not count a dispatched run's checks for a pull request's
+     required checks;
+   - merges the PR once `CI passed`, `Site · /new on anvil · key routes` and
+     `Template · nft-mint on anvil` are green, which the ruleset requires;
    - approves the `npm-publish` deployment of the Release run that the merge starts.
    - Evidence: `RELEASING.md`, "The release flow" and "The version PR's checks"; the
      `version` job of `.github/workflows/release.yml`; the runs 44558954539 and
-     44565792970, which nobody approved and which ended with no jobs.
+     44565792970, which nobody approved and which ended with no jobs; run 45011571752, whose
+     `version` job pushed `changeset-release/main` and then could not open the PR.
    - Closes when: it does not, by design: the merge and the publish approval stay with a
-     person. Only the first click can go, if the owner opens the PR with a GitHub App token
-     instead, which lets its runs start without it (`RELEASING.md` has the steps).
+     person. Opening the PR and the approval clicks can go, if the `version` job opens and
+     updates the PR with a GitHub App token instead: the setting above does not apply to such
+     a token, and the PR's runs start without the click (`RELEASING.md` has the steps).
 
 ## Product
 
@@ -196,7 +210,8 @@ fails unless every other job succeeded.
     - Evidence: the catalog in `pnpm-workspace.yaml` and the packages' `package.json`;
       `npm view <package> version`.
     - Closes when: each one is tried in its own pull request (Dependabot opens one per
-      major).
+      major for the workspace packages; it is not pointed at the templates, so wagmi in
+      `eerc-token` is bumped by hand once the eERC SDK allows wagmi 3).
 
 ## Website
 

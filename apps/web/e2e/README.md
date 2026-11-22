@@ -22,12 +22,14 @@ Started by hand with `live=false`, the workflow runs `site` and `template` only,
 no faucet drip.
 
 On the version PR ("chore: version packages"), `site` and `template` run with the PR's
-other `pull_request` runs, once a maintainer clicks **Approve workflows to run**: a workflow
-opens that PR with `GITHUB_TOKEN`, and GitHub holds such a PR's runs until someone with write
-access approves them ([`RELEASING.md`](../../../RELEASING.md), "The version PR's checks"). A
-run started by hand does not stand in for that, because GitHub does not count a dispatched
-run's checks for a pull request. The ruleset on `main` requires only `CI passed`, from
-`ci.yml`; `site` and `template` are not required checks.
+other `pull_request` runs, once a maintainer clicks **Approve workflows to run**: the release
+workflow pushes that PR's branch with `GITHUB_TOKEN`, and GitHub holds the runs such a push
+starts until someone with write access approves them ([`RELEASING.md`](../../../RELEASING.md),
+"The version PR's checks"). A run started by hand does not stand in for that, because GitHub
+does not count a dispatched run's checks for a pull request. The ruleset on `main` requires
+`CI passed` (from `ci.yml`) and this workflow's `site` and `template` jobs
+(`Site · /new on anvil · key routes`, `Template · nft-mint on anvil`); `fuji` and `external`
+are not required. The version PR can merge only once its approved runs of all three are green.
 
 ## Nothing the browser asks for leaves the machine
 

@@ -89,9 +89,11 @@ source refactor ships on their next release).
 
 A second review covered all five packages, the eight templates, the two Workers under
 `services/` and the release pipeline, in two rounds. This addendum lists what it found
-and what changed, by package. The detail is in the changesets named in the last column:
-they are the files in [`.changeset/`](../.changeset) until the release is versioned,
-and from then on the entries at the top of each package's `CHANGELOG.md`.
+and what changed, by package. The detail is in the changesets named in the last column.
+They were released by the version commit c9ec4af, and their entries are under
+`@avakit/core` and `@avakit/react` 0.2.2, `create-avalanche-app` 0.4.2, `@avakit/mcp` 0.2.0
+and `@avakit/studio` 0.1.14 in each package's `CHANGELOG.md`, each marked with the commit
+that added the changeset (`git log --diff-filter=A -- .changeset/<name>.md`).
 
 ## Findings and fixes, by package
 
@@ -110,7 +112,7 @@ Not npm packages, so no changeset; the changes are in the repository:
 | --- | --- | --- |
 | `services/faucet` | Rate limits were counted in KV, where parallel requests can all pass before any is recorded. Concurrent drips could sign the same nonce. A contract recipient could make a drip burn gas. Refusals had no machine-readable code. | Limits and the send queue live in a Durable Object. A transaction whose answer was lost is looked up by hash. Contract recipients are refused. Every refusal is `{ error, code }`. A Turnstile check is optional. Deployed on 2026-11-19. |
 | `services/telemetry` | The collector counted any well-formed template id, and there was no way to remove the project's own test events. | Only known template ids are accepted. `POST /admin/purge`, behind `TELEMETRY_ADMIN_TOKEN`, removes a day. Deployed on 2026-11-19, when the 52 test events of 2026-11-18 were removed and the route switched off again. |
-| `contracts-ci` | The artifact check covered the five templates' own artifacts only. Studio's messenger bytecode, the website's and the example app's artifacts and `token-bridge`'s demo token were compared with nothing. | `check-artifacts.mjs` compares nine artifacts in CI, fails on an artifact file it has not been told about, and regenerates them with `--write`. `sync.mjs` refuses a `foundry.toml` whose compiler settings differ from the harness's. |
+| `contracts-ci` | The artifact check covered the five templates' own artifacts only. Studio's messenger bytecode, the website's and the example app's artifacts and `token-bridge`'s demo token were compared with nothing. | `check-artifacts.mjs` compared nine artifacts in CI after this review, and compares twelve since `token-bridge`'s three `ava-labs/icm-contracts` entries were added (see the correction to section D below). It fails on an artifact file it has not been told about, and regenerates them with `--write`. `sync.mjs` refuses a `foundry.toml` whose compiler settings differ from the harness's. |
 | `.github/workflows` | The release job published whatever built, and the version PR gets no CI run of its own. | The release job runs lint, typecheck and tests before it versions or publishes. `e2e-fuji.yml` runs the published packages end to end. The version PR's own CI runs once a maintainer approves its runs ([`RELEASING.md`](../RELEASING.md), "The version PR's checks"). |
 
 ## What the release adds that touches keys

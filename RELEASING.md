@@ -7,14 +7,17 @@ never published.)
 For the live versions, run `npm view <pkg> version` — this file deliberately doesn't
 list them, because a hardcoded list here is always wrong within a week.
 
-## You cannot publish from your laptop, by design
+## You do not publish from your laptop, by design
 
 All five packages use npm **Trusted Publishing (OIDC)** with **"disallow tokens"**
 enabled, and the `NPM_TOKEN` secret has been deleted. There is no token to publish
-with, and `npm publish` from a terminal will be refused by the registry. **Do not add
-a token back.**
+with, and the registry refuses every access token for these packages. It still accepts
+an interactive `npm publish` from the packages' npm owner after a 2FA prompt, so not
+publishing from a terminal is this project's rule, not npm's. **Do not add a token
+back.**
 
-The only path is the `publish` job of `.github/workflows/release.yml`. It runs in the
+The path this project publishes by is the `publish` job of
+`.github/workflows/release.yml`. It runs in the
 **`npm-publish` environment**, so it waits until a reviewer approves it, and then
 exchanges a GitHub OIDC id-token for a short-lived publish credential. Each package's
 Trusted Publisher on npmjs.com must name this repository, `release.yml` and that
@@ -33,7 +36,7 @@ dependencies:
 | Job | Runs when | Permissions | What it does |
 | --- | --- | --- | --- |
 | `verify` | always | `contents: read` | The gates below, then whether changesets are pending. |
-| `version` | changesets are pending | `contents: write`, `pull-requests: write` | changesets/action opens or updates the version PR. It installs with `--ignore-scripts` and publishes nothing. GitHub holds the PR's CI runs until a maintainer approves them (see [The version PR's checks](#the-version-prs-checks)). |
+| `version` | changesets are pending | `contents: write`, `pull-requests: write` | changesets/action pushes `changeset-release/main` and opens or updates the version PR; it cannot open it while **Allow GitHub Actions to create and approve pull requests** is unticked (see [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)). It installs with `--ignore-scripts` and publishes nothing. GitHub holds the PR's CI runs until a maintainer approves them (see [The version PR's checks](#the-version-prs-checks)). |
 | `pack` | nothing is pending (on `main`), or a dry run | `contents: read` | On a runner of its own, from a fresh checkout: installs with `--ignore-scripts`, builds the packages, packs every publishable one (`scripts/release-packages.mjs pack`), records each tarball's sha256 and whether npm has that version, and uploads the tarballs. Nothing else runs there. |
 | `publish` | nothing is pending and npm lacks a version | `id-token: write`, `contents: read`, environment `npm-publish` | Waits for approval, then checks the tarballs (sha256 against what `pack` recorded, name and version inside each, one of the five packages, no `workspace:` or `catalog:` range left) and publishes what npm still lacks, one at a time, dependencies first, with `npm publish <tarball> --provenance`. No checkout, no install. |
 | `tag` | after `publish` | `contents: write` | The git tag and GitHub release of each package that reached npm, as changesets/action made them (`scripts/release-tags.mjs`). |
@@ -52,14 +55,12 @@ saved can end up in a tarball.
 
 ## One-time setup: the environment and the Trusted Publishers
 
-Two settings outside this repository's files hold the publish path together. Set them
+Three settings outside this repository's files hold the release path together. Set them
 once, and check them again after a fork, a transfer or a change of maintainers.
 
-Where they stand: the `npm-publish` environment exists, with the maintainer as its required
-reviewer and `main` as its only deployment branch. The Trusted Publishers do not name it
-yet. Setting the environment name in each of the five is an owner step that is still open
-([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md), "Owner steps"), so until then the approval is
-GitHub's alone, as the second item below explains.
+Where they stand: the `npm-publish` environment exists, with the maintainer as its required reviewer, `main` as its only deployment branch, and **Allow administrators to bypass configured protection rules** unticked. The Trusted Publishers do not name it yet. Setting the environment name in each of the five is an owner step that is still open ([`docs/KNOWN-GAPS.md`](docs/KNOWN-GAPS.md), "Owner steps"),
+so until then the approval is GitHub's alone, as the second item below explains. The third
+setting is unticked, so the `version` job cannot open the version PR.
 
 1. **The `npm-publish` environment** (GitHub: **Settings** → **Environments** → **New
    environment**, name `npm-publish`):
@@ -83,6 +84,15 @@ GitHub's alone, as the second item below explains.
    `release.yml`, on any branch, in any job given `id-token: write`, and the approval
    is GitHub's alone. Once it is set, npm itself refuses every job except one that a
    reviewer let into `npm-publish`, which deploys from `main` only.
+3. **Whether Actions may open the version PR** (GitHub: **Settings** → **Actions** →
+   **General** → **Workflow permissions**): **Allow GitHub Actions to create and approve
+   pull requests**. GitHub has one setting for both creating and approving, and the
+   `version` job opens the PR with `GITHUB_TOKEN`. It is unticked today, which also keeps
+   that token from approving a pull request, so the `version` job pushes
+   `changeset-release/main` and then fails with "GitHub Actions is not permitted to create
+   or approve pull requests" (Release run 45011571752). Until it is ticked, or the `version`
+   job uses a GitHub App token ([The version PR's checks](#the-version-prs-checks)), a
+   maintainer opens the version PR by hand (step 2 below).
 
 ## The release flow
 
@@ -98,25 +108,33 @@ GitHub's alone, as the second item below explains.
    core fix would otherwise never reach agent users. `node scripts/check-changesets.mjs`
    fails CI and the release job when the server's changeset is missing.
 
-2. **The bot opens a PR.** The workflow sees a pending changeset and opens/updates a
-   **"chore: version packages"** PR (branch `changeset-release/main`) that applies the
-   bumps and rewrites the changelogs. Nothing is published yet. The PR is produced by
-   `pnpm version-packages`: `changeset version`, followed by `@avakit/mcp`'s
-   `sync:server-json` script when the package defines one. Changesets does not know
-   `packages/mcp/server.json` (the MCP Registry listing), so that script is what
-   bumps the listing in the same PR instead of leaving it a release behind. The PR's
-   CI does not start by itself; that is the next step.
+2. **The bot prepares a PR.** The workflow sees a pending changeset, pushes the branch
+   `changeset-release/main`, which applies the bumps and rewrites the changelogs, and
+   opens or updates a **"chore: version packages"** PR from it. Nothing is published yet.
+   The PR is produced by `pnpm version-packages`: `changeset version`, followed by
+   `@avakit/mcp`'s `sync:server-json` script when the package defines one. Changesets
+   does not know `packages/mcp/server.json` (the MCP Registry listing), so that script is
+   what bumps the listing in the same PR instead of leaving it a release behind.
+
+   While **Allow GitHub Actions to create and approve pull requests** is unticked (the
+   third item of [One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)),
+   the workflow pushes the branch but cannot open the PR, and its `version` job fails.
+   Open the PR yourself, from `changeset-release/main` to `main`, titled "chore: version
+   packages". The workflow's later pushes to that branch update it. GitHub holds the runs
+   those pushes start; that is the next step.
 
 3. **Start the PR's CI, check the PR, then merge it.** Open the PR and click **Approve
    workflows to run** in its merge box: GitHub holds the CI runs of a PR that
    `GITHUB_TOKEN` opened or updated until someone with write access starts them (see
    [The version PR's checks](#the-version-prs-checks)). Every update of the PR needs
    that click again, and every push to `main` while changesets are pending updates it.
-   Wait for **CI passed**, read the versions in the diff, and merge. Merging it is the
-   publish trigger: the workflow runs again, `verify` passes the checks below on the
-   merge commit and finds no changesets, and `pack` packs the packages and sees which
-   versions npm lacks. Its job summary lists every tarball with its sha256. To rehearse
-   the publish before you merge, run the [dry run](#rehearse-a-publish-the-dry-run) on
+   Wait for the three required checks (**CI passed**,
+   **Site · /new on anvil · key routes** and **Template · nft-mint on anvil**), read
+   the versions in the diff, and merge. Merging it is the publish trigger: the workflow
+   runs again, `verify` passes the checks below on the merge commit and finds no
+   changesets, and `pack` packs the packages and sees which versions npm lacks. Its job
+   summary lists every tarball with its sha256. To rehearse the publish before you
+   merge, run the [dry run](#rehearse-a-publish-the-dry-run) on
    `changeset-release/main`.
 
 4. **Approve the publish.** The `publish` job waits for the `npm-publish` environment.
@@ -178,7 +196,7 @@ GitHub's alone, as the second item below explains.
   names the missing secret.
 - **The website.** `apps/web` is private and is not published to npm.
 
-## Nothing is published from a red tree
+## Nothing is published from a tree that fails the release gate
 
 Before anything is versioned, packed or published, the `verify` job runs `pnpm lint`,
 `pnpm typecheck`, `pnpm test`, the changeset check (`node scripts/check-changesets.mjs`)
@@ -192,7 +210,9 @@ install, the build and the pack, when another job uploads the tarballs, when the
 publish job gains a checkout, an install or a script of this repository, or when its
 shell steps stop doing what they say (it runs them against fixture tarballs). Releases
 rely on the gate because `ci.yml` runs on the same push as a separate workflow that
-`release.yml` does not wait for.
+`release.yml` does not wait for: a commit whose other CI jobs fail can still reach the
+publish approval. The ruleset's required checks on the pull request are what keep such a
+commit off `main`.
 
 If the gate fails, nothing was versioned or published. Fix `main`; the next push runs
 the release workflow again.
@@ -200,8 +220,11 @@ the release workflow again.
 ## The version PR's checks
 
 The **"chore: version packages"** PR is opened and updated by changesets/action with
-`GITHUB_TOKEN`. Since mid-2026 (GitHub changelog: *"Bot-created pull requests can run
-workflows if approved"*; GitHub docs:
+`GITHUB_TOKEN`; while **Allow GitHub Actions to create and approve pull requests** is
+unticked, the action cannot open it, and a maintainer opens it by hand
+([One-time setup](#one-time-setup-the-environment-and-the-trusted-publishers)). Since
+mid-2026 (GitHub changelog: *"Bot-created pull requests can run workflows if approved"*;
+GitHub docs:
 [Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow))
 GitHub creates the `pull_request` runs of a PR that `GITHUB_TOKEN` opened or updated in
 an approval-required state: they have no jobs until someone with write access clicks
@@ -213,8 +236,9 @@ are: nothing was wrong with `ci.yml`.
 So a maintainer starts them, as step 3 of [the release flow](#the-release-flow) says:
 **Approve workflows to run** on the PR, once per update of the PR, because every push
 changesets/action makes to `changeset-release/main` creates new runs that wait again.
-The approved runs are the PR's own `pull_request` runs, so their **CI passed** is the
-check the `main` branch ruleset requires, and the PR can be merged once it is green.
+The approved runs are the PR's own `pull_request` runs, so their **CI passed**,
+**Site · /new on anvil · key routes** and **Template · nft-mint on anvil** are the checks
+the `main` branch ruleset requires, and the PR can be merged once all three are green.
 
 A run started some other way does not replace that click. GitHub counts the checks of a
 workflow job for a pull request only when an event such as `push` or `pull_request`
@@ -224,6 +248,8 @@ satisfy a required check (GitHub docs:
 
 The one hands-off option is to open the PR with a GitHub App installation token
 instead of `GITHUB_TOKEN`, which lets its `pull_request` runs start without the click.
+The setting **Allow GitHub Actions to create and approve pull requests** applies to
+`GITHUB_TOKEN` only, so such a token can also open the PR while that setting is unticked.
 Create a GitHub App with **Contents** and **Pull requests** read and write and no
 webhook, install it on this repository only, store its app ID and private key as
 secrets of an environment that only the `version` job uses, mint a token in that job
@@ -295,6 +321,10 @@ red:
   test) failed → nothing was versioned or published. Fix `main`.
 - `Changesets is in pre mode` → the workflow neither versions nor publishes
   prereleases; run `pnpm changeset pre exit`.
+- `Open or update the version PR` failed with "GitHub Actions is not permitted to create
+  or approve pull requests" → the version bumps were pushed to `changeset-release/main`,
+  but **Allow GitHub Actions to create and approve pull requests** is unticked. Open the
+  PR by hand ([the release flow](#the-release-flow), step 2).
 - `Install (no install scripts)` or `Build the packages` failed in `pack` while
   `verify` passed → the packages do not build from a fresh checkout without install
   scripts. Find what needs one; do not let `pack` run install scripts.

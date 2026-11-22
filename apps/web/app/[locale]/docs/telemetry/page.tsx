@@ -65,9 +65,11 @@ npm create avalanche-app@latest my-app -- --no-telemetry`}
       </P>
       <P>
         <C>anonymousId</C> is a random UUID generated on your machine the first time you run the CLI
-        and stored in <C>~/.config/avakit/config.json</C>. Nothing about your machine, your network,
-        or you is derived from it — it exists only so we can tell "ten people ran it once" apart
-        from "one person ran it ten times". Delete that file and you are a new person to us.
+        and stored in <C>config.json</C> in AvaKit's config directory: <C>~/.config/avakit</C> on
+        macOS and Linux (<C>$XDG_CONFIG_HOME/avakit</C> when that is set), <C>%APPDATA%\avakit</C>{" "}
+        on Windows. Nothing about your machine, your network, or you is derived from it — it exists
+        only so we can tell "ten people ran it once" apart from "one person ran it ten times".
+        Delete that file and you are a new person to us.
       </P>
 
       <H2>What is never sent</H2>
