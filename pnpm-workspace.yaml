@@ -6,6 +6,6 @@ packages:
 # Centralized dependency versions (pnpm catalog). Reference with "catalog:" in package.json.
 catalog:
   typescript: 6.0.3
-  tsup: 8.5.1
+  tsup: 9.0.0
   vitest: 4.1.12
   "@types/node": 26.6.6
