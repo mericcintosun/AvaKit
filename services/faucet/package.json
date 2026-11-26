@@ -15,7 +15,7 @@
     "viem": "2.57.17"
   },
   "devDependencies": {
-    "wrangler": "4.165.0"
+    "wrangler": "4.166.0"
   },
   "engines": {
     "node": ">=20.11"
