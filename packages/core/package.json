@@ -40,7 +40,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "viem": "2.58.0"
+    "viem": "2.58.4"
   },
   "peerDependencies": {
     "@coinbase/wallet-sdk": ">=4",
