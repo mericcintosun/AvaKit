@@ -23,10 +23,10 @@
     "clean": "turbo run clean"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.1",
+    "@biomejs/biome": "2.6.8",
     "@changesets/cli": "3.0.3",
     "@vitest/coverage-v8": "4.1.12",
-    "turbo": "2.11.11",
+    "turbo": "2.11.13",
     "typescript": "catalog:"
   }
 }

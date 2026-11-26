@@ -24,8 +24,8 @@ importers:
   .:
     devDependencies:
       '@biomejs/biome':
-        specifier: 2.5.1
-        version: 2.5.1
+        specifier: 2.6.8
+        version: 2.6.8
       '@changesets/cli':
         specifier: 3.0.3
         version: 3.0.3
@@ -33,8 +33,8 @@ importers:
         specifier: 4.1.12
         version: 4.1.12(vitest@4.1.12)
       turbo:
-        specifier: 2.11.11
-        version: 2.11.11
+        specifier: 2.11.13
+        version: 2.11.13
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -43,10 +43,10 @@ importers:
     dependencies:
       '@avakit/core':
         specifier: ^0.2.3
-        version: 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)
+        version: 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)
       '@avakit/react':
         specifier: ^0.2.3
-        version: 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
+        version: 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
       '@google/model-viewer':
         specifier: 4.4.0
         version: 4.4.0(three@0.183.2)
@@ -81,14 +81,14 @@ importers:
         specifier: 12.43.0
         version: 12.43.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       lucide-react:
-        specifier: 1.74.0
-        version: 1.74.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: 1.77.0
+        version: 1.77.0(@types/react@19.3.0)(react@19.3.1)
       next:
         specifier: 16.4.6
         version: 16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       next-intl:
-        specifier: 4.15.1
-        version: 4.15.1(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+        specifier: 4.15.3
+        version: 4.15.3(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       next-themes:
         specifier: 0.4.6
         version: 0.4.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -99,11 +99,11 @@ importers:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
       tailwind-merge:
-        specifier: 3.7.0
-        version: 3.7.0
+        specifier: 3.7.1
+        version: 3.7.1
       viem:
-        specifier: 2.58.0
-        version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+        specifier: 2.58.4
+        version: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     devDependencies:
       '@playwright/test':
         specifier: 1.65.1
@@ -143,10 +143,10 @@ importers:
         version: link:../../packages/react
       '@web3auth/modal':
         specifier: 11.4.3
-        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
+        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
       lucide-react:
-        specifier: 1.74.0
-        version: 1.74.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: 1.77.0
+        version: 1.77.0(@types/react@19.3.0)(react@19.3.1)
       next:
         specifier: 16.4.6
         version: 16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -160,8 +160,8 @@ importers:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
       viem:
-        specifier: 2.58.0
-        version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+        specifier: 2.58.4
+        version: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     devDependencies:
       '@tailwindcss/postcss':
         specifier: 4.3.5
@@ -198,10 +198,10 @@ importers:
         version: link:../../packages/react
       '@web3auth/modal':
         specifier: 11.4.3
-        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
+        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
       lucide-react:
-        specifier: 1.74.0
-        version: 1.74.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: 1.77.0
+        version: 1.77.0(@types/react@19.3.0)(react@19.3.1)
       next:
         specifier: 16.4.6
         version: 16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -215,8 +215,8 @@ importers:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
       viem:
-        specifier: 2.58.0
-        version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+        specifier: 2.58.4
+        version: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     devDependencies:
       '@tailwindcss/postcss':
         specifier: 4.3.5
@@ -249,12 +249,12 @@ importers:
         specifier: '>=4'
         version: 4.4.0(typescript@6.0.3)(zod@4.6.7)
       viem:
-        specifier: 2.58.0
-        version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+        specifier: 2.58.4
+        version: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     devDependencies:
       '@web3auth/modal':
         specifier: 11.4.3
-        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
+        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
       tsup:
         specifier: 'catalog:'
         version: 8.5.1(@swc/core@1.16.22(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.33)(typescript@6.0.3)(yaml@2.9.1)
@@ -318,8 +318,8 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
       viem:
-        specifier: 2.58.0
-        version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+        specifier: 2.58.4
+        version: 2.58.4(typescript@6.0.3)(zod@4.6.7)
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
@@ -342,14 +342,14 @@ importers:
         specifier: 2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: 1.74.0
-        version: 1.74.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: 1.77.0
+        version: 1.77.0(@types/react@19.3.0)(react@19.3.1)
       react-dom:
         specifier: '>=19'
         version: 19.3.1(react@19.3.1)
       tailwind-merge:
-        specifier: 3.7.0
-        version: 3.7.0
+        specifier: 3.7.1
+        version: 3.7.1
     devDependencies:
       '@testing-library/dom':
         specifier: 10.4.2
@@ -373,8 +373,8 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
       viem:
-        specifier: 2.58.0
-        version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+        specifier: 2.58.4
+        version: 2.58.4(typescript@6.0.3)(zod@4.6.7)
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
@@ -388,8 +388,8 @@ importers:
         specifier: 1.32.2
         version: 1.32.2(zod@4.6.7)
       viem:
-        specifier: 2.58.0
-        version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+        specifier: 2.58.4
+        version: 2.58.4(typescript@6.0.3)(zod@4.6.7)
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -413,8 +413,8 @@ importers:
         specifier: 2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: 1.74.0
-        version: 1.74.0(@types/react@19.3.0)(react@19.3.1)
+        specifier: 1.77.0
+        version: 1.77.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -422,8 +422,8 @@ importers:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
       tailwind-merge:
-        specifier: 3.7.0
-        version: 3.7.0
+        specifier: 3.7.1
+        version: 3.7.1
       tailwindcss:
         specifier: 4.3.5
         version: 4.3.5
@@ -579,55 +579,71 @@ packages:
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
 
-  '@biomejs/biome@2.5.1':
-    resolution: {integrity: sha512-IXWLCxKmae+rI7LOHS1B3EbVisQ6GRAWbhN9msa6KjNCyFWrvKZWR4oUdinaNssrV852OrSHuSPa95h1GPJc7Q==}
+  '@biomejs/biome@2.6.8':
+    resolution: {integrity: sha512-kqZUFvX6/aYQOmzfRN5ANcfNS9wLH4aHLWWP/dQKyhRZVoA6rdWszA7DGugFcxPbMiznUyVYyukVl+ExZN4PQA==}
     engines: {node: '>=14.21.3'}
     hasBin: true
 
-  '@biomejs/cli-darwin-arm64@2.5.1':
-    resolution: {integrity: sha512-npqDzvqv7vFaWRiNN1Te71siRgPaqS9MpqgYCdP/CrUbkJ7ApezaeaKjueKHRN/JH/6lRjJQAHi8acQDCAz22w==}
+  '@biomejs/cli-android-arm64@2.6.8':
+    resolution: {integrity: sha512-X4JKPLK85kfUTwuuaORFplnBfGjKkp62PsFhhcL7F/Tpltc7pyUofjlkkMnlZZLWsifFl7LNB8ngVrwJg1uo1Q==}
+    engines: {node: '>=14.21.3'}
+    cpu: [arm64]
+    os: [android]
+
+  '@biomejs/cli-android-x64@2.6.8':
+    resolution: {integrity: sha512-C3Hk485vl+deEj53K08+SYYelPIPkdSZL3qHuD31Xi+qydVa4q2ze+aCYo1k3iJGWtvWtjHaGkDh7S2sX6wk8w==}
+    engines: {node: '>=14.21.3'}
+    cpu: [x64]
+    os: [android]
+
+  '@biomejs/cli-darwin-arm64@2.6.8':
+    resolution: {integrity: sha512-DHyj+JnRHcn4YdvpiqgTFZMYKSPELMCfFpNNlEuu1L8DKTGXhzW7raIwdsbo2Ie9nCljQLAQkVWQk/mwM0ueiA==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [darwin]
 
-  '@biomejs/cli-darwin-x64@2.5.1':
-    resolution: {integrity: sha512-RgwTqPAM8g2tn1j+b5oRjF/DbSBX8a4gwojtuG9XuhfK7GgomvZ9+T+tqjXiVbjLEeGJOoL6VEk8mvRTVeSybw==}
+  '@biomejs/cli-darwin-x64@2.6.8':
+    resolution: {integrity: sha512-QWWUPjlA0RnkkgYnFLUHZu+RrDc0FdK0A+wEPA+dENQJwsuSHMH89lspnAw2QUWWc9VHyfluGx1Xmp6Y2GZi8Q==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [darwin]
 
-  '@biomejs/cli-linux-arm64-musl@2.5.1':
-    resolution: {integrity: sha512-WMcvMLgByyTqVxGlq918NBBYliq9FRR9GAQVETHb+VjGVqXCZFfHlZHC1FX4ibuYY/Hg6TJE3rHU0xVrdJXNRw==}
+  '@biomejs/cli-linux-arm64-musl@2.6.8':
+    resolution: {integrity: sha512-WB9PhOitX+bRc0G3+GNJGlvbKoWn3JoB9z4E04JQizIC9aPCQyIvwvWG7QZHxw6k20Fi+dHLmZ2fSEmBa9HqiA==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
-  '@biomejs/cli-linux-arm64@2.5.1':
-    resolution: {integrity: sha512-yhV35CzZh38VyMvTEXi3JTjxZBs++oCKK9KG8vB6VI5+uvQvZNR3BFWEKKzuOmx9DJJj7sQpZ4LQJcmbGTs3+Q==}
+  '@biomejs/cli-linux-arm64@2.6.8':
+    resolution: {integrity: sha512-0Bjim8lKwnrvXUHoI4k3Tb51BjoiLEwDnovCI8nSzkk6wj3dShiuAjrx6+X0Hjf4ejR1sRZgTQiSDHlpy9vB7w==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
-  '@biomejs/cli-linux-x64-musl@2.5.1':
-    resolution: {integrity: sha512-ANTowtlLmPYm5yeMckWY8Xzb9Ix+JJP3tgHR/n6xRj1VWyIzzWtfRfih9hv9VmClwadpBvZduISZIbBsIlYG3A==}
+  '@biomejs/cli-linux-x64-musl@2.6.8':
+    resolution: {integrity: sha512-64Yzo+J4fEk7Kf9SMnVdVxC+Y2A2e/L86QTP9JjGQ57lsddyELLpbBcNMxSJggre2T1AvISwwSrOApkBAHDqNA==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
-  '@biomejs/cli-linux-x64@2.5.1':
-    resolution: {integrity: sha512-J/7uHSX7NfoYDI7HijAkd8lnQIOrRb2W7j3X+tw4R+N5ExvXGsyXFiGdQcfcxfOmNQmZVSQOCDk757fwpzqQcg==}
+  '@biomejs/cli-linux-x64@2.6.8':
+    resolution: {integrity: sha512-XIk3pLQT56I6Tti+u0DF8FtSNXjCMTPbxVTzfJ9cS2t1ImVKvrqV5b52GuEaJg6/wuiXvz0sjfb5saB4TPRjzA==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
-  '@biomejs/cli-win32-arm64@2.5.1':
-    resolution: {integrity: sha512-zgXnKNgWPC4iPF7Y1lR3STUeCUuZRpD6IiOrC7TZTlh0Lx6FiVUT05myuMQHQ9D+1cc7uyMldi4forE6lp0ivQ==}
+  '@biomejs/cli-win32-arm64@2.6.8':
+    resolution: {integrity: sha512-ezjCEZzHIWE2pdh83a7zLVcAAcDaERcTcvfA7uWlxqz/1CuDxgtfO19pDg9B6YY4wKYIDvYBw2QCMnqIshSwmw==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [win32]
 
-  '@biomejs/cli-win32-x64@2.5.1':
-    resolution: {integrity: sha512-6uxpR9hvaglANkZemeSiN/FhYgkGasrEGn267eXIWvjrjJ2LhDlk251IhjVJq6MXzkV2/bcXwLwSroLyPtqRZg==}
+  '@biomejs/cli-win32-x64@2.6.8':
+    resolution: {integrity: sha512-cD6HvGczZUiAYsY8s2TxxXj2AHFzEdMomvVJfEjzOjBM45nGqIDfBpbtvwGQzDCN8X2yKKk9u1jnDZisT2nxIg==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
@@ -756,11 +772,17 @@ packages:
   '@eloqnt/config@0.1.2':
     resolution: {integrity: sha512-0pdjiCFur3M1fxuoPIoLS/ElTNerOdmkjToiLi399ITOLE/HRvHxJ5OjuOPQqPIZcbYXr2+WAWu3dnXMjt/WZg==}
 
+  '@eloqnt/extractor@0.1.0':
+    resolution: {integrity: sha512-ZesGo0H7jCqGLvCE2e0vyUNhRPBnIRc3xuCtCMsrSXTc+DTtjhXfyF+BtCmDk2WVEgExL0e8Y3bJQygjmr3qdw==}
+
   '@eloqnt/format-json@0.1.1':
     resolution: {integrity: sha512-Pp8DZPMSWBZy8CydZ293LhXnopdiIVdKO0z//fWFA+Cq1CK9vk2DdoigEFxjWl4CqYfXrRQYPdaKEKTC/9e1CQ==}
 
   '@eloqnt/format-po@0.1.2':
     resolution: {integrity: sha512-bohkA1SmJ9rJQG+tNsY8gWrdSo+pJazdjI+dTW+Wt2eg+UuwejXuYOkZDVcWRBCt6MH1dhHo0UuDau0jUmu/+Q==}
+
+  '@eloqnt/messages@0.1.0':
+    resolution: {integrity: sha512-/YIr/bPaRCJmPGR5OrqVoado0j5ijcD7q95jZlkIzd0ipmEM4s+805c9PafoLUKCrudMEI4gqIUsZ24hZ0d2pQ==}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -1179,89 +1201,105 @@ packages:
     resolution: {integrity: sha512-Y3dgX/6lE2QhQb+Gxy0WZxfg9MEm/JBjamZpS2IklP7xIQoKN4hzAm7KcMVGtaVDt3neE9OKBC7vAfonA/Lr1A==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-arm@1.3.4':
     resolution: {integrity: sha512-LmRtTsOHuvM2+wlO2Db37dx5MiZhB0FvSunciw48YjdOkZz9KAiRbm8ujeMOA1INqmei5NapFxYEK1D1ZSidmw==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-ppc64@1.3.4':
     resolution: {integrity: sha512-Le6boB8Tai0Nis+gIxIpKx68UDVVIqdR8Tin5Yf1z2LJJQLDJvCDRqRu+jC2qCoD+eIomonmOwB4smBRxfVpYQ==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-riscv64@1.3.4':
     resolution: {integrity: sha512-aHkkIEHPRdQEegJN20MLmGtxYD9R2wQr3Cwpddnu5+YKMt6Uzax7S9h5gpZTo8wyrGuZSlfQ63OevL5mTyOC7Q==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-s390x@1.3.4':
     resolution: {integrity: sha512-ra/mB6MikESDUO7Yg+Mi95bFBb9GsObURuhnOv3OqknjGe9sZrG8tCe9q0xSIGrtLgvgw0gKnFWcK4blSgQOuQ==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-x64@1.3.4':
     resolution: {integrity: sha512-GJ//SSXbnwSDes02umB3nDJLFcQzw8a18V8fyhqr6tV515tOEMdImjjxj1AoafMRz56F3PHgftnj1QEKSU1zkw==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linuxmusl-arm64@1.3.4':
     resolution: {integrity: sha512-hvulFwtjUcagsis6BBxHwGFwWoNZjgYmULGVrZcyfNbjA8hKILbRxGg15/7w5HDyXHXUos/j6baAWqnCyQ2DWA==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-libvips-linuxmusl-x64@1.3.4':
     resolution: {integrity: sha512-6zXKeE/p39I1AmA3cJG35eyBGNqNddLnUXjhwBnsGjFPWqf5VKkDBEqaEkPDoTEtkxwi2vv8Tcr2mDyP4So7Fg==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linux-arm64@0.35.5':
     resolution: {integrity: sha512-LYVx5JTsOM2CBzmxreh+nl64/3H6Xb09iSLknqH47z2T2DFFxDeFLP5y4dJwe6H7uGQlHPyEEtIqyo3DYsRwdQ==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-arm@0.35.5':
     resolution: {integrity: sha512-LEaXK2WdXVK5ykcw0buWyPMsmLLL2vpHLD6yrNSW+JGEL3BZPA4tpKN6iaMc4AxTTAoaX/sU1rOL51lcIz48ZQ==}
     engines: {node: '>=20.9.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-ppc64@0.35.5':
     resolution: {integrity: sha512-QVxAAq8evVRI9ia2vqgwrmWucn5Dfv+JdWzj75pD8omHLPSP7f8p20O8jxzjCcuCEQEOtYOZUmX1hkiZ0kdevA==}
     engines: {node: '>=20.9.0'}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-riscv64@0.35.5':
     resolution: {integrity: sha512-LtdreXguaavKODPIfzJ4kffx7UNt1omwtK0rch4EBbbSTXPnxWmYSayXdLJw0fJzQ97kHt1gL/yh4tvU+nCyRQ==}
     engines: {node: '>=20.9.0'}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-s390x@0.35.5':
     resolution: {integrity: sha512-UZasTOFiYzotTsGOCu42BfUzP6Tu6Do/947iRm1RsLKvlllxwGcn4RN27LibGWceix4Y+Pmw3jsnTcCQIgWjqA==}
     engines: {node: '>=20.9.0'}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-x64@0.35.5':
     resolution: {integrity: sha512-SxFtLTeJInhAA9Q836kux2vZNeOBQEx658qvbboZScr0wIARym3IcGmW7KpVD5sbVg0Ojy+udFQdayYIZyoNog==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linuxmusl-arm64@0.35.5':
     resolution: {integrity: sha512-9HbMclmI1zlNkFRs3z9/eBtDjfD0sGlrX1z6b1qwmiFY5ElDLh4BC0LPBdVp7z1DXFiKlIcznf+ZlsuZzLxQqg==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linuxmusl-x64@0.35.5':
     resolution: {integrity: sha512-4KOphqB035HrVdqLZfCgMzzERrQkkzOwRhl4OAkRO1YCldbaFjySXMaK534Mo0V+LndnlJk+sbUyLeU0ULyD1A==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-wasm32@0.35.5':
     resolution: {integrity: sha512-Ptsga1su4tQx+LLF1ECS9U6nz5kmrXKo6XVbtR48Ke3ZRxxgaWBu7IDtEe1quo8hiupwm6WFqxVlXaSf7IINGQ==}
@@ -1467,24 +1505,28 @@ packages:
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@next/swc-linux-arm64-musl@16.4.6':
     resolution: {integrity: sha512-7/qPhTxDp2ScluOJOhLuhWmlA17o1yZ0SIgpISBCpBxXgtnK4+KGywBpFkfLPiU1rnSM1faFGzYkH6i7JdTrqA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@next/swc-linux-x64-gnu@16.4.6':
     resolution: {integrity: sha512-oOpbNa8XOW1qCGd9VvzC4fbkkRxEls7/WI6tz+YHC0xRA7KpV1U7DrAnCPjzVyOk/karzWEepCOcTIDmwK8FwQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@next/swc-linux-x64-musl@16.4.6':
     resolution: {integrity: sha512-aM8CZ+OR2EwXaAYw7KGkW2GDmNDsLBIRe1MMRZCJPTdw/xhTD0IMUVO4sf3KqrzuRouGzwwLZn34+gFeVXiUQA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@next/swc-win32-arm64-msvc@16.4.6':
     resolution: {integrity: sha512-U0p7/tEtqvHX2crhd841CDwKtp5CFkKXVjOhmfccR3Pvp64sj8KBwRqsvltqLOwVBbj0NtkxwXSDpEHYGbxeXQ==}
@@ -1556,6 +1598,7 @@ packages:
     resolution: {integrity: sha512-dPrQbmvAYfTcSvP1tWC1+ulF8TMMtLTdngP4KeMjsm5JMGCNK2fMPOB4/Pk1ayQ9L352mYUhbohBdififRvnfA==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-android-arm64@2.6.0':
     resolution: {integrity: sha512-trgpLSCKRC/huFjXX/Smh+0sWe4+YtKfktIToiMl59ghz7z+qkH6kMvNnUbLyRs9N11t8l4svSCs1+5B3rOAhA==}
@@ -1586,36 +1629,42 @@ packages:
     engines: {node: '>= 10.0.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-arm-musl@2.6.0':
     resolution: {integrity: sha512-9c6AUHgHoG+IY88MRIHupztQiQnrbqHYQjkM2btA+Bf/wQnQMuiD0Wfk1EVv3TlNT3x41uU71rn6E4xh/+zvkw==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-linux-arm64-glibc@2.6.0':
     resolution: {integrity: sha512-yHRqS2owEXe6Hic9z6Mh1ECsCd+ODVOGvZDyciqRd21+v+o+DnXMOrw50DSpIG2sb8GPEaPPmfeCAWKPJdq46g==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-arm64-musl@2.6.0':
     resolution: {integrity: sha512-WhB2e/V7rqdHHWZusBSPuy5Ei8S6lSz6FE5TKKQz5h3a0O+C+mhY7vxU9b/stqvMb8beLnPY82ZrFTLKs+SrKA==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-linux-x64-glibc@2.6.0':
     resolution: {integrity: sha512-ulGE6x6Oz6iAwg75T8YQSoguBWasniIbX+QWpaYPcCnDOpdWX3k+4xbEYPZVLxOuoJI+svJJPD3sEj8G7lrQ3A==}
     engines: {node: '>= 10.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-x64-musl@2.6.0':
     resolution: {integrity: sha512-tkBYKt7YQrjIJWYDnto2YgO8MRkjlMTSNoRHzsXinBqbLdeOM3L32wPZJvIZxqaLMfSlS/4sUjH/6STVP/XDLw==}
     engines: {node: '>= 10.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-win32-arm64@2.6.0':
     resolution: {integrity: sha512-gIZAP23jaHjGWasY/TY6yL7NHFClf0Ga7FN+iINvk+KN94rhm94lYZhFsbYFNcA04/onvGD9kKmiJLJB2HbNwQ==}
@@ -2059,66 +2108,79 @@ packages:
     resolution: {integrity: sha512-b2w9laiL8oWofYqGF+ABzin9wNMPxzHRD21EIPJ5A0iniq19d3flE4UP7uZKl1gj+d3Kv/bt1htVUSzI0bE1TQ==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm-musleabihf@4.68.4':
     resolution: {integrity: sha512-Ao858LxFnvGrn4qbin3rr+LmEhOrF9pQKgzEnT14f9KjOpytd5smOuj7OOtkejJ7YVb5cBdPpYdT1zjwNcNq9g==}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-arm64-gnu@4.68.4':
     resolution: {integrity: sha512-B78SoWLJeAleSOIDFZ+twb+7DoBla0g73LrdkxlkNwicAsrLfHeYX+NcPlOmxZ3Z8vKVvj0J/kmIMzEaqbQNGg==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm64-musl@4.68.4':
     resolution: {integrity: sha512-IK0JVhVLGer5AlmgU0eMbfuldxO1wNACZBwyq+ot9UW899hhkWPcO3k0eIrNlqmuWrySvMtzr7GK9xkbNekOTQ==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-loong64-gnu@4.68.4':
     resolution: {integrity: sha512-6MoYXMYy+6eqtVesSNehfsS3LY4A0P8MpHfhcnMkVsWVhaLv0vvuCj2EGkanchIoyHxAmxY+aR3ankaTkokC2A==}
     cpu: [loong64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-loong64-musl@4.68.4':
     resolution: {integrity: sha512-mo+MC3fHiG4EOdtp7uGSvBv/4hKpqxhV16QGpXn2D0mTBBiOW6hGIOXUK7nck8THlURRWjYdtUPvvJfxHKZ/2w==}
     cpu: [loong64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-ppc64-gnu@4.68.4':
     resolution: {integrity: sha512-uBRu6ztHsmoW/10bPsOVbhW8ie4Puw6+CQD/XLRGqr3ugv6pRNm3b4vebiwouhCgkjJ/ItJdqHKJ3mVhpr/wQA==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-ppc64-musl@4.68.4':
     resolution: {integrity: sha512-XNY+QlYWmhqzeiMdOKjziVnx6aP5cXSxbk4rDqbb+MH2IcNiIZWX1wPRfAVV6ntiM17XHJJ2WUNcxnglDNH69A==}
     cpu: [ppc64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-riscv64-gnu@4.68.4':
     resolution: {integrity: sha512-agahuMApMIOQgJMNEaJNtQRD+iUllqAvkF/V7WutWaBLTSeMgFd0urEo6m1scFmG0Cd+2zIPvnu2SWcKeuSB1Q==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-musl@4.68.4':
     resolution: {integrity: sha512-1N+ysuGmcw/PAC4E5/vpotbjC7zHBMqOMJ+kdjkuvVGbj4Mkzu1/cNI4IMaU27VP6MWded1fQAU9ME2m/JmiUA==}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-s390x-gnu@4.68.4':
     resolution: {integrity: sha512-ZO0fVys5Rtut3W0FcpKl/T/CTuTgaujErjanLJHVSmqhWaXnPr1u1VAinHPb8ash+cHA8yMX4QnRbmXhrrXfAg==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-gnu@4.68.4':
     resolution: {integrity: sha512-a4T4Ji3Is/TCh4rUuV6ehDdSMp3hxLH/v7mP4VT0kVB90Hfr9GUHVAiJhiJ3iy+tJ4qpvIG4haP+HpivOyWYpw==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-musl@4.68.4':
     resolution: {integrity: sha512-I4FcDk1+t2w7/JwKakDbhOKvtP07Q8Y/jqaTTdgVklmfqTqmTwtIk254iSP4iCgXgQWThKm8CN67mDzPGDnpqw==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-openbsd-x64@4.68.4':
     resolution: {integrity: sha512-kpekXvZs3E/21ps5tUiPbQggi4C8bCx4jBl2eAIaVTerC7eDLWJunZ6nRw3/K4r20E5Z5f1bmbrfSS6H8GRv+A==}
@@ -3025,36 +3087,42 @@ packages:
     engines: {node: '>=10'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-arm64-musl@1.16.22':
     resolution: {integrity: sha512-ophleEwlj0SqkzYPDJ7xMPK0+MnWfc4+u9GzDYLLFG1TkIJuwj0rHNWto4MmKo00TylHFwGx9+5bLs/+YZ00IQ==}
     engines: {node: '>=10'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@swc/core-linux-ppc64-gnu@1.16.22':
     resolution: {integrity: sha512-/4kR7SafFsVqY8N4HSepTs4Ni9YA0OY6n/SVBk/V15PhDiw97stG9SVqvgc8EzC+3XOe4pTmwlvFLWzNYfuNWg==}
     engines: {node: '>=10'}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-s390x-gnu@1.16.22':
     resolution: {integrity: sha512-b3GQqKmHBHUFQby1sh/QLtNQMMXTSBUhnmXcJ5qSrWbkYnhljIW3Y+30eMrrxCfy7HXLLDug1sjlhJDhf3tPhA==}
     engines: {node: '>=10'}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-x64-gnu@1.16.22':
     resolution: {integrity: sha512-u9hdfNEI3oI/dTRJ+In8G32EgfFpZDvMoI5elIERl6/XfaIzE9gpv4WomhKblAXA1+EYyLfDCS1EFFKQlBXTQQ==}
     engines: {node: '>=10'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-x64-musl@1.16.22':
     resolution: {integrity: sha512-C3YVRL717kKSSU8n6HaC7sesFSGnHjRuHN3609Wl4epPYVDDutzD6aj7CMcx9cg3WWJ/oE8woDZ8qrCfzmxvnw==}
     engines: {node: '>=10'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@swc/core-win32-arm64-msvc@1.16.22':
     resolution: {integrity: sha512-+MpNuE45LMFo+6RF8vMUqZPmaOfRQIuzCUHJ+jSXwEhiR5KHeZiQ9MaJglZRDeMuML67voCiFLrxqYTqGCbcCQ==}
@@ -3130,24 +3198,28 @@ packages:
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@tailwindcss/oxide-linux-arm64-musl@4.3.5':
     resolution: {integrity: sha512-H9lsvO4x9E4nE4Hi8h7NHHw0O/kcVSu+iOyFHNGdYzazGgDjFHZbE6S3hQ8kMcbNXSBlMdNi67LV5EVqtpaJtw==}
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@tailwindcss/oxide-linux-x64-gnu@4.3.5':
     resolution: {integrity: sha512-4uxQvtBvPuIdl13WfUBj9xMZHH14PtHZ8OZdtLmdyDtG66sCa1t599NZT+jagkUzRtWhuul1qRZQ1nAJscXN5g==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@tailwindcss/oxide-linux-x64-musl@4.3.5':
     resolution: {integrity: sha512-0JQAzs7jwbA7O6+z/adU+Jk3AXwsu3npAhtr5escXS7TqEqWcaDV7qHuI+0Vy/KQRuVGnLQREcSJWYauyV3oqg==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@tailwindcss/oxide-wasm32-wasi@4.3.5':
     resolution: {integrity: sha512-OJhFmlEfdzMr+avACdi40RPtnkW0B6hXyxL/8r+tnEHBWZji36CYRjEXrrvgBmaYsD3oEOBqwYFRKsYvzFe7Bw==}
@@ -3296,33 +3368,33 @@ packages:
     peerDependencies:
       '@babel/runtime': 7.x
 
-  '@turbo/darwin-64@2.11.11':
-    resolution: {integrity: sha512-HMMeUIEAsmyIbSYn1ySvF/4gGMa0joiTMq4dQDuloIAnOpbtFT3JEiVsYnASdTWDXvplbRbZlqjU1EBeSR9G1A==}
+  '@turbo/darwin-64@2.11.13':
+    resolution: {integrity: sha512-5IT29i4j55E5O66+la7L8Y46ut7dFaNZqrgUIYYNtcpMt9Ql7aYnSQb/6tZ+prE2AfX1RBCAtRJE41txS2rG3w==}
     cpu: [x64]
     os: [darwin]
 
-  '@turbo/darwin-arm64@2.11.11':
-    resolution: {integrity: sha512-+8iySNgqYWY6PZYUQzYu6zn0C04z2OEq1vQ6oMGsJ9sxN6wOpg1gzi1AJ5VKDHviWvMUjhqng51hTEQZOuiqYQ==}
+  '@turbo/darwin-arm64@2.11.13':
+    resolution: {integrity: sha512-YFJPayVNlhSPRIZSeERiZYGKKqPs6N6qGhim8J3GtBdv5ZjUNF1ixfnAAyCVTqFEnMSkn1W7F0Y07kca8EjWsg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@turbo/linux-64@2.11.11':
-    resolution: {integrity: sha512-uImTKFYCFKsoFxjaXeJXlMPv4uU3OIIDjyzoIwYVqOtu9LnCZ/5/fzu/WP6+G9YfwGAPRplTHkKFfcI5t97RGw==}
+  '@turbo/linux-64@2.11.13':
+    resolution: {integrity: sha512-R5RIQflV4ffBDNuUwjmtmzIr6Y2UeyeeHTtultYF7cnFn3tG1RZ4GRBlpjUhHB6JxuR7l1B450hlbzdtlD3ghg==}
     cpu: [x64]
     os: [android, linux]
 
-  '@turbo/linux-arm64@2.11.11':
-    resolution: {integrity: sha512-Y7xffSVfyyYRGzNy6PLdrFL4xXN6iTuR3W0SyJvH/yd3d4defA6dansZwJpPDVnIpD8a2Qn256DwY/Qin4Ip4g==}
+  '@turbo/linux-arm64@2.11.13':
+    resolution: {integrity: sha512-AwV8pVO/cH/lwx1B7SGfzUA/3e6vmPaygFp9NOSRESs6t3Wr63zrBuXlluDogAOIxIMlHDB2ZbBueDsBnQxh2Q==}
     cpu: [arm64]
     os: [android, linux]
 
-  '@turbo/windows-64@2.11.11':
-    resolution: {integrity: sha512-e2WqNtkPGo3QDwNNwwBo89Dx3PtSJ9Wp9QuRNzn80rrRnSHB+1mfBMZTpdHjA8/G/sG9rl76TdWdpgVsimjRdg==}
+  '@turbo/windows-64@2.11.13':
+    resolution: {integrity: sha512-PGXYTaFaN3FZloe4RffNGJmfB+TIWlqQgKK1PVyKwPN+PUzxGa+byxHBWFHredMaVbnUc6L/F6/QR4iHyM/wug==}
     cpu: [x64]
     os: [win32]
 
-  '@turbo/windows-arm64@2.11.11':
-    resolution: {integrity: sha512-LURivfmgv34Osm8NR1gZGx4vdlux9KAgRM+FoooXNG0838ff0+akWZ76iPSke0NS2rsf7Z4Gw+YSaygzNTZuRA==}
+  '@turbo/windows-arm64@2.11.13':
+    resolution: {integrity: sha512-YdRHWstBUHWt/eChOEM4f9LT0dPiWK5SNgtV77bLCr3JNke9M5E7metqelNYj+tXe36dH0BZrk2CMnFlWqHKng==}
     cpu: [arm64]
     os: [win32]
 
@@ -4390,8 +4462,8 @@ packages:
       react-devtools-core:
         optional: true
 
-  intl-messageformat@12.1.5:
-    resolution: {integrity: sha512-quhcDFAxy4wr/GrgWgmMjuegoedNUIxGNLORfXgDgdjuv8cBM88ClLTLXmfYC1roMSR1PPc55yUEkpJ5m67W2g==}
+  intl-messageformat@12.2.0:
+    resolution: {integrity: sha512-zFzW80iYSSJm4V185g3ItJQ96lBZ2RDO8O8qmRiPAAVKYXJeHfDQN2ITdtLlV+CjSi9Lo7zVW9xGt9CPCx7J6A==}
 
   ip-address@10.7.6:
     resolution: {integrity: sha512-00LYkM6byILa9eQIx6qoaXCM40xTLd56AZ4vyaPW3YTyb49VZYPo5xsiAq4tuQ54GH4R7gVdYScJ1B7B77PuTg==}
@@ -4597,24 +4669,28 @@ packages:
     engines: {node: '>= 12.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   lightningcss-linux-arm64-musl@1.33.0:
     resolution: {integrity: sha512-yiO5ROMuYQgXbC60yjZU5CYSFZGKXL0HFATXt9mHJn1+zW55oCtMI9NfcVhYLMFDL7gV7oBPon/EmMMGg2OvtQ==}
     engines: {node: '>= 12.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   lightningcss-linux-x64-gnu@1.33.0:
     resolution: {integrity: sha512-ar+Ju7LmcN0Jo4FpL4hpFybwNG9/3A/Br5KW2n2jyODg3MEZXaDYADdemoNS+BDNfMgKvylJLj4S5tyRActuAg==}
     engines: {node: '>= 12.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   lightningcss-linux-x64-musl@1.33.0:
     resolution: {integrity: sha512-RYiYbkokw0trfKqqzfF55lginwEPrD3OJDfTuJzFs1MK6iFnDenaz1fqLLtX4ITG3OktJQXOeTaw1awrBAlZPw==}
     engines: {node: '>= 12.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   lightningcss-win32-arm64-msvc@1.33.0:
     resolution: {integrity: sha512-1K+MPfLSFVpphzpdbfkhlWk6wBrTObBzS2T6db10PNOZgR9GoVsAWzwNyuhUYYbTp23j+4RrncfujZ4uAzXvwA==}
@@ -4671,6 +4747,15 @@ packages:
 
   lucide-react@1.74.0:
     resolution: {integrity: sha512-A1doIs/1fj1WnPbtIT7WRiM6Kvw5NUg+BtkoOh3Shpr4obwSDVt6WxCEcNH56EWprzuCoKle1OF0RqIkojwL1A==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  lucide-react@1.77.0:
+    resolution: {integrity: sha512-VS6sOi8ZUH1qm6swBL/tpI4xAhB6pFTdHvw3pfCJD+DaTJwpyynVzfOS6mdyMZ+OCdY/GMSQbqinOMOPbNSrQA==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -4778,8 +4863,8 @@ packages:
   next-intl-swc-plugin-extractor@4.15.1:
     resolution: {integrity: sha512-n+CrfyQ3obIpZoaHtlHvtTLg6EuFcmSC3c71Yv0Kh4/5zenBJ8WeYP/xAnsiwQjZcaK9zie0SHwWeIG+5OJaBw==}
 
-  next-intl@4.15.1:
-    resolution: {integrity: sha512-b0KOLdd2pv+uWTma2Lv8OlSLCAqa2zasCx6ZXo2n/0/rAGWkzgRdQ0nD7sl0xtuDFRPNu8sNm+cWgJic16Sbmg==}
+  next-intl@4.15.3:
+    resolution: {integrity: sha512-kvD3eTPydChHX0VN98NuCfyMs4Vq2/Fw/mJimX19jP3Z8uo0XxRvY/kecewMCvNWDRePNt4zz1kPus4d6Tv1KA==}
     peerDependencies:
       '@types/react': ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       next: ^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
@@ -5446,6 +5531,9 @@ packages:
   tailwind-merge@3.7.0:
     resolution: {integrity: sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA==}
 
+  tailwind-merge@3.7.1:
+    resolution: {integrity: sha512-v7y4BV4FUlO8exj/4M5UXKeoowDiuugVUg3tkMNIyOUCOHy5xp8+5aWQeXCtZ2491sUV1YPsVeM9EveZ6/xuZQ==}
+
   tailwindcss@4.3.5:
     resolution: {integrity: sha512-FcQk9BuffmEHJP2G0XmB2SplU1aLTI7j07Kunk+U74Ny+XiWOtzXz9aujFZ/avntw1e2cOv/3PkgzflQ7gX2vQ==}
 
@@ -5556,8 +5644,8 @@ packages:
       typescript:
         optional: true
 
-  turbo@2.11.11:
-    resolution: {integrity: sha512-AI4UJbUE/2cVZdoXJ4PODc8qvrjhQQX9Fa93eKGOI6Ims/w7+kUIb9T1jhlgSnZcf+gtUruci/ohSwqtNNC5Yw==}
+  turbo@2.11.13:
+    resolution: {integrity: sha512-2EZ8StW6tqaj71HGF60oUOmJrPQHidmZ5dcwv2VORofya9JthVrfZhxbzRMx/QxjPwYi754i2h5RFsZSDzpnaQ==}
     hasBin: true
 
   tw-animate-css@1.4.0:
@@ -5748,6 +5836,17 @@ packages:
 
   viem@2.58.0:
     resolution: {integrity: sha512-oBGZGy6VptLmAATtEua71a7FzCXT5y74dQoeDP8EDHmBsWhQ34rXeHKz6tHeciKWnJ3zBT1u8sby8tAtg0gouA==}
+    peerDependencies:
+      mppx: '>=0.17.0'
+      typescript: '>=5.0.4'
+    peerDependenciesMeta:
+      mppx:
+        optional: true
+      typescript:
+        optional: true
+
+  viem@2.58.4:
+    resolution: {integrity: sha512-zeYi2PliKbmJVbIvudHZrYJLh1XMXci6GBJznQLjhhGPGl9L7Hp/LmelpXhOM9VvlXwnvfW7/2PCgpjnc2j8MQ==}
     peerDependencies:
       mppx: '>=0.17.0'
       typescript: '>=5.0.4'
@@ -6026,12 +6125,12 @@ snapshots:
 
   '@asamuzakjp/nwsapi@2.3.9': {}
 
-  '@avakit/core@0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)':
+  '@avakit/core@0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)':
     dependencies:
       viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
     optionalDependencies:
       '@coinbase/wallet-sdk': 4.4.0(typescript@6.0.3)(zod@4.6.7)
-      '@web3auth/modal': 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
+      '@web3auth/modal': 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
     transitivePeerDependencies:
       - bufferutil
       - mppx
@@ -6039,9 +6138,9 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@avakit/react@0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
+  '@avakit/react@0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
-      '@avakit/core': 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)
+      '@avakit/core': 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)
       '@radix-ui/react-dialog': 1.3.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       class-variance-authority: 0.7.1
       clsx: 2.1.1
@@ -6049,7 +6148,7 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
       tailwind-merge: 3.7.0
-      viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+      viem: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     transitivePeerDependencies:
       - '@coinbase/wallet-sdk'
       - '@types/react'
@@ -6177,39 +6276,47 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@biomejs/biome@2.5.1':
+  '@biomejs/biome@2.6.8':
     optionalDependencies:
-      '@biomejs/cli-darwin-arm64': 2.5.1
-      '@biomejs/cli-darwin-x64': 2.5.1
-      '@biomejs/cli-linux-arm64': 2.5.1
-      '@biomejs/cli-linux-arm64-musl': 2.5.1
-      '@biomejs/cli-linux-x64': 2.5.1
-      '@biomejs/cli-linux-x64-musl': 2.5.1
-      '@biomejs/cli-win32-arm64': 2.5.1
-      '@biomejs/cli-win32-x64': 2.5.1
+      '@biomejs/cli-android-arm64': 2.6.8
+      '@biomejs/cli-android-x64': 2.6.8
+      '@biomejs/cli-darwin-arm64': 2.6.8
+      '@biomejs/cli-darwin-x64': 2.6.8
+      '@biomejs/cli-linux-arm64': 2.6.8
+      '@biomejs/cli-linux-arm64-musl': 2.6.8
+      '@biomejs/cli-linux-x64': 2.6.8
+      '@biomejs/cli-linux-x64-musl': 2.6.8
+      '@biomejs/cli-win32-arm64': 2.6.8
+      '@biomejs/cli-win32-x64': 2.6.8
 
-  '@biomejs/cli-darwin-arm64@2.5.1':
+  '@biomejs/cli-android-arm64@2.6.8':
     optional: true
 
-  '@biomejs/cli-darwin-x64@2.5.1':
+  '@biomejs/cli-android-x64@2.6.8':
     optional: true
 
-  '@biomejs/cli-linux-arm64-musl@2.5.1':
+  '@biomejs/cli-darwin-arm64@2.6.8':
     optional: true
 
-  '@biomejs/cli-linux-arm64@2.5.1':
+  '@biomejs/cli-darwin-x64@2.6.8':
     optional: true
 
-  '@biomejs/cli-linux-x64-musl@2.5.1':
+  '@biomejs/cli-linux-arm64-musl@2.6.8':
     optional: true
 
-  '@biomejs/cli-linux-x64@2.5.1':
+  '@biomejs/cli-linux-arm64@2.6.8':
     optional: true
 
-  '@biomejs/cli-win32-arm64@2.5.1':
+  '@biomejs/cli-linux-x64-musl@2.6.8':
     optional: true
 
-  '@biomejs/cli-win32-x64@2.5.1':
+  '@biomejs/cli-linux-x64@2.6.8':
+    optional: true
+
+  '@biomejs/cli-win32-arm64@2.6.8':
+    optional: true
+
+  '@biomejs/cli-win32-x64@2.6.8':
     optional: true
 
   '@bramus/specificity@2.4.3':
@@ -6341,7 +6448,7 @@ snapshots:
       clsx: 1.2.1
       eventemitter3: 5.0.4
       preact: 10.29.8
-      viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+      viem: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     transitivePeerDependencies:
       - bufferutil
       - mppx
@@ -6380,6 +6487,14 @@ snapshots:
 
   '@eloqnt/config@0.1.2': {}
 
+  '@eloqnt/extractor@0.1.0(@swc/helpers@0.5.23)':
+    dependencies:
+      '@eloqnt/messages': 0.1.0
+      '@swc/core': 1.16.22(@swc/helpers@0.5.23)
+      next-intl-swc-plugin-extractor: 4.15.1
+    transitivePeerDependencies:
+      - '@swc/helpers'
+
   '@eloqnt/format-json@0.1.1':
     dependencies:
       '@eloqnt/config': 0.1.2
@@ -6388,6 +6503,12 @@ snapshots:
     dependencies:
       '@eloqnt/config': 0.1.2
       po-parser: 2.2.0
+
+  '@eloqnt/messages@0.1.0':
+    dependencies:
+      '@eloqnt/config': 0.1.2
+      '@eloqnt/format-json': 0.1.1
+      '@eloqnt/format-po': 0.1.2
 
   '@emnapi/runtime@1.11.3':
     dependencies:
@@ -6896,7 +7017,7 @@ snapshots:
       '@noble/hashes': 1.3.3
       '@scure/base': 1.1.9
 
-  '@metamask/smart-accounts-kit@2.0.0(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
+  '@metamask/smart-accounts-kit@2.0.0(typescript@6.0.3)(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@metamask/7715-permission-types': 2.0.0
       '@metamask/delegation-abis': 2.0.0
@@ -6905,7 +7026,7 @@ snapshots:
       '@metamask/utils': 11.12.1
       openapi-fetch: 0.13.8
       ox: 0.8.1(typescript@6.0.3)(zod@4.6.7)
-      viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+      viem: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -7581,7 +7702,7 @@ snapshots:
 
   '@scure/bip32@1.7.0':
     dependencies:
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
 
@@ -8786,7 +8907,7 @@ snapshots:
       events: 3.3.0
       jwt-decode: 4.0.0
       loglevel: 1.9.2
-      viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+      viem: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     transitivePeerDependencies:
       - '@sentry/core'
       - bufferutil
@@ -8843,12 +8964,12 @@ snapshots:
     dependencies:
       '@noble/curves': 2.4.0
 
-  '@toruslabs/ethereum-controllers@9.15.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
+  '@toruslabs/ethereum-controllers@9.15.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)(typescript@6.0.3)(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@babel/runtime': 7.29.14
       '@metamask/delegation-core': 3.0.0
       '@metamask/delegation-deployments': 2.1.0
-      '@metamask/smart-accounts-kit': 2.0.0(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
+      '@metamask/smart-accounts-kit': 2.0.0(typescript@6.0.3)(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
       '@toruslabs/base-controllers': 9.15.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)(typescript@6.0.3)(zod@4.6.7)
       '@toruslabs/http-helpers': 9.0.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)
       '@toruslabs/metadata-helpers': 8.2.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)
@@ -8862,9 +8983,9 @@ snapshots:
       jsonschema: 1.5.0
       loglevel: 1.9.2
       ox: 0.11.3(typescript@6.0.3)(zod@4.6.7)
-      permissionless: 0.4.1(ox@0.11.3(typescript@6.0.3)(zod@4.6.7))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))
+      permissionless: 0.4.1(ox@0.11.3(typescript@6.0.3)(zod@4.6.7))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))
       uuid: 13.0.2
-      viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+      viem: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     transitivePeerDependencies:
       - '@sentry/core'
       - bufferutil
@@ -8958,22 +9079,22 @@ snapshots:
     transitivePeerDependencies:
       - '@sentry/core'
 
-  '@turbo/darwin-64@2.11.11':
+  '@turbo/darwin-64@2.11.13':
     optional: true
 
-  '@turbo/darwin-arm64@2.11.11':
+  '@turbo/darwin-arm64@2.11.13':
     optional: true
 
-  '@turbo/linux-64@2.11.11':
+  '@turbo/linux-64@2.11.13':
     optional: true
 
-  '@turbo/linux-arm64@2.11.11':
+  '@turbo/linux-arm64@2.11.13':
     optional: true
 
-  '@turbo/windows-64@2.11.11':
+  '@turbo/windows-64@2.11.13':
     optional: true
 
-  '@turbo/windows-arm64@2.11.11':
+  '@turbo/windows-arm64@2.11.13':
     optional: true
 
   '@types/aria-query@5.0.4': {}
@@ -9404,7 +9525,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)':
+  '@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)':
     dependencies:
       '@babel/runtime': 7.29.14
       '@hcaptcha/react-hcaptcha': 2.2.0
@@ -9413,7 +9534,7 @@ snapshots:
       '@toruslabs/base-controllers': 9.15.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)(typescript@6.0.3)(zod@4.6.7)
       '@toruslabs/http-helpers': 9.0.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)
       '@web3auth/auth': 11.8.3(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)
-      '@web3auth/no-modal': 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(color@5.0.3)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
+      '@web3auth/no-modal': 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(color@5.0.3)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
       '@web3auth/ws-embed': 6.1.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)(typescript@6.0.3)(zod@4.6.7)
       bowser: 2.15.0
       classnames: 2.5.1
@@ -9426,8 +9547,8 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
       react-i18next: 16.6.6(i18next@26.7.2(typescript@6.0.3))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)
       react-qrcode-logo: 4.1.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      tailwind-merge: 3.7.0
-      viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+      tailwind-merge: 3.7.1
+      viem: 2.58.4(typescript@6.0.3)(zod@4.6.7)
       vitest: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
     optionalDependencies:
       '@coinbase/wallet-sdk': 4.4.0(typescript@6.0.3)(zod@4.6.7)
@@ -9483,7 +9604,7 @@ snapshots:
       - vite
       - zod
 
-  '@web3auth/no-modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(color@5.0.3)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
+  '@web3auth/no-modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(color@5.0.3)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@babel/runtime': 7.29.14
       '@metamask/connect-evm': 2.1.1
@@ -9496,7 +9617,7 @@ snapshots:
       '@toruslabs/base-controllers': 9.15.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)(typescript@6.0.3)(zod@4.6.7)
       '@toruslabs/constants': 16.1.1(@babel/runtime@7.29.14)
       '@toruslabs/eccrypto': 7.0.0
-      '@toruslabs/ethereum-controllers': 9.15.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
+      '@toruslabs/ethereum-controllers': 9.15.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)(color@5.0.3)(typescript@6.0.3)(viem@2.58.4(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
       '@toruslabs/http-helpers': 9.0.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)
       '@toruslabs/loglevel-sentry': 9.0.0(@babel/runtime@7.29.14)
       '@toruslabs/metadata-helpers': 8.2.0(@babel/runtime@7.29.14)(@sentry/core@10.78.0)
@@ -9517,7 +9638,7 @@ snapshots:
       loglevel: 1.9.2
       mipd: 0.0.7(typescript@6.0.3)
       ripple-keypairs: 1.4.0
-      viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+      viem: 2.58.4(typescript@6.0.3)(zod@4.6.7)
       xrpl: 2.15.0
     optionalDependencies:
       '@coinbase/wallet-sdk': 4.4.0(typescript@6.0.3)(zod@4.6.7)
@@ -10465,7 +10586,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  intl-messageformat@12.1.5:
+  intl-messageformat@12.2.0:
     dependencies:
       '@formatjs/fast-memoize': 3.1.7
       '@formatjs/icu-messageformat-parser': 3.5.23
@@ -10716,6 +10837,12 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.3.0
 
+  lucide-react@1.77.0(@types/react@19.3.0)(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+    optionalDependencies:
+      '@types/react': 19.3.0
+
   lz-string@1.5.0: {}
 
   magic-string@0.30.21:
@@ -10805,11 +10932,13 @@ snapshots:
 
   next-intl-swc-plugin-extractor@4.15.1: {}
 
-  next-intl@4.15.1(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1):
+  next-intl@4.15.3(@swc/helpers@0.5.23)(@types/react@19.3.0)(next@16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1):
     dependencies:
       '@eloqnt/config': 0.1.2
+      '@eloqnt/extractor': 0.1.0(@swc/helpers@0.5.23)
       '@eloqnt/format-json': 0.1.1
       '@eloqnt/format-po': 0.1.2
+      '@eloqnt/messages': 0.1.0
       '@formatjs/intl-localematcher': 0.8.14
       '@parcel/watcher': 2.6.0
       '@swc/core': 1.16.22(@swc/helpers@0.5.23)
@@ -10944,7 +11073,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.2.3(typescript@6.0.3)(zod@4.6.7)
+      abitype: 1.3.0(typescript@6.0.3)(zod@4.6.7)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 6.0.3
@@ -10999,9 +11128,9 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  permissionless@0.4.1(ox@0.11.3(typescript@6.0.3)(zod@4.6.7))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7)):
+  permissionless@0.4.1(ox@0.11.3(typescript@6.0.3)(zod@4.6.7))(viem@2.58.4(typescript@6.0.3)(zod@4.6.7)):
     dependencies:
-      viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
+      viem: 2.58.4(typescript@6.0.3)(zod@4.6.7)
     optionalDependencies:
       ox: 0.11.3(typescript@6.0.3)(zod@4.6.7)
 
@@ -11559,6 +11688,8 @@ snapshots:
 
   tailwind-merge@3.7.0: {}
 
+  tailwind-merge@3.7.1: {}
+
   tailwindcss@4.3.5: {}
 
   tapable@2.3.4: {}
@@ -11665,14 +11796,14 @@ snapshots:
       - tsx
       - yaml
 
-  turbo@2.11.11:
+  turbo@2.11.13:
     optionalDependencies:
-      '@turbo/darwin-64': 2.11.11
-      '@turbo/darwin-arm64': 2.11.11
-      '@turbo/linux-64': 2.11.11
-      '@turbo/linux-arm64': 2.11.11
-      '@turbo/windows-64': 2.11.11
-      '@turbo/windows-arm64': 2.11.11
+      '@turbo/darwin-64': 2.11.13
+      '@turbo/darwin-arm64': 2.11.13
+      '@turbo/linux-64': 2.11.13
+      '@turbo/linux-arm64': 2.11.13
+      '@turbo/windows-64': 2.11.13
+      '@turbo/windows-arm64': 2.11.13
 
   tw-animate-css@1.4.0: {}
 
@@ -11755,7 +11886,7 @@ snapshots:
       '@formatjs/fast-memoize': 3.1.7
       '@schummar/icu-type-parser': 1.21.5
       icu-minify: 4.15.2
-      intl-messageformat: 12.1.5
+      intl-messageformat: 12.2.0
       react: 19.3.1
     optionalDependencies:
       '@types/react': 19.3.0
@@ -11791,6 +11922,23 @@ snapshots:
   vary@1.1.2: {}
 
   viem@2.58.0(typescript@6.0.3)(zod@4.6.7):
+    dependencies:
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.2.3(typescript@6.0.3)(zod@4.6.7)
+      isows: 1.0.7(ws@8.21.0)
+      ox: 0.14.67(typescript@6.0.3)(zod@4.6.7)
+      ws: 8.21.0
+    optionalDependencies:
+      typescript: 6.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+
+  viem@2.58.4(typescript@6.0.3)(zod@4.6.7):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
