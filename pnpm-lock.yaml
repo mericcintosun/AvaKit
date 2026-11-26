@@ -16,8 +16,8 @@ catalogs:
       specifier: 6.0.3
       version: 6.0.3
     vitest:
-      specifier: 4.1.12
-      version: 4.1.12
+      specifier: 5.1.1
+      version: 5.1.1
 
 importers:
 
@@ -31,7 +31,7 @@ importers:
         version: 3.0.3
       '@vitest/coverage-v8':
         specifier: 4.1.12
-        version: 4.1.12(vitest@4.1.12)
+        version: 4.1.12(vitest@5.1.1)
       turbo:
         specifier: 2.11.11
         version: 2.11.11
@@ -43,10 +43,10 @@ importers:
     dependencies:
       '@avakit/core':
         specifier: ^0.2.3
-        version: 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)
+        version: 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)
       '@avakit/react':
         specifier: ^0.2.3
-        version: 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
+        version: 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)
       '@google/model-viewer':
         specifier: 4.4.0
         version: 4.4.0(three@0.183.2)
@@ -143,7 +143,7 @@ importers:
         version: link:../../packages/react
       '@web3auth/modal':
         specifier: 11.4.3
-        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
+        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
       lucide-react:
         specifier: 1.74.0
         version: 1.74.0(@types/react@19.3.0)(react@19.3.1)
@@ -198,7 +198,7 @@ importers:
         version: link:../../packages/react
       '@web3auth/modal':
         specifier: 11.4.3
-        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
+        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
       lucide-react:
         specifier: 1.74.0
         version: 1.74.0(@types/react@19.3.0)(react@19.3.1)
@@ -254,7 +254,7 @@ importers:
     devDependencies:
       '@web3auth/modal':
         specifier: 11.4.3
-        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
+        version: 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
       tsup:
         specifier: 'catalog:'
         version: 8.5.1(@swc/core@1.16.22(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.33)(typescript@6.0.3)(yaml@2.9.1)
@@ -263,7 +263,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+        version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
 
   packages/create-avalanche-app:
     dependencies:
@@ -294,7 +294,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+        version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
 
   packages/mcp:
     dependencies:
@@ -322,7 +322,7 @@ importers:
         version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+        version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -377,7 +377,7 @@ importers:
         version: 2.58.0(typescript@6.0.3)(zod@4.6.7)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+        version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
 
   packages/studio:
     dependencies:
@@ -438,7 +438,7 @@ importers:
         version: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+        version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
 
 packages:
 
@@ -601,24 +601,28 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@biomejs/cli-linux-arm64@2.5.1':
     resolution: {integrity: sha512-yhV35CzZh38VyMvTEXi3JTjxZBs++oCKK9KG8vB6VI5+uvQvZNR3BFWEKKzuOmx9DJJj7sQpZ4LQJcmbGTs3+Q==}
     engines: {node: '>=14.21.3'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@biomejs/cli-linux-x64-musl@2.5.1':
     resolution: {integrity: sha512-ANTowtlLmPYm5yeMckWY8Xzb9Ix+JJP3tgHR/n6xRj1VWyIzzWtfRfih9hv9VmClwadpBvZduISZIbBsIlYG3A==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@biomejs/cli-linux-x64@2.5.1':
     resolution: {integrity: sha512-J/7uHSX7NfoYDI7HijAkd8lnQIOrRb2W7j3X+tw4R+N5ExvXGsyXFiGdQcfcxfOmNQmZVSQOCDk757fwpzqQcg==}
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@biomejs/cli-win32-arm64@2.5.1':
     resolution: {integrity: sha512-zgXnKNgWPC4iPF7Y1lR3STUeCUuZRpD6IiOrC7TZTlh0Lx6FiVUT05myuMQHQ9D+1cc7uyMldi4forE6lp0ivQ==}
@@ -1179,89 +1183,105 @@ packages:
     resolution: {integrity: sha512-Y3dgX/6lE2QhQb+Gxy0WZxfg9MEm/JBjamZpS2IklP7xIQoKN4hzAm7KcMVGtaVDt3neE9OKBC7vAfonA/Lr1A==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-arm@1.3.4':
     resolution: {integrity: sha512-LmRtTsOHuvM2+wlO2Db37dx5MiZhB0FvSunciw48YjdOkZz9KAiRbm8ujeMOA1INqmei5NapFxYEK1D1ZSidmw==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-ppc64@1.3.4':
     resolution: {integrity: sha512-Le6boB8Tai0Nis+gIxIpKx68UDVVIqdR8Tin5Yf1z2LJJQLDJvCDRqRu+jC2qCoD+eIomonmOwB4smBRxfVpYQ==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-riscv64@1.3.4':
     resolution: {integrity: sha512-aHkkIEHPRdQEegJN20MLmGtxYD9R2wQr3Cwpddnu5+YKMt6Uzax7S9h5gpZTo8wyrGuZSlfQ63OevL5mTyOC7Q==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-s390x@1.3.4':
     resolution: {integrity: sha512-ra/mB6MikESDUO7Yg+Mi95bFBb9GsObURuhnOv3OqknjGe9sZrG8tCe9q0xSIGrtLgvgw0gKnFWcK4blSgQOuQ==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-x64@1.3.4':
     resolution: {integrity: sha512-GJ//SSXbnwSDes02umB3nDJLFcQzw8a18V8fyhqr6tV515tOEMdImjjxj1AoafMRz56F3PHgftnj1QEKSU1zkw==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linuxmusl-arm64@1.3.4':
     resolution: {integrity: sha512-hvulFwtjUcagsis6BBxHwGFwWoNZjgYmULGVrZcyfNbjA8hKILbRxGg15/7w5HDyXHXUos/j6baAWqnCyQ2DWA==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-libvips-linuxmusl-x64@1.3.4':
     resolution: {integrity: sha512-6zXKeE/p39I1AmA3cJG35eyBGNqNddLnUXjhwBnsGjFPWqf5VKkDBEqaEkPDoTEtkxwi2vv8Tcr2mDyP4So7Fg==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linux-arm64@0.35.5':
     resolution: {integrity: sha512-LYVx5JTsOM2CBzmxreh+nl64/3H6Xb09iSLknqH47z2T2DFFxDeFLP5y4dJwe6H7uGQlHPyEEtIqyo3DYsRwdQ==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-arm@0.35.5':
     resolution: {integrity: sha512-LEaXK2WdXVK5ykcw0buWyPMsmLLL2vpHLD6yrNSW+JGEL3BZPA4tpKN6iaMc4AxTTAoaX/sU1rOL51lcIz48ZQ==}
     engines: {node: '>=20.9.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-ppc64@0.35.5':
     resolution: {integrity: sha512-QVxAAq8evVRI9ia2vqgwrmWucn5Dfv+JdWzj75pD8omHLPSP7f8p20O8jxzjCcuCEQEOtYOZUmX1hkiZ0kdevA==}
     engines: {node: '>=20.9.0'}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-riscv64@0.35.5':
     resolution: {integrity: sha512-LtdreXguaavKODPIfzJ4kffx7UNt1omwtK0rch4EBbbSTXPnxWmYSayXdLJw0fJzQ97kHt1gL/yh4tvU+nCyRQ==}
     engines: {node: '>=20.9.0'}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-s390x@0.35.5':
     resolution: {integrity: sha512-UZasTOFiYzotTsGOCu42BfUzP6Tu6Do/947iRm1RsLKvlllxwGcn4RN27LibGWceix4Y+Pmw3jsnTcCQIgWjqA==}
     engines: {node: '>=20.9.0'}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-x64@0.35.5':
     resolution: {integrity: sha512-SxFtLTeJInhAA9Q836kux2vZNeOBQEx658qvbboZScr0wIARym3IcGmW7KpVD5sbVg0Ojy+udFQdayYIZyoNog==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linuxmusl-arm64@0.35.5':
     resolution: {integrity: sha512-9HbMclmI1zlNkFRs3z9/eBtDjfD0sGlrX1z6b1qwmiFY5ElDLh4BC0LPBdVp7z1DXFiKlIcznf+ZlsuZzLxQqg==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linuxmusl-x64@0.35.5':
     resolution: {integrity: sha512-4KOphqB035HrVdqLZfCgMzzERrQkkzOwRhl4OAkRO1YCldbaFjySXMaK534Mo0V+LndnlJk+sbUyLeU0ULyD1A==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-wasm32@0.35.5':
     resolution: {integrity: sha512-Ptsga1su4tQx+LLF1ECS9U6nz5kmrXKo6XVbtR48Ke3ZRxxgaWBu7IDtEe1quo8hiupwm6WFqxVlXaSf7IINGQ==}
@@ -1467,24 +1487,28 @@ packages:
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@next/swc-linux-arm64-musl@16.4.6':
     resolution: {integrity: sha512-7/qPhTxDp2ScluOJOhLuhWmlA17o1yZ0SIgpISBCpBxXgtnK4+KGywBpFkfLPiU1rnSM1faFGzYkH6i7JdTrqA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@next/swc-linux-x64-gnu@16.4.6':
     resolution: {integrity: sha512-oOpbNa8XOW1qCGd9VvzC4fbkkRxEls7/WI6tz+YHC0xRA7KpV1U7DrAnCPjzVyOk/karzWEepCOcTIDmwK8FwQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@next/swc-linux-x64-musl@16.4.6':
     resolution: {integrity: sha512-aM8CZ+OR2EwXaAYw7KGkW2GDmNDsLBIRe1MMRZCJPTdw/xhTD0IMUVO4sf3KqrzuRouGzwwLZn34+gFeVXiUQA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@next/swc-win32-arm64-msvc@16.4.6':
     resolution: {integrity: sha512-U0p7/tEtqvHX2crhd841CDwKtp5CFkKXVjOhmfccR3Pvp64sj8KBwRqsvltqLOwVBbj0NtkxwXSDpEHYGbxeXQ==}
@@ -1556,6 +1580,7 @@ packages:
     resolution: {integrity: sha512-dPrQbmvAYfTcSvP1tWC1+ulF8TMMtLTdngP4KeMjsm5JMGCNK2fMPOB4/Pk1ayQ9L352mYUhbohBdififRvnfA==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-android-arm64@2.6.0':
     resolution: {integrity: sha512-trgpLSCKRC/huFjXX/Smh+0sWe4+YtKfktIToiMl59ghz7z+qkH6kMvNnUbLyRs9N11t8l4svSCs1+5B3rOAhA==}
@@ -1586,36 +1611,42 @@ packages:
     engines: {node: '>= 10.0.0'}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-arm-musl@2.6.0':
     resolution: {integrity: sha512-9c6AUHgHoG+IY88MRIHupztQiQnrbqHYQjkM2btA+Bf/wQnQMuiD0Wfk1EVv3TlNT3x41uU71rn6E4xh/+zvkw==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-linux-arm64-glibc@2.6.0':
     resolution: {integrity: sha512-yHRqS2owEXe6Hic9z6Mh1ECsCd+ODVOGvZDyciqRd21+v+o+DnXMOrw50DSpIG2sb8GPEaPPmfeCAWKPJdq46g==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-arm64-musl@2.6.0':
     resolution: {integrity: sha512-WhB2e/V7rqdHHWZusBSPuy5Ei8S6lSz6FE5TKKQz5h3a0O+C+mhY7vxU9b/stqvMb8beLnPY82ZrFTLKs+SrKA==}
     engines: {node: '>= 10.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-linux-x64-glibc@2.6.0':
     resolution: {integrity: sha512-ulGE6x6Oz6iAwg75T8YQSoguBWasniIbX+QWpaYPcCnDOpdWX3k+4xbEYPZVLxOuoJI+svJJPD3sEj8G7lrQ3A==}
     engines: {node: '>= 10.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@parcel/watcher-linux-x64-musl@2.6.0':
     resolution: {integrity: sha512-tkBYKt7YQrjIJWYDnto2YgO8MRkjlMTSNoRHzsXinBqbLdeOM3L32wPZJvIZxqaLMfSlS/4sUjH/6STVP/XDLw==}
     engines: {node: '>= 10.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@parcel/watcher-win32-arm64@2.6.0':
     resolution: {integrity: sha512-gIZAP23jaHjGWasY/TY6yL7NHFClf0Ga7FN+iINvk+KN94rhm94lYZhFsbYFNcA04/onvGD9kKmiJLJB2HbNwQ==}
@@ -2059,66 +2090,79 @@ packages:
     resolution: {integrity: sha512-b2w9laiL8oWofYqGF+ABzin9wNMPxzHRD21EIPJ5A0iniq19d3flE4UP7uZKl1gj+d3Kv/bt1htVUSzI0bE1TQ==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm-musleabihf@4.68.4':
     resolution: {integrity: sha512-Ao858LxFnvGrn4qbin3rr+LmEhOrF9pQKgzEnT14f9KjOpytd5smOuj7OOtkejJ7YVb5cBdPpYdT1zjwNcNq9g==}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-arm64-gnu@4.68.4':
     resolution: {integrity: sha512-B78SoWLJeAleSOIDFZ+twb+7DoBla0g73LrdkxlkNwicAsrLfHeYX+NcPlOmxZ3Z8vKVvj0J/kmIMzEaqbQNGg==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm64-musl@4.68.4':
     resolution: {integrity: sha512-IK0JVhVLGer5AlmgU0eMbfuldxO1wNACZBwyq+ot9UW899hhkWPcO3k0eIrNlqmuWrySvMtzr7GK9xkbNekOTQ==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-loong64-gnu@4.68.4':
     resolution: {integrity: sha512-6MoYXMYy+6eqtVesSNehfsS3LY4A0P8MpHfhcnMkVsWVhaLv0vvuCj2EGkanchIoyHxAmxY+aR3ankaTkokC2A==}
     cpu: [loong64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-loong64-musl@4.68.4':
     resolution: {integrity: sha512-mo+MC3fHiG4EOdtp7uGSvBv/4hKpqxhV16QGpXn2D0mTBBiOW6hGIOXUK7nck8THlURRWjYdtUPvvJfxHKZ/2w==}
     cpu: [loong64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-ppc64-gnu@4.68.4':
     resolution: {integrity: sha512-uBRu6ztHsmoW/10bPsOVbhW8ie4Puw6+CQD/XLRGqr3ugv6pRNm3b4vebiwouhCgkjJ/ItJdqHKJ3mVhpr/wQA==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-ppc64-musl@4.68.4':
     resolution: {integrity: sha512-XNY+QlYWmhqzeiMdOKjziVnx6aP5cXSxbk4rDqbb+MH2IcNiIZWX1wPRfAVV6ntiM17XHJJ2WUNcxnglDNH69A==}
     cpu: [ppc64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-riscv64-gnu@4.68.4':
     resolution: {integrity: sha512-agahuMApMIOQgJMNEaJNtQRD+iUllqAvkF/V7WutWaBLTSeMgFd0urEo6m1scFmG0Cd+2zIPvnu2SWcKeuSB1Q==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-musl@4.68.4':
     resolution: {integrity: sha512-1N+ysuGmcw/PAC4E5/vpotbjC7zHBMqOMJ+kdjkuvVGbj4Mkzu1/cNI4IMaU27VP6MWded1fQAU9ME2m/JmiUA==}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-s390x-gnu@4.68.4':
     resolution: {integrity: sha512-ZO0fVys5Rtut3W0FcpKl/T/CTuTgaujErjanLJHVSmqhWaXnPr1u1VAinHPb8ash+cHA8yMX4QnRbmXhrrXfAg==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-gnu@4.68.4':
     resolution: {integrity: sha512-a4T4Ji3Is/TCh4rUuV6ehDdSMp3hxLH/v7mP4VT0kVB90Hfr9GUHVAiJhiJ3iy+tJ4qpvIG4haP+HpivOyWYpw==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-musl@4.68.4':
     resolution: {integrity: sha512-I4FcDk1+t2w7/JwKakDbhOKvtP07Q8Y/jqaTTdgVklmfqTqmTwtIk254iSP4iCgXgQWThKm8CN67mDzPGDnpqw==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-openbsd-x64@4.68.4':
     resolution: {integrity: sha512-kpekXvZs3E/21ps5tUiPbQggi4C8bCx4jBl2eAIaVTerC7eDLWJunZ6nRw3/K4r20E5Z5f1bmbrfSS6H8GRv+A==}
@@ -3025,36 +3069,42 @@ packages:
     engines: {node: '>=10'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-arm64-musl@1.16.22':
     resolution: {integrity: sha512-ophleEwlj0SqkzYPDJ7xMPK0+MnWfc4+u9GzDYLLFG1TkIJuwj0rHNWto4MmKo00TylHFwGx9+5bLs/+YZ00IQ==}
     engines: {node: '>=10'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@swc/core-linux-ppc64-gnu@1.16.22':
     resolution: {integrity: sha512-/4kR7SafFsVqY8N4HSepTs4Ni9YA0OY6n/SVBk/V15PhDiw97stG9SVqvgc8EzC+3XOe4pTmwlvFLWzNYfuNWg==}
     engines: {node: '>=10'}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-s390x-gnu@1.16.22':
     resolution: {integrity: sha512-b3GQqKmHBHUFQby1sh/QLtNQMMXTSBUhnmXcJ5qSrWbkYnhljIW3Y+30eMrrxCfy7HXLLDug1sjlhJDhf3tPhA==}
     engines: {node: '>=10'}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-x64-gnu@1.16.22':
     resolution: {integrity: sha512-u9hdfNEI3oI/dTRJ+In8G32EgfFpZDvMoI5elIERl6/XfaIzE9gpv4WomhKblAXA1+EYyLfDCS1EFFKQlBXTQQ==}
     engines: {node: '>=10'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@swc/core-linux-x64-musl@1.16.22':
     resolution: {integrity: sha512-C3YVRL717kKSSU8n6HaC7sesFSGnHjRuHN3609Wl4epPYVDDutzD6aj7CMcx9cg3WWJ/oE8woDZ8qrCfzmxvnw==}
     engines: {node: '>=10'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@swc/core-win32-arm64-msvc@1.16.22':
     resolution: {integrity: sha512-+MpNuE45LMFo+6RF8vMUqZPmaOfRQIuzCUHJ+jSXwEhiR5KHeZiQ9MaJglZRDeMuML67voCiFLrxqYTqGCbcCQ==}
@@ -3130,24 +3180,28 @@ packages:
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@tailwindcss/oxide-linux-arm64-musl@4.3.5':
     resolution: {integrity: sha512-H9lsvO4x9E4nE4Hi8h7NHHw0O/kcVSu+iOyFHNGdYzazGgDjFHZbE6S3hQ8kMcbNXSBlMdNi67LV5EVqtpaJtw==}
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@tailwindcss/oxide-linux-x64-gnu@4.3.5':
     resolution: {integrity: sha512-4uxQvtBvPuIdl13WfUBj9xMZHH14PtHZ8OZdtLmdyDtG66sCa1t599NZT+jagkUzRtWhuul1qRZQ1nAJscXN5g==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@tailwindcss/oxide-linux-x64-musl@4.3.5':
     resolution: {integrity: sha512-0JQAzs7jwbA7O6+z/adU+Jk3AXwsu3npAhtr5escXS7TqEqWcaDV7qHuI+0Vy/KQRuVGnLQREcSJWYauyV3oqg==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@tailwindcss/oxide-wasm32-wasi@4.3.5':
     resolution: {integrity: sha512-OJhFmlEfdzMr+avACdi40RPtnkW0B6hXyxL/8r+tnEHBWZji36CYRjEXrrvgBmaYsD3oEOBqwYFRKsYvzFe7Bw==}
@@ -3411,6 +3465,17 @@ packages:
       vite:
         optional: true
 
+  '@vitest/mocker@5.1.1':
+    resolution: {integrity: sha512-b2OgTB4+3ImWIVafXKazJXwLKwQxUNnix6b3xUvUTMh7RyXlrtzoxfZr8aEz9zkHOMAS4K5lu3TvFWoiVeVTQg==}
+    peerDependencies:
+      msw: ^2.4.9 || ^3.0.0
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
+    peerDependenciesMeta:
+      msw:
+        optional: true
+      vite:
+        optional: true
+
   '@vitest/pretty-format@4.1.12':
     resolution: {integrity: sha512-XW9O8+Mxx4VpCtkYdMJLZQQwsVryP9wk7cPKDxtXFfwSak6yRh5+2fep/Y0XF/ElBvJHq8bcYdi6aeuai0opZA==}
 
@@ -3422,6 +3487,9 @@ packages:
 
   '@vitest/spy@4.1.12':
     resolution: {integrity: sha512-RGq9x4JNGNTZHEJxvN0oSiJjeSCExm0n2gZKKJZHY9cX5AVA6M7VJILBT3ZJ/tJ/0J9uWT7fETV9/btoi//vSg==}
+
+  '@vitest/spy@5.1.1':
+    resolution: {integrity: sha512-6K8C6alQG1/Yc8/ZI22iJS7JEsxPdVzqtqDq+/xM4Z0mGVykemMVjLhqMy/q6/IHYG3kKD8hKSwRen/ZdyI9vQ==}
 
   '@vitest/utils@4.1.12':
     resolution: {integrity: sha512-Q3awXrwOfEV+qc3WmO5ONyE0yO7Q1gQ9/oyHxGLZ/pl7N3NO/ZztqQwKLuwMkV+CA1JYSIeO3gkHnRDIo4AVaA==}
@@ -4597,24 +4665,28 @@ packages:
     engines: {node: '>= 12.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   lightningcss-linux-arm64-musl@1.33.0:
     resolution: {integrity: sha512-yiO5ROMuYQgXbC60yjZU5CYSFZGKXL0HFATXt9mHJn1+zW55oCtMI9NfcVhYLMFDL7gV7oBPon/EmMMGg2OvtQ==}
     engines: {node: '>= 12.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   lightningcss-linux-x64-gnu@1.33.0:
     resolution: {integrity: sha512-ar+Ju7LmcN0Jo4FpL4hpFybwNG9/3A/Br5KW2n2jyODg3MEZXaDYADdemoNS+BDNfMgKvylJLj4S5tyRActuAg==}
     engines: {node: '>= 12.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   lightningcss-linux-x64-musl@1.33.0:
     resolution: {integrity: sha512-RYiYbkokw0trfKqqzfF55lginwEPrD3OJDfTuJzFs1MK6iFnDenaz1fqLLtX4ITG3OktJQXOeTaw1awrBAlZPw==}
     engines: {node: '>= 12.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   lightningcss-win32-arm64-msvc@1.33.0:
     resolution: {integrity: sha512-1K+MPfLSFVpphzpdbfkhlWk6wBrTObBzS2T6db10PNOZgR9GoVsAWzwNyuhUYYbTp23j+4RrncfujZ4uAzXvwA==}
@@ -4870,6 +4942,10 @@ packages:
 
   obug@2.2.1:
     resolution: {integrity: sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q==}
+    engines: {node: '>=12.20.0'}
+
+  obug@3.0.0:
+    resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
 
   ofetch@1.5.1:
@@ -5477,6 +5553,10 @@ packages:
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
 
+  tinybench@6.2.4:
+    resolution: {integrity: sha512-SQ52jEncXxbMCzJuY2A/jGIbbAu6NYsBWW7grz2pNE+EnzQdoGaoBfpk4qC/opE7qiUcGmGgaGIz5EoHdS1O9w==}
+    engines: {node: '>=20.0.0'}
+
   tinyexec@0.3.2:
     resolution: {integrity: sha512-KQQR9yN7R5+OSwaK0XQoj22pwHoTlgYqmUscPYoknOoWCWfj/5/ABTMRi69FrKU5ffPVh5QcFikpWJI/P1ocHA==}
 
@@ -5838,6 +5918,47 @@ packages:
       jsdom:
         optional: true
 
+  vitest@5.1.1:
+    resolution: {integrity: sha512-trVmzUFOSraCZcI3uZIMD5FqBh4atFkC/XuJP/IU7qtyQay0FCs3Ia+0QiQ2JJwGyWG/xrcBoJNel2+O7kEZ0g==}
+    engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
+    hasBin: true
+    peerDependencies:
+      '@edge-runtime/vm': '*'
+      '@opentelemetry/api': ^1.9.0
+      '@types/node': ^22.0.0 || >=24.0.0
+      '@vitest/browser-playwright': 5.1.1
+      '@vitest/browser-preview': 5.1.1
+      '@vitest/browser-webdriverio': ^5.0.0-beta.5 || >=5.0.0
+      '@vitest/coverage-istanbul': 5.1.1
+      '@vitest/coverage-v8': 5.1.1
+      '@vitest/ui': 5.1.1
+      happy-dom: '*'
+      jsdom: '*'
+      vite: ^6.4.0 || ^7.0.0 || ^8.0.0
+    peerDependenciesMeta:
+      '@edge-runtime/vm':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@types/node':
+        optional: true
+      '@vitest/browser-playwright':
+        optional: true
+      '@vitest/browser-preview':
+        optional: true
+      '@vitest/browser-webdriverio':
+        optional: true
+      '@vitest/coverage-istanbul':
+        optional: true
+      '@vitest/coverage-v8':
+        optional: true
+      '@vitest/ui':
+        optional: true
+      happy-dom:
+        optional: true
+      jsdom:
+        optional: true
+
   void-elements@3.1.0:
     resolution: {integrity: sha512-Dhxzh5HZuiHQhbvTW9AMetFfBHDMYpo23Uo9btPXgdYP+3T5S+p+jgNy7spra+veYhBP2dCSgxR/i2Y02h5/6w==}
     engines: {node: '>=0.10.0'}
@@ -5876,6 +5997,11 @@ packages:
   why-is-node-running@2.3.0:
     resolution: {integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==}
     engines: {node: '>=8'}
+    hasBin: true
+
+  why-is-node-running@3.2.1:
+    resolution: {integrity: sha512-Tb2FUhB4vUsGQlfSquQLYkApkuPAFQXGFzxWKHHumVz2dK+X1RUm/HnID4+TfIGYJ1kTcwOaCk/buYCEJr6YjQ==}
+    engines: {node: '>=20.11'}
     hasBin: true
 
   widest-line@6.0.0:
@@ -6026,12 +6152,12 @@ snapshots:
 
   '@asamuzakjp/nwsapi@2.3.9': {}
 
-  '@avakit/core@0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)':
+  '@avakit/core@0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)':
     dependencies:
       viem: 2.58.0(typescript@6.0.3)(zod@4.6.7)
     optionalDependencies:
       '@coinbase/wallet-sdk': 4.4.0(typescript@6.0.3)(zod@4.6.7)
-      '@web3auth/modal': 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
+      '@web3auth/modal': 11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)
     transitivePeerDependencies:
       - bufferutil
       - mppx
@@ -6039,9 +6165,9 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@avakit/react@0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
+  '@avakit/react@0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
-      '@avakit/core': 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)
+      '@avakit/core': 0.2.3(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7))(typescript@6.0.3)(zod@4.6.7)
       '@radix-ui/react-dialog': 1.3.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       class-variance-authority: 0.7.1
       clsx: 2.1.1
@@ -9052,7 +9178,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitest/coverage-v8@4.1.12(vitest@4.1.12)':
+  '@vitest/coverage-v8@4.1.12(vitest@5.1.1)':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
       '@vitest/utils': 4.1.12
@@ -9064,7 +9190,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+      vitest: 5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
 
   '@vitest/expect@4.1.12':
     dependencies:
@@ -9080,6 +9206,15 @@ snapshots:
       '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
+    optionalDependencies:
+      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)
+
+  '@vitest/mocker@5.1.1(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))':
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      '@vitest/spy': 5.1.1
+      estree-walker: 3.0.3
+      magic-string: 1.4.5
     optionalDependencies:
       vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)
 
@@ -9100,6 +9235,8 @@ snapshots:
       pathe: 2.0.3
 
   '@vitest/spy@4.1.12': {}
+
+  '@vitest/spy@5.1.1': {}
 
   '@vitest/utils@4.1.12':
     dependencies:
@@ -9404,7 +9541,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12(vitest@4.1.12))(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)':
+  '@web3auth/modal@11.4.3(@babel/runtime@7.29.14)(@coinbase/wallet-sdk@4.4.0(typescript@6.0.3)(zod@4.6.7))(@sentry/core@10.78.0)(@solana/client@1.7.0(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/react@19.3.0)(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1)))(@solana/kit@6.10.0(typescript@6.0.3))(@solana/sysvars@6.10.0(typescript@6.0.3))(@types/node@26.6.6)(@types/react@19.3.0)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)(use-sync-external-store@1.7.0(react@19.3.1))(viem@2.58.0(typescript@6.0.3)(zod@4.6.7))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))(zod@4.6.7)':
     dependencies:
       '@babel/runtime': 7.29.14
       '@hcaptcha/react-hcaptcha': 2.2.0
@@ -10895,6 +11032,8 @@ snapshots:
 
   obug@2.2.1: {}
 
+  obug@3.0.0: {}
+
   ofetch@1.5.1:
     dependencies:
       destr: 2.0.5
@@ -11589,6 +11728,8 @@ snapshots:
 
   tinybench@2.9.0: {}
 
+  tinybench@6.2.4: {}
+
   tinyexec@0.3.2: {}
 
   tinyexec@1.3.1: {}
@@ -11846,7 +11987,30 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 26.6.6
-      '@vitest/coverage-v8': 4.1.12(vitest@4.1.12)
+      '@vitest/coverage-v8': 4.1.12(vitest@5.1.1)
+      jsdom: 29.1.1(@noble/hashes@2.4.0)
+    transitivePeerDependencies:
+      - msw
+
+  vitest@5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@4.1.12)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)):
+    dependencies:
+      '@types/chai': 5.2.3
+      '@vitest/mocker': 5.1.1(vite@7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+      chai: 6.3.0
+      es-module-lexer: 2.3.2
+      expect-type: 1.4.0
+      magic-string: 1.4.5
+      obug: 3.0.0
+      picomatch: 4.0.7
+      std-env: 4.3.0
+      tinybench: 6.2.4
+      tinyexec: 1.3.1
+      tinyglobby: 0.2.17
+      vite: 7.3.8(@types/node@26.6.6)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)
+      why-is-node-running: 3.2.1
+    optionalDependencies:
+      '@types/node': 26.6.6
+      '@vitest/coverage-v8': 4.1.12(vitest@5.1.1)
       jsdom: 29.1.1(@noble/hashes@2.4.0)
     transitivePeerDependencies:
       - msw
@@ -11894,6 +12058,8 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  why-is-node-running@3.2.1: {}
 
   widest-line@6.0.0:
     dependencies:
